@@ -15,6 +15,7 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 - DICOM 전체 등록: `python run.py setup-dicom`
 - Storage 서버/옵션만: `python run.py setup-storage`
 - WorkFlow_01 MWL+Local 9단계: `python run.py run-wf01`
+- WorkFlow_02 2D/3D Demo 촬영 및 Tool 적용: `python run.py run-wf02`
 - Local 검사 + F8 Demo 촬영: `python run.py run-ui`
 - XIPL 01~03 실제 UI 시험: `python run.py run-xipl`
 - XIPL 표시값 비교(TC01)만: `python run.py run-xipl-01`
@@ -55,6 +56,12 @@ Print Overlay는 별도 후속 자동화 범위이며 현재 `setup-dicom`에서
 INSTANCE 수, 영상 그룹, Series/SOP Instance UID, Dose 정보를 DB에서 대조한다.
 Demo 영상 내용 자체는 선택한 View Position과 연관되지 않으므로 화질·해부학적
 적합성은 자동 PASS로 판정하지 않는다.
+
+`run-wf02`는 최신 `DATA_FLOW_MWL_01` 보류 검사 중 영상이 없는 검사만 연다. 2D LCC와
+3D-N LCC를 창 상대 위치로 등록하고 Demo F8 촬영 후 `INSTANCE.InstanceType` 0/1/2/3
+(2D/Raw/Recon/Syn)을 확인한다. 2D와 3D Recon에 W/L, Zoom, Pan, Arrow Annotation을
+컨트롤 ID로 적용하고 단계별 화면 변화량과 PNG 증적을 저장한다. `viewer.demo_mode=true`가
+아니면 실제 X-ray 노출을 피하기 위해 촬영 전에 FAIL로 중단한다.
 
 ## XIPL
 

@@ -9,6 +9,7 @@
   {"tc_id":"TC_Basic_Install_08","level":"PARTIAL","reason":"데이터 유지 자동 판정, Upgrade 실행은 수동"},
   {"tc_id":"TC_Basic_Install_09","level":"PARTIAL","reason":"잔존 데이터 자동 판정, Uninstall은 파괴적 수동 작업"},
   {"tc_id":"TC_Basic_WorkFlow_01","level":"FULL","reason":"MWL 처방 HTTP 준비·조회·정보 대조·보류와 Local 환자 생성·DB 대조 9단계 완전자동"},
+  {"tc_id":"TC_Basic_WorkFlow_02","level":"FULL","reason":"최신 MWL 보류 검사 재개, 2D/3D-N Demo 촬영, InstanceType 0/1/2/3 DB 판정과 2D/Recon Tool 화면 변화·증적 자동 검증"},
   {"tc_id":"TC_Basic_WorkFlow_03","level":"PARTIAL","reason":"F8 Demo 촬영과 DB 판정 자동; 영상 화질 육안 판정 제외"},
   {"tc_id":"TC_Basic_WorkFlow_04","level":"PARTIAL","reason":"Overlay DB 변경 자동 판정; 표시 육안 확인"},
   {"tc_id":"TC_Basic_WorkFlow_05","level":"PARTIAL","reason":"수신 DICOM/UID 자동 판정; Send UI 흐름 추가 안정화 필요"},

@@ -216,7 +216,11 @@ def ensure_tc01_overlay(ui, db):
 def add_view_position(ui, mode):
     """Register LCC 2D or LCC(3D-N) through Procedure +."""
     before = len(flows.step_items(ui))
-    ui.click([c for c in ui.by_id(1171) if c.visible][0], settle=1)
+    add = [c for c in ui.by_id(1171) if c.visible
+           and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
+    if not add:
+        raise RuntimeError("Procedure add button (1171) not found")
+    ui.click(add[0], settle=1)
     dlg = ui.wait_dialog(timeout=6)
     if not dlg:
         raise RuntimeError("View Position dialog did not open")
@@ -224,12 +228,31 @@ def add_view_position(ui, mode):
     width, height = r - l, b - t
     if width < 500 or height < 450:
         raise RuntimeError(f"Unexpected View Position dialog geometry: {dlg.rect}")
-    def point(x_ratio, y_ratio):
-        return l + int(width * x_ratio), t + int(height * y_ratio)
+
+    # Bellalun 1.0.12 exposes stable IDs for tabs, LCC, OK and Cancel.
+    # Use those before any window-relative fallback so dialog size changes do
+    # not select LMLO or miss the OK button.
     if mode == "3d":
-        ui.click(point(.789, .122), settle=.5)   # 3D-N tab
-    ui.click(point(.137, .323), settle=.5)       # LCC
-    ui.click(point(.913, .938), settle=1)        # OK
+        tabs = [c for c in ui.by_id(2083) if c.visible
+                and c.rect[2] - c.rect[0] >= 100]
+        if not tabs:
+            raise RuntimeError("Preset (3D-N) tab (2083) not found")
+        ui.click(tabs[0], settle=.7)
+    elif mode != "2d":
+        raise RuntimeError(f"Unsupported View Position mode: {mode}")
+
+    lcc_id = 852 if mode == "3d" else 802
+    lcc = [c for c in ui.by_id(lcc_id) if c.visible
+           and c.rect[2] - c.rect[0] >= 100]
+    ok = [c for c in ui.by_id(1101) if c.visible
+          and c.rect[2] - c.rect[0] >= 80]
+    if not lcc or not ok:
+        cancel = [c for c in ui.by_id(1102) if c.visible]
+        if cancel:
+            ui.click(cancel[0], settle=.5)
+        raise RuntimeError(f"LCC card ({lcc_id}) or OK button (1101) not found")
+    ui.click(lcc[0], settle=.5)
+    ui.click(ok[0], settle=1)
     after = len(flows.step_items(ui))
     if after != before + 1:
         raise RuntimeError(f"Procedure step registration failed: {before}->{after}")
