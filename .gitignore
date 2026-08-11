@@ -1,0 +1,26 @@
+# Local credentials and machine-specific configuration
+config.json
+.env
+.env.*
+
+# Runtime artifacts that may contain patient or environment information
+Cache/
+Evidence/
+Log/
+Reports/
+Temp/
+
+# Python/IDE artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.idea/
+.vscode/
+
+# Local parameter fixtures and generated exports
+*.pim
+*.xtp
+*.dcm
+*.log
+

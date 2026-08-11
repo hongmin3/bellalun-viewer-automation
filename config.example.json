@@ -1,0 +1,92 @@
+{
+  "_comment": "Copy this file to config.json and replace every placeholder for the target QA PC. Never commit config.json.",
+  "checklist_xlsx": "C:\\QA\\Bellalun_Viewer_Checklist.xlsx",
+  "sql_server": ".\\BELLALUN",
+  "install_dir": "C:\\Program Files\\Bellalun",
+  "data_dir": "D:\\BellalunData",
+  "sql_service_name": "MSSQL$BELLALUN",
+  "display": {
+    "width": 1920,
+    "height": 1080,
+    "expected_dpi": 96,
+    "enforce": true
+  },
+  "demo": {
+    "acquire_count": 2,
+    "settle_seconds": 14,
+    "close_option": "close"
+  },
+  "release_note": {
+    "_comment": "Fill these values from the release note for the build under test.",
+    "programs": {},
+    "files": {},
+    "db_software_version": "REPLACE_ME"
+  },
+  "prerequisites": {
+    "vcredist_pattern": "*Visual C++ 2015-2022 Redistributable*",
+    "firewall_keywords": ["Bellalun", "XIPL"],
+    "dicom_nic_alias": "DICOM",
+    "expected_ipv4": null
+  },
+  "install_option": {
+    "expected_theme": "Pure White",
+    "expected_language": "English",
+    "expected_kiosk": 0
+  },
+  "dicom": {
+    "mwl_server_url": "http://MWL_SERVER_IP:5000",
+    "print_server_url": "http://PRINT_SERVER_IP:8000",
+    "print_scp": {
+      "ae_title": "PRINT_SCP",
+      "host": "PRINT_SERVER_IP",
+      "port": 11113,
+      "tls_port": 21113
+    },
+    "storage_scp": {
+      "app_path": "C:\\Program Files (x86)\\Bunny\\Bunny.exe",
+      "ae_title": "Bunny",
+      "host": "STORAGE_PC_IP",
+      "port": 3000
+    },
+    "servers_to_register": [
+      {"kind": "MWL", "name": "MWL_TEST", "ae_title": "MWL_SCP", "ip": "MWL_SERVER_IP", "port": 11112},
+      {"kind": "Storage", "name": "BUNNY_TEST", "ae_title": "Bunny", "ip": "STORAGE_PC_IP", "port": 3000},
+      {"kind": "Print", "name": "PRINT_TEST", "ae_title": "PRINT_SCP", "ip": "PRINT_SERVER_IP", "port": 11113}
+    ],
+    "received_root": "C:\\Program Files (x86)\\Bunny\\Receive",
+    "print_received_root": ""
+  },
+  "viewer": {
+    "exe": "C:\\Program Files\\Bellalun\\VIEWER.exe",
+    "startup_timeout": 180,
+    "demo_mode": true,
+    "login": {
+      "id": "REPLACE_ME",
+      "password": "REPLACE_ME"
+    },
+    "accounts": {},
+    "control_ids": {}
+  },
+  "export": {
+    "normal_dir": "",
+    "anonymous_dir": ""
+  },
+  "xipl": {
+    "test_patient_id": "DATA_FLOW_MWL_01",
+    "studio_exe": "C:\\XIPL\\STUDIO_X64\\XIPL.STUDIO.exe",
+    "parameter_dir": "C:\\XIPL\\PARAMETER",
+    "tesseract_exe": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+    "preview_2d_wait": 20,
+    "apply_2d_wait": 30,
+    "preview_3d_wait": 35,
+    "apply_3d_wait": 75
+  },
+  "settings_export": {
+    "exported_file": ""
+  },
+  "test_data": {
+    "account_id": "TEST_USER_FLOW",
+    "hospital_code": "HC_FLOW_01",
+    "procedure_name": "PROC_FLOW_01"
+  }
+}

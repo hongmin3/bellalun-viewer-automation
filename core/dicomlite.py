@@ -1,0 +1,185 @@
+# -*- coding: utf-8 -*-
+"""최소 DICOM 리더.
+
+Export/Send 결과 검증에 필요한 최상위 Tag만 읽는다. pydicom이 설치되어 있으면
+그쪽을 쓰고, 없으면 내장 파서로 동작한다(검증 PC 추가 설치 불필요).
+Pixel Data는 읽지 않는다.
+"""
+
+import os
+import struct
+
+try:  # pragma: no cover
+    import pydicom  # type: ignore
+    _HAS_PYDICOM = True
+except Exception:
+    _HAS_PYDICOM = False
+
+# 검증에 쓰는 Tag (Conformance Statement / TC에서 근거가 확인된 항목만)
+TAGS = {
+    "SOPClassUID":        (0x0008, 0x0016),
+    "SOPInstanceUID":     (0x0008, 0x0018),
+    "StudyDate":          (0x0008, 0x0020),
+    "Modality":           (0x0008, 0x0060),
+    "AccessionNumber":    (0x0008, 0x0050),
+    "InstitutionName":    (0x0008, 0x0080),
+    "PatientName":        (0x0010, 0x0010),
+    "PatientID":          (0x0010, 0x0020),
+    "PatientBirthDate":   (0x0010, 0x0030),
+    "PatientSex":         (0x0010, 0x0040),
+    "BodyPartExamined":   (0x0018, 0x0015),
+    "KVP":                (0x0018, 0x0060),
+    "StudyInstanceUID":   (0x0020, 0x000D),
+    "SeriesInstanceUID":  (0x0020, 0x000E),
+    "StudyID":            (0x0020, 0x0010),
+    "InstanceNumber":     (0x0020, 0x0013),
+    "ImageLaterality":    (0x0020, 0x0062),
+    "Rows":               (0x0028, 0x0010),
+    "Columns":            (0x0028, 0x0011),
+    "ViewPosition":       (0x0018, 0x5101),
+}
+_BY_TAG = {v: k for k, v in TAGS.items()}
+
+_VR_WITH_LONG_LEN = {b"OB", b"OW", b"OF", b"SQ", b"UT", b"UN"}
+_PIXEL_DATA = (0x7FE0, 0x0010)
+
+
+def _decode(vr, raw):
+    if vr in (b"US", b"AE"):
+        if vr == b"US":
+            return struct.unpack("<H", raw[:2])[0] if len(raw) >= 2 else None
+    if vr == b"UL":
+        return struct.unpack("<I", raw[:4])[0] if len(raw) >= 4 else None
+    try:
+        return raw.decode("latin-1").strip().strip("\x00")
+    except Exception:
+        return None
+
+
+def _parse(buf, pos, explicit, wanted, out, end=None):
+    end = len(buf) if end is None else end
+    while pos + 8 <= end:
+        group, elem = struct.unpack_from("<HH", buf, pos)
+        pos += 4
+        if (group, elem) == _PIXEL_DATA:
+            return
+        if group == 0xFFFE:  # item / delimiter
+            length = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+            if length == 0xFFFFFFFF:
+                continue
+            pos += length
+            continue
+
+        if explicit:
+            vr = buf[pos:pos + 2]
+            pos += 2
+            if vr in _VR_WITH_LONG_LEN:
+                pos += 2
+                length = struct.unpack_from("<I", buf, pos)[0]
+                pos += 4
+            else:
+                length = struct.unpack_from("<H", buf, pos)[0]
+                pos += 2
+        else:
+            vr = b"UN"
+            length = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+
+        if length == 0xFFFFFFFF:  # undefined length sequence -> 내부는 건너뛴다
+            depth = 1
+            while pos + 8 <= end and depth:
+                g, e = struct.unpack_from("<HH", buf, pos)
+                ln = struct.unpack_from("<I", buf, pos + 4)[0]
+                pos += 8
+                if (g, e) == (0xFFFE, 0xE0DD):
+                    depth -= 1
+                elif ln != 0xFFFFFFFF:
+                    pos += ln
+            continue
+
+        if (group, elem) in wanted:
+            out[_BY_TAG[(group, elem)]] = _decode(vr, buf[pos:pos + length])
+        pos += length
+
+
+def read_tags(path, tags=None):
+    """DICOM 파일에서 지정 Tag를 dict로 읽는다. 실패 시 {'_error': ...}."""
+    names = tags or list(TAGS.keys())
+    if _HAS_PYDICOM:
+        try:
+            ds = pydicom.dcmread(path, stop_before_pixels=True, force=True)
+            out = {}
+            for n in names:
+                v = getattr(ds, n, None)
+                out[n] = None if v is None else str(v)
+            return out
+        except Exception as exc:
+            return {"_error": f"pydicom 읽기 실패: {exc}"}
+
+    try:
+        with open(path, "rb") as f:
+            buf = f.read()
+    except OSError as exc:
+        return {"_error": str(exc)}
+
+    if len(buf) < 132 or buf[128:132] != b"DICM":
+        return {"_error": "DICM preamble 없음 (DICOM 파일 아님)"}
+
+    wanted = {TAGS[n] for n in names if n in TAGS}
+    out = {}
+
+    # File Meta (group 0002)는 항상 Explicit VR Little Endian
+    pos = 132
+    meta_end = len(buf)
+    if buf[132:136] == b"\x02\x00\x00\x00":
+        # (0002,0000) File Meta Information Group Length
+        glen = struct.unpack_from("<I", buf, 132 + 8)[0]
+        meta_end = 132 + 12 + glen
+    ts = {}
+    _parse(buf, pos, True, {(0x0002, 0x0010)}, ts, meta_end)
+    # TransferSyntaxUID는 TAGS에 없으므로 직접 추출
+    tsuid = _find_transfer_syntax(buf, 132, meta_end)
+    explicit = not (tsuid or "").startswith("1.2.840.10008.1.2") or tsuid != "1.2.840.10008.1.2"
+    if tsuid == "1.2.840.10008.1.2":
+        explicit = False
+
+    _parse(buf, meta_end, explicit, wanted, out)
+    out.setdefault("_transfer_syntax", tsuid)
+    for n in names:
+        out.setdefault(n, None)
+    return out
+
+
+def _find_transfer_syntax(buf, pos, end):
+    while pos + 8 <= end:
+        group, elem = struct.unpack_from("<HH", buf, pos)
+        vr = buf[pos + 4:pos + 6]
+        if vr in _VR_WITH_LONG_LEN:
+            length = struct.unpack_from("<I", buf, pos + 8)[0]
+            data_at = pos + 12
+        else:
+            length = struct.unpack_from("<H", buf, pos + 6)[0]
+            data_at = pos + 8
+        if (group, elem) == (0x0002, 0x0010):
+            return buf[data_at:data_at + length].decode("latin-1").strip("\x00 ")
+        pos = data_at + length
+    return None
+
+
+def scan_dir(root, tags=None):
+    """폴더 하위 DICOM 파일을 모두 읽는다. (확장자 무관, DICM 시그니처 기준)"""
+    found = []
+    for dirpath, _, files in os.walk(root):
+        for name in files:
+            p = os.path.join(dirpath, name)
+            try:
+                with open(p, "rb") as f:
+                    if f.read(132)[128:132] != b"DICM":
+                        continue
+            except OSError:
+                continue
+            info = read_tags(p, tags)
+            info["_path"] = p
+            found.append(info)
+    return found
