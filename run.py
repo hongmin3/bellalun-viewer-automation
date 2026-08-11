@@ -49,7 +49,9 @@ def main():
     sub.add_parser("run-wf02", help="TC_Basic_WorkFlow_02 2D/3D Demo 촬영 및 Tool 자동화")
     sub.add_parser("run-xipl", help="XIPL 01~03 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
+    sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
     sub.add_parser("run-xipl-03", help="Viewer 3D Post Reconstruction TC03만 실행")
+    sub.add_parser("run-regression", help="초기 상태 DICOM→WF01→WF02→XIPL 전체 회귀")
     sub.add_parser("run-auto", help="비파괴 정적 점검 + DICOM + UI Demo 흐름")
     sub.add_parser("portability-check", help="해상도/DPI/필수 경로 이식성 사전 점검")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
@@ -64,8 +66,8 @@ def main():
             print(f"[{item['level']}] {item['tc_id']} - {item['reason']}")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-xipl",
-                   "run-xipl-01", "run-xipl-03", "run-auto",
-                   "portability-check"}
+                   "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-auto",
+                   "run-regression", "portability-check"}
     if args.cmd in ui_commands:
         from core.display import normalize
         from core.result import TCResult, PASS, FAIL
@@ -98,6 +100,17 @@ def main():
             return finish(ctx, [env])
         if env.verdict == "FAIL":
             return finish(ctx, [env])
+    if args.cmd == "run-regression":
+        from tests.install import install_01, install_02
+        from tests.workflow01 import run as run_workflow01
+        from tests.workflow02 import run as run_workflow02
+        from tests.xipl_flows import run_xipl
+        results.extend([install_01(ctx), install_02(ctx)])
+        results.append(setup_all(ctx))
+        results.append(run_workflow01(ctx))
+        results.append(run_workflow02(ctx))
+        results.extend(run_xipl(ctx))
+        return finish(ctx, results)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
     elif args.cmd == "setup-storage":
@@ -124,6 +137,15 @@ def main():
             from core.result import TCResult, FAIL
             r = TCResult("TC_XIPL_compatibility_01", "Viewer와 XIPL 표시값 비교")
             r.add(0, "Viewer 시험 데이터 및 Overlay 준비", FAIL, actual=str(exc))
+            results.append(r)
+    elif args.cmd == "run-xipl-02":
+        from tests.xipl_flows import _prepare, compatibility_02
+        try:
+            results.append(compatibility_02(ctx, _prepare(ctx)))
+        except Exception as exc:
+            from core.result import TCResult, FAIL
+            r = TCResult("TC_XIPL_compatibility_02", "Viewer 2D Image Processing")
+            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
             results.append(r)
     elif args.cmd == "run-xipl-03":
         from tests.xipl_flows import _prepare, compatibility_03

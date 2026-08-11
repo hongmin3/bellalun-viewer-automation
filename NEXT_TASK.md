@@ -11,6 +11,9 @@ Implement `TC_Basic_WorkFlow_03` as far as the attached checklist, manuals, and 
 - Knowledge/manual directory: `C:\Users\2024980\Documents\자동화\Bellalun Viewer\지식`
 - `TC_Basic_WorkFlow_01` is implemented by `tests/workflow01.py` and passed all nine MWL + Local steps in a live run.
 - `TC_Basic_WorkFlow_02` is implemented by `tests/workflow02.py` and passed a live Viewer run on 2026-08-11. `python run.py run-wf02` reopens the latest empty suspended `DATA_FLOW_MWL_01`, registers LCC 2D/LCC 3D-N, performs gated Demo F8 acquisition, validates one each of InstanceType 0/1/2/3, applies W/L, Zoom, Pan, and Arrow Annotation to 2D and 3D Recon with OCR/screenshot-delta evidence, closes the exam, and verifies it again in Examined.
+- Initial-state regression is available as `python run.py run-regression`. A live 2026-08-11 regression recreated DICOM settings and new WF01/WF02 fixtures after Examined image data had been cleared. DICOM, WF01, WF02, XIPL_01, and XIPL_02 passed their data-backed checks.
+- `TC_XIPL_compatibility_03` currently reports a genuine environment/product FAIL: Viewer log contains `Failed to initialize Recon. Error: No GPUS`, and the target Recon/Synthetic DB rows and image-file SHA-256 values do not change after Apply. Preview alone still renders and is not accepted as Apply success.
+- Install_01 is MANUAL until `config.json > release_note` is replaced with an approved Release Note; the current `_source` explicitly says the captured baseline must be replaced. Installed Bellalun/DB version observed in regression was 1.0.12.105.
 - DICOM setup is implemented by `core/dicom_settings.py`.
 - Verified servers:
   - MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`

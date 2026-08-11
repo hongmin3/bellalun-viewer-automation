@@ -9,6 +9,7 @@ Evidence/
 Log/
 Reports/
 Temp/
+work/
 
 # Python/IDE artifacts
 __pycache__/
@@ -23,4 +24,3 @@ __pycache__/
 *.xtp
 *.dcm
 *.log
-

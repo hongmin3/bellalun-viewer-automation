@@ -49,6 +49,33 @@ def _instance_counts(ctx, study_key):
     return {int(row["InstanceType"]): int(row["Cnt"]) for row in rows}
 
 
+def _image_structure(ctx, study_key):
+    instances = ctx.db.query(
+        "DATA", "SELECT [Key],SeriesKey,GroupKey,InstanceType,InstanceNumber,"
+        "ImageInstanceUID FROM INSTANCE WHERE StudyKey=@study ORDER BY [Key]",
+        {"study": study_key})
+    series = ctx.db.query(
+        "DATA", "SELECT [Key],SeriesInstanceUID FROM SERIES "
+        "WHERE StudyKey=@study ORDER BY [Key]", {"study": study_key})
+    groups = ctx.db.query(
+        "DATA", "SELECT [Key],SeriesKey,Type,ExposureMode FROM INSTANCE_GROUP "
+        "WHERE StudyKey=@study ORDER BY [Key]", {"study": study_key})
+    return {"instances": instances, "series": series, "groups": groups}
+
+
+def _valid_image_structure(structure, expected_types, expected_series, expected_groups):
+    instances = structure["instances"]
+    types = [int(row["InstanceType"]) for row in instances]
+    image_uids = [str(row.get("ImageInstanceUID") or "") for row in instances]
+    series_uids = [str(row.get("SeriesInstanceUID") or "")
+                   for row in structure["series"]]
+    return (sorted(types) == sorted(expected_types)
+            and len(structure["series"]) == expected_series
+            and len(structure["groups"]) == expected_groups
+            and all(image_uids) and len(set(image_uids)) == len(image_uids)
+            and all(series_uids) and len(set(series_uids)) == len(series_uids))
+
+
 def _wait_types(ctx, study_key, required, timeout=DB_TIMEOUT):
     end = time.time() + timeout
     counts = _instance_counts(ctx, study_key)
@@ -187,9 +214,15 @@ def run(ctx):
         shot_2d = flows.demo_acquire_step(
             ui, 1, settle=int(ctx.cfg.get("demo", {}).get("settle_seconds", 14)))
         counts = _wait_types(ctx, target["Key"], {0: 1})
-        result.assert_true(3, "2D 영상 생성", counts.get(0, 0) >= 1,
-                           expected="InstanceType 0 >= 1",
-                           actual={"capture": shot_2d, "instance_types": counts})
+        structure_2d = _image_structure(ctx, target["Key"])
+        result.assert_true(
+            3, "2D 영상 데이터 생성",
+            counts == {0: 1}
+            and _valid_image_structure(structure_2d, [0], 1, 1),
+            expected=("InstanceType {0:1}, Series/Group 각 1건, "
+                      "Image/Series UID 발급·유일"),
+            actual={"capture": shot_2d, "instance_types": counts,
+                    "structure": structure_2d})
         _capture(ctx, ui, "03_acquired_2d.png", result)
 
         viewer_processing.add_view_position(ui, "3d")
@@ -200,11 +233,22 @@ def run(ctx):
         shot_3d = flows.demo_acquire_step(
             ui, 2, settle=int(ctx.cfg.get("demo", {}).get("settle_seconds", 14)))
         counts = _wait_types(ctx, target["Key"], {0: 1, 1: 1, 2: 1, 3: 1})
-        expected_types = {0, 1, 2, 3}
-        result.assert_true(5, "3D Raw/Recon/Syn 영상 생성",
-                           expected_types.issubset(set(counts)),
-                           expected="InstanceType 0/1/2/3",
-                           actual={"capture": shot_3d, "instance_types": counts})
+        structure_3d = _image_structure(ctx, target["Key"])
+        three_d = [row for row in structure_3d["instances"]
+                   if int(row["InstanceType"]) in (1, 2, 3)]
+        same_3d_series_group = (len(three_d) == 3
+                                and len({row["SeriesKey"] for row in three_d}) == 1
+                                and len({row["GroupKey"] for row in three_d}) == 1)
+        result.assert_true(
+            5, "3D Raw/Recon/Syn 영상 데이터 생성",
+            counts == {0: 1, 1: 1, 2: 1, 3: 1}
+            and _valid_image_structure(structure_3d, [0, 1, 2, 3], 2, 2)
+            and same_3d_series_group,
+            expected=("InstanceType 0/1/2/3 각 1건, Series/Group 각 2건, "
+                      "3D 3종 동일 Series/Group, UID 발급·유일"),
+            actual={"capture": shot_3d, "instance_types": counts,
+                    "same_3d_series_group": same_3d_series_group,
+                    "structure": structure_3d})
         _capture(ctx, ui, "05_acquired_3d.png", result)
 
         flows.select_step(ui, 1)
@@ -228,14 +272,20 @@ def run(ctx):
             "(SELECT COUNT(*) FROM INSTANCE i WHERE i.StudyKey=s.[Key]) AS Instances "
             "FROM STUDY s WHERE s.[Key]=@study", {"study": target["Key"]}) or {}
         rows = _examined_search(ui, PATIENT_ID)
+        target_rank = _study_card_number(ctx, target)
         _capture(ctx, ui, "08_examined_result.png", result)
         result.assert_true(8, "검사 종료 후 상태 전환",
                            after.get("StudyStatus") != before_status,
                            expected=f"StudyStatus != {before_status}", actual=after)
         result.assert_true(8, "검사 종료 후 Examined 재조회",
-                           bool(rows) and int(after.get("Instances") or 0) >= 4,
-                           expected=f"{PATIENT_ID} 카드 표시 및 영상 >= 4",
-                           actual={"visible_rows": len(rows), "db": after, "close": closed})
+                           target_rank <= len(rows)
+                           and int(after.get("Instances") or 0) == 4,
+                           expected=(f"{PATIENT_ID} 대상 Study 카드 표시 및 "
+                                     "동일 Study 영상 4건"),
+                           actual={"visible_rows": len(rows),
+                                   "target_card_rank": target_rank,
+                                   "target_study_key": target["Key"],
+                                   "db": after, "close": closed})
         completed = True
     except Exception as exc:
         result.add(0, "TC_Basic_WorkFlow_02 실행", FAIL, actual=str(exc))

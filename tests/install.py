@@ -9,6 +9,7 @@ TC_Basic_Install_09  Uninstall 후 잔존 확인 (검증부만)     [완전 자�
 """
 
 import os
+import json
 
 from core import net, sysinfo
 from core.result import TCResult, PASS, FAIL, MANUAL
@@ -18,6 +19,34 @@ from core.result import TCResult, PASS, FAIL, MANUAL
 def install_01(ctx):
     r = TCResult("TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인")
     rn = ctx.cfg["release_note"]
+
+    source = str(rn.get("_source") or "")
+    serialized = json.dumps(rn, ensure_ascii=False)
+    baseline_pending = ("교체 필요" in source or "REPLACE_ME" in serialized
+                        or not rn.get("programs") or not rn.get("files")
+                        or not rn.get("db_software_version"))
+    if baseline_pending:
+        installed = sysinfo.installed_programs()
+        actual_programs = {}
+        for name in rn.get("programs", {}):
+            actual = installed.get(name)
+            if actual is None:
+                candidates = [key for key in installed
+                              if name.lower() in key.lower()]
+                actual = installed[candidates[0]] if candidates else "설치되지 않음"
+            actual_programs[name] = actual
+        actual_files = {
+            rel: sysinfo.file_version(os.path.join(ctx.cfg["install_dir"], rel))
+            for rel in rn.get("files", {})}
+        db_version = ctx.db.scalar("DATA", "SELECT Version FROM SOFTWARE_VERSION")
+        r.manual(
+            1, "승인된 Release Note 기준값 필요",
+            "임시 baseline으로 버전 일치/불일치를 판정하지 않음",
+            expected="실제 검증 대상 Release Note의 프로그램/파일/DB 버전",
+            actual={"source": source, "installed_programs": actual_programs,
+                    "installed_files": actual_files,
+                    "db_software_version": db_version})
+        return r
 
     # Step 1. 검증 대상 버전 정보
     r.add(1, "검증 대상 Release Note 기준값 로드", PASS,

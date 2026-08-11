@@ -93,9 +93,20 @@ def run(ctx):
         return r
     try:
         order = _prepare_mwl(ctx)
-        r.add(0, "MWL 시험 처방 준비", PASS, expected=MWL_PID,
-              actual={"patient_id": order.get("patient_id"),
-                      "study_instance_uid": order.get("study_instance_uid")})
+        expected_order = {
+            "patient_id": MWL_PID, "patient_name": "AUTO^MWL^^^",
+            "accession_number": "ACC_AUTO_001", "patient_sex": "F",
+            "patient_birthdate": "1980-01-01",
+            "requested_procedure_description": "Mammography"}
+        actual_order = {key: order.get(key) for key in expected_order}
+        r.assert_true(
+            0, "MWL 시험 처방 원본 데이터 준비",
+            all(_compact(actual_order[key]) == _compact(value)
+                for key, value in expected_order.items())
+            and bool(order.get("study_instance_uid")),
+            expected={**expected_order, "study_instance_uid": "발급됨"},
+            actual={**actual_order,
+                    "study_instance_uid": order.get("study_instance_uid")})
     except Exception as exc:
         r.add(0, "MWL 시험 처방 준비", FAIL, expected="시험 MWL 등록 및 SCP 실행",
               actual=str(exc))
@@ -136,8 +147,12 @@ def run(ctx):
             return r
         flows.select_study_row(ui, 1)
         _capture(ctx, ui, "01_mwl_selected.png", r)
-        r.add(2, "MWL 처방 선택", PASS, expected=MWL_PID,
-              actual="첫 번째(유일) 검색 결과 선택; 화면 증적 저장")
+        r.assert_true(2, "유일한 MWL 처방 선택",
+                      count == 1 and os.path.isfile(os.path.join(
+                          ctx.evidence_root, "Flow", "01_Worklist",
+                          "01_mwl_selected.png")),
+                      expected=f"{MWL_PID} 단일 결과와 선택 증적",
+                      actual={"result_count": count, "patient_id": MWL_PID})
 
         before_key = ctx.db.scalar("DATA", "SELECT ISNULL(MAX([Key]),0) FROM STUDY") or 0
         ui.click(flows._need(ui, flows.PATIENT["examine_from_list"], "Examine"), settle=1)
@@ -234,7 +249,22 @@ def run(ctx):
                        local_info["sex"])
         _capture(ctx, ui, "09_local_examine.png", r)
         # 촬영 없는 시험 데이터를 폐기하지 않고 보류해 재검증 가능한 상태로 둔다.
-        flows.close_examine(ui, option="suspend", wait=6)
+        close = flows.close_examine(ui, option="suspend", wait=6)
+        local_final = ctx.db.one(
+            "DATA", "SELECT s.[Key],s.StudyStatus,s.AccessionNumber,s.[Lock],"
+            "(SELECT COUNT(*) FROM INSTANCE i WHERE i.StudyKey=s.[Key]) AS Inst "
+            "FROM STUDY s WHERE s.[Key]=@study",
+            {"study": local_study["Key"]}) if local_study else None
+        r.assert_true(
+            9, "Local 검사 보류 후 실제 DB 상태",
+            bool(local_final)
+            and int(local_final.get("StudyStatus") or -1) == 4
+            and str(local_final.get("AccessionNumber")) == "ACC_LOCAL_001"
+            and int(local_final.get("Lock") or 0) == 0
+            and int(local_final.get("Inst") or 0) == 0,
+            expected=("StudyStatus=4, Accession=ACC_LOCAL_001, "
+                      "Lock=0, INSTANCE=0"),
+            actual={"db": local_final, "close": close})
     except Exception as exc:
         r.add(6, "Local UI 흐름", FAIL, actual=str(exc))
     return r

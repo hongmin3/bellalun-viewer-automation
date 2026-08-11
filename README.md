@@ -10,7 +10,7 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 
 ## 실행
 
-- 전체 안전 자동화: `run_all.cmd`
+- 초기 상태 전체 회귀: `run_all.cmd` 또는 `python run.py run-regression`
 - Print 서버 등록만: `setup_print.cmd`
 - DICOM 전체 등록: `python run.py setup-dicom`
 - Storage 서버/옵션만: `python run.py setup-storage`
@@ -19,6 +19,7 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 - Local 검사 + F8 Demo 촬영: `python run.py run-ui`
 - XIPL 01~03 실제 UI 시험: `python run.py run-xipl`
 - XIPL 표시값 비교(TC01)만: `python run.py run-xipl-01`
+- 2D Image Processing(TC02)만: `python run.py run-xipl-02`
 - 3D Post Reconstruction만 재시험: `python run.py run-xipl-03`
 - 다른 PC 실행환경 점검: `python run.py portability-check`
 - 자동화 범위 확인: `python run.py list`
@@ -26,6 +27,15 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 `run-auto`는 설치/환경 정적 점검, MWL·Storage·Print 등록과 Echo, Local 검사 생성,
 F8 Demo 촬영, Viewer 내부 2D/3D 영상 처리 및 DB 판정을 순서대로 수행한다. 실제 X-ray, Gantry, Detector,
 팬텀 촬영, OS 설치/삭제는 수행하지 않는다.
+
+`run-regression`은 Examined 영상 데이터가 없는 초기 상태를 기준으로 Install 01/02 정적
+점검, DICOM 서버 설정, WorkFlow_01 fixture 생성, WorkFlow_02 2D/3D 데이터 생성,
+XIPL 01~06을 의존 순서대로 실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
+Viewer 처리 로그, ImageAction 결과 파일과 재진입 값을 교차 검증한다. XIPL_03은 창이
+닫힌 사실만으로 PASS하지 않고 Recon/Syn DB·파일 변화와 Viewer Recon 오류 로그를 판정한다.
+`release_note._source`가 교체 필요 상태이거나 `REPLACE_ME`가 남아 있으면 임시 버전과
+설치 버전을 비교해 FAIL로 만들지 않고, 현재 실제 버전을 수집한 뒤 Install_01을 MANUAL로
+보고한다. 승인된 Release Note 기준을 입력한 경우에만 자동 PASS/FAIL 비교를 수행한다.
 
 ## 결과
 
@@ -76,6 +86,10 @@ Reconstruction(ID 1178)으로 진입한다.
 3D Recon·Syn의 Background Masking/Contrast/Sharpness/Brightness/Tone 전 항목을
 크게 변경한다. Recon과 Syn의 Tone은 기본/최대값이 20이므로 모두 감소시킨다.
 Preview, Apply, 재진입 후 Parameter 유지까지 자동으로 판정한다.
+
+3D Post Reconstruction은 Preview 화면에 비교 영상이 표시되더라도 Apply 처리 로그에
+Recon 초기화 오류가 있거나 해당 Study의 InstanceType 2/3 결과 파일 해시·수정 시간이
+바뀌지 않으면 FAIL이다. 따라서 GPU가 없는 환경의 `No GPUS` 오류는 실제 실패로 보고된다.
 
 TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 영상 로딩 진행창이
 사라지고 2304x3072/W1/W2가 처음 표시되는 프레임을 즉시 읽는다. XIPL 창의 저장

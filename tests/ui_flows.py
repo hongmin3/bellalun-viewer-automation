@@ -113,17 +113,21 @@ def workflow_01_local(ctx):
     if not g.ok or not got:
         return r, None
 
-    r.add(6, "New Patient 입력 화면 표시", PASS,
-          expected="New Patient 폼 표시", actual="폼 컨트롤 확인됨")
+    r.assert_true(6, "New Patient 입력 화면 데이터 표시",
+                  bool(got.get("patient_id")) and bool(got.get("procedure")),
+                  expected="환자 입력값과 기본 Procedure 표시", actual=got)
     r.assert_equal(7, "입력한 Patient ID가 폼에 반영", pid, got["patient_id"])
     r.assert_equal(7, "입력한 Patient Name이 폼에 반영", name, got["patient_name"])
     r.assert_equal(7, "입력한 Birth Date가 폼에 반영", birth, got["birth_date"])
     r.assert_true(7, "Birth Date 입력 시 Age 자동 계산",
                   bool((got["age"] or "").strip()),
                   expected="Age 값 표시", actual=got["age"])
-    r.add(7, "Procedure 기본값", PASS, expected="기본 Procedure 선택",
-          actual=got["procedure"],
-          note="PROCEDURE_INFO의 Default 항목과 일치해야 함")
+    default_procedure = ctx.db.one(
+        "PROCEDURE", "SELECT TOP 1 [Key],Name FROM PROCEDURE_INFO "
+        "WHERE [Default]=1 ORDER BY [Key]") or {}
+    r.assert_equal(7, "Procedure 기본값 DB 일치",
+                   default_procedure.get("Name"), got["procedure"],
+                   note="UI 표시값을 PROCEDURE_INFO.Default=1 행과 직접 비교")
 
     # Step 8. Examine 진입
     before = ctx.db.scalar("DATA", "SELECT COUNT(*) FROM STUDY") or 0
@@ -153,16 +157,19 @@ def workflow_01_local(ctx):
         return r, None
 
     r.assert_equal(9, "저장된 Patient ID", pid, row["PatientID"])
+    normalize_name = lambda value: " ".join(
+        str(value or "").replace("^", " ").split()).upper()
     r.assert_true(9, "저장된 Patient Name",
-                  (row["PatientName"] or "").startswith("AUTO"),
+                  normalize_name(row["PatientName"]) == normalize_name(name),
                   expected=name, actual=row["PatientName"],
                   note="DICOM PN은 구성요소 구분자(^)가 정규화되어 저장됨")
     r.assert_equal(9, "저장된 Birth Date", birth.replace("/", ""),
                    row["PatientBirthDate"])
     r.assert_equal(9, "저장된 Sex", "F", row["PatientSex"])
-    r.add(9, "검사 저장 상태 (참고)", PASS, expected="Examine 진행 상태",
-          actual=f"StudyStatus={row['StudyStatus']}, StudyDate={row['StudyDate']}",
-          note="StudyStatus 코드 의미는 문서상 확정되지 않아 값만 기록")
+    r.manual(9, "검사 생성 직후 상태 코드 (참고)",
+             "StudyStatus 코드 의미는 문서상 확정되지 않아 PASS 근거로 사용하지 않음",
+             expected="Examine 진행 상태 코드 사양",
+             actual=f"StudyStatus={row['StudyStatus']}, StudyDate={row['StudyDate']}")
 
     return r, {"ui": ui, "guard": guard, "study_key": row["Key"], "patient_id": pid}
 
@@ -200,10 +207,11 @@ def workflow_03_demo_acquire(ctx, session):
         return r
 
     shot = [a for a in acq if not a.get("skipped")]
-    r.add(2, "촬영 준비(Ready) 상태 확인", PASS,
-          expected="Step 선택 시 Ready 전환",
-          actual="; ".join(f"Step{a['step']}={a['detail']}" for a in acq),
-          note="상태 배너 색으로 판독. Ready가 아닌 Step은 촬영하지 않음")
+    r.assert_true(2, "촬영 준비(Ready) 상태 확인",
+                  len(shot) == want and all(a.get("ready") for a in shot),
+                  expected=f"선택한 {want}개 Step 모두 Ready",
+                  actual=acq,
+                  note="상태 배너 색으로 판독. Ready가 아닌 Step은 촬영하지 않음")
 
     n_inst = _wait_count(ctx.db, q_inst, want)
     n_grp = ctx.db.scalar("DATA", q_grp) or 0
@@ -214,7 +222,7 @@ def workflow_03_demo_acquire(ctx, session):
 
     # SOP Instance UID 발급 및 중복 없음 (P0)
     inst = ctx.db.query("DATA",
-                        "SELECT [Key],GroupKey,InstanceNumber,ImageInstanceUID,"
+                        "SELECT [Key],SeriesKey,GroupKey,InstanceType,InstanceNumber,ImageInstanceUID,"
                         "ContentDate,ContentTime FROM INSTANCE "
                         f"WHERE StudyKey={study_key} ORDER BY [Key]")
     uids = [i["ImageInstanceUID"] for i in inst]
@@ -222,6 +230,13 @@ def workflow_03_demo_acquire(ctx, session):
                   expected="전건 발급", actual=f"{sum(1 for u in uids if u)}/{len(uids)}")
     r.assert_true(3, "SOP Instance UID 중복 없음", len(set(uids)) == len(uids),
                   expected="중복 0건", actual=f"고유 {len(set(uids))} / 전체 {len(uids)}")
+    r.assert_true(3, "2D 획득 데이터 구조",
+                  len(inst) == want
+                  and all(int(item["InstanceType"]) == 0 for item in inst)
+                  and len({item["GroupKey"] for item in inst}) == want
+                  and len({item["SeriesKey"] for item in inst}) == want,
+                  expected=f"2D Instance {want}건, Series/Group 각각 {want}건",
+                  actual=inst)
 
     series = ctx.db.query("DATA", f"SELECT [Key],SeriesInstanceUID FROM SERIES "
                                   f"WHERE StudyKey={study_key}")
@@ -262,13 +277,12 @@ def workflow_03_demo_acquire(ctx, session):
     if not g.ok:
         return r
 
-    r.add(8, "검사 종료 옵션 선택", PASS,
-          expected=f"'{option}' 선택",
-          actual=("종료 옵션 팝업에서 선택" if closed_info and closed_info["dialog"]
-                  else "팝업 없이 종료"),
-          note="Operation Manual 8.32/9.19: 미촬영 View Position이 남으면 "
-               "Suspend(보류)/Close(종료)/Cancel 중 선택. 보류 시 미촬영 "
-               "View Position도 함께 보류됨")
+    r.assert_true(
+        8, "검사 종료 옵션 처리 결과",
+        bool(closed_info), expected=f"'{option}' 처리 결과 반환",
+        actual=closed_info,
+        note="Operation Manual 8.32/9.19: 미촬영 View Position이 남으면 "
+             "Suspend(보류)/Close(종료)/Cancel 중 선택")
     if closed_info and closed_info.get("evidence"):
         r.attach(closed_info["evidence"])
 

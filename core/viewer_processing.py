@@ -275,8 +275,10 @@ def open_test_study(ctx):
         {"pid": patient_id})
     if not row:
         raise RuntimeError(f"Viewer XIPL fixture not found: PatientID={patient_id}")
-    rows = ctx.db.query("DATA", f"SELECT InstanceType FROM INSTANCE WHERE StudyKey={row['Key']}")
-    types = {int(x["InstanceType"]) for x in rows}
+    instance_rows = ctx.db.query(
+        "DATA", "SELECT [Key],InstanceType,ImageInstanceUID,SeriesKey,GroupKey "
+        "FROM INSTANCE WHERE StudyKey=@study ORDER BY [Key]", {"study": row["Key"]})
+    types = {int(x["InstanceType"]) for x in instance_rows}
     if not {0, 1, 2, 3}.issubset(types):
         raise RuntimeError(f"Fixture requires InstanceType 0/1/2/3; actual={sorted(types)}")
 
@@ -342,7 +344,7 @@ def open_test_study(ctx):
         raise RuntimeError(f"Fixture must expose exactly 2 acquired steps; actual={len(steps)}")
     return {"ui": ui, "study_key": row["Key"], "patient_id": patient_id,
             "step_2d": 1, "step_3d": 2, "initial_steps": 2,
-            "overlay_fields": overlay_fields}
+            "overlay_fields": overlay_fields, "instances": instance_rows}
 
 
 def _visible(ui, ctrl_id):
