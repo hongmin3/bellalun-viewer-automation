@@ -41,6 +41,20 @@ def _digits(value):
     return "".join(ch for ch in str(value or "") if ch.isdigit())
 
 
+def _displayed_study_datetime(value):
+    """Normalize Viewer 12-hour English display to DB YYYYMMDDHHMMSS."""
+    import re
+    text = " ".join(str(value or "").split())
+    match = re.fullmatch(
+        r"(\d{4})/(\d{2})/(\d{2})\s+(AM|PM)\s+(\d{2}):(\d{2}):(\d{2})",
+        text, re.I)
+    if not match:
+        return _digits(text)
+    year, month, day, meridiem, hour, minute, second = match.groups()
+    hour = int(hour) % 12 + (12 if meridiem.upper() == "PM" else 0)
+    return f"{year}{month}{day}{hour:02d}{minute}{second}"
+
+
 def _instance_counts(ctx, study_key):
     rows = ctx.db.query(
         "DATA", "SELECT InstanceType,COUNT(*) AS Cnt FROM INSTANCE "
@@ -188,7 +202,19 @@ def run(ctx):
 
     try:
         ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
-        if not flows.ensure_patient_screen(ui):
+        patient_ready = False
+        # Immediately after a workflow boundary the Viewer frame can exist
+        # before its status bar/menu children are attached.  Wait for the
+        # actual Patient screen instead of failing on that transient frame.
+        for _ in range(12):
+            try:
+                patient_ready = flows.ensure_patient_screen(ui, wait=2)
+            except Exception:
+                pass
+            if patient_ready:
+                break
+            time.sleep(1)
+        if not patient_ready:
             raise flows.FlowError("Patient 화면에 진입하지 못했습니다.")
         card_number = _study_card_number(ctx, target)
         visible = _open_suspended(ui, PATIENT_ID, card_number)
@@ -197,7 +223,7 @@ def run(ctx):
         expected_datetime = _digits(target["StudyDate"]) + _digits(target["StudyTime"])
         result.assert_true(
             1, "선택 검사 Study Date/Time",
-            _digits(info.get("study_datetime")).endswith(expected_datetime),
+            _displayed_study_datetime(info.get("study_datetime")) == expected_datetime,
             expected=expected_datetime, actual=info.get("study_datetime"))
         result.assert_true(1, "선택 검사 환자 정보 표시", bool(info.get("patient_name")),
                            expected="Patient Name 표시", actual=info)

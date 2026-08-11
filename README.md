@@ -16,6 +16,7 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 - Storage 서버/옵션만: `python run.py setup-storage`
 - WorkFlow_01 MWL+Local 9단계: `python run.py run-wf01`
 - WorkFlow_02 2D/3D Demo 촬영 및 Tool 적용: `python run.py run-wf02`
+- WorkFlow_03 DICOM Print Overlay·실제 출력·웹 프리뷰 검증: `python run.py run-wf03`
 - Local 검사 + F8 Demo 촬영: `python run.py run-ui`
 - XIPL 01~03 실제 UI 시험: `python run.py run-xipl`
 - XIPL 표시값 비교(TC01)만: `python run.py run-xipl-01`
@@ -30,9 +31,12 @@ F8 Demo 촬영, Viewer 내부 2D/3D 영상 처리 및 DB 판정을 순서대로 
 
 `run-regression`은 Examined 영상 데이터가 없는 초기 상태를 기준으로 Install 01/02 정적
 점검, DICOM 서버 설정, WorkFlow_01 fixture 생성, WorkFlow_02 2D/3D 데이터 생성,
-XIPL 01~06을 의존 순서대로 실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
+WorkFlow_03 실제 DICOM Print, XIPL 01~06을 의존 순서대로 실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
 Viewer 처리 로그, ImageAction 결과 파일과 재진입 값을 교차 검증한다. XIPL_03은 창이
-닫힌 사실만으로 PASS하지 않고 Recon/Syn DB·파일 변화와 Viewer Recon 오류 로그를 판정한다.
+닫힌 사실만으로 PASS하지 않고 10개 파라미터의 실제 변경, 전달 로그, Apply 후 재진입
+표시값을 판정한다. 10개 값 유지는 GPU 유무와 관계없이 필수이며 기본값으로 복귀하면
+FAIL이다. GPU가 있는 환경에서는 Recon/Syn DB·파일 변화도 필수다. GPU 미탑재로
+`No GPUS`만 발생하면 결과 생성 검증만 SKIP으로 분리한다.
 `release_note._source`가 교체 필요 상태이거나 `REPLACE_ME`가 남아 있으면 임시 버전과
 설치 버전을 비교해 FAIL로 만들지 않고, 현재 실제 버전을 수집한 뒤 Install_01을 MANUAL로
 보고한다. 승인된 Release Note 기준을 입력한 경우에만 자동 PASS/FAIL 비교를 수행한다.
@@ -42,6 +46,15 @@ Viewer 처리 로그, ImageAction 결과 파일과 재진입 값을 교차 검�
 `Reports/Result_YYYYMMDD_HHMMSS.{html,csv,json,txt}`에 TC별
 `PASS/FAIL/MANUAL/SKIP`과 Expected/Actual 결과가 저장된다. 실패 시 프로세스는
 종료 코드 1을 반환하므로 배치/CI에서도 성공 여부를 판정할 수 있다.
+
+주요 Workflow/XIPL은 UI 플로우가 끝났다는 사실만으로 PASS하지 않는다.
+
+- WorkFlow_01: MWL 원본 응답과 Viewer 표시 환자정보, Study UID, 보류/Local Study DB 값을 대조한다.
+- WorkFlow_02: 새 Study의 InstanceType 0/1/2/3, Series/Group/UID 구조, Tool 전후 OCR·화면 변화, 완료 DB 상태를 대조한다.
+- WorkFlow_03: Print Overlay DB 항목/서버 매핑, Film 1×1 표시 실제값, 신규 Print job, 웹 preview 실제값과 raster를 대조한다.
+- XIPL_01: 같은 Instance의 Viewer–XIPL W1/W2와 실제 PIM 파일명을 대조한다.
+- XIPL_02: 원본 XML, 변경한 5개 UI 값, Preview 변화, 처리 로그/파일, Apply 후 재진입 5개 값을 대조한다.
+- XIPL_03: 변경한 Recon/Syn 10개 값, Preview, xtp 전달 로그, Apply 후 재진입 10개 값을 대조한다. 기본값 복귀는 FAIL이다.
 
 ## DICOM 설정
 
@@ -54,7 +67,12 @@ Bunny는 반드시 설치 폴더를 작업 디렉터리로 실행하며 Storage 
 Annotation/Label/Information과 Image Option의 Apply preview position을 체크하고
 Dose SR은 Send로 설정한다. 서버 정보와 옵션이 이미 같으면 재입력/Update 없이
 Echo만 다시 수행한다. Echo는 결과 6단계 이상과 `Connected Fail` 없음으로 판정한다.
-Print Overlay는 별도 후속 자동화 범위이며 현재 `setup-dicom`에서는 변경하지 않는다.
+`run-wf03`은 Setting > DICOM > Print Overlay에서 `TC_WF03_OVERLAY`를 만들고 Patient ID,
+Birth Date, Thickness, Compression Force, HVL, AGD 여섯 항목을 Top에 등록한다. 이어서
+Setting > DICOM > Print의 `PRINT_TEST`에 해당 Overlay를 선택해 저장하고 DB Key를 대조한다.
+Display Overlay는 변경하지 않는다. Film은 2×2 기본 상태에서 Control ID 1141로 1×1로
+전환한 후 실제 Print를 수행한다. Print 서버의 신규 job만 식별하여 웹 Viewer가 사용하는
+preview 원본에서 여섯 실제값을 OCR하고, Film과 서버 raster 유사도(기준 0.96)를 비교한다.
 
 `run-wf01`은 시작 전에 MWL DB 설정(Use 포함)과 TCP를 확인한다. 미등록/불일치이면
 검색을 시도하지 않고 명확한 FAIL을 출력한다. Viewer가 MWL 오류 팝업을 표시하면
@@ -87,9 +105,12 @@ Reconstruction(ID 1178)으로 진입한다.
 크게 변경한다. Recon과 Syn의 Tone은 기본/최대값이 20이므로 모두 감소시킨다.
 Preview, Apply, 재진입 후 Parameter 유지까지 자동으로 판정한다.
 
-3D Post Reconstruction은 Preview 화면에 비교 영상이 표시되더라도 Apply 처리 로그에
-Recon 초기화 오류가 있거나 해당 Study의 InstanceType 2/3 결과 파일 해시·수정 시간이
-바뀌지 않으면 FAIL이다. 따라서 GPU가 없는 환경의 `No GPUS` 오류는 실제 실패로 보고된다.
+3D Post Reconstruction은 Preview 화면에 비교 영상이 표시되더라도 10개 UI 값 변경과
+`TEST_3D_FLOW.xtp` 전달 로그가 맞아야 파라미터 검증을 PASS한다. Apply 후에는 Post
+Reconstruction을 다시 열어 이름과 10개 값을 전부 다시 읽는다. 변경값 유지는 GPU 유무와
+관계없이 요구하며 기본값 복귀는 FAIL이다. GPU가 있는 환경에서는
+해당 Study의 InstanceType 2/3 결과 파일 해시·수정 시간 변화도 요구한다. GPU가 없는
+환경에서 오류가 정확히 `No GPUS`뿐이면 결과 생성만 SKIP한다. 그 밖의 Recon 오류는 FAIL이다.
 
 TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 영상 로딩 진행창이
 사라지고 2304x3072/W1/W2가 처음 표시되는 프레임을 즉시 읽는다. XIPL 창의 저장
