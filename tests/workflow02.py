@@ -238,7 +238,7 @@ def run(ctx):
         _capture(ctx, ui, "02_registered_2d.png", result)
 
         shot_2d = flows.demo_acquire_step(
-            ui, 1, settle=int(ctx.cfg.get("demo", {}).get("settle_seconds", 14)))
+            ui, 1, settle=0)
         counts = _wait_types(ctx, target["Key"], {0: 1})
         structure_2d = _image_structure(ctx, target["Key"])
         result.assert_true(
@@ -257,7 +257,7 @@ def run(ctx):
         _capture(ctx, ui, "04_registered_3dn.png", result)
 
         shot_3d = flows.demo_acquire_step(
-            ui, 2, settle=int(ctx.cfg.get("demo", {}).get("settle_seconds", 14)))
+            ui, 2, settle=0)
         counts = _wait_types(ctx, target["Key"], {0: 1, 1: 1, 2: 1, 3: 1})
         structure_3d = _image_structure(ctx, target["Key"])
         three_d = [row for row in structure_3d["instances"]

@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageGrab, ImageOps
@@ -221,7 +222,13 @@ def run(ctx):
             if len(buttons) == 1:
                 ui.click(buttons[0], settle=1)
 
-        jobs = server.wait_for_jobs(count=1, timeout=90, exclude_ids=known)
+        wait_started_wall, wait_started = datetime.now(), time.perf_counter()
+        jobs = server.wait_for_jobs(count=1, timeout=90, poll=.5, exclude_ids=known)
+        result.record_timing(
+            "Print SCP 신규 job 수신", wait_started_wall, wait_started,
+            "new print job received" if jobs else "timeout",
+            {"known_ids": sorted(known),
+             "new_ids": [str(item.get("id")) for item in jobs]})
         if not jobs:
             raise RuntimeError("Print SCP did not receive a new job within 90 seconds")
         job = jobs[-1]

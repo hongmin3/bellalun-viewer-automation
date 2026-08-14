@@ -14,6 +14,7 @@ import csv
 import html
 import json
 import os
+import time
 from datetime import datetime
 
 PASS, FAIL, MANUAL, SKIP = "PASS", "FAIL", "MANUAL", "SKIP"
@@ -41,12 +42,48 @@ class TCResult:
         self.title = title
         self.checks = []
         self.started = datetime.now()
+        self.completed = None
+        self.timings = []
+        self._step_cursor_wall = self.started
+        self._step_cursor = time.perf_counter()
         self.evidence = []
 
     # --- 등록 헬퍼 -----------------------------------------------------
     def add(self, step, title, status, expected="", actual="", note=""):
+        now_wall = datetime.now()
+        now = time.perf_counter()
+        self.timings.append({
+            "kind": "step", "name": f"Step {step}: {title}",
+            "started": self._step_cursor_wall.isoformat(timespec="milliseconds"),
+            "ended": now_wall.isoformat(timespec="milliseconds"),
+            "duration_seconds": round(now - self._step_cursor, 3),
+            "outcome": status, "detail": "check recorded",
+        })
+        self._step_cursor_wall, self._step_cursor = now_wall, now
         self.checks.append(Check(step, title, status, expected, actual, note))
         return self.checks[-1]
+
+    def record_timing(self, name, started_wall, started_perf, outcome, detail="",
+                      kind="wait"):
+        """Append timing metadata without changing any PASS/FAIL assertion."""
+        ended = datetime.now()
+        self.timings.append({
+            "kind": kind, "name": name,
+            "started": started_wall.isoformat(timespec="milliseconds"),
+            "ended": ended.isoformat(timespec="milliseconds"),
+            "duration_seconds": round(time.perf_counter() - started_perf, 3),
+            "outcome": outcome, "detail": str(detail),
+        })
+
+    def finalize(self, completed=None):
+        if self.completed is None:
+            self.completed = completed or datetime.now()
+        return self
+
+    @property
+    def duration_seconds(self):
+        end = self.completed or datetime.now()
+        return round((end - self.started).total_seconds(), 3)
 
     def assert_equal(self, step, title, expected, actual, note=""):
         ok = str(expected).strip().lower() == str(actual).strip().lower()
@@ -86,7 +123,10 @@ class TCResult:
         return {
             "tc_id": self.tc_id, "title": self.title, "verdict": self.verdict,
             "started": self.started.isoformat(timespec="seconds"),
+            "completed": (self.completed or datetime.now()).isoformat(timespec="seconds"),
+            "duration_seconds": self.duration_seconds,
             "counts": self.counts, "evidence": self.evidence,
+            "timings": self.timings,
             "checks": [c.as_dict() for c in self.checks],
         }
 
@@ -135,7 +175,7 @@ def write_txt(results, path, env=None):
     L.append("-" * 78)
     for r in results:
         c = r.counts
-        L.append(f" [{r.verdict:^6}] {r.tc_id:<28} {r.title}")
+        L.append(f" [{r.verdict:^6}] {r.tc_id:<28} {r.title} ({r.duration_seconds:.1f}s)")
         L.append(f"          P{c[PASS]} F{c[FAIL]} M{c[MANUAL]} S{c[SKIP]}")
     L.append("")
 
@@ -156,6 +196,12 @@ def write_txt(results, path, env=None):
             L.append("  [증적]")
             for e in r.evidence:
                 L.append(f"    - {e}")
+        if r.timings:
+            L.append("  [소요시간]")
+            for timing in r.timings:
+                L.append(f"    - {timing['kind']} {timing['name']}: "
+                         f"{timing['duration_seconds']:.3f}s / "
+                         f"{timing['outcome']} / {timing['detail']}")
         L.append("")
 
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
@@ -214,12 +260,13 @@ def write_reports(results, out_dir, run_name=None):
              f"<span class='MANUAL'>MANUAL {total[MANUAL]}</span> / "
              f"<span class='SKIP'>SKIP {total[SKIP]}</span></div>",
              "<h2>요약</h2><table class='sum'><tr><th>TC ID</th><th>Title</th><th>판정</th>"
-             "<th>P</th><th>F</th><th>M</th><th>S</th></tr>"]
+             "<th>P</th><th>F</th><th>M</th><th>S</th><th>소요시간</th></tr>"]
     for r in results:
         c = r.counts
         parts.append(f"<tr><td>{e(r.tc_id)}</td><td>{e(r.title)}</td>"
                      f"<td class='s {r.verdict}'>{r.verdict}</td>"
-                     f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td><td>{c[SKIP]}</td></tr>")
+                     f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td><td>{c[SKIP]}</td>"
+                     f"<td>{r.duration_seconds:.1f}s</td></tr>")
     parts.append("</table>")
 
     for r in results:
@@ -234,6 +281,16 @@ def write_reports(results, out_dir, run_name=None):
                          f"<td><code>{e(str(c.actual))}</code></td>"
                          f"<td>{e(c.note)}</td></tr>")
         parts.append("</table>")
+        if r.timings:
+            parts.append("<table><tr><th>종류</th><th>단계/대기</th><th>소요시간</th>"
+                         "<th>종료 원인</th><th>상세</th></tr>")
+            for timing in r.timings:
+                parts.append(
+                    f"<tr><td>{e(timing['kind'])}</td><td>{e(timing['name'])}</td>"
+                    f"<td>{timing['duration_seconds']:.3f}s</td>"
+                    f"<td>{e(timing['outcome'])}</td>"
+                    f"<td>{e(timing['detail'])}</td></tr>")
+            parts.append("</table>")
         if r.evidence:
             parts.append("<div class='meta'>증적: " +
                          ", ".join(f"<code>{e(p)}</code>" for p in r.evidence) + "</div>")

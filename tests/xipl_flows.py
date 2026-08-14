@@ -9,6 +9,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
@@ -102,6 +103,37 @@ def _viewer_log_since(mark):
     return data.decode("utf-8", errors="replace")
 
 
+_LOG_LINE_TS = re.compile(r"^\[(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]")
+
+
+def _log_lines_from(log_text, not_before):
+    """Keep only lines whose own timestamp is >= not_before.
+
+    A byte-offset log_mark can still admit a line that was logically written
+    before the mark: Viewer's log writer buffers output, so a slow-to-flush
+    line (e.g. the Preview action's own delayed "Terminate PostReconThread
+    normally closed", observed ~2-3s after its progress bar already reported
+    eNoti:5) can appear only after we have already re-marked the file for
+    the next action (Apply).  Filtering by each line's own embedded
+    timestamp — instead of trusting file-append ordering — is what actually
+    keeps a leftover Preview-thread completion from being misread as Apply's.
+    """
+    if not_before is None:
+        return log_text
+    kept = []
+    for line in log_text.splitlines():
+        m = _LOG_LINE_TS.match(line)
+        if not m:
+            continue
+        try:
+            ts = datetime.strptime(m.group(1), "%Y/%m/%d %H:%M:%S.%f")
+        except ValueError:
+            continue
+        if ts >= not_before:
+            kept.append(line)
+    return "\n".join(kept)
+
+
 def _last_2d_process(log_text):
     pattern = re.compile(
         r"Image Process Param Name\s*:\s*([^,\]]+),\s*"
@@ -116,6 +148,72 @@ def _last_2d_process(log_text):
         "Contrast": int(contrast), "Sharpness": int(sharpness),
         "Brightness": int(brightness), "Tone type": int(tone),
         "Noise reduction": int(noise)}}
+
+
+def _poll_completion(result, name, predicate, timeout, poll=.5):
+    """Wait up to timeout, but leave immediately when product evidence is complete."""
+    started_wall, started = datetime.now(), time.perf_counter()
+    deadline = time.monotonic() + float(timeout)
+    last = None
+    while time.monotonic() < deadline:
+        try:
+            done, reason, detail = predicate()
+            last = detail
+            if done:
+                result.record_timing(name, started_wall, started, reason, detail)
+                return detail
+        except Exception as exc:
+            last = repr(exc)
+        time.sleep(poll)
+    result.record_timing(name, started_wall, started, "timeout", last)
+    raise RuntimeError(f"{name} timed out after {timeout}s; last={last}")
+
+
+def _preview_2d_complete(log_mark, expected_values):
+    applied = _last_2d_process(_viewer_log_since(log_mark))
+    values_ok = applied.get("values") == expected_values
+    name_ok = (vp._parameter_name_key(applied.get("parameter")) ==
+               vp._parameter_name_key("TEST_2D_FLOW.pim"))
+    detail = {"log": applied, "values_match": values_ok}
+    return name_ok and values_ok, "log completion detected", detail
+
+
+def _apply_2d_complete(ctx, ui, log_mark, files_before, expected_values):
+    applied = _last_2d_process(_viewer_log_since(log_mark))
+    files_after = _directory_state(
+        os.path.join(ctx.cfg["data_dir"], "Image", "ImageAction"))
+    delta = _new_files(files_before, files_after)
+    closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
+    values_ok = applied.get("values") == expected_values
+    name_ok = (vp._parameter_name_key(applied.get("parameter")) ==
+               vp._parameter_name_key("TEST_2D_FLOW.pim"))
+    detail = {"window_closed": closed, "log": applied,
+              "image_action_files": delta}
+    return (closed and name_ok and values_ok and bool(delta),
+            "log/file/control completion detected", detail)
+
+
+def _post_recon_complete(log_mark, ui, require_closed, not_before=None):
+    log_text = _log_lines_from(_viewer_log_since(log_mark), not_before)
+    thread_done = "Terminate PostReconThread normally closed" in log_text
+    closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
+    parameter_seen = bool(re.search(
+        r"Initialize Reconstruction\.[^\r\n]*TEST_3D_FLOW\.xtp", log_text, re.I))
+    errors = re.findall(
+        r"Failed to initialize Recon\.\s*Error:\s*([^\]\r\n]+)", log_text, re.I)
+    progress_done = bool(re.search(
+        r"ProgressBar Show \(CDlgPostReconstruction::OnProgressImageProcess,\s*eNoti:5\)",
+        log_text, re.I))
+    gpu_unavailable = bool(errors) and all(
+        re.sub(r"[^a-z]", "", error.lower()) in {"nogpu", "nogpus"}
+        for error in errors)
+    processing_done = thread_done or (
+        parameter_seen and gpu_unavailable and progress_done)
+    done = processing_done and (closed if require_closed else True)
+    detail = {"thread_done": thread_done, "window_closed": closed,
+              "progress_done": progress_done, "parameter_seen": parameter_seen,
+              "gpu_unavailable": gpu_unavailable, "errors": errors}
+    return done, "log/control completion detected", detail
 
 
 def _parameter_display_matches(expected, displayed):
@@ -153,6 +251,30 @@ def _read_2d_parameter_file(path):
         raise RuntimeError(f"Invalid 2D parameter baseline in {path}: {exc}") from exc
 
 
+def _refresh_fixture(ctx):
+    """Recreate today's DATA_FLOW_MWL_01 fixture via WF01 (MWL delete+recreate,
+    Local suspend) then WF02 (Demo F8 2D/3D acquisition).
+
+    Standalone XIPL runs (run-xipl-01/02/03) must never silently reuse a
+    fixture from a previous day: WF01 already deletes/re-registers the MWL
+    order for today on every run, so re-running WF01+WF02 here guarantees
+    the InstanceType 0/1/2/3 fixture open_test_study() looks for is today's.
+    """
+    from tests.workflow01 import run as run_wf01
+    from tests.workflow02 import run as run_wf02
+
+    wf01 = run_wf01(ctx)
+    if wf01.verdict == FAIL:
+        raise RuntimeError(
+            "오늘 날짜 시험 데이터 준비를 위한 WF01 재실행이 실패했습니다: "
+            f"{[c.actual for c in wf01.checks if c.status == FAIL]}")
+    wf02 = run_wf02(ctx)
+    if wf02.verdict == FAIL:
+        raise RuntimeError(
+            "오늘 날짜 시험 데이터 준비를 위한 WF02 재실행이 실패했습니다: "
+            f"{[c.actual for c in wf02.checks if c.status == FAIL]}")
+
+
 def _prepare(ctx):
     subprocess.run(
         ["powershell", "-NoProfile", "-Command",
@@ -161,6 +283,9 @@ def _prepare(ctx):
     parameter_root = (ctx.cfg.get("xipl") or {}).get(
         "parameter_dir", r"C:\XIPL\PARAMETER")
     vp.ensure_parameter_copies(parameter_root)
+    patient_id = (ctx.cfg.get("xipl") or {}).get("test_patient_id", "DATA_FLOW_MWL_01")
+    if not vp.fixture_is_fresh(ctx, patient_id):
+        _refresh_fixture(ctx)
     return vp.open_test_study(ctx)
 
 
@@ -331,7 +456,10 @@ def compatibility_02(ctx, session):
         action_before = _directory_state(
             os.path.join(ctx.cfg["data_dir"], "Image", "ImageAction"))
         ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible][0], settle=1)
-        time.sleep(float((ctx.cfg.get("xipl") or {}).get("preview_2d_wait", 20)))
+        preview_limit = float((ctx.cfg.get("xipl") or {}).get("preview_2d_wait", 20))
+        _poll_completion(
+            r, "XIPL 2D Preview", lambda: _preview_2d_complete(log_mark, changed_state),
+            preview_limit)
         preview = _ev(ctx, "TC_XIPL_compatibility_02_preview.png")
         vp.capture(preview)
         r.attach(preview)
@@ -343,7 +471,12 @@ def compatibility_02(ctx, session):
                       actual={"delta": preview_delta, "apply_visible": apply_visible})
 
         ui.click([c for c in ui.by_id(vp.APPLY) if c.visible][0], settle=1)
-        time.sleep(float((ctx.cfg.get("xipl") or {}).get("apply_2d_wait", 30)))
+        apply_limit = float((ctx.cfg.get("xipl") or {}).get("apply_2d_wait", 30))
+        _poll_completion(
+            r, "XIPL 2D Apply",
+            lambda: _apply_2d_complete(ctx, ui, log_mark,
+                                       action_before, changed_state),
+            apply_limit)
         action_after = _directory_state(
             os.path.join(ctx.cfg["data_dir"], "Image", "ImageAction"))
         action_delta = _new_files(action_before, action_after)
@@ -422,7 +555,15 @@ def compatibility_03(ctx, session):
         log_mark = _viewer_log_mark(ctx)
         result_before = _result_state(ctx, session["study_key"])
         ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible][0], settle=1)
-        time.sleep(float((ctx.cfg.get("xipl") or {}).get("preview_3d_wait", 35)))
+        xipl_cfg = ctx.cfg.get("xipl") or {}
+        # The legacy preview_3d_wait was only a blind settle delay.  Repeated
+        # live runs varied from about 38s to 80s, so keep a generous ceiling
+        # while still returning as soon as the thread-end log appears.
+        post_recon_limit = float(xipl_cfg.get("post_recon_timeout", 120))
+        preview_limit = float(xipl_cfg.get("preview_3d_timeout", post_recon_limit))
+        preview_completion = _poll_completion(
+            r, "XIPL 3D Preview", lambda: _post_recon_complete(log_mark, ui, False),
+            preview_limit)
         preview = _ev(ctx, "TC_XIPL_compatibility_03_preview.png")
         vp.capture(preview)
         r.attach(preview)
@@ -433,13 +574,36 @@ def compatibility_03(ctx, session):
                       expected="처리 pane 변화율 >= 0.005 및 Apply 활성",
                       actual={"delta": preview_delta, "apply_visible": apply_visible})
 
+        apply_log_mark = _viewer_log_mark(ctx)
+        apply_click_time = datetime.now()
         ui.click([c for c in ui.by_id(vp.APPLY) if c.visible][0], settle=1)
-        time.sleep(float((ctx.cfg.get("xipl") or {}).get("apply_3d_wait", 75)))
-        log_text = _viewer_log_since(log_mark)
+        apply_limit = float(xipl_cfg.get("apply_3d_timeout", post_recon_limit))
+        _poll_completion(
+            r, "XIPL 3D Apply",
+            lambda: _post_recon_complete(apply_log_mark, ui, True,
+                                         not_before=apply_click_time),
+            apply_limit)
+        # Filter by each line's own timestamp, not just byte offset: a live
+        # run on 2026-08-14 showed the Preview action's own thread-exit line
+        # ("Terminate PostReconThread normally closed") land in the log only
+        # after Apply's mark was taken, so an unfiltered read misread it as
+        # Apply's own completion (thread_done True in 0.567s -- far too fast
+        # for a real Post Recon cycle, which the same run's Preview stage
+        # took ~9.7s to reach even via progress bar, and ~12s via thread-exit).
+        log_text = _log_lines_from(_viewer_log_since(apply_log_mark), apply_click_time)
         result_after = _result_state(ctx, session["study_key"])
         apply_closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
+        thread_done = "Terminate PostReconThread normally closed" in log_text
         recon_error = re.findall(
             r"Failed to initialize Recon\.\s*Error:\s*([^\]\r\n]+)", log_text, re.I)
+        # Confirmed on 2026-08-14 (Viewer log 09:18:08-09:18:43): Apply does
+        # NOT re-emit "Initialize Reconstruction ... TEST_3D_FLOW.xtp" the
+        # way Preview does -- it reuses the already-previewed computation and
+        # only logs its own Do Post Reconstruction/progress/thread-exit
+        # cycle. So parameter_seen is recorded for visibility only; it is
+        # not a pass/fail condition here. Step 9's reopen-and-compare is the
+        # authoritative check that TEST_3D_FLOW.xtp and its 10 values survived
+        # Apply.
         parameter_seen = bool(re.search(
             r"Initialize Reconstruction\.[^\r\n]*TEST_3D_FLOW\.xtp",
             log_text, re.I))
@@ -447,16 +611,19 @@ def compatibility_03(ctx, session):
             re.sub(r"[^a-z]", "", error.lower()) in {"nogpu", "nogpus"}
             for error in recon_error)
         unexpected_error = recon_error if not gpu_unavailable else []
-        r.assert_true(8, "Apply 요청과 선택 파라미터 전달",
-                      apply_closed and parameter_seen and not unexpected_error,
-                      expected=("TEST_3D_FLOW.xtp 처리 로그 확인; GPU 미탑재 환경의 "
-                                "No GPUS만 허용"),
+        r.assert_true(8, "Apply 요청 처리 완료",
+                      apply_closed and thread_done and not unexpected_error,
+                      expected=("Apply 창 닫힘 + Apply 자체의 신규 Post Recon 완료 로그; "
+                                "GPU 미탑재 환경의 No GPUS만 허용"),
                       actual={"window_closed": apply_closed,
+                              "thread_done": thread_done,
                               "parameter_seen": parameter_seen,
                               "gpu_unavailable": gpu_unavailable,
                               "errors": recon_error},
-                      note=("본 TC의 자동 판정 핵심은 10개 파라미터 변경과 정확한 xtp 전달이다. "
-                            "GPU가 없으면 실제 Reconstruction 산출물은 별도 SKIP으로 기록한다."))
+                      note=("Apply는 Preview와 달리 Initialize Reconstruction 로그를 다시 "
+                            "남기지 않는다(2026-08-14 실측). 선택 파라미터 유지 여부는 "
+                            "Step 9 재진입 비교가 판정한다. GPU가 없으면 실제 Reconstruction "
+                            "산출물은 별도 SKIP으로 기록한다."))
 
         db_changed = result_before["instances"] != result_after["instances"]
         files_changed = result_before["files"] != result_after["files"]
@@ -487,7 +654,12 @@ def compatibility_03(ctx, session):
                          "db_changed": db_changed,
                          "files_changed": files_changed,
                          "errors": recon_error}
-        if gpu_unavailable:
+        # Apply's own log never repeats "Failed to initialize Recon: No GPUS"
+        # (it doesn't reinitialize at all -- see Step 8 note), so whether the
+        # machine actually has no GPU can only be read from the Preview
+        # attempt, which does perform and log a real initialize/error cycle.
+        preview_gpu_unavailable = bool(preview_completion.get("gpu_unavailable"))
+        if preview_gpu_unavailable:
             r.skip(10, "Recon/Synthetic 결과 영상 생성",
                    "GPU 미탑재 환경에서 Viewer가 'No GPUS'를 반환하여 산출물 검증 제외")
         else:

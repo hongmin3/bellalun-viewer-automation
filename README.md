@@ -8,6 +8,13 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 계정, 설치 경로, DICOM 서버 주소를 입력한다. `config.json`은 로그인 정보와
 시험망 주소를 포함할 수 있어 Git에서 제외된다.
 
+**실행 중 마우스/키보드 점유**: Bellalun Viewer의 버튼 대부분이 커스텀 렌더링
+컨트롤이라 표준 Windows 메시지에 반응하지 않아, 이 자동화는 실제 물리적
+마우스 커서(`SetCursorPos`+`mouse_event`)와 키보드 입력(`SendInput`)을 사용한다.
+실행 중에는 같은 Windows 세션에서 다른 작업을 하기 어려우므로, 자동화를 돌리는
+동안 PC를 함께 써야 한다면 Switch User로 별도 세션을 만들어 그 안에서 실행한다
+(자세한 준비사항은 `..\지식\[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` 5절 참고).
+
 ## 실행
 
 - 초기 상태 전체 회귀: `run_all.cmd` 또는 `python run.py run-regression`
@@ -31,21 +38,60 @@ F8 Demo 촬영, Viewer 내부 2D/3D 영상 처리 및 DB 판정을 순서대로 
 
 `run-regression`은 Examined 영상 데이터가 없는 초기 상태를 기준으로 Install 01/02 정적
 점검, DICOM 서버 설정, WorkFlow_01 fixture 생성, WorkFlow_02 2D/3D 데이터 생성,
-WorkFlow_03 실제 DICOM Print, XIPL 01~06을 의존 순서대로 실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
+WorkFlow_03 실제 DICOM Print, **XIPL_01을 포함한 XIPL 01~06**을 의존 순서대로
+실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
 Viewer 처리 로그, ImageAction 결과 파일과 재진입 값을 교차 검증한다. XIPL_03은 창이
-닫힌 사실만으로 PASS하지 않고 10개 파라미터의 실제 변경, 전달 로그, Apply 후 재진입
+닫힌 사실만으로 PASS하지 않고 10개 파라미터의 실제 변경, xtp 전달 로그, Apply 후 재진입
 표시값을 판정한다. 10개 값 유지는 GPU 유무와 관계없이 필수이며 기본값으로 복귀하면
 FAIL이다. GPU가 있는 환경에서는 Recon/Syn DB·파일 변화도 필수다. GPU 미탑재로
-`No GPUS`만 발생하면 결과 생성 검증만 SKIP으로 분리한다.
+`No GPUS`만 발생하면 결과 생성 검증만 SKIP으로 분리하며, GPU 유무 판단은 실제로
+초기화를 시도하는 Preview 단계의 로그를 기준으로 한다(Apply는 재초기화를 하지 않아
+오류 자체를 남기지 않기 때문). 이 GPU-없음 SKIP 규칙은 XIPL_03뿐 아니라 앞으로 추가될
+3D/Reconstruction 계열 TC에도 동일하게 적용한다.
 `release_note._source`가 교체 필요 상태이거나 `REPLACE_ME`가 남아 있으면 임시 버전과
 설치 버전을 비교해 FAIL로 만들지 않고, 현재 실제 버전을 수집한 뒤 Install_01을 MANUAL로
 보고한다. 승인된 Release Note 기준을 입력한 경우에만 자동 PASS/FAIL 비교를 수행한다.
+
+### XIPL 픽스처(Fixture) 신선도
+
+`open_test_study()`는 `DATA_FLOW_MWL_01`의 InstanceType 0/1/2/3이 모두 있는
+**가장 최근** Study를 연다. Viewer의 View 검색 화면 기본 기간 필터가 "Today"라서,
+며칠 지난 픽스처를 그대로 열려고 하면 검색 자체가 0건이 된다. 이를 막기 위해
+`run-xipl-01`/`02`/`03`을 단독 실행할 때는 시작 전에 오늘 날짜의 InstanceType
+0/1/2/3 픽스처가 있는지 확인하고, 없으면 WF01(MWL 처방 삭제 후 재등록 + Local
+보류 검사 생성)과 WF02(Demo F8 2D/3D 촬영)를 먼저 자동 실행해 오늘 날짜 픽스처를
+새로 만든 뒤 진행한다. `run-regression`은 WF01→WF02를 이미 거치므로 이 재생성이
+다시 일어나지 않는다. MWL 서버에서 지우는 대상은 항상 이 자동화가 사용하는
+patient_id로 한정하며, MWL 서버 전체 삭제(`delete-all`)는 사용하지 않는다.
 
 ## 결과
 
 `Reports/Result_YYYYMMDD_HHMMSS.{html,csv,json,txt}`에 TC별
 `PASS/FAIL/MANUAL/SKIP`과 Expected/Actual 결과가 저장된다. 실패 시 프로세스는
-종료 코드 1을 반환하므로 배치/CI에서도 성공 여부를 판정할 수 있다.
+종료 코드 1을 반환하므로 배치/CI에서도 성공 여부를 판정할 수 있다. JSON에는 TC
+전체 `duration_seconds`와 함께 `timings` 배열이 들어있어 Step별 소요시간, 상태
+기반 대기(`wait`)의 이름·시작/종료 시각·소요시간·종료 원인(`control appeared`,
+`log/control completion detected`, `timeout` 등)·세부 detail을 그대로 확인할 수
+있다. 실행 시간을 재려면:
+
+```powershell
+$sw=[Diagnostics.Stopwatch]::StartNew()
+python run.py --config config.json run-regression
+$code=$LASTEXITCODE
+$sw.Stop()
+"ELAPSED_SECONDS=$([math]::Round($sw.Elapsed.TotalSeconds,3))"
+```
+
+2026-08-11 최적화(고정 sleep 제거 → 상태 기반 대기) 전 전체 회귀는 1290.6초였고,
+2026-08-14 실측 전체 회귀는 895초로 약 396초(30.7%) 단축되었다.
+
+### PASS/FAIL 판정 근거를 신뢰하는 방법
+
+자동 판정 결과를 눈으로 재구성할 수 있도록, 모든 TC의 모든 Check는 리포트에
+`Expected`/`Actual` 실제값을 남기고 애매한 판정에는 `note`로 비교 근거(어떤
+로그 문구, DB 컬럼, 재진입 시 UI 값, 파일 해시/시각을 대조했는지)를 밝힌다. 이
+정책은 기존 TC뿐 아니라 앞으로 추가할 TC에도 동일하게 적용한다(자세한 규칙은
+`..\지식\[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` 2절 참고).
 
 주요 Workflow/XIPL은 UI 플로우가 끝났다는 사실만으로 PASS하지 않는다.
 
@@ -54,7 +100,9 @@ FAIL이다. GPU가 있는 환경에서는 Recon/Syn DB·파일 변화도 필수�
 - WorkFlow_03: Print Overlay DB 항목/서버 매핑, Film 1×1 표시 실제값, 신규 Print job, 웹 preview 실제값과 raster를 대조한다.
 - XIPL_01: 같은 Instance의 Viewer–XIPL W1/W2와 실제 PIM 파일명을 대조한다.
 - XIPL_02: 원본 XML, 변경한 5개 UI 값, Preview 변화, 처리 로그/파일, Apply 후 재진입 5개 값을 대조한다.
-- XIPL_03: 변경한 Recon/Syn 10개 값, Preview, xtp 전달 로그, Apply 후 재진입 10개 값을 대조한다. 기본값 복귀는 FAIL이다.
+- XIPL_03: 변경한 Recon/Syn 10개 값, Preview 처리 로그, Apply의 실제 신규 완료 로그(타임스탬프
+  필터링으로 이전 동작의 지연 로그와 구분), Apply 후 재진입 10개 값을 대조한다. 재진입 시
+  기본값 복귀는 GPU 유무와 무관하게 FAIL이다.
 
 ## DICOM 설정
 
@@ -106,11 +154,18 @@ Reconstruction(ID 1178)으로 진입한다.
 Preview, Apply, 재진입 후 Parameter 유지까지 자동으로 판정한다.
 
 3D Post Reconstruction은 Preview 화면에 비교 영상이 표시되더라도 10개 UI 값 변경과
-`TEST_3D_FLOW.xtp` 전달 로그가 맞아야 파라미터 검증을 PASS한다. Apply 후에는 Post
-Reconstruction을 다시 열어 이름과 10개 값을 전부 다시 읽는다. 변경값 유지는 GPU 유무와
-관계없이 요구하며 기본값 복귀는 FAIL이다. GPU가 있는 환경에서는
-해당 Study의 InstanceType 2/3 결과 파일 해시·수정 시간 변화도 요구한다. GPU가 없는
-환경에서 오류가 정확히 `No GPUS`뿐이면 결과 생성만 SKIP한다. 그 밖의 Recon 오류는 FAIL이다.
+`TEST_3D_FLOW.xtp` 전달 로그(Preview 단계에서 확인)가 맞아야 파라미터 검증을
+PASS한다. Apply는 Preview와 달리 `Initialize Reconstruction` 로그를 다시 남기지
+않으므로(실측 확인, 2026-08-14), Apply의 완료 판정은 Apply 자체가 새로 여는
+Post Recon 스레드의 종료 로그로 확인한다. 이때 로그 오프셋만으로 "이후 발생"을
+판단하면 이전 동작(Preview)의 지연된 스레드 종료 로그를 Apply 완료로 오인할 수
+있어(버퍼링된 로그 flush 지연으로 실제 재현됨), 각 로그 줄 자체의 타임스탬프를
+Apply 클릭 시각과 비교해 필터링한다. Apply 후에는 Post Reconstruction을 다시 열어
+이름과 10개 값을 전부 다시 읽는다. 변경값 유지는 GPU 유무와 관계없이 요구하며
+기본값 복귀는 FAIL이다. GPU가 있는 환경에서는 해당 Study의 InstanceType 2/3 결과
+파일 해시·수정 시간 변화도 요구한다. GPU 유무는 Apply가 아니라 실제로 초기화를
+시도하는 **Preview 단계의 로그**로 판단하며, 그 결과가 정확히 `No GPUS`뿐이면
+결과 생성만 SKIP한다. 그 밖의 Recon 오류는 FAIL이다.
 
 TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 영상 로딩 진행창이
 사라지고 2304x3072/W1/W2가 처음 표시되는 프레임을 즉시 읽는다. XIPL 창의 저장

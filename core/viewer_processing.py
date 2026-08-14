@@ -13,6 +13,7 @@ import shutil
 import time
 import ctypes
 import ctypes.wintypes as wintypes
+from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -31,6 +32,7 @@ REFRESH = 2056
 PREVIEW = 2054
 APPLY = 2055
 CANCEL = 1102
+VIEW_RANGE_MONTH = 1108
 
 TESSERACT_EXE = os.environ.get(
     "BELLALUN_TESSERACT", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
@@ -259,6 +261,28 @@ def add_view_position(ui, mode):
     return after
 
 
+def fixture_is_fresh(ctx, patient_id, today=None):
+    """True if patient_id already has a study dated today with InstanceType 0/1/2/3.
+
+    The View search screen's default date range is "Today", and the fixture
+    is only ever re-created (not touched) between runs.  Without this check,
+    a standalone XIPL run on a later day would try to reuse an older study
+    that the default search range cannot even find.
+    """
+    today = today or datetime.now().strftime("%Y%m%d")
+    row = ctx.db.one(
+        "DATA", "SELECT TOP 1 s.[Key] FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
+        "WHERE p.PatientID=@pid AND s.StudyDate=@today AND EXISTS (SELECT 1 FROM INSTANCE i "
+        "WHERE i.StudyKey=s.[Key] AND i.InstanceType=1) ORDER BY s.[Key] DESC",
+        {"pid": patient_id, "today": today})
+    if not row:
+        return False
+    types = {int(x["InstanceType"]) for x in ctx.db.query(
+        "DATA", "SELECT InstanceType FROM INSTANCE WHERE StudyKey=@study",
+        {"study": row["Key"]})}
+    return {0, 1, 2, 3}.issubset(types)
+
+
 def open_test_study(ctx):
     """Open the dedicated 2D+3D Viewer fixture by Patient ID.
 
@@ -323,6 +347,12 @@ def open_test_study(ctx):
         raise RuntimeError("Patient ID search option not found")
     ui.click(patient_id_item[0], settle=.5)
     ui.set_text(search[0], patient_id)
+    # Default search range is "Today". The reusable fixture is created once
+    # and reused across days (see docstring above), so widen the range to
+    # Month before searching or an older fixture returns zero rows.
+    month_range = [c for c in ui.by_id(VIEW_RANGE_MONTH) if c.visible]
+    if month_range:
+        ui.click(month_range[0], settle=1)
     ui.click(button[0], settle=3)
 
     study_list = [c for c in ui.by_id(2199) if c.visible]

@@ -23,6 +23,11 @@ class Context:
 
 
 def finish(ctx, results):
+    completed = datetime.now()
+    for index, result in enumerate(results):
+        next_started = (results[index + 1].started
+                        if index + 1 < len(results) else completed)
+        result.finalize(next_started)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     paths = write_reports(results, ctx.reports_root, stamp)
     for r in results:

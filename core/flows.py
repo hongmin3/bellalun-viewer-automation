@@ -350,9 +350,18 @@ def _need(ui, ctrl_id, what):
 
 
 # --- Patient 화면 -----------------------------------------------------
-def open_new_patient_tab(ui):
+def open_new_patient_tab(ui, timeout=8):
     ui.activate()
-    ui.click(_need(ui, PATIENT["tab_new_patient"], "New Patient 탭"), settle=1.2)
+    ui.click(_need(ui, PATIENT["tab_new_patient"], "New Patient 탭"), settle=.2)
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        controls = [c for c in ui.by_id(PATIENT["np_patient_id"]) if c.visible]
+        if controls:
+            return controls[0]
+        time.sleep(.25)
+    raise FlowError(
+        f"New Patient 입력 화면이 {timeout}초 안에 준비되지 않았습니다 "
+        f"(Patient ID control {PATIENT['np_patient_id']}).")
 
 
 def open_patient_list_tab(ui):

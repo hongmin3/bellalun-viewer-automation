@@ -22,15 +22,22 @@ def ensure_bunny(cfg):
     exe = spec["app_path"]
     if not ViewerUi("Bunny").pid:
         subprocess.Popen([exe], cwd=os.path.dirname(exe))
-        time.sleep(3)
+        end = time.monotonic() + 15
+        while time.monotonic() < end and not ViewerUi("Bunny").pid:
+            time.sleep(.25)
     ui = ViewerUi("Bunny")
     tree = [c for c in ui.by_id(1022) if c.visible and c.cls == "SysTreeView32"]
     if tree:
         ui.click(tree[0], settle=.2)
         ui.raw_key(0x24)  # Home = Storage Server
         ui.raw_key(0x0D)
-        time.sleep(2)
-    return tcp_open(spec["host"], int(spec["port"])) or tcp_open("127.0.0.1", int(spec["port"]))
+    end = time.monotonic() + 15
+    while time.monotonic() < end:
+        if (tcp_open(spec["host"], int(spec["port"])) or
+                tcp_open("127.0.0.1", int(spec["port"]))):
+            return True
+        time.sleep(.25)
+    return False
 
 
 def tcp_open(host, port, timeout=2):
@@ -159,19 +166,30 @@ def _sync_use(ui, db, kind, target_name):
 def _echo(ui, evidence_path=None):
     from core import screen
     ui.click([c for c in ui.by_id(2433) if c.visible][0], settle=.5)
-    time.sleep(5)
+    deadline = time.monotonic() + 15
+    rows = []
+    while time.monotonic() < deadline:
+        win = ui.main_window()
+        if not win:
+            time.sleep(.25)
+            continue
+        l, t, r, b = win.rect
+        split_y = t + (b - t) * .55
+        seen = set()
+        rows = []
+        for c in ui.controls(max_depth=9):
+            if (c.text == "ListItem" and c.visible and c.hwnd not in seen
+                    and c.rect[0] < l + (r - l) * .55 and c.rect[1] >= split_y):
+                seen.add(c.hwnd)
+                rows.append(c)
+        if len(rows) >= 6:
+            break
+        time.sleep(.25)
     win = ui.main_window()
     if not win:
         return False, 0, "Viewer window 없음", None
     l, t, r, b = win.rect
     split_y = t + (b - t) * .55
-    seen = set()
-    rows = []
-    for c in ui.controls(max_depth=9):
-        if (c.text == "ListItem" and c.visible and c.hwnd not in seen
-                and c.rect[0] < l + (r - l) * .55 and c.rect[1] >= split_y):
-            seen.add(c.hwnd)
-            rows.append(c)
     box = (int(l + (r - l) * .20), int(split_y),
            int(l + (r - l) * .56), int(t + (b - t) * .84))
     ocr_text = screen.ocr(box, scale=3, psm=6, path=evidence_path)

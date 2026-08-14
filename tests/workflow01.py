@@ -2,9 +2,9 @@
 """TC_Basic_WorkFlow_01: MWL 조회부터 Local 검사 생성까지 완전자동화."""
 import os
 import time
-from datetime import date
+from datetime import date, datetime
 
-from core import flows, screen
+from core import flows, screen, watchdog
 from core.dicom_settings import _exact_saved, _saved_rows, tcp_open
 from core.mwl import MwlServer, make_mg_order
 from core.result import TCResult, PASS, FAIL
@@ -157,7 +157,13 @@ def run(ctx):
         before_key = ctx.db.scalar("DATA", "SELECT ISNULL(MAX([Key]),0) FROM STUDY") or 0
         ui.click(flows._need(ui, flows.PATIENT["examine_from_list"], "Examine"), settle=1)
         dup = flows.handle_select_patient_information(ui, "use_existing", timeout=5)
-        time.sleep(7)
+        wait_started_wall, wait_started = datetime.now(), time.perf_counter()
+        entered = watchdog.wait_until(
+            lambda: bool(ui.by_id(flows.EXAMINE["edit_information"])),
+            timeout=7, poll=.25, desc="MWL Examine 화면")
+        r.record_timing("MWL Examine 화면 진입", wait_started_wall, wait_started,
+                        "control appeared" if entered else "timeout",
+                        "Edit Information control ID 2003")
         if not ui.by_id(flows.EXAMINE["edit_information"]):
             raise flows.FlowError("MWL 검사 Examine 화면에 진입하지 못했습니다.")
         r.add(3, "선택 MWL 처방으로 Examine 진입", PASS,
@@ -224,7 +230,13 @@ def run(ctx):
         before_key = ctx.db.scalar("DATA", "SELECT ISNULL(MAX([Key]),0) FROM STUDY") or 0
         ui.click(flows._need(ui, flows.PATIENT["np_examine"], "Examine"), settle=1)
         dup = flows.handle_select_patient_information(ui, "use_existing", timeout=5)
-        time.sleep(7)
+        wait_started_wall, wait_started = datetime.now(), time.perf_counter()
+        entered = watchdog.wait_until(
+            lambda: bool(ui.by_id(flows.EXAMINE["edit_information"])),
+            timeout=7, poll=.25, desc="Local Examine 화면")
+        r.record_timing("Local Examine 화면 진입", wait_started_wall, wait_started,
+                        "control appeared" if entered else "timeout",
+                        "Edit Information control ID 2003")
         if not ui.by_id(flows.EXAMINE["edit_information"]):
             raise flows.FlowError("Local 검사 Examine 화면에 진입하지 못했습니다.")
         r.add(8, "Local 검사 Examine 진입", PASS, actual={"duplicate": dup})
