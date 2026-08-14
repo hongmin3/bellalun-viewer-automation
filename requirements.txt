@@ -1,0 +1,11 @@
+# Bellalun Viewer automation - Python dependencies.
+# Install with:  python -m pip install -r requirements.txt
+#
+# Everything else (SQL Server access, Win32 UI control, screen capture click
+# simulation) uses only the Python standard library (ctypes, subprocess,
+# json, ...) plus PowerShell + .NET System.Data.SqlClient, which ship with
+# Windows. No pyodbc/pywin32 dependency is required.
+
+Pillow==12.1.1
+pytesseract==0.3.13
+openpyxl==3.1.5

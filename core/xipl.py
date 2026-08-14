@@ -320,6 +320,119 @@ if($null -ne $found){{
             raise RuntimeError("XIPL Parameter Editor Process button not found")
         time.sleep(wait)
 
+    def set_pim_field(self, field_name, value):
+        """Set a slider-backed numeric field in the open Parameter Editor.
+
+        Matches the field's Text label to its nearest Slider by on-screen Y
+        position (WPF exposes every slider as an unnamed 'SliderMain'
+        element, so name alone cannot disambiguate them) and drives it
+        through UI Automation's RangeValuePattern rather than clicking
+        spinner arrows, which only step by a fixed increment.
+        """
+        if not self.ui.pid:
+            raise RuntimeError("XIPL.STUDIO가 실행되어 있지 않습니다.")
+        script = rf'''
+Add-Type -AssemblyName UIAutomationClient
+$p = Get-Process -Id {self.ui.pid} -ErrorAction Stop
+$root = [System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+$wtype = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Window)
+$wins = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$wtype)
+$editor = $null
+foreach ($w in $wins) {{ if ($w.Current.Name -match 'PIM|PureImpact') {{ $editor = $w; break }} }}
+if ($null -eq $editor) {{ Write-Output "ERROR:NO_EDITOR"; exit }}
+$all = $editor.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+$texts = New-Object System.Collections.Generic.List[object]
+$sliders = New-Object System.Collections.Generic.List[object]
+foreach ($e in $all) {{
+  $c = $e.Current
+  if ($c.ControlType.ProgrammaticName -eq "ControlType.Text" -and $c.Name -eq "{field_name}") {{
+    $texts.Add($e)
+  }} elseif ($c.ControlType.ProgrammaticName -eq "ControlType.Slider") {{
+    $sliders.Add($e)
+  }}
+}}
+if ($texts.Count -eq 0) {{ Write-Output "ERROR:FIELD_NOT_FOUND"; exit }}
+if ($sliders.Count -eq 0) {{ Write-Output "ERROR:NO_SLIDERS"; exit }}
+$bestDist = [double]::MaxValue
+$bestSlider = $null
+foreach ($t in $texts) {{
+  $ty = $t.Current.BoundingRectangle.Y
+  foreach ($s in $sliders) {{
+    $sy = $s.Current.BoundingRectangle.Y
+    $d = [Math]::Abs($ty - $sy)
+    if ($d -lt $bestDist) {{ $bestDist = $d; $bestSlider = $s }}
+  }}
+}}
+if ($null -eq $bestSlider -or $bestDist -gt 15) {{ Write-Output "ERROR:NO_MATCHING_SLIDER"; exit }}
+$pat = $bestSlider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+$oldVal = $pat.Current.Value
+$pat.SetValue({value})
+Start-Sleep -Milliseconds 200
+$newVal = $pat.Current.Value
+Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
+'''
+        proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                              capture_output=True)
+        out = proc.stdout.decode("utf-8", "replace").strip()
+        if out.startswith("ERROR"):
+            raise RuntimeError(f"XIPL Parameter Editor field '{field_name}' 설정 실패: {out}")
+        if not out.startswith("OK"):
+            err = proc.stderr.decode("utf-8", "replace").strip()
+            raise RuntimeError(f"XIPL Parameter Editor field '{field_name}' 설정 실패: {err or out}")
+        _, old, new = out.split("|")
+        # RangeValuePattern.SetValue updates the slider's own reported value
+        # immediately, but the underlying bound model only commits on
+        # LostFocus (verified 2026-08-14: without this, Save silently wrote
+        # back the pre-SetValue value). Click the editor's own title bar
+        # (non-interactive, no data binding) to blur focus without risking
+        # a Tab landing on another row and reshuffling its layout.
+        win = self.ui.main_window()
+        if win:
+            self.ui.click((win.rect[0] + 55 + 150, win.rect[1] + 55 + 10), settle=.3)
+        return {"field": field_name, "before": float(old), "after": float(new)}
+
+    def save(self, wait=2):
+        """Click Save in the open Parameter Editor (overwrites the loaded file)."""
+        if not self._uia_invoke_named("Save", "Button") and not self.click_text("Save", y_max=350):
+            raise RuntimeError("XIPL Parameter Editor Save 버튼을 찾지 못했습니다.")
+        time.sleep(wait)
+
+    def save_as(self, path, wait=2, settle=2.5):
+        """Click Save As and type a new file name in the resulting dialog."""
+        # A just-committed set_pim_field() edit (SetValue + blur click) leaves
+        # the WPF editor mid-relayout for a couple of seconds; invoking Save
+        # As immediately after can find no matching element even though the
+        # button reappears moments later (confirmed 2026-08-14: 0/6 probe
+        # attempts inside that window found it, then the very next attempt
+        # succeeded). Give the layout time to settle before searching.
+        time.sleep(settle)
+        if not self._uia_invoke_named("Save As", "Button") and not self.click_text("Save As", y_max=350):
+            raise RuntimeError("XIPL Parameter Editor Save As 버튼을 찾지 못했습니다.")
+        time.sleep(.8)
+        edits = [c for c in self.ui.controls(max_depth=6)
+                 if c.ctrl_id == 1148 and c.cls == "Edit"]
+        opens = [c for c in self.ui.controls(max_depth=6)
+                 if c.ctrl_id == 1 and c.cls == "Button"]
+        if edits and opens:
+            self.ui.type_text(edits[0], os.path.abspath(path))
+            self.ui.click_button(opens[0].hwnd)
+        else:
+            # The floating Process Editor (its "[PIM] - ..." window) runs as
+            # a separate helper process from XIPL.STUDIO.exe, so its Save As
+            # dialog is owned by that other PID and is invisible to
+            # controls() (scoped to self.ui.pid via top_windows). Confirmed
+            # 2026-08-14 via EnumWindows: the dialog and "[PIM]" editor share
+            # one PID, distinct from XIPL.STUDIO.exe's own. The filename
+            # field already has focus when the dialog opens, so drive it
+            # with real keystrokes instead of locating Win32 controls (same
+            # fix already used by load_parameter's dialog fallback).
+            self.ui.key_combo(0x11, 0x41)
+            self.ui.raw_key(0x2E)
+            for ch in os.path.abspath(path):
+                self.ui._unicode_char(ch)
+            self.ui.key("ENTER", settle=.8)
+        time.sleep(wait)
+
     def close_process_if_open(self):
         """Close the floating PIM editor only when OCR confirms it is open."""
         self.ui.key("ESC", settle=.2)

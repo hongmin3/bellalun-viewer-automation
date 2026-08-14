@@ -43,6 +43,7 @@
       "tls_port": 21113
     },
     "storage_scp": {
+      "_comment": "Bunny는 보통 Viewer와 같은 PC에서 동작한다. 그 경우 host와 servers_to_register의 Storage ip를 모두 127.0.0.1로 둔다. 다른 PC의 Bunny를 쓸 때만 그 PC의 IP를 넣는다.",
       "app_path": "C:\\Program Files (x86)\\Bunny\\Bunny.exe",
       "ae_title": "Bunny",
       "host": "STORAGE_PC_IP",

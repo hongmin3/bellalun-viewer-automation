@@ -13,6 +13,7 @@ import shutil
 import time
 import ctypes
 import ctypes.wintypes as wintypes
+from collections import Counter
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -123,6 +124,53 @@ def read_viewer_w1_w2(image_path):
     return {"w1": w1, "w2": w2, "ocr": text.strip()}
 
 
+def find_text_boxes(image_path, wanted, scale=2):
+    """OCR word boxes matching *wanted* (exact, case-insensitive) in
+    original-image-relative pixels.
+
+    Used to locate dynamically-named controls (added Preset aliases, files
+    in a combo dropdown) that Bellalun's custom controls do not expose as
+    real window text, so control-ID based lookups cannot find them.
+    """
+    import pytesseract
+    if os.path.exists(TESSERACT_EXE):
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE
+    image = Image.open(image_path).convert("RGB")
+    scaled = image.resize((image.width * scale, image.height * scale),
+                          Image.Resampling.LANCZOS) if scale != 1 else image
+    data = pytesseract.image_to_data(scaled, output_type=pytesseract.Output.DICT)
+    target = wanted.strip().upper()
+    boxes = []
+    for i, word in enumerate(data["text"]):
+        if word.strip().upper() != target:
+            continue
+        boxes.append((data["left"][i] / scale, data["top"][i] / scale,
+                      data["width"][i] / scale, data["height"][i] / scale,
+                      float(data["conf"][i])))
+    return boxes
+
+
+def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None):
+    """Screenshot the Viewer window, OCR-find *wanted*, and click its center.
+
+    Returns True/False. Used for dynamically-named tiles/rows (e.g. a
+    freshly-added Preset alias) whose position is not stable enough to
+    hardcode a control ID or pixel offset for.
+    """
+    win = ui.main_window()
+    if not win:
+        return False
+    tmp = evidence_path or os.path.join(
+        os.environ.get("TEMP", "."), "bellalun_click_text_probe.png")
+    capture_viewer_window(ui, tmp)
+    boxes = find_text_boxes(tmp, wanted, scale=scale)
+    if not boxes:
+        return False
+    x, y, w, h, _ = max(boxes, key=lambda b: b[4])
+    ui.click((win.rect[0] + x + w / 2, win.rect[1] + y + h / 2), settle=settle)
+    return True
+
+
 def ensure_parameter_copies(parameter_root=r"C:\XIPL\PARAMETER"):
     """Reset every automation-owned test parameter from its clean source.
 
@@ -215,8 +263,27 @@ def ensure_tc01_overlay(ui, db):
     return actual
 
 
+# Preset tab / LCC card control IDs per acquisition mode, measured live on
+# Bellalun 1.0.12 (see the OCR'd card labels in the 3D-W probe): the three
+# Preset tabs expose identical card grids whose IDs differ only by a fixed
+# +50 offset, and the 2D tab is the dialog's default so it needs no tab click.
+VIEW_POSITION_MODES = {
+    "2d": {"tab": None, "lcc": 802, "label": "2D"},
+    "3d": {"tab": 2083, "lcc": 852, "label": "3D-N"},
+    "3d-w": {"tab": 2084, "lcc": 902, "label": "3D-W"},
+}
+
+
 def add_view_position(ui, mode):
-    """Register LCC 2D or LCC(3D-N) through Procedure +."""
+    """Register the LCC view position of *mode* through Procedure +.
+
+    mode is a key of VIEW_POSITION_MODES: "2d", "3d" (=3D-N) or "3d-w".
+    """
+    spec = VIEW_POSITION_MODES.get(mode)
+    if not spec:
+        raise RuntimeError(
+            f"Unsupported View Position mode: {mode} "
+            f"(expected one of {sorted(VIEW_POSITION_MODES)})")
     before = len(flows.step_items(ui))
     add = [c for c in ui.by_id(1171) if c.visible
            and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
@@ -234,16 +301,15 @@ def add_view_position(ui, mode):
     # Bellalun 1.0.12 exposes stable IDs for tabs, LCC, OK and Cancel.
     # Use those before any window-relative fallback so dialog size changes do
     # not select LMLO or miss the OK button.
-    if mode == "3d":
-        tabs = [c for c in ui.by_id(2083) if c.visible
+    if spec["tab"] is not None:
+        tabs = [c for c in ui.by_id(spec["tab"]) if c.visible
                 and c.rect[2] - c.rect[0] >= 100]
         if not tabs:
-            raise RuntimeError("Preset (3D-N) tab (2083) not found")
+            raise RuntimeError(
+                f"Preset ({spec['label']}) tab ({spec['tab']}) not found")
         ui.click(tabs[0], settle=.7)
-    elif mode != "2d":
-        raise RuntimeError(f"Unsupported View Position mode: {mode}")
 
-    lcc_id = 852 if mode == "3d" else 802
+    lcc_id = spec["lcc"]
     lcc = [c for c in ui.by_id(lcc_id) if c.visible
            and c.rect[2] - c.rect[0] >= 100]
     ok = [c for c in ui.by_id(1101) if c.visible
@@ -252,7 +318,8 @@ def add_view_position(ui, mode):
         cancel = [c for c in ui.by_id(1102) if c.visible]
         if cancel:
             ui.click(cancel[0], settle=.5)
-        raise RuntimeError(f"LCC card ({lcc_id}) or OK button (1101) not found")
+        raise RuntimeError(
+            f"LCC ({spec['label']}) card ({lcc_id}) or OK button (1101) not found")
     ui.click(lcc[0], settle=.5)
     ui.click(ok[0], settle=1)
     after = len(flows.step_items(ui))
@@ -458,6 +525,20 @@ def _parameter_popup_rows(ui, popup):
     return sorted(rows, key=lambda c: c.rect[1])
 
 
+def _settle_parameter_panel(seconds=2.5):
+    """Wait out the WPF relayout after a Parameter selection.
+
+    Selecting a row reloads all 5 sliders at once; the last one to finish
+    repainting (Noise reduction) has been observed to OCR as blank if read
+    immediately after the click, even across several 1s OCR retries, while
+    an unrelated later read of the same region succeeds instantly. This
+    mirrors the WPF settle already required by XiplStudio.save_as() for the
+    same underlying reason (see its comment) - a fixed pre-emptive sleep
+    here, not just retries after failure.
+    """
+    time.sleep(seconds)
+
+
 def select_test_parameter(ui, expected_name):
     """OCR the dropdown and click only the row matching *expected_name*.
 
@@ -497,6 +578,7 @@ def select_test_parameter(ui, expected_name):
         if len({x[2].hwnd for x in exact}) == 1:
             target = exact[0][2]
             ui.click(target, settle=1)
+            _settle_parameter_panel()
             return ui.combo_value(_visible(ui, PARAM_COMBO)[0]) or expected_name
 
         # OCR may confuse one character (e.g. D/0). Accept only one strong
@@ -507,6 +589,7 @@ def select_test_parameter(ui, expected_name):
                               if x[2].hwnd != ranked[0][2].hwnd), None)
             if not runner_up or ranked[0][0] - runner_up[0] >= .08:
                 ui.click(ranked[0][2], settle=1)
+                _settle_parameter_panel()
                 return ui.combo_value(_visible(ui, PARAM_COMBO)[0]) or expected_name
 
         signature = tuple(sorted(_parameter_name_key(x) for x in page_text))
@@ -562,6 +645,19 @@ def _slider_value_bbox(slider):
 
 
 def _ocr_integer(image):
+    """OCR a slider's numeric value robustly across Tesseract page modes.
+
+    No single --psm mode reads every value correctly, and the two failure
+    modes pull in opposite directions (verified live on the 2D sliders):
+      * psm 7 (single text line) silently DROPS an isolated single digit -
+        it returns '' for a legible "8" - but reads "10"/"20" fine.
+      * psm 8 (single word) reads "8" fine but sometimes DOUBLES a trailing
+        digit, turning "10" into "100".
+    So instead of trusting one mode, every mode that yields exactly one
+    in-range integer casts a vote over both a grayscale and a thresholded
+    variant, and the majority value wins.  psm 6 is tried first so it also
+    breaks ties (empirically it read all five sliders correctly on its own).
+    """
     try:
         import pytesseract
     except ImportError as exc:
@@ -574,27 +670,52 @@ def _ocr_integer(image):
     gray = ImageOps.autocontrast(ImageOps.grayscale(image))
     gray = gray.resize((max(1, gray.width * 6), max(1, gray.height * 6)),
                        Image.Resampling.LANCZOS)
-    variants = [gray, gray.point(lambda p: 0 if p < 190 else 255)]
+    variants = (gray, gray.point(lambda p: 0 if p < 190 else 255))
+    votes = Counter()
     texts = []
     for candidate in variants:
-        text = pytesseract.image_to_string(
-            candidate,
-            config="--psm 7 -c tessedit_char_whitelist=0123456789").strip()
-        texts.append(text)
-        hits = re.findall(r"\d+", text)
-        if len(hits) == 1:
-            value = int(hits[0])
-            if 0 <= value <= 100:
-                return value
+        for psm in (6, 7, 8):
+            text = pytesseract.image_to_string(
+                candidate,
+                config=f"--psm {psm} -c tessedit_char_whitelist=0123456789").strip()
+            texts.append(f"psm{psm}:{text}")
+            hits = re.findall(r"\d+", text)
+            if len(hits) == 1 and 0 <= int(hits[0]) <= 100:
+                votes[int(hits[0])] += 1
+    if votes:
+        return votes.most_common(1)[0][0]
     raise RuntimeError(f"Slider value OCR failed: {texts}")
 
 
-def read_slider_value(ui, slider_id):
-    slider = _visible(ui, slider_id)
-    if not slider:
+def read_slider_value(ui, slider_id, attempts=3, delay=0.6):
+    """Read a slider's numeric value, trying every control matching slider_id.
+
+    Bellalun's custom controls have shown duplicate/hidden hwnd instances for
+    the same ctrl_id elsewhere in this codebase, so all visible candidates
+    are tried, not just the first.  Each candidate is re-grabbed and re-OCR'd
+    a few times as a guard against a mid-repaint frame; _ocr_integer itself
+    votes across page-segmentation modes, so a correctly rendered value is
+    read on the very first grab (this replaced an earlier, misdiagnosed
+    "fresh subprocess" workaround - the real defect was psm choice, not
+    process identity).
+    """
+    candidates = _visible(ui, slider_id)
+    if not candidates:
         raise RuntimeError(f"Slider {slider_id} is not visible")
-    image = ImageGrab.grab(bbox=_slider_value_bbox(slider[0]), all_screens=True)
-    return _ocr_integer(image)
+    errors = []
+    for candidate in candidates:
+        bbox = _slider_value_bbox(candidate)
+        for attempt in range(attempts):
+            try:
+                image = ImageGrab.grab(bbox=bbox, all_screens=True)
+                return _ocr_integer(image)
+            except Exception as exc:
+                errors.append(str(exc))
+            if attempt < attempts - 1:
+                time.sleep(delay)
+    raise RuntimeError(
+        f"Slider {slider_id} OCR failed for all {len(candidates)} visible "
+        f"instance(s): {errors}")
 
 
 def _pink_count(control):

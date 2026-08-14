@@ -87,9 +87,12 @@ EXAMINE = {
 
 STATUS_BAR = {"menu": 2015}
 
-# 메인 메뉴(좌측 하단 ☰). 아이콘 레일과 메뉴 항목의 컨트롤 ID (2026-08-10 실측)
+# 메인 메뉴(좌측 하단 ☰). 아이콘 레일과 메뉴 항목의 컨트롤 ID (2026-08-10 실측,
+# "qc"는 2026-08-14 사용자 확인으로 수정 - 이전에 "examined"로 잘못 표기돼
+# 있었고 실제로는 어디서도 사용되지 않았다. 아이콘 순서는 위에서부터 QC/DICOM/
+# Setting/전원이다).
 MAIN_MENU = {
-    "examined": 58,     # 검사 목록
+    "qc": 58,           # Q.C. 창 (Q.C. Test / Q.C. Results)
     "dicom": 59,        # DICOM 창
     "setting": 55,      # Setting
     "power": 1000,      # 종료
@@ -215,6 +218,82 @@ def setting_update(ui, wait=2.0):
     return _click_setting_control(ui, SETTING_UPDATE_BUTTON, "Update 버튼", wait)
 
 
+# Setting > Procedure 하위 페이지 (2026-08-14 실측, Bellalun 1.0.12.105)
+SETTING_PROCEDURE_PAGES = {"general": 212, "preset": 213, "procedure": 214,
+                           "hospital_code": 215}
+
+# Setting > Procedure > General 페이지 Default Parameter 콤보
+PROCEDURE_GENERAL_PARAM_2D = 2542
+PROCEDURE_GENERAL_PARAM_3D_N = 2543
+PROCEDURE_GENERAL_PARAM_3D_W = 2544
+
+# Setting > Procedure > Preset 페이지 (2D 열만 사용)
+PRESET_2D_LIST = 2554
+PRESET_2D_ADD = 2548
+PRESET_2D_DELETE = 2549
+
+# Update 후 뜨는 결과 팝업(성공/오류 공통)의 OK 버튼
+SETTING_CONFIRM_OK = 500
+
+
+def open_procedure_setting(ui, page, wait=1.5):
+    """Setting > Procedure > <page> 로 이동한다.
+
+    page: general | preset | procedure | hospital_code
+    """
+    if page not in SETTING_PROCEDURE_PAGES:
+        raise FlowError(f"알 수 없는 Procedure 설정 페이지: {page}")
+    open_setting(ui, wait=3.0)
+    open_setting_group(ui, "procedure", wait=2.0)
+    return _click_setting_control(ui, SETTING_PROCEDURE_PAGES[page],
+                                  f"Procedure 설정 '{page}'", wait)
+
+
+# Setting > Q.C 하위 페이지 (2026-08-14 실측, Bellalun 1.0.12.105)
+SETTING_QC_PAGES = {"setting_2d": 238, "setting_3d": 239, "scheduler": 240,
+                    "auto_delete": 241, "regular_inspection": 242}
+
+# Setting > Q.C > Setting / Setting (3D) 페이지의 Default Image Process
+# Parameter 콤보
+QC_PARAM_2D = 2704
+QC_PARAM_3D = 2707
+
+
+def open_qc_setting(ui, page, wait=1.5):
+    """Setting > Q.C > <page> 로 이동한다.
+
+    page: setting_2d | setting_3d | scheduler | auto_delete | regular_inspection
+    """
+    if page not in SETTING_QC_PAGES:
+        raise FlowError(f"알 수 없는 Q.C 설정 페이지: {page}")
+    open_setting(ui, wait=3.0)
+    open_setting_group(ui, "qc", wait=2.0)
+    return _click_setting_control(ui, SETTING_QC_PAGES[page],
+                                  f"Q.C 설정 '{page}'", wait)
+
+
+def open_qc_tool(ui, wait=2.0):
+    """메인 메뉴 → Q.C. 창(Q.C. Test / Q.C. Results)을 연다.
+
+    Welcome 화면의 'Today Q.C.'는 예정된 검사 일정만 보여주는 별도 화면이다.
+    실제 ACR Phantom 등 개별 Q.C. Test를 실행하는 창은 이 메인 메뉴 경로로만
+    들어갈 수 있다(2026-08-14 사용자 확인).
+    """
+    return _click_menu(ui, "qc", wait)
+
+
+def confirm_setting_dialog(ui, wait=1.5, timeout=6):
+    """Update 후 뜨는 결과 팝업의 OK를 누른다. 팝업이 없으면 조용히 넘어간다."""
+    end = time.time() + timeout
+    while time.time() < end:
+        ok = [c for c in ui.by_id(SETTING_CONFIRM_OK) if c.visible]
+        if ok:
+            ui.click(ok[0], settle=wait)
+            return True
+        time.sleep(.3)
+    return False
+
+
 class FlowError(RuntimeError):
     pass
 
@@ -316,15 +395,37 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
 
     login = cfg["viewer"]["login"]
     if ui.at_login_screen():
-        say(f"로그인: {login['id']}")
-        ok = ui.login(login["id"], login["password"])
-        popped = guard.sweep()
-        if popped:
+        # 비밀번호는 물리 키 입력으로 넣기 때문에(ui.type_text 주석 참고), Viewer
+        # 기동 직후 포커스가 완전히 잡히기 전에는 일부 문자가 유실돼 "Wrong ID or
+        # password" 팝업이 뜨는 일이 있다(2026-08-14 회귀에서 실제 발생, 같은
+        # 자격증명으로 직전/직후 로그인은 성공). 한 번의 유실로 회귀 전체가
+        # 무너지지 않게 다시 타이핑해서 재시도한다.
+        #
+        # ACCOUNT 테이블에는 실패 횟수/잠금 컬럼이 없어(Key/System/Group/ID/
+        # Password/Name) 재시도로 계정이 잠길 위험은 없다. 그래도 진짜 잘못된
+        # 자격증명을 무한히 덮지 않도록 횟수를 제한하고, 소진되면 기존과 똑같이
+        # 명확한 FlowError로 중단한다.
+        # 성공 판정은 "실제로 로그인 화면을 벗어났는가"로 한다. 팝업이 떴다는
+        # 사실만으로 실패로 단정하면, 늦게 뜬 Demo 모드 안내 같은 무해한 팝업에도
+        # 회귀 전체가 중단된다. 대신 걷어낸 팝업 문구는 로그로 남겨 추적 가능하게
+        # 하고, 로그인하지 못한 경우에만 재시도/중단한다.
+        attempts = int((cfg["viewer"].get("login_attempts") or 3))
+        for attempt in range(1, attempts + 1):
+            say(f"로그인: {login['id']}" + (f" (재시도 {attempt - 1})" if attempt > 1 else ""))
+            ok = ui.login(login["id"], login["password"])
+            popped = guard.sweep()
             msgs = "; ".join(p["message"] or "(문구 미노출)" for p in popped)
-            raise FlowError(f"로그인 중 팝업 발생: {msgs} "
-                            f"(증적은 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.")
-        if not ok or ui.at_login_screen():
-            raise FlowError("로그인에 실패했습니다. 계정/비밀번호를 확인하십시오.")
+            if ok and not ui.at_login_screen():
+                if popped:
+                    say(f"로그인 중 팝업을 닫았습니다(로그인은 성공): {msgs}")
+                break
+            if attempt >= attempts:
+                detail = f"마지막 팝업: {msgs} " if popped else ""
+                raise FlowError(
+                    f"로그인에 {attempts}회 실패했습니다. {detail}"
+                    "(증적은 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.")
+            say(f"로그인 재시도 예정 (원인: {msgs or '로그인 화면 유지'})")
+            time.sleep(1.5)
         say("로그인 완료")
     guard.sweep()
 
@@ -784,11 +885,41 @@ def wait_ready(ui, timeout=20, poll=1.0):
     return st
 
 
-def select_step(ui, index):
-    """index번째(1부터) Step을 선택한다."""
+def select_step(ui, index, scroll_tries=8):
+    """index번째(1부터) Step을 선택한다.
+
+    썸네일 패널은 스크롤되며, 스텝이 4개를 넘으면 아래쪽 카드는 패널 밖으로
+    잘린다. Win32 IsWindowVisible은 잘린 카드도 visible로 보고하므로
+    step_items()에는 잡히지만, 그 카드의 center를 클릭하면 좌표가 패널 밖이라
+    선택이 바뀌지 않는다. 실측(5스텝, 3D-W)에서 이 상태로 F8을 누르면 의도한
+    Step이 아니라 기존 선택 Step이 촬영돼 조용히 오판정됐다. 그래서 대상
+    카드의 center가 패널 안에 들어올 때까지 스크롤한 뒤에 클릭한다.
+    """
     items = step_items(ui)
     if len(items) < index:
         raise FlowError(f"Step이 {len(items)}개라 {index}번째를 선택할 수 없습니다.")
+    panel = ui.by_id(EXAMINE["step_thumbnails"])
+    if panel:
+        pl, pt, pr, pb = panel[0].rect
+        center = ((pl + pr) // 2, (pt + pb) // 2)
+        for _ in range(scroll_tries):
+            current = step_items(ui)
+            if len(current) < index:
+                break                     # 스크롤 중 목록이 흔들리면 아래에서 재확인
+            _, cy = current[index - 1].center
+            if pt <= cy <= pb:
+                break
+            ui.wheel(center, -3 if cy > pb else 3, settle=.4)
+        items = step_items(ui)
+        if len(items) < index:
+            raise FlowError(
+                f"Step이 {len(items)}개로 줄어 {index}번째를 선택할 수 없습니다.")
+        target = items[index - 1]
+        _, cy = target.center
+        if not (pt <= cy <= pb):
+            raise FlowError(
+                f"{index}번째 Step 카드를 패널 안으로 스크롤하지 못했습니다: "
+                f"card={target.rect} panel={panel[0].rect}")
     ui.click(items[index - 1], settle=0.8)
     return items[index - 1]
 

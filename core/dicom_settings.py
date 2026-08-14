@@ -2,8 +2,10 @@
 """Setting > DICOM 서버 등록 자동화.
 
 UI 조작뿐 아니라 CONFIGURATION DB, TCP 연결, Viewer C-ECHO 결과를 함께
-검증한다. 기존 서버는 삭제하지 않으며 Storage의 Use만 BUNNY_TEST 단일
-활성으로 정리한다.
+검증한다. 기존 서버는 삭제하지 않으며 MWL/Storage는 등록 대상 서버만
+Use=1 단일 활성으로 정리한다(DICOM_PRINT에는 [Use] 컬럼이 없어 Print는
+대상이 아니다). 신규 PC는 MWL/Storage가 기본 Use=0으로 남아 있어,
+활성화하지 않으면 이후 WF01의 MWL 등록 등이 막힌다.
 """
 import os
 import socket
@@ -276,9 +278,10 @@ def setup_all(ctx, kinds=None):
             _open_page(ui, kind)
             # Use 정리는 목록의 여러 행을 선택하므로 입력/옵션 변경 전에 끝낸다.
             # 변경 뒤에 실행하면 마지막으로 선택된 다른 서버가 Update될 수 있다.
-            use_changed = False
-            if kind == "Storage":
-                use_changed = _sync_use(ui, ctx.db, kind, spec["name"])
+            # MWL도 신규 PC에서 기본 Use=0으로 남아 있으면 이후 WF01의 MWL
+            # 등록이 막히므로 Storage와 동일하게 대상 서버만 활성화한다.
+            # DICOM_PRINT 테이블에는 [Use] 컬럼이 없어(단일 활성 개념 없음) 대상이 아니다.
+            use_changed = _sync_use(ui, ctx.db, kind, spec["name"]) if kind != "Print" else False
             target, changed, created = _set_server(ui, spec)
             if kind == "Storage" and created:
                 ch = children(target.hwnd, 1)
@@ -309,14 +312,14 @@ def setup_all(ctx, kinds=None):
         r.assert_true(1, f"{kind} 서버 저장", saved,
                       expected=(f"{spec['name']} / {spec['ae_title']} / "
                                 f"{spec['ip']}:{spec['port']}"), actual=rows)
-        if kind == "Storage":
-            uses = ctx.db.query(
-                "CONFIGURATION",
-                "SELECT Name,[Use] FROM DICOM_STORAGE WHERE [Use]=1")
-            only_bunny = (len(uses) == 1 and
-                          str(uses[0].get("Name")) == str(spec["name"]))
-            r.assert_true(1, "Storage Use 단일 선택", only_bunny,
+        if kind != "Print":
+            table = {"MWL": "DICOM_MWL", "Storage": "DICOM_STORAGE"}[kind]
+            uses = ctx.db.query("CONFIGURATION", f"SELECT Name,[Use] FROM {table} WHERE [Use]=1")
+            only_target = (len(uses) == 1 and
+                           str(uses[0].get("Name")) == str(spec["name"]))
+            r.assert_true(1, f"{kind} Use 단일 선택", only_target,
                           expected=f"{spec['name']}만 Use=1", actual=uses)
+        if kind == "Storage":
             saved_option = next((x for x in rows if
                                  str(x.get("Name")) == spec["name"]), {})
             db_option_ok = all(int(saved_option.get(x) or 0) == 1 for x in

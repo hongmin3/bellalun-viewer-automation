@@ -25,10 +25,15 @@ Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 
 - WorkFlow_02 2D/3D Demo 촬영 및 Tool 적용: `python run.py run-wf02`
 - WorkFlow_03 DICOM Print Overlay·실제 출력·웹 프리뷰 검증: `python run.py run-wf03`
 - Local 검사 + F8 Demo 촬영: `python run.py run-ui`
-- XIPL 01~03 실제 UI 시험: `python run.py run-xipl`
+- XIPL 01~06 실제 UI 시험: `python run.py run-xipl`
 - XIPL 표시값 비교(TC01)만: `python run.py run-xipl-01`
 - 2D Image Processing(TC02)만: `python run.py run-xipl-02`
 - 3D Post Reconstruction만 재시험: `python run.py run-xipl-03`
+- Preset별 2D Default Parameter(TC04)만: `python run.py run-xipl-04`
+- Q.C Default Image Process Parameter(TC05)만: `python run.py run-xipl-05`
+- XIPL Parameter 저장 후 Viewer 적용(TC06)만: `python run.py run-xipl-06`
+- System 연동 3D-Narrow/3D-Wide 촬영(TC_System_compatibility_03/04):
+  `python run.py run-sys3d`
 - 다른 PC 실행환경 점검: `python run.py portability-check`
 - 자동화 범위 확인: `python run.py list`
 
@@ -107,7 +112,7 @@ $sw.Stop()
 ## DICOM 설정
 
 - MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`
-- Storage: `BUNNY_TEST / Bunny / 10.201.0.139:3000`
+- Storage: `BUNNY_TEST / Bunny / 127.0.0.1:3000` (Bunny가 Viewer와 같은 로컬 PC에서 동작하는 환경 기준)
 - Print: `PRINT_TEST / PRINT_SCP / 10.13.0.222:11113`
 
 Bunny는 반드시 설치 폴더를 작업 디렉터리로 실행하며 Storage Server 노드를
@@ -171,6 +176,34 @@ TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 �
 사라지고 2304x3072/W1/W2가 처음 표시되는 프레임을 즉시 읽는다. XIPL 창의 저장
 위치와 크기는 PC마다 달라도 창 자체 좌표계로 OCR하며, PIM 패널이 이전 모니터
 좌표를 기억해 화면 밖에 열리면 Windows UI Automation으로 현재 창 안에 이동한다.
+
+TC06은 XIPL Studio에서 Contrast를 15로 바꿔 `TEST_XIPL_SAVED.pim`으로 저장한 뒤
+Viewer Image Processing에서 그 Parameter를 다시 선택해 5개 표시값을 읽고, Apply
+후 재진입 표시값까지 비교한다. Viewer는 Parameter를 **선택하는 순간**
+`Image Process Param Name:<file>, Contrast: ...` 로그를 남기고 **Apply는 이
+로그를 다시 남기지 않는다**(창을 닫고 ImageAction 결과 파일만 쓴다, 실측 확인).
+그래서 파일명·값 로그 증거는 선택 구간에서 확보하고, Apply의 완료 판정은 창 닫힘과
+ImageAction 결과 파일 생성으로 한다. TC02가 Apply 전에 Preview를 눌러 같은 로그를
+만드는 것과 다른 점이니 두 TC의 판정 근거를 섞지 않는다.
+
+## System 연동 3D 촬영 (3D-Narrow / 3D-Wide)
+
+`run-sys3d`는 `TC_System_compatibility_03`(3D-Narrow)과
+`TC_System_compatibility_04`(3D-Wide)를 실행한다. 임시 Local 환자로 검사를 시작해
+Procedure `+`에서 해당 Preset 탭의 LCC를 등록하고, Demo F8로 1회 촬영한 뒤 DB로
+판정한다.
+
+Preset 탭/LCC 카드 control ID는 2D = 기본 탭·`802`, 3D-N = 탭 `2083`·`852`,
+3D-W = 탭 `2084`·`902`이다(`VIEW_POSITION_MODES`). 촬영 종류는
+`INSTANCE_GROUP.Type`/`ExposureMode`로 확정하며 `0/0` = 2D, `1/1` = 3D-Narrow,
+`1/2` = 3D-Wide다. 이 값을 보지 않으면 3D-W TC가 3D-N 촬영으로도 통과하므로
+반드시 함께 판정한다. Step 카드 라벨 OCR은 글자가 작아 `3`이 `G`/`B`로 오독되므로
+보조 증거로만 쓴다.
+
+실제 X-ray 대신 Demo(F8)를 쓰기 때문에 장비 LCD 표시와 2430 패들 연결, Step 회전
+각도(3D-N -7.5~7.5도 / 3D-W -15~15도)는 자동 판정하지 않고 MANUAL로 보고한다.
+그래서 두 TC의 종합 판정은 MANUAL이며, 자동 판정 가능한 등록·촬영·DB 구조 단계는
+PASS/FAIL로 분리해 기록한다.
 
 ## 다른 PC에서 실행
 

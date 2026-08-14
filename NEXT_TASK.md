@@ -2,44 +2,96 @@
 
 ## Next priority
 
-Implement `TC_Basic_WorkFlow_04` as far as the attached checklist, manuals, and available test environment safely allow. Start by reading its exact TC row and Expected Result; do not infer steps from the ID alone.
+`TC_Basic_WorkFlow_04`를 구현한다. 시작할 때 체크리스트의 **해당 TC 행과 Expected
+Result 원문을 먼저 확인**하고, TC ID만으로 Step을 추측하지 않는다. 현재
+`automation_scope.json`에는 "Overlay DB 변경 자동 판정; 표시 육안 확인"으로
+PARTIAL 등록돼 있다.
 
-## Current verified state
+그다음 후보:
 
-- Repository: `hongmin3/bellalun-viewer-automation`
-- Local working directory: `C:\Users\2024980\Documents\자동화\Bellalun Viewer\auto`
-- Knowledge/manual directory: `C:\Users\2024980\Documents\자동화\Bellalun Viewer\지식`
-- `TC_Basic_WorkFlow_01` is implemented by `tests/workflow01.py` and passed all nine MWL + Local steps in a live run.
-- `TC_Basic_WorkFlow_02` is implemented by `tests/workflow02.py` and passed a live Viewer run on 2026-08-11. `python run.py run-wf02` reopens the latest empty suspended `DATA_FLOW_MWL_01`, registers LCC 2D/LCC 3D-N, performs gated Demo F8 acquisition, validates one each of InstanceType 0/1/2/3, applies W/L, Zoom, Pan, and Arrow Annotation to 2D and 3D Recon with OCR/screenshot-delta evidence, closes the exam, and verifies it again in Examined.
-- `TC_Basic_WorkFlow_03` is implemented by `tests/workflow03.py` and passed the final live regression on 2026-08-11. It creates/reuses `TC_WF03_OVERLAY` only under Setting > DICOM > Print Overlay, registers Patient ID/Birth Date/Thickness/Compression Force/HVL/AGD, applies it to `PRINT_TEST`, switches Film from 2x2 to 1x1, performs actual DICOM Print, and compares the Film values/raster with the new Print server web preview. Final job 41 passed all six OCR values with image similarity 0.989924.
-- Initial-state regression is available as `python run.py run-regression`. Performance optimization (state-based waits replacing fixed sleeps) is complete and re-verified live on 2026-08-14: report `Result_20260814_095214` took ~895s end-to-end vs the 2026-08-11 pre-optimization baseline of 1290.6s (~30.7% faster). DICOM, WF01, WF02, WF03, XIPL_01, and XIPL_02 passed their data-backed checks. XIPL_03 correctly failed because all ten values reverted to defaults after Apply/reopen; exact `No GPUS` exempted only result generation as SKIP.
-- `TC_XIPL_compatibility_03` always reopens Post Reconstruction after Apply and rereads all ten values. Parameter name/value retention is mandatory even without a GPU, so default-value reversion is FAIL. Exact `No GPUS` exempts only Recon/Synthetic output creation as SKIP (GPU availability is judged from Preview's log, since Apply does not re-attempt/re-log initialization). Any other Recon error remains FAIL; on a GPU machine DB/file output delta is also mandatory.
-- Fixed 2026-08-14: `_post_recon_complete()`'s Apply-completion check now filters log lines by their own embedded timestamp (`_log_lines_from`), not just byte-offset marks — a buffered log flush could otherwise leak Preview's own delayed thread-exit line into Apply's completion check and falsely pass Apply in <1s.
-- Fixed 2026-08-14: `tests/xipl_flows.py::_prepare()` now checks `vp.fixture_is_fresh(ctx, patient_id)` before reusing the `DATA_FLOW_MWL_01` fixture; if no same-day InstanceType 0/1/2/3 study exists (e.g. running `run-xipl-01/02/03` standalone days after WF01/WF02 last ran), it automatically reruns WF01 then WF02 to regenerate today's fixture first. `run-regression` is unaffected since WF01/WF02 already ran.
-- Durable operational rules (state-based waiting, log-timestamp filtering, PASS/FAIL evidence policy, GPU-less handling, fixture freshness, session separation) now live in `..\지식\[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md`, not in a one-off handoff file — read it before changing automation behavior.
-- Install_01 is MANUAL until `config.json > release_note` is replaced with an approved Release Note; the current `_source` explicitly says the captured baseline must be replaced. Installed Bellalun/DB version observed in regression was 1.0.12.105.
-- DICOM setup is implemented by `core/dicom_settings.py`.
+1. `tests/dataflow.py`에는 `TC_Basic_WorkFlow_05/06/07/10/12/13`의 **판정 로직만**
+   구현돼 있고 `run.py`에 연결하는 명령이 없다. 판정 로직 재작성보다 "실제
+   Send/Export/Reject UI 흐름을 수행해 pre/post 스냅샷을 만드는 드라이버"가 먼저
+   필요하다.
+2. `TC_XIPL_compatibility_03`(Post Reconstruction)의 기대 결과에는 영상 타입으로
+   **3D-Narrow와 3D-Wide가 함께** 명시돼 있다. 3D-W 등록/촬영은 이미
+   `add_view_position(ui, "3d-w")`로 가능하므로, XIPL 픽스처에 3D-W 스텝을 더해
+   Post Reconstruction을 3D-W에서도 검증하는 확장을 검토할 수 있다. 단
+   `vp.open_test_study()`가 "정확히 2 스텝"을 요구하므로 픽스처 정의
+   (`step_2d`/`step_3d`/`initial_steps`)를 함께 바꿔야 한다.
+
+## Current verified state (2026-08-14, 2차)
+
+- 저장소: GitHub `hongmin3/bellalun-viewer-automation`, 브랜치 `main`.
+  로컬 경로는 PC마다 다르므로 문서에 하드코딩하지 않는다.
+- 자동화 범위 총 39건 = **FULL 10 / PARTIAL 19 / MANUAL 10**
+  (`python run.py list`로 확인).
+- **FULL**: Install_01/02, WF_01/02/03, XIPL_01/02/03/04/06.
+- `TC_XIPL_compatibility_05`는 구현이 끝났지만 `TEST_QC_2D.pim`/`TEST_QC_3D.eap`을
+  **사용자가 직접** XIPL PARAMETER 폴더에 넣어야 실행된다(내용을 임의 생성하면
+  시험이 무효). 없으면 MANUAL로 보고되며 2026-08-14 현재 이 PC에는 없다.
+- `TC_XIPL_compatibility_06`의 이전 블로커(Noise reduction 슬라이더 OCR)는
+  해결됐다. 원인은 타이밍/프로세스 경합이 아니라 Tesseract `--psm` 선택이었고
+  (`psm 7`이 한 자리 숫자를 빈 문자열로 버림), `_ocr_integer`를 psm 6/7/8 다수결
+  투표로 교체했다. 상세는 운영 지침 7절.
+- `TC_XIPL_compatibility_03`은 Step 9가 **FAIL로 나오는 것이 정상**이다(제품 실제
+  동작을 정확히 잡아낸 결과, GPU 무관 — 절대 완화하지 않는다). Step 10은 GPU
+  미탑재 환경에서 SKIP된다.
+- **신규**: `TC_System_compatibility_03`(3D-Narrow 촬영) /
+  `04`(3D-Wide 촬영) — `tests/system_compat.py`, `python run.py run-sys3d`.
+  등록·Demo F8 촬영·`INSTANCE_GROUP.Type`/`ExposureMode`(`1/1`=3D-N, `1/2`=3D-W)는
+  자동 판정하고, 장비 LCD·2430 패들·회전 각도는 MANUAL로 분리 기록한다. 그래서
+  종합 판정은 MANUAL이다.
 - Verified servers:
   - MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`
-  - Storage: `BUNNY_TEST / Bunny / 10.201.0.139:3000`, the only `Use=1` Storage entry
+  - Storage: `BUNNY_TEST / Bunny / 127.0.0.1:3000` (유일한 `Use=1` Storage)
   - Print: `PRINT_TEST / PRINT_SCP / 10.13.0.222:11113`
-- Storage setup checks Burn Annotation/Label/Information, Apply preview position, and sets Dose SR to Send.
-- Every Echo must have the successful association sequence and no `Connected Fail` result.
-- Print server web endpoint verified: `http://10.13.0.222:8000/viewer.html?id=<job>` displays the same `/api/jobs/<job>/preview` image used by the independent Python assertion.
+- `setup-dicom`은 Storage뿐 아니라 **MWL도** `Use=1`로 자동 활성화한다
+  (Print는 DB에 Use 컬럼이 없어 제외).
+- `run.py`는 `data_dir`이 PC마다 다른 드라이브(C:/D:)에 있어도 모든 드라이브를
+  탐색해 찾는다(`_resolve_data_dir`).
+
+## 이 PC에서 아직 준비되지 않은 것
+
+- **DB 기준 스냅샷(.bak)이 없다.** 그래서 `run-regression`이 시작 시 복원을
+  건너뛰고 MANUAL로 보고하며, 검사 데이터가 계속 누적된다. 깨끗한 기준으로
+  회귀를 돌리려면 원하는 상태에서 `python run.py snapshot-baseline`을 먼저 한 번
+  실행해 기준을 만들어야 한다(스냅샷 경로는 `<data_dir>\Backup\Baseline`).
+- **`TEST_QC_2D.pim` / `TEST_QC_3D.eap`이 없다** → TC_XIPL_compatibility_05가
+  MANUAL로 보고된다(위 참고).
+- **TC_XIPL_compatibility_04는 아직 반복 실행이 안 된다.** 이 TC가 만든 시험
+  Preset(`PRESET_FLOW_A/B`, 실제 Name은 RCCRL/LCCRL/RCCRM/LCCRM)의 정리 절차가
+  수동이라, 두 번째 실행에서는 Preset 추가가 "이미 존재"로 실패한다. 2026-08-14에
+  남은 Preset을 감지해 **제품 FAIL이 아니라 무엇을 지워야 하는지 알려주는
+  MANUAL**로 보고하도록 고쳤다(환경 오염이 제품 결함으로 오독되던 문제). 진짜
+  해결은 UI로 시험 Preset을 자동 삭제하는 것이며, 별도 작업으로 분리했다.
+  주의: `core/db.py`는 조회 전용이고 저장소 전체에 DB 쓰기가 없다(모든 상태
+  변경은 UI로만 한다는 설계) — 정리용으로 DB 쓰기를 새로 열지 말 것.
+
+## 실행 전 필수 확인 (실패 시 최우선 원인)
+
+`VIEWER.exe`는 매니페스트가 `requireAdministrator`라 항상 High Integrity로
+실행된다. 자동화 파이썬이 Medium이면 화면 캡처·컨트롤 열거는 정상인데 **클릭만
+조용히 실패**해 엉뚱한 증상으로 보인다. UI TC가 갑자기 전부 깨지면 코드보다
+권한을 먼저 확인한다(운영 지침 6절).
 
 ## Useful commands
 
 ```powershell
+python run.py list
+python run.py run-regression
+python run.py run-xipl-06
+python run.py run-sys3d
+python run.py snapshot-baseline
+python run.py reset-environment
 python run.py setup-dicom
-python run.py setup-storage
-python run.py run-wf01
-python run.py run-wf02
-python run.py run-wf03
-python run.py portability-check
 ```
 
-The real `config.json` and generated evidence/reports are intentionally local and ignored by Git. Preserve them; use `config.example.json` only as the repository template.
+실제 `config.json`과 생성된 증적/리포트는 의도적으로 로컬 파일이며 Git에서
+제외된다. 보존하고, 저장소 템플릿은 `config.example.json`만 사용한다.
 
 ## Completion rule
 
-When `TC_Basic_WorkFlow_04` work is complete, update this file to the next TC or remove it, then follow `AGENTS.md`: validate, commit, and push all relevant automation source changes without committing local configuration or runtime evidence.
+작업이 끝나면 이 파일을 다음 TC 기준으로 갱신하거나 제거하고, `AGENTS.md`에 따라
+검증·커밋·푸시한다. 로컬 설정과 런타임 증적은 커밋하지 않는다. 계속 적용해야 하는
+규칙은 이 파일이 아니라 `..\지식\`의 운영 지침/구현 현황 문서에 반영한다.

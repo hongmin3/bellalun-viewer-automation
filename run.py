@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import string
 import sys
 from datetime import datetime
 
@@ -11,11 +12,34 @@ from core.dicom_settings import setup_all
 from core.result import write_reports
 
 
+def _resolve_data_dir(configured):
+    """Find BellalunData's actual drive letter.
+
+    QA PCs have installed it on different drives (observed C: and D:), and
+    config.json's data_dir is PC-specific/git-ignored, so a stale value from
+    a previous machine must not silently break every DB/file check that
+    depends on it. Keep the configured path's tail and probe every fixed
+    drive letter for it instead of trusting the configured drive letter.
+    """
+    if os.path.isdir(configured):
+        return configured
+    tail = configured[2:] if len(configured) > 1 and configured[1] == ":" else configured
+    for letter in string.ascii_uppercase:
+        candidate = f"{letter}:{tail}"
+        if os.path.isdir(candidate):
+            return candidate
+    raise RuntimeError(
+        f"data_dir was not found on any drive: configured={configured!r} "
+        f"(looked for {tail!r} on every drive letter)")
+
+
 class Context:
     def __init__(self, config_path):
         self.config_path = os.path.abspath(config_path)
         with open(self.config_path, encoding="utf-8") as f:
             self.cfg = json.load(f)
+        self.cfg["data_dir"] = _resolve_data_dir(
+            self.cfg.get("data_dir", r"D:\BellalunData"))
         self.db = BellalunDb(self.cfg.get("sql_server", r".\BELLALUN"))
         self.root = os.path.dirname(self.config_path)
         self.evidence_root = os.path.join(self.root, "Evidence")
@@ -57,9 +81,15 @@ def main():
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
     sub.add_parser("run-xipl-03", help="Viewer 3D Post Reconstruction TC03만 실행")
-    sub.add_parser("run-regression", help="초기 상태 DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
+    sub.add_parser("run-xipl-04", help="Preset별 2D Default Parameter TC04만 실행")
+    sub.add_parser("run-xipl-05", help="Q.C Default Image Process Parameter TC05만 실행")
+    sub.add_parser("run-xipl-06", help="XIPL Parameter 저장 후 Viewer 적용 TC06만 실행")
+    sub.add_parser("run-sys3d", help="System 연동 3D-Narrow/3D-Wide 촬영 TC03/04 실행")
+    sub.add_parser("run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
     sub.add_parser("run-auto", help="비파괴 정적 점검 + DICOM + UI Demo 흐름")
     sub.add_parser("portability-check", help="해상도/DPI/필수 경로 이식성 사전 점검")
+    sub.add_parser("snapshot-baseline", help="현재 4개 DB를 회귀 테스트 기준 스냅샷(.bak)으로 저장")
+    sub.add_parser("reset-environment", help="기준 스냅샷(.bak)으로 4개 DB만 복원(단독 실행)")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
     args = ap.parse_args()
     ctx = Context(args.config)
@@ -71,8 +101,20 @@ def main():
         for item in scope:
             print(f"[{item['level']}] {item['tc_id']} - {item['reason']}")
         return 0
+    if args.cmd == "snapshot-baseline":
+        from core.dbreset import backup_baseline
+        saved = backup_baseline(ctx)
+        for db, path in saved.items():
+            print(f"[baseline] {db} -> {path}")
+        return 0
+    if args.cmd == "reset-environment":
+        from core.dbreset import restore_baseline
+        restore_baseline(ctx)
+        print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
+        return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-xipl",
-                   "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-auto",
+                   "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
+                   "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
     if args.cmd in ui_commands:
         from core.display import normalize
@@ -112,12 +154,31 @@ def main():
         from tests.workflow02 import run as run_workflow02
         from tests.workflow03 import run as run_workflow03
         from tests.xipl_flows import run_xipl
+        from tests.system_compat import run as run_system_3d
+        from core.dbreset import has_baseline, restore_baseline
+        from core.result import TCResult, PASS, FAIL
+        reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 DB 기준 스냅샷 복원")
+        if has_baseline(ctx):
+            try:
+                restore_baseline(ctx)
+                reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
+                          PASS, actual="restore 완료")
+            except Exception as exc:
+                reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
+                          FAIL, actual=str(exc))
+        else:
+            reset.manual(0, "DB 기준 스냅샷 복원",
+                         "기준 스냅샷(.bak)이 없어 복원을 건너뛰었습니다. "
+                         "`python run.py snapshot-baseline`으로 먼저 생성하세요.",
+                         expected="기준 스냅샷 존재", actual="없음")
+        results.append(reset)
         results.extend([install_01(ctx), install_02(ctx)])
         results.append(setup_all(ctx))
         results.append(run_workflow01(ctx))
         results.append(run_workflow02(ctx))
         results.append(run_workflow03(ctx))
         results.extend(run_xipl(ctx))
+        results.extend(run_system_3d(ctx))
         return finish(ctx, results)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
@@ -167,6 +228,24 @@ def main():
             r = TCResult("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction")
             r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
             results.append(r)
+    elif args.cmd == "run-xipl-04":
+        from tests.xipl_flows import compatibility_04
+        results.append(compatibility_04(ctx))
+    elif args.cmd == "run-xipl-05":
+        from tests.xipl_flows import compatibility_05
+        results.append(compatibility_05(ctx))
+    elif args.cmd == "run-xipl-06":
+        from tests.xipl_flows import _prepare, compatibility_06
+        try:
+            results.append(compatibility_06(ctx, _prepare(ctx)))
+        except Exception as exc:
+            from core.result import TCResult, FAIL
+            r = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
+            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
+            results.append(r)
+    if args.cmd == "run-sys3d":
+        from tests.system_compat import run as run_system_3d
+        results.extend(run_system_3d(ctx))
     if args.cmd == "run-auto":
         from tests.install import install_01, install_02
         results[0:0] = [install_01(ctx), install_02(ctx)]
