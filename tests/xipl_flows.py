@@ -174,7 +174,7 @@ def _preview_2d_complete(log_mark, expected_values):
     applied = _last_2d_process(_viewer_log_since(log_mark))
     values_ok = applied.get("values") == expected_values
     name_ok = (vp._parameter_name_key(applied.get("parameter")) ==
-               vp._parameter_name_key("TEST_2D_FLOW.pim"))
+               vp._parameter_name_key("TEST_2D_FLOW_M.pim"))
     detail = {"log": applied, "values_match": values_ok}
     return name_ok and values_ok, "log completion detected", detail
 
@@ -187,7 +187,7 @@ def _apply_2d_complete(ctx, ui, log_mark, files_before, expected_values):
     closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
     values_ok = applied.get("values") == expected_values
     name_ok = (vp._parameter_name_key(applied.get("parameter")) ==
-               vp._parameter_name_key("TEST_2D_FLOW.pim"))
+               vp._parameter_name_key("TEST_2D_FLOW_M.pim"))
     detail = {"window_closed": closed, "log": applied,
               "image_action_files": delta}
     return (closed and name_ok and values_ok and bool(delta),
@@ -426,10 +426,10 @@ def compatibility_02(ctx, session):
     try:
         vp.select_2d(ui, session["step_2d"])
         vp.open_process(ui)
-        name = vp.select_test_parameter(ui, "TEST_2D_FLOW.pim")
+        name = vp.select_test_parameter(ui, "TEST_2D_FLOW_M.pim")
         parameter_path = os.path.join(
             (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER"),
-            "TEST_2D_FLOW.pim")
+            "TEST_2D_FLOW_M.pim")
         baseline_state = _read_2d_parameter_file(parameter_path)
         vp.change_all_2d_parameters(ui)
         changed_state = _read_state_retry(vp.read_2d_parameter_state, ui)
@@ -442,8 +442,8 @@ def compatibility_02(ctx, session):
                       and set(baseline_state) == set(vp.SLIDER_NAMES_2D.values()),
                       expected="Parameter 목록과 5개 지원값 컨트롤",
                       actual={"control_id": 1151, "baseline": baseline_state})
-        r.assert_equal(4, "TEST_2D_FLOW.pim Refresh 및 선택",
-                       "TEST_2D_FLOW.pim", name)
+        r.assert_equal(4, "TEST_2D_FLOW_M.pim Refresh 및 선택",
+                       "TEST_2D_FLOW_M.pim", name)
         changed_fields = {key: {"before": baseline_state[key],
                                 "after": changed_state[key]}
                           for key in changed_state
@@ -484,7 +484,7 @@ def compatibility_02(ctx, session):
         applied = _last_2d_process(_viewer_log_since(log_mark))
         apply_closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
         applied_ok = (vp._parameter_name_key(applied.get("parameter")) ==
-                      vp._parameter_name_key("TEST_2D_FLOW.pim") and
+                      vp._parameter_name_key("TEST_2D_FLOW_M.pim") and
                       applied.get("values") == changed_state)
         r.assert_true(8, "변경 결과가 대상 영상에 적용",
                       apply_closed and applied_ok and bool(action_delta),
@@ -804,19 +804,45 @@ def _add_view_position_by_alias(ui, alias):
     return after
 
 
+def _ensure_test_parameters(ctx, r, step_title, needed):
+    """개별 실행 시 없는 시험 파라미터만 만들고, 결과를 리포트에 남긴다.
+
+    회귀(`run-regression`)는 시작 시 `vp.reset_parameter_copies()`로 TEST_*를
+    전부 지우고 새로 만든다. 반면 TC를 단독 실행할 때는 파일이 아직 없을 수
+    있는데, 예전에는 그때 MANUAL로 빠져 TC 자체를 수행하지 못했다. 이제 제품
+    기본 파라미터에서 없는 것만 복사해 진행한다(있으면 그대로 재사용).
+    복사 원본이 없을 때만(제품 설치 손상) MANUAL로 남긴다.
+
+    반환값이 False면 호출자는 즉시 r을 반환해야 한다.
+    """
+    root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
+    try:
+        outcome = vp.ensure_parameter_copies(root)
+    except FileNotFoundError as exc:
+        r.manual(0, step_title,
+                 "제품 기본 파라미터가 없어 시험 파라미터를 만들 수 없습니다. "
+                 f"XIPL PARAMETER 폴더({root})와 설치 상태를 확인하십시오.",
+                 expected=needed, actual=f"원본 없음: {exc}")
+        return False
+    state = {name: os.path.exists(os.path.join(root, name)) for name in needed}
+    if not all(state.values()):
+        r.manual(0, step_title, "시험 파라미터 생성 후에도 파일이 확인되지 않습니다.",
+                 expected=needed, actual=state)
+        return False
+    r.add(0, step_title, PASS,
+          expected=needed,
+          actual={"files": state,
+                  "created": [os.path.basename(x) for x in outcome["created"]],
+                  "reused": [os.path.basename(x) for x in outcome["reused"]]})
+    return True
+
+
 def compatibility_04(ctx):
     r = TCResult("TC_XIPL_compatibility_04", "Preset별 2D Default Parameter 적용")
     root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
-    test_a = os.path.join(root, "TEST_2D_A.pim")
-    test_b = os.path.join(root, "TEST_2D_B.pim")
-    state = {"TEST_2D_A.pim": os.path.exists(test_a),
-             "TEST_2D_B.pim": os.path.exists(test_b)}
-    if not all(state.values()):
-        r.manual(0, "검증용 2D Parameter 파일 준비",
-                 "파일 내용을 임의 생성하면 서로 다른 Parameter 적용 TC가 무효가 되므로 사용자 제공 필요",
-                 expected="TEST_2D_A.pim and TEST_2D_B.pim", actual=state)
+    if not _ensure_test_parameters(ctx, r, "검증용 2D Parameter 파일 준비",
+                                   [vp.PARAM_2D_A, vp.PARAM_2D_B]):
         return r
-    r.add(0, "검증용 2D Parameter 파일 확인", PASS, actual=state)
 
     # 이전 실행이 남긴 시험 Preset이 있으면 Add가 "이미 존재"로 실패한다. 이
     # TC의 정리 절차는 수동이고(아래 마지막 manual 안내 참고) 저장소는 DB를
@@ -844,13 +870,13 @@ def compatibility_04(ctx):
 
         # Step 1: Setting > Procedure > General 의 2D Default Parameter 변경
         flows.open_procedure_setting(ui, "general")
-        _click_general_param_combo(ui, flows.PROCEDURE_GENERAL_PARAM_2D, "TEST_2D_A.pim")
+        _click_general_param_combo(ui, flows.PROCEDURE_GENERAL_PARAM_2D, "TEST_2D_A_M.pim")
         flows.setting_update(ui)
         flows.confirm_setting_dialog(ui)
         default_param = ctx.db.scalar(
             "PROCEDURE", "SELECT DefaultImgProcess FROM PROCEDURE_COMMON")
         r.assert_equal(1, "Setting > Procedure > General 2D Default Parameter 저장",
-                       "TEST_2D_A.pim", default_param,
+                       "TEST_2D_A_M.pim", default_param,
                        note="PROCEDURE.PROCEDURE_COMMON.DefaultImgProcess 조회")
 
         # Step 2~4: Preset(2D)에 PRESET_FLOW_A/B 추가 및 매핑
@@ -861,7 +887,7 @@ def compatibility_04(ctx):
 
         _add_preset_2d_pair(ui, 2)  # Roll=RM -> RCCRM/LCCRM
         shot_b = _alias_preset_row(ctx, ui, "RCCRM", "PRESET_FLOW_B", "b",
-                                   param_filename="TEST_2D_B.pim")
+                                   param_filename="TEST_2D_B_M.pim")
         r.attach(shot_b)
 
         flows.setting_update(ui)
@@ -871,13 +897,13 @@ def compatibility_04(ctx):
             "PROCEDURE", "SELECT Alias,XIPLParamName FROM VIEW_POSITION_PRESET "
                         "WHERE Alias IN ('PRESET_FLOW_A','PRESET_FLOW_B')")}
         r.assert_equal(2, "PRESET_FLOW_A 추가 및 Default Parameter 매핑",
-                       "TEST_2D_A.pim", presets.get("PRESET_FLOW_A"),
+                       "TEST_2D_A_M.pim", presets.get("PRESET_FLOW_A"),
                        note="PROCEDURE.VIEW_POSITION_PRESET.Alias/XIPLParamName 조회")
         r.assert_true(3, "PRESET_FLOW_B 추가", "PRESET_FLOW_B" in presets,
                       expected="VIEW_POSITION_PRESET에 PRESET_FLOW_B 존재",
                       actual=presets)
         r.assert_equal(4, "PRESET_FLOW_B Parameter 변경 저장",
-                       "TEST_2D_B.pim", presets.get("PRESET_FLOW_B"),
+                       "TEST_2D_B_M.pim", presets.get("PRESET_FLOW_B"),
                        note="PROCEDURE.VIEW_POSITION_PRESET.XIPLParamName 조회")
 
         close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700
@@ -930,13 +956,13 @@ def compatibility_04(ctx):
         r.attach(shot_img_b)
         vp.cancel_window(ui)
 
-        match_a = _parameter_display_matches("TEST_2D_A.pim", applied_a or "")
-        match_b = _parameter_display_matches("TEST_2D_B.pim", applied_b or "")
-        r.assert_true(6, "첫 영상(PRESET_FLOW_A)에 TEST_2D_A.pim 적용",
-                      match_a, expected="TEST_2D_A.pim",
+        match_a = _parameter_display_matches("TEST_2D_A_M.pim", applied_a or "")
+        match_b = _parameter_display_matches("TEST_2D_B_M.pim", applied_b or "")
+        r.assert_true(6, "첫 영상(PRESET_FLOW_A)에 TEST_2D_A_M.pim 적용",
+                      match_a, expected="TEST_2D_A_M.pim",
                       actual={"acquire": acquire_a, "displayed": applied_a})
-        r.assert_true(7, "두 번째 영상(PRESET_FLOW_B)에 TEST_2D_B.pim 적용",
-                      match_b, expected="TEST_2D_B.pim",
+        r.assert_true(7, "두 번째 영상(PRESET_FLOW_B)에 TEST_2D_B_M.pim 적용",
+                      match_b, expected="TEST_2D_B_M.pim",
                       actual={"acquire": acquire_b, "displayed": applied_b})
         r.assert_true(8, "각 영상에 서로 다른 지정 Parameter 표시",
                       match_a and match_b and applied_a != applied_b,
@@ -1023,16 +1049,9 @@ def _qc_set_pass_scores_and_save(ui):
 def compatibility_05(ctx):
     r = TCResult("TC_XIPL_compatibility_05", "Q.C Default Image Process Parameter")
     root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
-    test_2d = os.path.join(root, "TEST_QC_2D.pim")
-    test_3d = os.path.join(root, "TEST_QC_3D.eap")
-    state = {"TEST_QC_2D.pim": os.path.exists(test_2d),
-             "TEST_QC_3D.eap": os.path.exists(test_3d)}
-    if not all(state.values()):
-        r.manual(0, "검증용 Q.C Parameter 파일 준비",
-                 "파일 내용을 임의 생성하면 무효가 되므로 사용자 제공 필요",
-                 expected="TEST_QC_2D.pim and TEST_QC_3D.eap", actual=state)
+    if not _ensure_test_parameters(ctx, r, "검증용 Q.C Parameter 파일 준비",
+                                   [vp.PARAM_QC_2D, vp.PARAM_QC_3D]):
         return r
-    r.add(0, "검증용 Q.C Parameter 파일 확인", PASS, actual=state)
 
     cfg = ctx.cfg["viewer"]
     ui = ViewerUi()
@@ -1046,11 +1065,11 @@ def compatibility_05(ctx):
         if not combo2d:
             raise flows.FlowError("Q.C 2D Default Parameter 콤보를 찾지 못했습니다.")
         ui.click(combo2d[0], settle=1.0)
-        if not vp.click_viewer_text(ui, "TEST_QC_2D.pim", settle=1.0):
+        if not vp.click_viewer_text(ui, "TEST_QC_2D_M.pim", settle=1.0):
             cx, cy = combo2d[0].center
             ui.wheel((cx, cy + 60), -3, settle=.3)
-            if not vp.click_viewer_text(ui, "TEST_QC_2D.pim", settle=1.0):
-                raise flows.FlowError("Q.C 2D 콤보에서 TEST_QC_2D.pim을 찾지 못했습니다.")
+            if not vp.click_viewer_text(ui, "TEST_QC_2D_M.pim", settle=1.0):
+                raise flows.FlowError("Q.C 2D 콤보에서 TEST_QC_2D_M.pim을 찾지 못했습니다.")
         flows.setting_update(ui)
         flows.confirm_setting_dialog(ui)
 
@@ -1071,7 +1090,7 @@ def compatibility_05(ctx):
         qc_common = ctx.db.one(
             "CONFIGURATION", "SELECT DefaultProcessParam,DefaultReconParam FROM QC_COMMON") or {}
         r.assert_equal(1, "Setting > Q.C > Setting 2D Default Image Process Parameter 저장",
-                       "TEST_QC_2D.pim", qc_common.get("DefaultProcessParam"),
+                       "TEST_QC_2D_M.pim", qc_common.get("DefaultProcessParam"),
                        note="CONFIGURATION.QC_COMMON.DefaultProcessParam 조회")
         r.assert_equal(2, "Setting > Q.C > Setting(3D) 3D Default Image Process Parameter 저장",
                        "TEST_QC_3D.eap", qc_common.get("DefaultReconParam"),
@@ -1088,7 +1107,7 @@ def compatibility_05(ctx):
         flows.open_qc_tool(ui)
         shot_2d = _qc_launch_and_expose(
             ctx, ui, (343, 223), "2d", log_mark_2d, click_time_2d,
-            lambda text: _last_2d_process(text).get("parameter") == "TEST_QC_2D.pim")
+            lambda text: _last_2d_process(text).get("parameter") == "TEST_QC_2D_M.pim")
         r.attach(shot_2d)
         _qc_set_pass_scores_and_save(ui)
         log_2d = _log_lines_from(_viewer_log_since(log_mark_2d), click_time_2d)
@@ -1097,9 +1116,9 @@ def compatibility_05(ctx):
             "DATA", "SELECT TOP 1 [Key],Result,Detail FROM QC_STUDY WHERE Type=11 "
                     "ORDER BY [Key] DESC") or {}
         r.assert_true(
-            3, "2D Q.C(ACR Phantom) 1회 촬영 및 TEST_QC_2D.pim 적용",
-            applied_2d.get("parameter") == "TEST_QC_2D.pim" and qc_2d.get("Result") == 1,
-            expected="Viewer 로그에 Image Process Param Name:TEST_QC_2D.pim 기록, "
+            3, "2D Q.C(ACR Phantom) 1회 촬영 및 TEST_QC_2D_M.pim 적용",
+            applied_2d.get("parameter") == "TEST_QC_2D_M.pim" and qc_2d.get("Result") == 1,
+            expected="Viewer 로그에 Image Process Param Name:TEST_QC_2D_M.pim 기록, "
                      "QC_STUDY.Result=Pass",
             actual={"log": applied_2d, "qc_study": qc_2d},
             note="Fiber/Speck/Mass 점수는 실제 팬텀 판독이 아니라 Setting > Q.C에 "
@@ -1130,9 +1149,9 @@ def compatibility_05(ctx):
 
         # Step 5: 각 Q.C 영상의 적용 Parameter가 설정값과 일치
         r.assert_true(5, "각 Q.C 영상의 적용 Parameter가 설정값과 일치",
-                      applied_2d.get("parameter") == "TEST_QC_2D.pim"
+                      applied_2d.get("parameter") == "TEST_QC_2D_M.pim"
                       and applied_3d.get("parameter") == "TEST_QC_3D.eap",
-                      expected={"2D": "TEST_QC_2D.pim", "3D": "TEST_QC_3D.eap"},
+                      expected={"2D": "TEST_QC_2D_M.pim", "3D": "TEST_QC_3D.eap"},
                       actual={"2D": applied_2d.get("parameter"),
                               "3D": applied_3d.get("parameter")})
     except Exception as exc:
@@ -1144,7 +1163,7 @@ def compatibility_06(ctx, session):
     r = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
     ui = session["ui"]
     root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
-    saved_path = os.path.join(root, "TEST_XIPL_SAVED.pim")
+    saved_path = os.path.join(root, "TEST_XIPL_SAVED_M.pim")
     field_name, target_value = "Contrast", 15
     try:
         vp.select_2d(ui, session["step_2d"])
@@ -1212,21 +1231,21 @@ def compatibility_06(ctx, session):
         # 파일명/값 로그 증거는 "선택" 구간에서 확보한다.
         select_log_mark = _viewer_log_mark(ctx)
         vp.open_process(ui)
-        name = vp.select_test_parameter(ui, "TEST_XIPL_SAVED.pim")
+        name = vp.select_test_parameter(ui, "TEST_XIPL_SAVED_M.pim")
         selected_state = _read_state_retry(vp.read_2d_parameter_state, ui)
         selected_log = _last_2d_process(_viewer_log_since(select_log_mark))
         shot_selected = _ev(ctx, "TC_XIPL_compatibility_06_selected.png")
         vp.capture(shot_selected)
         r.attach(shot_selected)
         log_name_ok = (vp._parameter_name_key(selected_log.get("parameter")) ==
-                       vp._parameter_name_key("TEST_XIPL_SAVED.pim"))
+                       vp._parameter_name_key("TEST_XIPL_SAVED_M.pim"))
         log_value_ok = selected_log.get("values", {}).get(field_name) == target_value
         r.assert_true(
             5, "저장한 Parameter가 목록에 표시되고 선택됨",
-            _parameter_display_matches("TEST_XIPL_SAVED.pim", name)
+            _parameter_display_matches("TEST_XIPL_SAVED_M.pim", name)
             and selected_state.get(field_name) == target_value
             and log_name_ok and log_value_ok,
-            expected={"parameter": "TEST_XIPL_SAVED.pim", field_name: target_value},
+            expected={"parameter": "TEST_XIPL_SAVED_M.pim", field_name: target_value},
             actual={"displayed_parameter": name, "values": selected_state,
                     "selected_log": selected_log})
 
@@ -1254,12 +1273,12 @@ def compatibility_06(ctx, session):
         verify_shot = _ev(ctx, "TC_XIPL_compatibility_06_result.png")
         vp.capture(verify_shot)
         r.attach(verify_shot)
-        retained = (_parameter_display_matches("TEST_XIPL_SAVED.pim", reopened_name)
+        retained = (_parameter_display_matches("TEST_XIPL_SAVED_M.pim", reopened_name)
                     and reopened_state.get(field_name) == target_value)
         r.assert_true(
             6, "변경된 세부 설정이 대상 영상에 적용",
             retained,
-            expected={"parameter": "TEST_XIPL_SAVED.pim", field_name: target_value},
+            expected={"parameter": "TEST_XIPL_SAVED_M.pim", field_name: target_value},
             actual={"displayed_parameter": reopened_name, "values": reopened_state,
                     "applied_log": applied_log},
             note="Apply 후 Image Processing에 재진입하여 UI 표시값을 다시 읽어 비교")

@@ -27,7 +27,7 @@ PARTIAL 등록돼 있다.
 - 자동화 범위 총 39건 = **FULL 10 / PARTIAL 19 / MANUAL 10**
   (`python run.py list`로 확인).
 - **FULL**: Install_01/02, WF_01/02/03, XIPL_01/02/03/04/06.
-- `TC_XIPL_compatibility_05`는 구현이 끝났지만 `TEST_QC_2D.pim`/`TEST_QC_3D.eap`을
+- `TC_XIPL_compatibility_05`는 구현이 끝났지만 `TEST_QC_2D_M.pim`/`TEST_QC_3D.eap`을
   **사용자가 직접** XIPL PARAMETER 폴더에 넣어야 실행된다(내용을 임의 생성하면
   시험이 무효). 없으면 MANUAL로 보고되며 2026-08-14 현재 이 PC에는 없다.
 - `TC_XIPL_compatibility_06`의 이전 블로커(Noise reduction 슬라이더 OCR)는
@@ -57,7 +57,7 @@ PARTIAL 등록돼 있다.
   건너뛰고 MANUAL로 보고하며, 검사 데이터가 계속 누적된다. 깨끗한 기준으로
   회귀를 돌리려면 원하는 상태에서 `python run.py snapshot-baseline`을 먼저 한 번
   실행해 기준을 만들어야 한다(스냅샷 경로는 `<data_dir>\Backup\Baseline`).
-- **`TEST_QC_2D.pim` / `TEST_QC_3D.eap`이 없다** → TC_XIPL_compatibility_05가
+- **`TEST_QC_2D_M.pim` / `TEST_QC_3D.eap`이 없다** → TC_XIPL_compatibility_05가
   MANUAL로 보고된다(위 참고).
 - **TC_XIPL_compatibility_04는 아직 반복 실행이 안 된다.** 이 TC가 만든 시험
   Preset(`PRESET_FLOW_A/B`, 실제 Name은 RCCRL/LCCRL/RCCRM/LCCRM)의 정리 절차가

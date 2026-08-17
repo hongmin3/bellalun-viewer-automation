@@ -473,7 +473,7 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
 
     @staticmethod
     def ensure_test_parameter(source=r"C:\XIPL\PARAMETER\Standard_Default_M.pim",
-                              target=r"C:\XIPL\PARAMETER\TEST_2D_FLOW.pim"):
+                              target=r"C:\XIPL\PARAMETER\TEST_2D_FLOW_M.pim"):
         if not os.path.exists(source):
             raise FileNotFoundError(source)
         if not os.path.exists(target) or os.path.getsize(target) != os.path.getsize(source):

@@ -155,9 +155,10 @@ def main():
         from tests.workflow03 import run as run_workflow03
         from tests.xipl_flows import run_xipl
         from tests.system_compat import run as run_system_3d
-        from core.dbreset import has_baseline, restore_baseline
+        from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
-        reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 DB 기준 스냅샷 복원")
+        from core import viewer_processing as vp
+        reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")
         if has_baseline(ctx):
             try:
                 restore_baseline(ctx)
@@ -168,9 +169,28 @@ def main():
                           FAIL, actual=str(exc))
         else:
             reset.manual(0, "DB 기준 스냅샷 복원",
-                         "기준 스냅샷(.bak)이 없어 복원을 건너뛰었습니다. "
-                         "`python run.py snapshot-baseline`으로 먼저 생성하세요.",
-                         expected="기준 스냅샷 존재", actual="없음")
+                         "기준 스냅샷(.bak 4개)을 찾지 못해 복원을 건너뛰었습니다. "
+                         "저장소 상위 폴더의 Baseline 폴더에 DATA/ACCOUNT/"
+                         "CONFIGURATION/PROCEDURE.bak을 넣거나 "
+                         "`python run.py snapshot-baseline`으로 생성하세요.",
+                         expected="기준 스냅샷 존재", actual=baseline_state(ctx))
+
+        # 회귀는 시험 파라미터도 기준 상태에서 시작해야 한다. 이전 실행이 남긴
+        # TEST_* 파일(제품이 만든 .pi 잔재, 예전 이름 규칙 포함)을 전부 지우고
+        # 제품 기본 파라미터에서 새로 복사한다. 개별 TC 실행은 이와 달리
+        # 없는 것만 만들어 재사용한다(vp.ensure_parameter_copies).
+        param_root = (ctx.cfg.get("xipl") or {}).get(
+            "parameter_dir", r"C:\XIPL\PARAMETER")
+        try:
+            param_reset = vp.reset_parameter_copies(param_root)
+            reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", PASS,
+                      expected=list(vp.TEST_PARAMETER_FILES),
+                      actual={"removed": param_reset["removed"],
+                              "created": [os.path.basename(p)
+                                          for p in param_reset["created"]]})
+        except Exception as exc:
+            reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
+                      expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
         results.append(reset)
         results.extend([install_01(ctx), install_02(ctx)])
         results.append(setup_all(ctx))

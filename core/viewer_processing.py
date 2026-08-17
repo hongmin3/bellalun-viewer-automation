@@ -171,42 +171,103 @@ def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None):
     return True
 
 
-def ensure_parameter_copies(parameter_root=r"C:\XIPL\PARAMETER"):
-    """Reset every automation-owned test parameter from its clean source.
+# --- 시험용 XIPL 파라미터 파일 -------------------------------------------
+#
+# 파일명 규칙 (2026-08-18 사용자 확정): **모든 `.pim`은 `_M`으로 끝나야 한다.**
+# 제품이 설치하는 기본 파라미터가 전부 그 형태다(`Standard_Default_M.pim`,
+# `Spot_Default_M.pim` ...). `.xtp`/`.eap`에는 이 규칙이 없다.
+# 파일명이 코드 곳곳에 흩어져 있으면 규칙을 어기기 쉬우므로 여기서만 정의하고
+# 다른 모듈은 반드시 이 상수를 참조한다.
+PARAM_2D_FLOW = "TEST_2D_FLOW_M.pim"
+PARAM_2D_A = "TEST_2D_A_M.pim"
+PARAM_2D_B = "TEST_2D_B_M.pim"
+PARAM_XIPL_SAVED = "TEST_XIPL_SAVED_M.pim"
+PARAM_3D_FLOW = "TEST_3D_FLOW.xtp"
+PARAM_QC_2D = "TEST_QC_2D_M.pim"
+PARAM_QC_3D = "TEST_QC_3D.eap"
 
-    Test outputs must never leak from a previous run.  Delete only the five
-    explicitly managed TEST_* files below, then recreate byte-for-byte copies
-    from the installed default parameters.  Unrelated/user parameter files are
-    intentionally left untouched.
-    """
-    parameter_root = os.path.abspath(parameter_root)
-    specs = [
-        (os.path.join(parameter_root, "Standard_Default_M.pim"),
-         os.path.join(parameter_root, "TEST_2D_FLOW.pim")),
-        (os.path.join(parameter_root, "Standard_Default_M.pim"),
-         os.path.join(parameter_root, "TEST_2D_A.pim")),
-        (os.path.join(parameter_root, "Standard_Default_M.pim"),
-         os.path.join(parameter_root, "TEST_2D_B.pim")),
-        (os.path.join(parameter_root, "Standard_Default_M.pim"),
-         os.path.join(parameter_root, "TEST_XIPL_SAVED.pim")),
-        (os.path.join(parameter_root, "DBT_Standard_Default.xtp"),
-         os.path.join(parameter_root, "TEST_3D_FLOW.xtp")),
-    ]
+# (원본 기본 파라미터, 만들 시험 파일). 원본을 그대로 복사하므로 내용은
+# 제품 기본값과 byte-for-byte 동일하다.
+_PARAM_SOURCES = {
+    PARAM_2D_FLOW: "Standard_Default_M.pim",
+    PARAM_2D_A: "Standard_Default_M.pim",
+    PARAM_2D_B: "Standard_Default_M.pim",
+    PARAM_XIPL_SAVED: "Standard_Default_M.pim",
+    PARAM_QC_2D: "Standard_Default_M.pim",
+    PARAM_3D_FLOW: "DBT_Standard_Default.xtp",
+    PARAM_QC_3D: "DBT_Standard_Default.xtp",
+}
+
+TEST_PARAMETER_FILES = tuple(_PARAM_SOURCES)
+
+# 규칙을 주석으로만 두면 언젠가 깨진다. import 시점에 강제한다.
+for _name in _PARAM_SOURCES:
+    if _name.lower().endswith(".pim") and not _name.endswith("_M.pim"):
+        raise RuntimeError(
+            f"시험 파라미터 이름 규칙 위반: {_name!r} - 모든 .pim은 '_M.pim'으로 "
+            f"끝나야 한다(제품 기본 파라미터가 Standard_Default_M.pim 형태).")
+del _name
+
+
+def _param_specs(parameter_root):
+    root = os.path.abspath(parameter_root)
+    guard = os.path.normcase(root)
+    specs = []
+    for target_name, source_name in _PARAM_SOURCES.items():
+        target = os.path.join(root, target_name)
+        if os.path.commonpath([guard, os.path.normcase(os.path.abspath(target))]) != guard:
+            raise RuntimeError(f"Unsafe test parameter target: {target}")
+        specs.append((os.path.join(root, source_name), target))
+    return specs
+
+
+def _require_sources(specs):
     for source, _ in specs:
         if not os.path.exists(source):
             raise FileNotFoundError(source)
 
-    parameter_root = os.path.normcase(parameter_root)
-    for _, target in specs:
-        resolved = os.path.normcase(os.path.abspath(target))
-        if os.path.commonpath([parameter_root, resolved]) != parameter_root:
-            raise RuntimeError(f"Unsafe test parameter target: {target}")
-        if os.path.exists(target):
-            os.remove(target)
 
+def reset_parameter_copies(parameter_root=r"C:\XIPL\PARAMETER"):
+    """회귀 실행용: `TEST_*` 파라미터를 **전부 지우고** 새로 만든다.
+
+    회귀는 알려진 기준에서 시작해야 하므로, 이전 실행이 남긴 시험 파라미터는
+    물론 `TEST_XIPL_SAVED_M.pim.pi`처럼 제품이 부수적으로 만든 잔재와 예전
+    이름 규칙(`_M` 없는 `TEST_*.pim`)까지 이름이 `TEST_`로 시작하는 파일을
+    모두 삭제한 뒤 원본에서 다시 복사한다. `TEST_`로 시작하지 않는
+    사용자/제품 파라미터는 절대 건드리지 않는다.
+    """
+    specs = _param_specs(parameter_root)
+    _require_sources(specs)
+    root = os.path.abspath(parameter_root)
+    removed = []
+    for name in sorted(os.listdir(root)):
+        if not name.upper().startswith("TEST_"):
+            continue
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            os.remove(path)
+            removed.append(name)
     for source, target in specs:
         shutil.copy2(source, target)
-    return [target for _, target in specs]
+    return {"removed": removed, "created": [t for _, t in specs]}
+
+
+def ensure_parameter_copies(parameter_root=r"C:\XIPL\PARAMETER"):
+    """개별 TC 실행용: **없는 것만** 만들고 있는 것은 그대로 쓴다.
+
+    개별 자동화는 회귀와 달리 직전 실행이 만든 파라미터를 재사용해도 되고,
+    매번 지우면 사용자가 손으로 검증하던 파일까지 날아간다. 그래서 누락된
+    파일만 원본에서 복사한다(파일이 아예 없어도 이 함수만으로 실행 가능).
+    """
+    specs = _param_specs(parameter_root)
+    _require_sources(specs)
+    created = []
+    for source, target in specs:
+        if not os.path.exists(target):
+            shutil.copy2(source, target)
+            created.append(target)
+    return {"created": created, "reused": [t for _, t in specs
+                                          if t not in created]}
 
 
 def ensure_tc01_overlay(ui, db):

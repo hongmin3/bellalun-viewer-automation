@@ -152,7 +152,7 @@ Demo 영상 내용 자체는 선택한 View Position과 연관되지 않으므�
 호출하고, 2D는 Process Control(ID 1151), 3D는 `<<`를 펼친 뒤 Post
 Reconstruction(ID 1178)으로 진입한다.
 
-원본 Parameter는 수정하지 않고 `TEST_2D_FLOW.pim`과 `TEST_3D_FLOW.xtp`
+원본 Parameter는 수정하지 않고 `TEST_2D_FLOW_M.pim`과 `TEST_3D_FLOW.xtp`
 복사본만 사용한다. 2D의 Contrast/Sharpness/Brightness/Tone/Noise 전 항목과,
 3D Recon·Syn의 Background Masking/Contrast/Sharpness/Brightness/Tone 전 항목을
 크게 변경한다. Recon과 Syn의 Tone은 기본/최대값이 20이므로 모두 감소시킨다.
@@ -177,7 +177,7 @@ TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 �
 위치와 크기는 PC마다 달라도 창 자체 좌표계로 OCR하며, PIM 패널이 이전 모니터
 좌표를 기억해 화면 밖에 열리면 Windows UI Automation으로 현재 창 안에 이동한다.
 
-TC06은 XIPL Studio에서 Contrast를 15로 바꿔 `TEST_XIPL_SAVED.pim`으로 저장한 뒤
+TC06은 XIPL Studio에서 Contrast를 15로 바꿔 `TEST_XIPL_SAVED_M.pim`으로 저장한 뒤
 Viewer Image Processing에서 그 Parameter를 다시 선택해 5개 표시값을 읽고, Apply
 후 재진입 표시값까지 비교한다. Viewer는 Parameter를 **선택하는 순간**
 `Image Process Param Name:<file>, Contrast: ...` 로그를 남기고 **Apply는 이
