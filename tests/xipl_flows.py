@@ -1206,6 +1206,14 @@ def compatibility_06(ctx, session):
     saved_path = os.path.join(root, "TEST_XIPL_SAVED_M.pim")
     field_name, target_value = "Contrast", 15
     try:
+        # TC_04/05는 각자 Setting과 Q.C 화면으로 이동하고 시험 검사를 되돌리지
+        # 않는다. 그래서 회귀 순서(01~06)에서 이 TC에 올 때는 세션이 열어 둔
+        # 검사가 화면에 없다(2026-08-18 실측: "Step이 0개라 1번째를 선택할 수
+        # 없습니다"로 즉시 실패). 앞선 TC의 화면 상태에 기대지 않고, 스텝이
+        # 안 보이면 픽스처를 다시 열어 자기 전제를 스스로 만든다.
+        if not flows.step_items(ui):
+            session = vp.open_test_study(ctx)
+            ui = session["ui"]
         vp.select_2d(ui, session["step_2d"])
 
         studio, studio_ui = _launch_xipl(ctx, ui)
