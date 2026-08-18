@@ -65,6 +65,17 @@ PARTIAL 등록돼 있다.
   주의: `core/db.py`는 조회 전용이고 저장소 전체에 DB 쓰기가 없다(모든 상태
   변경은 UI로만 한다는 설계) — 정리용으로 DB 쓰기를 새로 열지 말 것.
 
+## 알려진 간헐 실패 (제품 결함으로 오독 금지)
+
+- **`TC_Basic_WorkFlow_02` Step 7 "Window Level"(3D Recon pane)** 은 간헐적으로
+  FAIL한다. 리포트 13회 이력 중 11회 PASS / 2회 FAIL이며 **첫 실패는 2026-08-11로
+  이후 작업들보다 앞선다**(즉 최근 변경이 만든 회귀가 아니다). 실패 시 증상은
+  `changed_ratio=0.0`인데 `mean_delta`는 0.5 내외로 나오고, 같은 순간 우측 pane의
+  W1/W2 오버레이 OCR도 숫자 하나만 읽는다(`'32743'`).
+- 판정 허용 오차(`minimum_changed_ratio`)를 임의로 낮추지 말 것. 그러면 실제
+  Window Level 미동작을 놓친다. 원인을 찾을 때는 드래그가 실제로 값을 바꿨는지
+  **Viewer 로그/오버레이 실측**으로 먼저 확인한다.
+
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
 `VIEWER.exe`는 매니페스트가 `requireAdministrator`라 항상 High Integrity로
