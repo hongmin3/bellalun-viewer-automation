@@ -1130,6 +1130,18 @@ def compatibility_05(ctx):
         flows.ensure_patient_screen(ui)
 
         # Step 3: 2D Q.C 항목(ACR Phantom) 1회 촬영
+        #
+        # Q.C 테스트를 실행하려면 **열려 있던 Examine 검사를 먼저 닫아야 한다**
+        # (2026-08-18 사용자 확인). 닫지 않으면 Q.C 창에서 ▶를 눌러도 테스트
+        # 창이 뜨지 않는다. 단독 실행에서는 열린 검사가 없어 그냥 통과했고,
+        # 회귀에서는 앞선 TC가 남긴 검사 때문에 이 지점에서만 실패했다
+        # (실측: "2d: Q.C 테스트 창이 열리지 않았습니다").
+        # 이미 Patient 화면이면 close_examine이 할 일이 없으므로, 열려 있을
+        # 때만 닫는다. 'close'는 강제 종료가 아니라 정상 종료다(flows 주석 참고).
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            flows.close_examine(ui, option="close", wait=10)
+        flows.ensure_patient_screen(ui, wait=3)
+
         click_time_2d = datetime.now()
         log_mark_2d = _viewer_log_mark(ctx)
         flows.open_qc_tool(ui)
