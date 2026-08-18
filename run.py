@@ -77,6 +77,7 @@ def main():
     sub.add_parser("run-wf01", help="TC_Basic_WorkFlow_01 MWL + Local 9단계 완전자동화")
     sub.add_parser("run-wf02", help="TC_Basic_WorkFlow_02 2D/3D Demo 촬영 및 Tool 자동화")
     sub.add_parser("run-wf03", help="TC_Basic_WorkFlow_03 Print Overlay 실제 출력 및 웹 검증")
+    sub.add_parser("run-wf04", help="TC_Basic_WorkFlow_04 Overlay(Send/Print/Export) 실행")
     sub.add_parser("run-wf05", help="TC_Basic_WorkFlow_05 DICOM Send(2D) 실행")
     sub.add_parser("run-xipl", help="XIPL 01~03 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
@@ -113,7 +114,7 @@ def main():
         restore_baseline(ctx)
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
-    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf05", "run-xipl",
+    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -157,6 +158,7 @@ def main():
         from tests.xipl_flows import run_xipl
         from tests.system_compat import run as run_system_3d
         from tests.send_flows import run as run_send
+        from tests.overlay_flows import run as run_overlay
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -199,6 +201,7 @@ def main():
         results.append(run_workflow01(ctx))
         results.append(run_workflow02(ctx))
         results.append(run_workflow03(ctx))
+        results.extend(run_overlay(ctx))
         results.extend(run_xipl(ctx))
         results.extend(run_send(ctx))
         results.extend(run_system_3d(ctx))
@@ -221,6 +224,9 @@ def main():
     if args.cmd == "run-wf03":
         from tests.workflow03 import run as run_workflow03
         results.append(run_workflow03(ctx))
+    if args.cmd == "run-wf04":
+        from tests.overlay_flows import run as run_overlay
+        results.extend(run_overlay(ctx))
     if args.cmd == "run-wf05":
         from tests.send_flows import run as run_send
         results.extend(run_send(ctx))

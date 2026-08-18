@@ -309,6 +309,85 @@ def ensure_parameter_copies(parameter_root=r"C:\XIPL\PARAMETER"):
                                           if t not in created]}
 
 
+# Setting > Display > Overlay의 Item 카탈로그 순서(0-based). 2026-08-18 실측:
+# Patient ID, Patient Name, Birth Date, Sex/Age, Gray value, Histogram,
+# Window Level (W1/W2), Window Level (WW/WL), Dose kVp, Dose mA, Dose ms, Dose mAs, ...
+# TC01_OVERLAY_FIELDS의 Histogram=5 / W1W2=6과 같은 기준이다.
+OVERLAY_CATALOGUE = {
+    "Patient ID": 0, "Patient Name": 1, "Birth Date": 2, "Sex / Age": 3,
+    "Gray value": 4, "Histogram": 5, "Window Level (W1/W2)": 6,
+    "Window Level (WW/WL)": 7, "Dose kVp": 8, "Dose mA": 9, "Dose ms": 10,
+    "Dose mAs": 11,
+}
+
+# 카탈로그 index -> CONFIGURATION.OVERLAY_ITEM.FieldID (추가해 보고 실측한 값).
+# WF04가 "요청한 항목이 실제로 저장됐는가"를 DB로 판정할 때 쓴다.
+OVERLAY_FIELD_IDS = {
+    "Patient ID": 1, "Patient Name": 2, "Birth Date": 15, "Sex / Age": 100,
+    "Histogram": 113, "Window Level (W1/W2)": 134,
+    "Dose kVp": 115, "Dose mAs": 118,
+}
+
+
+def add_image_overlay_items(ui, db, labels):
+    """Setting > Display > Overlay의 Top 목록에 카탈로그 항목을 추가한다.
+
+    FieldID를 미리 알 수 없는 항목(예: Dose kVp/mAs)도 다룰 수 있게, 추가 전후
+    `CONFIGURATION.OVERLAY_ITEM`을 비교해 **실제로 생긴 FieldID를 실측으로
+    돌려준다.** 이미 목록에 있는 항목은 다시 추가하지 않는다(중복 방지).
+
+    반환: {"before": [...], "after": [...], "added_field_ids": [...],
+           "requested": [...]}
+    """
+    def ids():
+        return sorted(int(r["FieldID"]) for r in db.query(
+            "CONFIGURATION", "SELECT FieldID FROM OVERLAY_ITEM"))
+
+    unknown = [x for x in labels if x not in OVERLAY_CATALOGUE]
+    if unknown:
+        raise RuntimeError(f"카탈로그에 없는 Overlay 항목: {unknown}")
+
+    before = ids()
+    flows.open_setting(ui, wait=3)
+    flows.open_setting_group(ui, "display", wait=2)
+    flows._click_setting_control(ui, 201, "Display > Overlay", wait=2)
+    available = _visible(ui, 2382)
+    add_top = _visible(ui, 2383)
+    if not available or not add_top:
+        raise RuntimeError("Display > Overlay item controls not found")
+
+    for label in labels:
+        index = OVERLAY_CATALOGUE[label]
+        rows = sorted({c.hwnd: c for c in children(available[0].hwnd, 5)
+                       if c.text == "ListItem" and c.visible}.values(),
+                      key=lambda c: c.rect[1])
+        if len(rows) <= index:
+            raise RuntimeError(
+                f"Overlay 카탈로그에서 '{label}'(index {index}) 행이 보이지 "
+                f"않습니다(보이는 행 {len(rows)}개).")
+        ui.click(rows[index], settle=.4)
+        ui.click(add_top[0], settle=.8)
+        if ui.dialog():
+            # 이미 추가된 항목이면 제품이 경고를 띄운다. 중복은 오류가 아니다.
+            flows.confirm_setting_dialog(ui, timeout=3)
+
+    flows.setting_update(ui, wait=3)
+    flows.confirm_setting_dialog(ui)
+    end = time.time() + 8
+    after = ids()
+    while time.time() < end and after == before:
+        time.sleep(1)
+        after = ids()
+    flows.confirm_setting_dialog(ui, timeout=2)
+    closes = [c for c in ui.by_id(4) if c.visible
+              and c.rect[2] - c.rect[0] <= 60 and c.rect[3] - c.rect[1] <= 60]
+    if closes:
+        ui.click(min(closes, key=lambda c: c.rect[1]), settle=2)
+    return {"before": before, "after": after,
+            "added_field_ids": sorted(set(after) - set(before)),
+            "requested": list(labels)}
+
+
 def ensure_tc01_overlay(ui, db):
     """Configure Histogram and W1/W2 through Setting > Display > Overlay."""
     def saved_fields():

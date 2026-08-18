@@ -11,7 +11,7 @@
   {"tc_id":"TC_Basic_WorkFlow_01","level":"FULL","reason":"MWL 처방 HTTP 준비·조회·정보 대조·보류와 Local 환자 생성·DB 대조 9단계 완전자동"},
   {"tc_id":"TC_Basic_WorkFlow_02","level":"FULL","reason":"최신 MWL 보류 검사 재개, 2D/3D-N Demo 촬영, InstanceType·Series·Group·UID 구조와 2D/Recon Tool OCR·화면 변화 자동 검증"},
   {"tc_id":"TC_Basic_WorkFlow_03","level":"FULL","reason":"DICOM Print Overlay 6개 설정·Print 서버 등록·Film 1x1 실제 출력·신규 웹 프리뷰 실제값 OCR 및 raster 일치 자동 검증"},
-  {"tc_id":"TC_Basic_WorkFlow_04","level":"PARTIAL","reason":"Overlay DB 변경 자동 판정; 표시 육안 확인"},
+  {"tc_id":"TC_Basic_WorkFlow_04","level":"PARTIAL","reason":"Image Overlay 항목 추가(OVERLAY_ITEM 대조), Print Overlay 6개 등록 및 Print 서버 선택(PRINT_OVERLAY_ITEM·DICOM_PRINT 대조), DICOM Send(수신 객체 UID를 DB와 대조), Export(제품 기본 경로에 생성/갱신된 파일 확인)까지 자동 판정(tests/overlay_flows.py, run-wf04). Film 출력물의 Overlay 표시는 WF03가 웹 프리뷰 OCR로 검증하므로 중복하지 않고 MANUAL로 참조"},
   {"tc_id":"TC_Basic_WorkFlow_05","level":"PARTIAL","reason":"Examine 화면 Send를 All Images/Selected 두 범위로 실제 전송하고 수신 DICOM 객체의 SOP Instance UID를 DB와 대조해 자동 판정(tests/send_flows.py, run-wf05). Transfer Syntax를 Bunny가 수락하는 Implicit VR LE로 맞추는 것까지 자동화. View창/Examined 경로는 Send 진입점이 확정되지 않아 MANUAL"},
   {"tc_id":"TC_Basic_WorkFlow_06","level":"PARTIAL","reason":"3D 수신 DICOM 자동 판정; 3D 조건 의존"},
   {"tc_id":"TC_Basic_WorkFlow_07","level":"PARTIAL","reason":"영상/RDSR 수신 자동 판정; 대상 검사 준비 필요"},
