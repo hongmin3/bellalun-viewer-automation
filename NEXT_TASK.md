@@ -65,16 +65,18 @@ PARTIAL 등록돼 있다.
   주의: `core/db.py`는 조회 전용이고 저장소 전체에 DB 쓰기가 없다(모든 상태
   변경은 UI로만 한다는 설계) — 정리용으로 DB 쓰기를 새로 열지 말 것.
 
-## 알려진 간헐 실패 (제품 결함으로 오독 금지)
+## 최신 회귀 결과 (2026-08-18 12:10)
 
-- **`TC_Basic_WorkFlow_02` Step 7 "Window Level"(3D Recon pane)** 은 간헐적으로
-  FAIL한다. 리포트 13회 이력 중 11회 PASS / 2회 FAIL이며 **첫 실패는 2026-08-11로
-  이후 작업들보다 앞선다**(즉 최근 변경이 만든 회귀가 아니다). 실패 시 증상은
-  `changed_ratio=0.0`인데 `mean_delta`는 0.5 내외로 나오고, 같은 순간 우측 pane의
-  W1/W2 오버레이 OCR도 숫자 하나만 읽는다(`'32743'`).
-- 판정 허용 오차(`minimum_changed_ratio`)를 임의로 낮추지 말 것. 그러면 실제
-  Window Level 미동작을 놓친다. 원인을 찾을 때는 드래그가 실제로 값을 바꿨는지
-  **Viewer 로그/오버레이 실측**으로 먼저 확인한다.
+**PASS 121 / FAIL 1 / MANUAL 6 / SKIP 1.** FAIL 1건은
+`TC_XIPL_compatibility_03 Step 9`로 **제품 실제 결함을 잡아낸 정상 결과**다
+(Apply 후 재진입 시 값이 기본값 복귀). GPU 무관하며 **절대 완화하지 않는다.**
+
+- WF02 Window Level의 간헐 FAIL은 해소됐다. 원인은 Overlay가 꺼져 판정 근거
+  (W1/W2)를 못 읽던 것이었고, WF02가 Overlay를 직접 보장하고 판정을 사양 기준
+  (값 증감)으로 바꾼 뒤 연속 PASS한다. 다시 FAIL하면 먼저
+  `CONFIGURATION.OVERLAY_ITEM`의 FieldID 113/134를 확인할 것.
+- `TC_XIPL_compatibility_04`는 검증 9단계 전부 PASS이며 종합 MANUAL은 시험
+  Preset 수동 삭제 안내 때문이다(회귀는 DB 복원으로 자동 해소).
 
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
