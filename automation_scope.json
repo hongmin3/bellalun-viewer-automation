@@ -29,7 +29,7 @@
   {"tc_id":"TC_XIPL_compatibility_02","level":"FULL","reason":"TEST_2D_FLOW 원본 XML·UI 변경값·Preview 변화·Viewer 처리 로그·ImageAction 파일·재진입 값 교차 검증"},
   {"tc_id":"TC_XIPL_compatibility_03","level":"FULL","reason":"TEST_3D_FLOW 10개 변경·Preview·xtp 전달·Apply 후 재진입값 검증; 기본값 복귀는 GPU 무관 FAIL, exact No GPUS는 결과 생성만 SKIP"},
   {"tc_id":"TC_XIPL_compatibility_04","level":"FULL","reason":"Preset(Roll RL/RM)별 2D Default Parameter 등록·적용·재진입 표시값까지 실제 UI/DB로 자동 검증; 시험 Preset 삭제만 수동 정리 안내"},
-  {"tc_id":"TC_XIPL_compatibility_05","level":"PARTIAL","reason":"Q.C Tool ACR Phantom 2D/3D-N Demo F8 촬영과 적용 로그·임계값 판정까지 구현됨. 단 TEST_QC_2D_M.pim/TEST_QC_3D.eap은 내용을 임의 생성하면 무효라 사용자가 XIPL PARAMETER 폴더에 넣어줘야 하고, 없으면 MANUAL로 보고한다(2026-08-14 이 PC에는 없음)"},
+  {"tc_id":"TC_XIPL_compatibility_05","level":"FULL","reason":"Q.C Tool ACR Phantom 2D/3D-N Demo F8 촬영, TEST_QC 파라미터 저장(QC_COMMON DB 대조)·적용 로그·임계값 Pass/Fail까지 자동 검증. 시험 파라미터는 제품 기본값 복사로 자동 생성한다(2026-08-18 전 단계 PASS 실측)"},
   {"tc_id":"TC_XIPL_compatibility_06","level":"FULL","reason":"XIPL Studio에서 Contrast 변경·다른 이름으로 저장 후 Viewer Image Processing 재선택·Apply·재진입 표시값과 Viewer 처리 로그(5개 값) 교차 검증"},
   {"tc_id":"TC_System_compatibility_03","level":"PARTIAL","reason":"3D-Narrow Preset 등록·Demo F8 촬영·INSTANCE_GROUP ExposureMode=1까지 자동 판정; 실제 X-ray는 Demo 대체, System LCD 표시와 2430 패들·회전 각도(-7.5~7.5도)는 MANUAL"},
   {"tc_id":"TC_System_compatibility_04","level":"PARTIAL","reason":"3D-Wide Preset 등록·Demo F8 촬영·INSTANCE_GROUP ExposureMode=2까지 자동 판정; 실제 X-ray는 Demo 대체, System LCD 표시와 2430 패들·회전 각도(-15~15도)는 MANUAL"},

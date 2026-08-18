@@ -109,24 +109,50 @@ def menu_is_open(ui):
                for c in ui.controls(max_depth=6))
 
 
-def open_main_menu(ui, timeout=6):
+def open_main_menu(ui, timeout=6, button_timeout=15, attempts=3):
     """메인 메뉴를 연다. 이미 열려 있으면 그대로 둔다.
 
     메뉴 버튼은 토글이라, 열린 상태에서 다시 누르면 닫힌다.
     상태 확인 없이 누르면 의도와 반대로 동작한다(실제로 발생).
+
+    버튼이 "지금" 없다고 바로 실패하지 않고 `button_timeout`까지 기다린다.
+    Setting 창을 닫은 직후 Viewer는 상태 전환 중이어서(실측: 로그에
+    `System State Change(110)` 후 `Select Mode` 두 번) 상태바가 아직
+    안 그려진 순간이 있다. 2026-08-18 회귀에서 이 때문에 `_prepare()`가
+    죽어 XIPL 4건이 연쇄 실패했고, TC_05 단독 실행도 같은 지점에서
+    `메인 메뉴 버튼(2015)을 찾지 못했습니다`로 실패했다. 화면이 정말로
+    상태바 없는 화면이면 대기 후 동일한 오류로 중단된다.
     """
     if menu_is_open(ui):
         return True
     btn = ui.by_id(STATUS_BAR["menu"])
-    if not btn:
-        raise FlowError("메인 메뉴 버튼(2015)을 찾지 못했습니다. "
-                        "상태바가 있는 화면인지 확인하십시오.")
-    ui.click(btn[0], settle=1.0)
-    end = time.time() + timeout
-    while time.time() < end:
+    end = time.time() + button_timeout
+    while not btn and time.time() < end:
+        time.sleep(0.5)
         if menu_is_open(ui):
             return True
-        time.sleep(0.4)
+        btn = ui.by_id(STATUS_BAR["menu"])
+    if not btn:
+        raise FlowError(
+            f"메인 메뉴 버튼(2015)을 {button_timeout}초 동안 찾지 못했습니다. "
+            "상태바가 있는 화면인지 확인하십시오.")
+    # 토글 클릭이 삼켜지는 경우가 있어(실측: 2026-08-18 회귀에서 버튼은 찾았는데
+    # 6초 안에 메뉴가 열리지 않아 XIPL 4건이 `Viewer main menu did not open`으로
+    # 연쇄 실패) 한 번 더 눌러 본다. Viewer가 Setting 종료 직후 상태 전환
+    # (`System State Change` → `Select Mode`)을 하는 동안 입력을 놓치는 것으로
+    # 보인다. 이미 열렸는지 매번 확인하므로 토글을 반대로 눌러 닫을 위험은 없다.
+    for attempt in range(attempts):
+        if menu_is_open(ui):
+            return True
+        hits = ui.by_id(STATUS_BAR["menu"])
+        if not hits:
+            continue
+        ui.click(hits[0], settle=1.0)
+        end = time.time() + timeout
+        while time.time() < end:
+            if menu_is_open(ui):
+                return True
+            time.sleep(0.4)
     return False
 
 

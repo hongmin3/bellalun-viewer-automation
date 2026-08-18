@@ -1046,6 +1046,38 @@ def _qc_set_pass_scores_and_save(ui):
     ui.click(save[0], settle=2.5)
 
 
+def _pick_combo_item(ui, combo, wanted, rounds=8):
+    """열려 있는 콤보 팝업을 스크롤하며 *wanted* 항목을 찾아 클릭한다.
+
+    Q.C 파라미터 콤보는 PARAMETER 폴더의 파일을 알파벳 순으로 나열하는데,
+    보이는 행이 6개 정도뿐이어서 `TEST_*`처럼 뒤쪽에 오는 이름은 처음 화면에
+    없다(2026-08-18 실측: TEST_QC_2D_M.pim은 10개 항목 중 9번째라 화면 밖).
+    기존 코드는 스크롤을 딱 한 번(-3)만 해서 닿지 못하고 실패했다. 파일이
+    늘어날수록 더 아래로 밀리므로 고정 횟수 대신 찾을 때까지 굴린다.
+
+    스크롤이 끝에 닿아 화면이 더 바뀌지 않으면 중단한다(무한 대기 금지).
+    """
+    if vp.click_viewer_text(ui, wanted, settle=1.0):
+        return True
+    cx, cy = combo.center
+    previous = None
+    for _ in range(rounds):
+        ui.wheel((cx, cy + 60), -3, settle=.4)
+        if vp.click_viewer_text(ui, wanted, settle=1.0):
+            return True
+        shot = os.path.join(os.environ.get("TEMP", "."), "bellalun_combo_scroll.png")
+        vp.capture_viewer_window(ui, shot)
+        try:
+            with open(shot, "rb") as stream:
+                signature = hashlib.sha256(stream.read()).hexdigest()
+        except OSError:
+            signature = None
+        if signature is not None and signature == previous:
+            break                       # 더 굴러도 화면이 같으면 목록 끝
+        previous = signature
+    return False
+
+
 def compatibility_05(ctx):
     r = TCResult("TC_XIPL_compatibility_05", "Q.C Default Image Process Parameter")
     root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
@@ -1065,11 +1097,9 @@ def compatibility_05(ctx):
         if not combo2d:
             raise flows.FlowError("Q.C 2D Default Parameter 콤보를 찾지 못했습니다.")
         ui.click(combo2d[0], settle=1.0)
-        if not vp.click_viewer_text(ui, "TEST_QC_2D_M.pim", settle=1.0):
-            cx, cy = combo2d[0].center
-            ui.wheel((cx, cy + 60), -3, settle=.3)
-            if not vp.click_viewer_text(ui, "TEST_QC_2D_M.pim", settle=1.0):
-                raise flows.FlowError("Q.C 2D 콤보에서 TEST_QC_2D_M.pim을 찾지 못했습니다.")
+        if not _pick_combo_item(ui, combo2d[0], vp.PARAM_QC_2D):
+            raise flows.FlowError(
+                f"Q.C 2D 콤보에서 {vp.PARAM_QC_2D}을 찾지 못했습니다.")
         flows.setting_update(ui)
         flows.confirm_setting_dialog(ui)
 
@@ -1079,11 +1109,9 @@ def compatibility_05(ctx):
         if not combo3d:
             raise flows.FlowError("Q.C 3D Default Parameter 콤보를 찾지 못했습니다.")
         ui.click(combo3d[0], settle=1.0)
-        if not vp.click_viewer_text(ui, "TEST_QC_3D.eap", settle=1.0):
-            cx, cy = combo3d[0].center
-            ui.wheel((cx, cy + 60), -3, settle=.3)
-            if not vp.click_viewer_text(ui, "TEST_QC_3D.eap", settle=1.0):
-                raise flows.FlowError("Q.C 3D 콤보에서 TEST_QC_3D.eap을 찾지 못했습니다.")
+        if not _pick_combo_item(ui, combo3d[0], vp.PARAM_QC_3D):
+            raise flows.FlowError(
+                f"Q.C 3D 콤보에서 {vp.PARAM_QC_3D}을 찾지 못했습니다.")
         flows.setting_update(ui)
         flows.confirm_setting_dialog(ui)
 

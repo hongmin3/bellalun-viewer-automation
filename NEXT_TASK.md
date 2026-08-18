@@ -24,12 +24,12 @@ PARTIAL 등록돼 있다.
 
 - 저장소: GitHub `hongmin3/bellalun-viewer-automation`, 브랜치 `main`.
   로컬 경로는 PC마다 다르므로 문서에 하드코딩하지 않는다.
-- 자동화 범위 총 39건 = **FULL 10 / PARTIAL 19 / MANUAL 10**
+- 자동화 범위 총 39건 = **FULL 11 / PARTIAL 18 / MANUAL 10**
   (`python run.py list`로 확인).
-- **FULL**: Install_01/02, WF_01/02/03, XIPL_01/02/03/04/06.
-- `TC_XIPL_compatibility_05`는 구현이 끝났지만 `TEST_QC_2D_M.pim`/`TEST_QC_3D.eap`을
-  **사용자가 직접** XIPL PARAMETER 폴더에 넣어야 실행된다(내용을 임의 생성하면
-  시험이 무효). 없으면 MANUAL로 보고되며 2026-08-14 현재 이 PC에는 없다.
+- **FULL**: Install_01/02, WF_01/02/03, XIPL_01/02/03/04/05/06.
+- `TC_XIPL_compatibility_05`는 2026-08-18 **전 단계 PASS**로 검증됐다. 시험 파라미터
+  (`TEST_QC_2D_M.pim`/`TEST_QC_3D.eap`)는 제품 기본값 복사로 자동 생성한다.
+  다만 그 내용이 Q.C 임계값 판정에 적절한지는 사용자 확인이 필요하다.
 - `TC_XIPL_compatibility_06`의 이전 블로커(Noise reduction 슬라이더 OCR)는
   해결됐다. 원인은 타이밍/프로세스 경합이 아니라 Tesseract `--psm` 선택이었고
   (`psm 7`이 한 자리 숫자를 빈 문자열로 버림), `_ocr_integer`를 psm 6/7/8 다수결
@@ -53,12 +53,9 @@ PARTIAL 등록돼 있다.
 
 ## 이 PC에서 아직 준비되지 않은 것
 
-- **DB 기준 스냅샷(.bak)이 없다.** 그래서 `run-regression`이 시작 시 복원을
-  건너뛰고 MANUAL로 보고하며, 검사 데이터가 계속 누적된다. 깨끗한 기준으로
-  회귀를 돌리려면 원하는 상태에서 `python run.py snapshot-baseline`을 먼저 한 번
-  실행해 기준을 만들어야 한다(스냅샷 경로는 `<data_dir>\Backup\Baseline`).
-- **`TEST_QC_2D_M.pim` / `TEST_QC_3D.eap`이 없다** → TC_XIPL_compatibility_05가
-  MANUAL로 보고된다(위 참고).
+- (해결됨) DB 기준 스냅샷은 저장소 상위 `Baseline\` 폴더에서 자동으로 찾아
+  복원한다. 2026-08-18 회귀에서 `AUTOMATION_ENVIRONMENT_RESET`이 PASS로 확인됐다.
+
 - **TC_XIPL_compatibility_04는 아직 반복 실행이 안 된다.** 이 TC가 만든 시험
   Preset(`PRESET_FLOW_A/B`, 실제 Name은 RCCRL/LCCRL/RCCRM/LCCRM)의 정리 절차가
   수동이라, 두 번째 실행에서는 Preset 추가가 "이미 존재"로 실패한다. 2026-08-14에

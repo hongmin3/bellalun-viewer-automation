@@ -140,14 +140,39 @@ def find_text_boxes(image_path, wanted, scale=2):
                           Image.Resampling.LANCZOS) if scale != 1 else image
     data = pytesseract.image_to_data(scaled, output_type=pytesseract.Output.DICT)
     target = wanted.strip().upper()
-    boxes = []
-    for i, word in enumerate(data["text"]):
-        if word.strip().upper() != target:
-            continue
-        boxes.append((data["left"][i] / scale, data["top"][i] / scale,
-                      data["width"][i] / scale, data["height"][i] / scale,
-                      float(data["conf"][i])))
-    return boxes
+
+    def _collect(predicate):
+        found = []
+        for i, word in enumerate(data["text"]):
+            text = word.strip().upper()
+            if not text or not predicate(text):
+                continue
+            found.append((data["left"][i] / scale, data["top"][i] / scale,
+                          data["width"][i] / scale, data["height"][i] / scale,
+                          float(data["conf"][i]), text))
+        return found
+
+    exact = _collect(lambda text: text == target)
+    if exact:
+        return [b[:5] for b in exact]
+
+    # 잘려 표시된 이름 보정. 콤보/목록 셀은 폭이 좁으면 뒤를 잘라 보여주므로
+    # (예: 'TEST_QC_2D_M.pim' -> 'TEST_QC_2D_M....') 완전 일치만 허용하면 실제로
+    # 화면에 있는 항목을 못 찾는다. 2026-08-18에 시험 파라미터 이름이 `_M`
+    # 규칙으로 길어지면서 TC_05에서 실제로 발생했다.
+    #
+    # 다만 느슨하게 풀면 엉뚱한 항목을 누를 수 있다(TEST_2D_A_M.pim 과
+    # TEST_2D_B_M.pim 처럼 접두사가 겹치는 이름이 있다). 그래서 (1) 잘림으로
+    # 설명되는 접두사만 허용하고, (2) 서로 다른 문자열이 둘 이상 걸리면
+    # **모호하므로 아무것도 반환하지 않는다.**
+    def _looks_truncated(text):
+        head = text.rstrip(".")
+        return len(head) >= 6 and target.startswith(head) and head != target
+
+    partial = _collect(_looks_truncated)
+    if len({b[5] for b in partial}) == 1:
+        return [b[:5] for b in partial]
+    return []
 
 
 def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None):
