@@ -24,3 +24,8 @@ __pycache__/
 *.xtp
 *.dcm
 *.log
+
+# 임시 탐색 스크립트 (커밋 금지, _probe_setting.py만 유지)
+_probe_*.py
+!_probe_setting.py
+_diag_*.py
