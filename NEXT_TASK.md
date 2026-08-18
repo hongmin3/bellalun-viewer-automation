@@ -2,23 +2,12 @@
 
 ## Next priority
 
-`TC_Basic_WorkFlow_04`를 구현한다. 시작할 때 체크리스트의 **해당 TC 행과 Expected
-Result 원문을 먼저 확인**하고, TC ID만으로 Step을 추측하지 않는다. 현재
-`automation_scope.json`에는 "Overlay DB 변경 자동 판정; 표시 육안 확인"으로
-PARTIAL 등록돼 있다.
+`TC_Basic_WorkFlow_04` / `TC_Basic_WorkFlow_05`를 구현한다. 설계는 아래
+"다음 작업: TC_Basic_WorkFlow_04 / 05 (사용자 확정 설계)" 절에 사용자 확인을 받아
+확정돼 있으니 **그대로 따르고 임의로 바꾸지 않는다.** 시작 전 체크리스트 원문도
+다시 확인한다.
 
-그다음 후보:
-
-1. `tests/dataflow.py`에는 `TC_Basic_WorkFlow_05/06/07/10/12/13`의 **판정 로직만**
-   구현돼 있고 `run.py`에 연결하는 명령이 없다. 판정 로직 재작성보다 "실제
-   Send/Export/Reject UI 흐름을 수행해 pre/post 스냅샷을 만드는 드라이버"가 먼저
-   필요하다.
-2. `TC_XIPL_compatibility_03`(Post Reconstruction)의 기대 결과에는 영상 타입으로
-   **3D-Narrow와 3D-Wide가 함께** 명시돼 있다. 3D-W 등록/촬영은 이미
-   `add_view_position(ui, "3d-w")`로 가능하므로, XIPL 픽스처에 3D-W 스텝을 더해
-   Post Reconstruction을 3D-W에서도 검증하는 확장을 검토할 수 있다. 단
-   `vp.open_test_study()`가 "정확히 2 스텝"을 요구하므로 픽스처 정의
-   (`step_2d`/`step_3d`/`initial_steps`)를 함께 바꿔야 한다.
+먼저 처리할 것: 아래 "새로 드러난 이슈 (TC_04 Step 6)".
 
 ## Current verified state (2026-08-14, 2차)
 
@@ -56,14 +45,10 @@ PARTIAL 등록돼 있다.
 - (해결됨) DB 기준 스냅샷은 저장소 상위 `Baseline\` 폴더에서 자동으로 찾아
   복원한다. 2026-08-18 회귀에서 `AUTOMATION_ENVIRONMENT_RESET`이 PASS로 확인됐다.
 
-- **TC_XIPL_compatibility_04는 아직 반복 실행이 안 된다.** 이 TC가 만든 시험
-  Preset(`PRESET_FLOW_A/B`, 실제 Name은 RCCRL/LCCRL/RCCRM/LCCRM)의 정리 절차가
-  수동이라, 두 번째 실행에서는 Preset 추가가 "이미 존재"로 실패한다. 2026-08-14에
-  남은 Preset을 감지해 **제품 FAIL이 아니라 무엇을 지워야 하는지 알려주는
-  MANUAL**로 보고하도록 고쳤다(환경 오염이 제품 결함으로 오독되던 문제). 진짜
-  해결은 UI로 시험 Preset을 자동 삭제하는 것이며, 별도 작업으로 분리했다.
-  주의: `core/db.py`는 조회 전용이고 저장소 전체에 DB 쓰기가 없다(모든 상태
-  변경은 UI로만 한다는 설계) — 정리용으로 DB 쓰기를 새로 열지 말 것.
+- (해결됨) `TC_XIPL_compatibility_04`의 시험 Preset은 이제 **UI로 자동 삭제**한다
+  (`tests/xipl_flows.py::_delete_test_presets`). 행은 `Type=0 AND Roll IN ('RL','RM')`
+  으로 식별하고(제품 기본 Preset은 Roll이 비어 있다), 삭제 전후 전체 Key 집합을
+  비교해 의도한 Key만 사라졌는지 확인한다. `core/db.py`는 여전히 조회 전용이다.
 
 ## 최신 회귀 결과 (2026-08-18 12:10)
 
@@ -130,7 +115,7 @@ Expected: Overlay 항목이 포함된 채 Image 전송. 시스템정보 compress
   (`PRESET_FLOW_A`/`B`가 둘 다 `PRESET_FL...`로 잘려 여러 박스를 반환하던 결함은
   2026-08-18에 "정확히 1개일 때만 허용"으로 조였다. 재확인 필요.)
 - 확인 방법: `python run.py run-xipl-04` 실행 후 실패 순간의
-  `%TEMP%ellalun_click_text_probe.png`를 **눈으로 볼 것**(운영 지침 7절 교훈).
+  `%TEMP% 폴더의 bellalun_click_text_probe.png`를 **눈으로 볼 것**(운영 지침 7절 교훈).
 
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
