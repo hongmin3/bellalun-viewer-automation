@@ -24,7 +24,10 @@
   },
   "prerequisites": {
     "vcredist_pattern": "*Visual C++ 2015-2022 Redistributable*",
-    "firewall_keywords": ["Bellalun", "XIPL"],
+    "firewall_keywords": [
+      "Bellalun",
+      "XIPL"
+    ],
     "dicom_nic_alias": "DICOM",
     "expected_ipv4": null
   },
@@ -50,12 +53,31 @@
       "port": 3000
     },
     "servers_to_register": [
-      {"kind": "MWL", "name": "MWL_TEST", "ae_title": "MWL_SCP", "ip": "MWL_SERVER_IP", "port": 11112},
-      {"kind": "Storage", "name": "BUNNY_TEST", "ae_title": "Bunny", "ip": "STORAGE_PC_IP", "port": 3000},
-      {"kind": "Print", "name": "PRINT_TEST", "ae_title": "PRINT_SCP", "ip": "PRINT_SERVER_IP", "port": 11113}
+      {
+        "kind": "MWL",
+        "name": "MWL_TEST",
+        "ae_title": "MWL_SCP",
+        "ip": "MWL_SERVER_IP",
+        "port": 11112
+      },
+      {
+        "kind": "Storage",
+        "name": "BUNNY_TEST",
+        "ae_title": "Bunny",
+        "ip": "STORAGE_PC_IP",
+        "port": 3000
+      },
+      {
+        "kind": "Print",
+        "name": "PRINT_TEST",
+        "ae_title": "PRINT_SCP",
+        "ip": "PRINT_SERVER_IP",
+        "port": 11113
+      }
     ],
-    "received_root": "C:\\Program Files (x86)\\Bunny\\Receive",
-    "print_received_root": ""
+    "received_root": "C:\\Program Files (x86)\\Bunny\\Temp",
+    "print_received_root": "",
+    "_received_root_note": "Bunny는 수신 객체를 Receive가 아니라 Temp에 저장한다(2026-08-18 실측)."
   },
   "viewer": {
     "exe": "C:\\Program Files\\Bellalun\\VIEWER.exe",

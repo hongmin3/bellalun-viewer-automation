@@ -99,7 +99,12 @@ def _parse(buf, pos, explicit, wanted, out, end=None):
             continue
 
         if (group, elem) in wanted:
-            out[_BY_TAG[(group, elem)]] = _decode(vr, buf[pos:pos + length])
+            # 호출자는 TAGS에 없는 태그도 요청한다(파일 메타의 TransferSyntaxUID
+            # (0002,0010)이 그 경우다). 그때 _BY_TAG를 그대로 인덱싱하면
+            # KeyError로 파싱 전체가 죽는다(2026-08-18 실측: 수신 객체 판독 실패).
+            # 이름이 없으면 태그를 그대로 키로 쓴다.
+            key = _BY_TAG.get((group, elem), (group, elem))
+            out[key] = _decode(vr, buf[pos:pos + length])
         pos += length
 
 
