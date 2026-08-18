@@ -2,12 +2,16 @@
 
 ## Next priority
 
-`TC_Basic_WorkFlow_04` / `TC_Basic_WorkFlow_05`를 구현한다. 설계는 아래
-"다음 작업: TC_Basic_WorkFlow_04 / 05 (사용자 확정 설계)" 절에 사용자 확인을 받아
-확정돼 있으니 **그대로 따르고 임의로 바꾸지 않는다.** 시작 전 체크리스트 원문도
-다시 확인한다.
+`TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고). 다음 후보:
 
-먼저 처리할 것: 아래 "새로 드러난 이슈 (TC_04 Step 6)".
+1. **WF05의 View창/Examined Send 경로** — Examine 경로(1148)는 자동화됐지만 나머지
+   두 경로의 Send 진입점을 아직 못 찾았다. Examined 툴바 14개에는 Send가 없다.
+2. **`DICOM_STORAGE` 중복 정리** — `SELECT Name FROM DICOM_STORAGE`가 BUNNY_TEST
+   7행이다(UI 목록에는 1건만 보인다). UI가 편집하는 건 가장 낮은 Key 하나뿐이라
+   전송에는 영향이 없었지만, `setup-dicom`이 매 실행마다 추가하는지 점검할 것.
+3. `TC_Basic_WorkFlow_06`(3D Send) — WF05 구조를 그대로 재사용할 수 있다.
+4. `tests/dataflow.py`의 WF_07/10/12/13 판정 로직에 UI 드라이버 붙이기.
+   WF10(익명 Export)은 `core/export_manager.py`의 `ANONYMOUS`(1031)를 쓰면 된다.
 
 ## Current verified state (2026-08-14, 2차)
 
@@ -338,6 +342,38 @@ Update Queue Storage Item : NN(Failed, -)
 `SELECT Name FROM DICOM_STORAGE` 결과가 `BUNNY_TEST` 7행이다. `setup-dicom`이
 매 실행마다 추가하고 있을 가능성이 있다(같은 이름이면 갱신해야 한다).
 전송 실패와 직접 관련은 확인되지 않았지만 **별도로 점검할 것.**
+
+## WF04 / WF05 구현 완료 (2026-08-18)
+
+| TC | 명령 | 자동 판정 |
+|---|---|---|
+|  |  | Image Overlay 추가, Print Overlay 등록·선택, DICOM Send, Export |
+|  |  | Storage Transfer Syntax, Examine Send (All Images / Selected) |
+
+둘 다 에 포함된다. 새 모듈: ,
+, , ,
+.
+
+### 이 과정에서 확정한 실측 지식
+
+- **Send 전제**: 영상을 선택해야 Send(1148)가 활성화된다. 첫 클릭이 삼켜지므로
+  대화상자 등장을 확인하며 재시도해야 한다. 범위 선택은 =502 /
+  =501 / =500.
+- **전송 실패의 진짜 원인은 Transfer Syntax였다.** Viewer가 JPEG2000
+  ()을 제안하면 Bunny가 Presentation Context를
+  한다. Storage 옵션 를 Implicit VR LE로 맞춰야 한다.
+  (SOP Class나 Bunny setting.txt는 원인이 아니었다 — 둘 다 검증해 배제했다.)
+- **Bunny 수신 폴더는 ** 다(는 비어 있음). config 수정 완료.
+- **Export Manager는 별도 프로세스** 다.
+  로 붙어야 컨트롤이 보인다. 경로 Edit()에
+  제품 기본값 가 이미 채워져 있고 **폴더 선택 창은 안 뜬다.**
+- **Export 완료 안내 팝업의 OK를 눌러야** 창이 닫힌다. 방치하면 모달이 이후
+  클릭을 삼키고, Close 버튼도 먹지 않는다.
+- **Export 성공 판정은 파일 목록 차집합으로 하면 안 된다.** 같은 검사를 다시
+  내보내면 같은 경로에 덮어쓰므로 크기·mtime까지 비교해야 한다.
+- **Overlay FieldID 실측**: Dose kVp=115, Dose mAs=118 (Patient ID=1,
+  Patient Name=2, Birth Date=15, Sex/Age=100, Histogram=113, W1/W2=134).
+- **Examined 검색은 **(돋보기). 은 새로고침이라 목록이 안 채워진다.
 
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
