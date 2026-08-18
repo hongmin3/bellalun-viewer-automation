@@ -67,45 +67,6 @@
 - `TC_XIPL_compatibility_04`는 검증 9단계 전부 PASS이며 종합 MANUAL은 시험
   Preset 수동 삭제 안내 때문이다(회귀는 DB 복원으로 자동 해소).
 
-## 다음 작업: TC_Basic_WorkFlow_04 / 05 (사용자 확정 설계)
-
-체크리스트 원문과 2026-08-18 사용자 확인 결과다. **임의로 바꾸지 말 것.**
-
-### WF04 (Overlay)
-원문 Step: (1) Setting-Display-Overlay에 Image Overlay 추가 (2) Setting-DICOM-Print
-에 Print Overlay 추가 후 Print의 Overlay 항목에서 선택 (3) DICOM Send/Print/Export 확인.
-Expected: Overlay 항목이 포함된 채 Image 전송. 시스템정보 compression/HVL/AGD/Thickness,
-환자정보 ID/birthdate.
-
-- **범위: Send + Print + Export 전부 자동화**(사용자 확정).
-- **Print Overlay는 WF03가 이미 6개를 등록**하고 그 6개가 Expected Result와 정확히
-  일치한다(`core/print_overlay.py::PRINT_ITEMS` = Patient ID, Birth Date, Thickness,
-  Compression Force, HVL, AGD). 재사용한다.
-- **Image Overlay에 추가할 2개 = `Dose kVp` + `Dose mAs`**(사용자 선택). 카탈로그에
-  실재함을 실측 확인했고, Procedure 패널에 28 kVp / 32 mAs로 값이 보여 화면·전송
-  양쪽 검증이 쉽다. 현재 Image Overlay에는 Patient ID/Patient Name/Birth Date/
-  Sex·Age/Histogram/Window Level(W1/W2) 6개가 들어 있다(FieldID 1,2,15,100,113,134).
-- Image Overlay 카탈로그 목록은 `ctrl_id 2382`(ListCtrl, 실측 rect 418,161~718,875)이며
-  **Thickness / Compression Force / HVL / AGD가 목록 맨 끝 4개**로 실재한다.
-- **Export 경로**: 제품 기본값을 쓴다(사용자 의견). `CONFIGURATION.EXPORT.ExportDirPath`가
-  현재 `None`이고 `<data_dir>\Export` 폴더는 이미 존재한다. 경로를 config에
-  하드코딩하지 말고 DB에서 읽어 비어 있으면 `<data_dir>\Export`로 간주한다.
-  **미확인**: `None`일 때 Export가 폴더 선택 창을 띄우는지 실측해야 한다.
-  띄운다면 사용자에게 다시 확인할 것.
-
-### WF05 (DICOM Send 2D)
-원문 Step: (1) DICOM Storage 등록 (2) Examine창에서 Send (3) View창에서 Send
-(4) Examined에서 Send (5) Selected/All Images. Expected: 선택 영상이 등록된 SCP로 전송.
-
-- **범위: 3개 화면 전부 + Selected/All 둘 다**(사용자 확정).
-- **대상 영상: 기존 픽스처(DATA_FLOW_MWL_01)의 2D 원본(InstanceType=0)**(사용자 확정).
-- 판정 로직은 이미 있다 — `tests/dataflow.py::_send_common`이 Queue 변화와
-  **수신 객체의 PatientID/Study·Series·SOP UID를 DB와 대조**한다. 드라이버(실제 UI
-  Send 흐름)만 새로 만들면 된다.
-- 수신 폴더는 `config.json > dicom.received_root` = `C:\Program Files (x86)\Bunny\Receive`
-  (현재 비어 있음). Storage는 `BUNNY_TEST / Bunny / 127.0.0.1:3000`.
-- Examine 화면의 Send 버튼은 `flows.EXAMINE["tool_send"]` = 1148.
-
 ## (해결됨) TC_04 반복 실행 — 2026-08-18 검증 완료
 
 Preset UI 자동 삭제에 이어, 재실행을 막던 대화상자 2개를 처리해 **검증 8단계
@@ -265,84 +226,6 @@ Windows 탐색기로 `<data_dir>\Image\Study<Key>_<날짜시각>` 을 연다. Ex
   OCR(`vp.click_viewer_text`)로 해야 한다.
 - `StudyStatus` 실측값: 1=진행 중, 3=완료, 4=보류.
 
-## WF04 착수 시 첫 할 일 (2026-08-18 실측 진행분)
-
-`core/flows.py`에 **Export 관련 헬퍼가 아직 하나도 없다.** 그래서 WF04는 Export
-드라이버를 새로 만들어야 한다.
-
-실측으로 확인된 것:
-
-- **Setting > Study 페이지에는 Export 설정이 없다.** 하위가 General /
-  Study Delete / Reject-Retake 뿐이다. 따라서 `CONFIGURATION.EXPORT`의
-  Format/Processed/Anonymous/PortableViewer 등은 **Export를 실행할 때 뜨는
-  대화상자**에서 고르는 값으로 보인다(별도 Setting 페이지가 아님).
-- `CONFIGURATION.EXPORT.ExportDirPath`는 현재 `None`이고
-  `<data_dir>\Export` 폴더는 이미 존재한다.
-
-남은 확인 사항:
-
-1. Export를 어디서 호출하는지(Examine / View / Examined 화면의 어느 버튼) 및
-   컨트롤 ID.
-2. `ExportDirPath`가 `None`인 상태에서 **폴더 선택 창이 뜨는지.** 뜨면 사용자에게
-   다시 확인할 것 — 사용자는 "제품 기본 경로 사용"을 원했고, 임의로 경로를
-   정하지 않는다.
-3. 실제로 `<data_dir>\Export`에 쓰는지 대조.
-
-## WF05 Send — 경로는 확정, 전송은 SOP Class 협상에서 막힘 (2026-08-18 실측)
-
-### 확정된 Send 경로 (코드로 바로 쓸 수 있다)
-
-1. 시험 검사를 열고 **`flows.select_step(ui, 1)`로 2D 카드를 선택**한다.
-   → 카드를 선택하지 않으면 Send(1148)가 **비활성(연한 분홍)** 이다. 사양도
-   "전송할 검사 항목 또는 영상을 선택하십시오"라고 명시한다
-   (Operation Manual 8.19 영상 전송하기).
-2. `vp.expand_tools(ui)` 후 **`flows.EXAMINE["tool_send"]`(1148)** 클릭.
-   **클릭이 삼켜지는 일이 있어 대화상자 등장을 확인하며 재시도해야 한다**
-   (실측: 1회차 실패, 2회차에 등장).
-3. 뜨는 대화상자 = **"Do you want to send all images of the selected study?"**
-   → **`All Images`=502 / `Selected`=501 / `Cancel`=500**.
-   이게 WF05 Step 5의 "Selected/All Images"다.
-4. 누르면 `DATA.DICOM_STORAGE_QUEUE`에 행이 생긴다(**`State=3`은 Failed**).
-
-### 막힌 지점: Viewer가 유방촬영 SOP Class를 협상에 넣지 않는다
-
-Viewer 로그(전송 시도마다 동일):
-```
-Storage>  Association accepted
-Storage>  Abstract Syntax[1.2.840.10008.5.1.4.1.1.1.2] Not Included in the Association
-Storage>  Not Support class
-Update Queue Storage Item : NN(Failed, -)
-```
-
-**시도했고 원인이 아니었던 것 (기록해 반복 방지)**
-
-- Bunny `setting.txt`의 `ABSTRACT_SYNTAX` 4행에 **후행 공백**이 있어 파싱 실패를
-  의심했다. 공백을 제거하고 Bunny를 재기동해도 **동일하게 실패**했다.
-  → 원인이 아니므로 **`setting.txt`는 원본으로 복구해 두었다**(제품 설정을
-  근거 없이 바꿔두지 않는다). 참고로 `1.2.840.10008.5.1.4.1.1.1.2`는 원래부터
-  38행에 등록되어 있다.
-- Bunny 로그를 보면 15:31 요청은 **C-ECHO(1.2.840.10008.1.1)** 뿐이고 영상 전송
-  요청 자체가 Bunny에 도달하지 않는다. 즉 **Bunny가 거부하는 게 아니라 Viewer가
-  제안하지 않는다.**
-
-### 유력한 다음 단서: Storage 옵션 `Modality`
-
-`Setting > DICOM > Storage`의 Option에 **`Modality` 콤보(ctrl_id `2460`)** 가 있고
-현재 값이 **`MG`**, 선택지는 **Current / MG / CR / DX / DR** 이다
-(`CONFIGURATION.DICOM_STORAGE.Modality` = 0).
-
-이 값이 협상할 SOP Class를 결정하는 것으로 보인다. `MG`인데도 유방촬영 SOP Class를
-제안하지 않는 것이 모순이라, **`Current`로 바꿔 실제 영상의 SOP Class로 협상하는지**
-확인해야 한다. 옵션을 바꾸려면 **SCP List에서 해당 행을 먼저 선택**해야 Option
-영역이 활성화된다(좌표 `(490,209)` 근처 행 클릭). 실측 시 `Current` 선택이
-반영되지 않았으니(값이 `MG` 유지) 콤보 조작 방식을 다시 확인할 것.
-
-### 부수 발견: `DICOM_STORAGE`에 BUNNY_TEST가 7건 중복 등록
-
-`SELECT Name FROM DICOM_STORAGE` 결과가 `BUNNY_TEST` 7행이다. `setup-dicom`이
-매 실행마다 추가하고 있을 가능성이 있다(같은 이름이면 갱신해야 한다).
-전송 실패와 직접 관련은 확인되지 않았지만 **별도로 점검할 것.**
-
 ## WF04 / WF05 구현 완료 (2026-08-18)
 
 | TC | 명령 | 자동 판정 |
@@ -389,6 +272,8 @@ python run.py list
 python run.py run-regression
 python run.py run-xipl-06
 python run.py run-sys3d
+python run.py run-wf04
+python run.py run-wf05
 python run.py snapshot-baseline
 python run.py reset-environment
 python run.py setup-dicom

@@ -66,6 +66,8 @@ run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권�
 │   ├── workflow02.py      2D/3D 촬영 + Tool 적용 검증
 │   ├── workflow03.py      DICOM Print Overlay 실제 출력 검증
 │   ├── xipl_flows.py      XIPL 연동 6종 (가장 복잡, 1,484줄)
+│   ├── overlay_flows.py   Overlay 설정 후 Send/Export 검증 (WF04)
+│   ├── send_flows.py      DICOM Send(2D) 검증 (WF05)
 │   ├── system_compat.py   3D-Narrow / 3D-Wide 촬영 검증
 │   └── dataflow.py        Send/Export/Reject 판정 로직
 │
@@ -76,6 +78,7 @@ run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권�
     ├── viewer_tools.py    Tool(W/L·Zoom·Pan·Annotation) 적용 검증
     ├── xipl.py            XIPL Studio 제어 (WPF UI Automation)
     ├── print_overlay.py   Print Overlay 설정 + 출력물 대조
+    ├── export_manager.py  Export Manager 제어 (별도 프로세스)
     ├── db.py              DB 조회 (**조회 전용 — 아래 설계 원칙 참고**)
     ├── dbreset.py         기준 스냅샷 백업/복원
     ├── result.py          판정 누적 · 리포트 4종 생성
@@ -168,6 +171,8 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | `run.py run-wf01` | MWL 조회 및 Local 검사 생성 |
 | `run.py run-wf02` | 2D/3D Demo 촬영 및 Tool 적용 |
 | `run.py run-wf03` | DICOM Print Overlay 실제 출력·웹 프리뷰 검증 |
+| `run.py run-wf04` | Overlay 설정 후 DICOM Send·Export 검증 |
+| `run.py run-wf05` | DICOM Send(2D) — All Images / Selected |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
 | `run.py run-sys3d` | 3D-Narrow / 3D-Wide 촬영 검증 |
 | `run.py snapshot-baseline` | 현재 DB를 기준 스냅샷으로 저장 |
