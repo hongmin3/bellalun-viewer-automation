@@ -220,7 +220,17 @@ _PARAM_SOURCES = {
     PARAM_XIPL_SAVED: "Standard_Default_M.pim",
     PARAM_QC_2D: "Standard_Default_M.pim",
     PARAM_3D_FLOW: "DBT_Standard_Default.xtp",
-    PARAM_QC_3D: "DBT_Standard_Default.xtp",
+    # Q.C 3D는 `.xtp`가 아니라 `.eap`이다. 확장자만 다른 게 아니라 **포맷 자체가
+    # 다르다**: `.pim`/`.xtp`는 평문 XML인데(`<?xml`), `.eap`/`.egp`는 암호화
+    # 바이너리다(공통 매직 `FD 3A C7 0C 51 35 FC 24`, 2026-08-18 실측).
+    # 그래서 `.xtp`를 복사해 `.eap`로 이름만 바꾸면 포맷이 틀린 파일이 되고,
+    # Viewer 콤보에는 이름이 뜨더라도 실제 Reconstruction 파라미터로는 무효다.
+    # Service Manual도 둘을 다른 것으로 규정한다 - Q.C > Setting은
+    # "Q.C. Default Image Process Parameter"(영상 처리), Q.C > Setting(3D)은
+    # "Q.C Default Image Reconstruction Param"(재구성)이다. 실측으로 Q.C 3D
+    # 콤보는 `.eap`만 나열한다(common_qc_processing / common_qc_raw /
+    # common_standard). 그중 Q.C 처리용인 common_qc_processing.eap을 원본으로 쓴다.
+    PARAM_QC_3D: "common_qc_processing.eap",
 }
 
 TEST_PARAMETER_FILES = tuple(_PARAM_SOURCES)

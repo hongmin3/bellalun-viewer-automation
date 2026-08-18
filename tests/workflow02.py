@@ -277,6 +277,16 @@ def run(ctx):
                     "structure": structure_3d})
         _capture(ctx, ui, "05_acquired_3d.png", result)
 
+        # Window Level 판정의 사양상 근거는 "W/L 드래그로 W1/W2 값이 증가/감소"다
+        # (Service Manual "Window Level Option", Operation Manual "W/L 사용하기").
+        # 그 값은 영상 Overlay로만 화면에 나오므로, Overlay(Histogram + W1/W2)가
+        # 꺼져 있으면 판정 근거 자체가 없어진다. 예전에는 XIPL 흐름이 먼저 켜 둔
+        # 설정에 우연히 얹혀 있었는데, 회귀가 DB를 기준 스냅샷으로 복원하기
+        # 시작하면서 그 설정이 초기화되어 이 검사만 근거를 잃고 실패했다
+        # (2026-08-18 실측: 복원을 건너뛴 08-14 회귀는 통과, 복원한 08-18은 실패).
+        # WF02가 스스로 Overlay를 보장해 다른 TC의 부수효과에 의존하지 않는다.
+        viewer_processing.ensure_tc01_overlay(ui, ctx.db)
+
         flows.select_step(ui, 1)
         evidence_dir = os.path.join(ctx.evidence_root, "Flow", "02_WorkFlow")
         tools_2d = viewer_tools.apply_tool_sequence(

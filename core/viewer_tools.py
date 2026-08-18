@@ -173,13 +173,33 @@ def apply_tool_sequence(ui, evidence_dir, prefix, pane="left"):
                   "passed": passed, "minimum_changed_ratio": min_ratio,
                   "evidence": full_path, **delta}
         if name == "Window Level":
+            # 사양(Service Manual "Window Level Option", Operation Manual
+            # "W/L 사용하기")이 정의하는 W/L의 결과는 **W1/W2 값의 증가 또는
+            # 감소**다. 화면 픽셀 변화율은 그 대리 지표일 뿐이라, 값이 분명히
+            # 바뀌었는데도 변화가 임계값에 못 미쳐 FAIL로 뒤집히는 일이 있었다
+            # (2026-08-18 실측: changed_ratio 0.0 인데 mean_delta 0.522).
+            # 그래서 값 증감을 **주 판정**으로 쓰고, 값을 읽지 못한 경우에만
+            # 픽셀 변화율로 판정한다.
             record["ocr_before"] = wl_before
             record["ocr_after"] = _optional_wl_ocr(full_path, pane)
             before_values = (wl_before.get("w1"), wl_before.get("w2"))
             after_values = (record["ocr_after"].get("w1"),
                             record["ocr_after"].get("w2"))
-            if None not in before_values + after_values and before_values != after_values:
-                record["passed"] = True
+            if None not in before_values + after_values:
+                changed = [
+                    {"name": key, "before": before, "after": after,
+                     "direction": "increase" if after > before
+                                  else "decrease" if after < before else "same"}
+                    for key, before, after in
+                    (("W1", before_values[0], after_values[0]),
+                     ("W2", before_values[1], after_values[1]))]
+                record["window_level_values"] = changed
+                record["verdict_basis"] = "W1/W2 값 증감(사양 기준)"
+                record["passed"] = any(x["direction"] != "same" for x in changed)
+            else:
+                record["verdict_basis"] = (
+                    "W1/W2 값을 읽지 못해 화면 변화율로 대체 판정 "
+                    "(Overlay가 꺼져 있으면 값을 읽을 수 없다)")
         records.append(record)
         previous = pane_path
     return records
