@@ -216,6 +216,23 @@ def run(ctx):
             time.sleep(1)
         if not patient_ready:
             raise flows.FlowError("Patient 화면에 진입하지 못했습니다.")
+
+        # Window Level 판정의 사양상 근거는 "W/L 드래그로 W1/W2 값이 증가/감소"다
+        # (Service Manual "Window Level Option", Operation Manual "W/L 사용하기").
+        # 그 값은 영상 Overlay로만 화면에 나오므로 Overlay(Histogram + W1/W2)가
+        # 꺼져 있으면 판정 근거 자체가 사라진다. 예전에는 XIPL 흐름이 먼저 켜 둔
+        # 설정에 얹혀 있었는데, 회귀가 DB를 기준 스냅샷으로 복원하기 시작하자
+        # 초기화되어 이 검사만 근거를 잃었다(실측: 복원을 건너뛴 08-14 회귀는
+        # 통과, 복원한 08-18은 실패). 그래서 WF02가 직접 보장한다.
+        #
+        # **반드시 검사를 열기 전(Patient 화면)에 호출한다.** 이 함수는 메인
+        # 메뉴로 Setting에 들어갔다 나오므로, 검사 진행 중에 부르면 Examine
+        # 화면이 원래대로 복구되지 않는다(실측: Tool 컨트롤과 Recon 타입
+        # 버튼(2123)을 못 찾아 WF02가 중단됐다).
+        viewer_processing.ensure_tc01_overlay(ui, ctx.db)
+        if not flows.ensure_patient_screen(ui, wait=3):
+            raise flows.FlowError("Overlay 설정 후 Patient 화면으로 돌아오지 못했습니다.")
+
         card_number = _study_card_number(ctx, target)
         visible = _open_suspended(ui, PATIENT_ID, card_number)
         info = flows.read_edit_information(ui)
@@ -276,16 +293,6 @@ def run(ctx):
                     "same_3d_series_group": same_3d_series_group,
                     "structure": structure_3d})
         _capture(ctx, ui, "05_acquired_3d.png", result)
-
-        # Window Level 판정의 사양상 근거는 "W/L 드래그로 W1/W2 값이 증가/감소"다
-        # (Service Manual "Window Level Option", Operation Manual "W/L 사용하기").
-        # 그 값은 영상 Overlay로만 화면에 나오므로, Overlay(Histogram + W1/W2)가
-        # 꺼져 있으면 판정 근거 자체가 없어진다. 예전에는 XIPL 흐름이 먼저 켜 둔
-        # 설정에 우연히 얹혀 있었는데, 회귀가 DB를 기준 스냅샷으로 복원하기
-        # 시작하면서 그 설정이 초기화되어 이 검사만 근거를 잃고 실패했다
-        # (2026-08-18 실측: 복원을 건너뛴 08-14 회귀는 통과, 복원한 08-18은 실패).
-        # WF02가 스스로 Overlay를 보장해 다른 TC의 부수효과에 의존하지 않는다.
-        viewer_processing.ensure_tc01_overlay(ui, ctx.db)
 
         flows.select_step(ui, 1)
         evidence_dir = os.path.join(ctx.evidence_root, "Flow", "02_WorkFlow")
