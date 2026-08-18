@@ -102,20 +102,33 @@ Expected: Overlay 항목이 포함된 채 Image 전송. 시스템정보 compress
   (현재 비어 있음). Storage는 `BUNNY_TEST / Bunny / 127.0.0.1:3000`.
 - Examine 화면의 Send 버튼은 `flows.EXAMINE["tool_send"]` = 1148.
 
-## 새로 드러난 이슈 (TC_04 Step 6)
+## (해결됨) TC_04 반복 실행 — 2026-08-18 검증 완료
 
-시험 Preset UI 자동 삭제가 동작하면서 **삭제→재등록 경로가 처음 도달 가능**해졌고,
-그 지점에서 새 실패가 나왔다: `Step 등록 실패: 0->4`
-(`_add_view_position_by_alias`는 +1을 기대하는데 한 번에 4개가 등록됨).
+Preset UI 자동 삭제에 이어, 재실행을 막던 대화상자 2개를 처리해 **검증 8단계
+전부 PASS / 3회 연속 재실행 성공**을 실측했다.
 
-- 실측: 삭제 `{'deleted': [1001,1002,1003,1004], 'clicked_rows': ['RCCRL','RCCRM']}`
-  → Step 1~5 PASS → Step 6에서 위 오류.
-- 유력 가설: `vp.click_viewer_text(ui, alias)`가 View Position 다이얼로그에서
-  의도한 타일이 아닌 것을 클릭했거나, Preset 타일 하나가 R/L 쌍을 함께 등록한다.
-  (`PRESET_FLOW_A`/`B`가 둘 다 `PRESET_FL...`로 잘려 여러 박스를 반환하던 결함은
-  2026-08-18에 "정확히 1개일 때만 허용"으로 조였다. 재확인 필요.)
-- 확인 방법: `python run.py run-xipl-04` 실행 후 실패 순간의
-  `%TEMP% 폴더의 bellalun_click_text_probe.png`를 **눈으로 볼 것**(운영 지침 7절 교훈).
+- `handle_duplicate_patient`가 `cls == "Button"`만 찾아 커스텀 버튼
+  ("Use existing data")을 못 눌렀다 → 모달이 남아 이후 클릭이 전부 막혔고,
+  그게 오해를 낳은 `Step 등록 실패: 0->4`의 정체였다(센 4개는 잔여 검사의 기본
+  Procedure RCC/LCC/RMLO/LMLO). 이제 대화상자 **아래쪽 절반**에서 좌→우로 골라
+  (제목줄 X 오클릭 방지) 누르고 **닫혔는지 확인**한다.
+- TC_04가 검사를 닫지 않고 끝나 재실행 시 Examine 모드에서 시작됐다 →
+  시작 시 잔여 검사를 닫는다(Q.C와 같은 종류의 전제 조건).
+- 영상 없는 검사를 Close하면 `This study will be deleted. Are you sure?`가 뜬다
+  → `flows.confirm_study_delete`가 처리(**사용자 승인**: 영상 없는 검사 삭제 허용.
+  영상이 있으면 이 확인 자체가 뜨지 않는다). TC_04는 삭제 전후 STUDY Key를
+  대조해 자기 환자 것 외에 사라지면 실패시킨다.
+
+## WF04 착수 시 첫 할 일 (미확인 사항)
+
+`core/flows.py`에 **Export 관련 헬퍼가 아직 하나도 없다.** 그래서 WF04를
+시작하면 먼저 다음을 실측해야 한다.
+
+1. Export UI 위치와 컨트롤 ID(Examine / View / Examined 중 어디서 부르는지).
+2. `CONFIGURATION.EXPORT.ExportDirPath`가 `None`인 상태에서 Export를 실행하면
+   **폴더 선택 창이 뜨는지**. 뜨면 사용자에게 다시 확인할 것(임의로 경로를
+   정하지 않는다 — 사용자는 "제품 기본 경로 사용"을 원했다).
+3. `<data_dir>\Export` 폴더는 이미 존재한다. 실제로 여기에 쓰는지 확인.
 
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
