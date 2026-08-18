@@ -552,9 +552,24 @@ def _visible(ui, ctrl_id):
     return [c for c in ui.by_id(ctrl_id) if c.visible]
 
 
-def expand_tools(ui):
-    if not _visible(ui, POST_RECON) or not _visible(ui, XIPL_TOOL):
-        ui.click(_visible(ui, EXPAND_TOOLS)[0], settle=1)
+def expand_tools(ui, attempts=4):
+    """Tool 레일을 펼쳐 Post Recon./XIPL 버튼이 보이게 한다.
+
+    한 번 클릭하고 결과를 확인하지 않으면, 검사를 새로 연 직후처럼 레일이 아직
+    만들어지는 중일 때 클릭이 삼켜져 XIPL 버튼(1160)을 못 찾는다(2026-08-18
+    실측: TC_06이 "Viewer XIPL tool (1160) not found"로 중단). 펼쳐졌는지
+    확인하며 상한을 두고 재시도한다. 이미 펼쳐져 있으면 아무것도 하지 않으므로
+    토글을 반대로 눌러 접을 위험은 없다.
+    """
+    for _ in range(attempts):
+        if _visible(ui, POST_RECON) and _visible(ui, XIPL_TOOL):
+            return True
+        toggles = _visible(ui, EXPAND_TOOLS)
+        if toggles:
+            ui.click(toggles[0], settle=1)
+        else:
+            time.sleep(.8)
+    return bool(_visible(ui, POST_RECON) and _visible(ui, XIPL_TOOL))
 
 
 def select_2d(ui, index):
