@@ -284,6 +284,61 @@ Windows 탐색기로 `<data_dir>\Image\Study<Key>_<날짜시각>` 을 연다. Ex
    정하지 않는다.
 3. 실제로 `<data_dir>\Export`에 쓰는지 대조.
 
+## WF05 Send — 경로는 확정, 전송은 SOP Class 협상에서 막힘 (2026-08-18 실측)
+
+### 확정된 Send 경로 (코드로 바로 쓸 수 있다)
+
+1. 시험 검사를 열고 **`flows.select_step(ui, 1)`로 2D 카드를 선택**한다.
+   → 카드를 선택하지 않으면 Send(1148)가 **비활성(연한 분홍)** 이다. 사양도
+   "전송할 검사 항목 또는 영상을 선택하십시오"라고 명시한다
+   (Operation Manual 8.19 영상 전송하기).
+2. `vp.expand_tools(ui)` 후 **`flows.EXAMINE["tool_send"]`(1148)** 클릭.
+   **클릭이 삼켜지는 일이 있어 대화상자 등장을 확인하며 재시도해야 한다**
+   (실측: 1회차 실패, 2회차에 등장).
+3. 뜨는 대화상자 = **"Do you want to send all images of the selected study?"**
+   → **`All Images`=502 / `Selected`=501 / `Cancel`=500**.
+   이게 WF05 Step 5의 "Selected/All Images"다.
+4. 누르면 `DATA.DICOM_STORAGE_QUEUE`에 행이 생긴다(**`State=3`은 Failed**).
+
+### 막힌 지점: Viewer가 유방촬영 SOP Class를 협상에 넣지 않는다
+
+Viewer 로그(전송 시도마다 동일):
+```
+Storage>  Association accepted
+Storage>  Abstract Syntax[1.2.840.10008.5.1.4.1.1.1.2] Not Included in the Association
+Storage>  Not Support class
+Update Queue Storage Item : NN(Failed, -)
+```
+
+**시도했고 원인이 아니었던 것 (기록해 반복 방지)**
+
+- Bunny `setting.txt`의 `ABSTRACT_SYNTAX` 4행에 **후행 공백**이 있어 파싱 실패를
+  의심했다. 공백을 제거하고 Bunny를 재기동해도 **동일하게 실패**했다.
+  → 원인이 아니므로 **`setting.txt`는 원본으로 복구해 두었다**(제품 설정을
+  근거 없이 바꿔두지 않는다). 참고로 `1.2.840.10008.5.1.4.1.1.1.2`는 원래부터
+  38행에 등록되어 있다.
+- Bunny 로그를 보면 15:31 요청은 **C-ECHO(1.2.840.10008.1.1)** 뿐이고 영상 전송
+  요청 자체가 Bunny에 도달하지 않는다. 즉 **Bunny가 거부하는 게 아니라 Viewer가
+  제안하지 않는다.**
+
+### 유력한 다음 단서: Storage 옵션 `Modality`
+
+`Setting > DICOM > Storage`의 Option에 **`Modality` 콤보(ctrl_id `2460`)** 가 있고
+현재 값이 **`MG`**, 선택지는 **Current / MG / CR / DX / DR** 이다
+(`CONFIGURATION.DICOM_STORAGE.Modality` = 0).
+
+이 값이 협상할 SOP Class를 결정하는 것으로 보인다. `MG`인데도 유방촬영 SOP Class를
+제안하지 않는 것이 모순이라, **`Current`로 바꿔 실제 영상의 SOP Class로 협상하는지**
+확인해야 한다. 옵션을 바꾸려면 **SCP List에서 해당 행을 먼저 선택**해야 Option
+영역이 활성화된다(좌표 `(490,209)` 근처 행 클릭). 실측 시 `Current` 선택이
+반영되지 않았으니(값이 `MG` 유지) 콤보 조작 방식을 다시 확인할 것.
+
+### 부수 발견: `DICOM_STORAGE`에 BUNNY_TEST가 7건 중복 등록
+
+`SELECT Name FROM DICOM_STORAGE` 결과가 `BUNNY_TEST` 7행이다. `setup-dicom`이
+매 실행마다 추가하고 있을 가능성이 있다(같은 이름이면 갱신해야 한다).
+전송 실패와 직접 관련은 확인되지 않았지만 **별도로 점검할 것.**
+
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
 `VIEWER.exe`는 매니페스트가 `requireAdministrator`라 항상 High Integrity로
