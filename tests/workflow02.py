@@ -230,7 +230,20 @@ def run(ctx):
         # 화면이 원래대로 복구되지 않는다(실측: Tool 컨트롤과 Recon 타입
         # 버튼(2123)을 못 찾아 WF02가 중단됐다).
         viewer_processing.ensure_tc01_overlay(ui, ctx.db)
-        if not flows.ensure_patient_screen(ui, wait=3):
+        # Setting 창을 닫은 직후에는 Patient 화면 컨트롤(2285)이 아직 붙지 않아
+        # 한 번의 확인으로는 실패한다. 위 로그인 직후와 똑같이 상한을 둔 재시도로
+        # 기다린다(2026-08-18 회귀 실측: 단발 확인이 "Patient 화면으로 돌아오지
+        # 못했습니다"로 WF02를 죽여 이후 WF03/XIPL이 픽스처 없음으로 연쇄 실패).
+        back_on_patient = False
+        for _ in range(12):
+            try:
+                back_on_patient = flows.ensure_patient_screen(ui, wait=2)
+            except Exception:
+                pass
+            if back_on_patient:
+                break
+            time.sleep(1)
+        if not back_on_patient:
             raise flows.FlowError("Overlay 설정 후 Patient 화면으로 돌아오지 못했습니다.")
 
         card_number = _study_card_number(ctx, target)

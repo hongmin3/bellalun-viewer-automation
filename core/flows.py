@@ -468,11 +468,23 @@ def _kill_viewer(pid):
                    capture_output=True)
 
 
-def _need(ui, ctrl_id, what):
+def _need(ui, ctrl_id, what, timeout=8):
+    """컨트롤을 찾는다. 없으면 `timeout`까지 기다린 뒤에야 실패로 본다.
+
+    Viewer는 화면 전환 중(특히 Setting 창을 닫은 직후) 목표 화면의 컨트롤이
+    아직 붙지 않은 순간이 있다. 한 번만 조회하고 실패하면 화면 자체가 잘못된
+    것과 구분되지 않는다(2026-08-18 실측: Overlay 설정 후 New Patient 탭
+    (2285)을 못 찾아 TC_04가 중단됐다). 화면이 정말 다르면 대기 후 같은
+    오류로 중단된다.
+    """
     hits = ui.by_id(ctrl_id)
+    end = time.time() + timeout
+    while not hits and time.time() < end:
+        time.sleep(.4)
+        hits = ui.by_id(ctrl_id)
     if not hits:
-        raise FlowError(f"{what} 컨트롤(ID {ctrl_id})을 찾지 못했습니다. "
-                        f"현재 화면을 ui-probe로 확인하십시오.")
+        raise FlowError(f"{what} 컨트롤(ID {ctrl_id})을 {timeout}초 동안 "
+                        f"찾지 못했습니다. 현재 화면을 ui-probe로 확인하십시오.")
     return hits[0]
 
 

@@ -343,6 +343,12 @@ def ensure_tc01_overlay(ui, db):
             raise RuntimeError(f"Failed to add Overlay item {label}: {message}")
 
     flows.setting_update(ui, wait=3)
+    # Update를 누르면 "Display - Overlay Update successfully." 결과 팝업이 뜬다.
+    # 이 모달을 닫지 않으면 이후 클릭이 전부 막혀, Setting 닫기(X)도 먹지 않고
+    # "화면이 안 넘어간다"는 엉뚱한 증상으로 이어진다(2026-08-18 사용자 확인).
+    # 다른 Setting 저장 흐름(TC_04/05)은 모두 setting_update와
+    # confirm_setting_dialog를 쌍으로 쓴다 - 여기만 빠져 있었다.
+    flows.confirm_setting_dialog(ui)
     end = time.time() + 8
     actual = saved_fields()
     while time.time() < end and any(x not in actual for x in missing):
@@ -351,6 +357,8 @@ def ensure_tc01_overlay(ui, db):
     if any(x not in actual for x in missing):
         raise RuntimeError(f"Overlay settings were not saved: {actual}")
 
+    # 닫기 직전에도 모달이 남아 있으면 X 클릭이 삼켜지므로 한 번 더 걷어낸다.
+    flows.confirm_setting_dialog(ui, timeout=2)
     closes = [c for c in ui.by_id(4) if c.visible
               and c.rect[2] - c.rect[0] <= 60
               and c.rect[3] - c.rect[1] <= 60]
