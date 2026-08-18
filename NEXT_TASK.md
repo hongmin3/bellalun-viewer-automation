@@ -119,16 +119,28 @@ Preset UI 자동 삭제에 이어, 재실행을 막던 대화상자 2개를 처�
   영상이 있으면 이 확인 자체가 뜨지 않는다). TC_04는 삭제 전후 STUDY Key를
   대조해 자기 환자 것 외에 사라지면 실패시킨다.
 
-## WF04 착수 시 첫 할 일 (미확인 사항)
+## WF04 착수 시 첫 할 일 (2026-08-18 실측 진행분)
 
-`core/flows.py`에 **Export 관련 헬퍼가 아직 하나도 없다.** 그래서 WF04를
-시작하면 먼저 다음을 실측해야 한다.
+`core/flows.py`에 **Export 관련 헬퍼가 아직 하나도 없다.** 그래서 WF04는 Export
+드라이버를 새로 만들어야 한다.
 
-1. Export UI 위치와 컨트롤 ID(Examine / View / Examined 중 어디서 부르는지).
-2. `CONFIGURATION.EXPORT.ExportDirPath`가 `None`인 상태에서 Export를 실행하면
-   **폴더 선택 창이 뜨는지**. 뜨면 사용자에게 다시 확인할 것(임의로 경로를
-   정하지 않는다 — 사용자는 "제품 기본 경로 사용"을 원했다).
-3. `<data_dir>\Export` 폴더는 이미 존재한다. 실제로 여기에 쓰는지 확인.
+실측으로 확인된 것:
+
+- **Setting > Study 페이지에는 Export 설정이 없다.** 하위가 General /
+  Study Delete / Reject-Retake 뿐이다. 따라서 `CONFIGURATION.EXPORT`의
+  Format/Processed/Anonymous/PortableViewer 등은 **Export를 실행할 때 뜨는
+  대화상자**에서 고르는 값으로 보인다(별도 Setting 페이지가 아님).
+- `CONFIGURATION.EXPORT.ExportDirPath`는 현재 `None`이고
+  `<data_dir>\Export` 폴더는 이미 존재한다.
+
+남은 확인 사항:
+
+1. Export를 어디서 호출하는지(Examine / View / Examined 화면의 어느 버튼) 및
+   컨트롤 ID.
+2. `ExportDirPath`가 `None`인 상태에서 **폴더 선택 창이 뜨는지.** 뜨면 사용자에게
+   다시 확인할 것 — 사용자는 "제품 기본 경로 사용"을 원했고, 임의로 경로를
+   정하지 않는다.
+3. 실제로 `<data_dir>\Export`에 쓰는지 대조.
 
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 

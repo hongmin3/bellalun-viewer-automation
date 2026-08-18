@@ -1,224 +1,340 @@
-# Bellalun Viewer 기본기능 자동화
+# Bellalun Viewer 기본기능 QA 자동화
 
-관리자 권한의 명령 프롬프트에서 실행한다. Codex나 Claude 연결은 필요 없다.
-Viewer를 미리 실행할 필요는 없다. 각 UI 명령은 첫 클릭 전에 Viewer를 직접
-실행하고 로그인·DB 연결·Patient 화면·전면 활성화를 확인한다.
+의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
+자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
-처음 복제한 PC에서는 `config.example.json`을 `config.json`으로 복사하고 Viewer
-계정, 설치 경로, DICOM 서버 주소를 입력한다. `config.json`은 로그인 정보와
-시험망 주소를 포함할 수 있어 Git에서 제외된다.
+사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 30~40분에 끝나고 근거까지
+남기는** 자동화로 만들었습니다.
 
-**실행 중 마우스/키보드 점유**: Bellalun Viewer의 버튼 대부분이 커스텀 렌더링
-컨트롤이라 표준 Windows 메시지에 반응하지 않아, 이 자동화는 실제 물리적
-마우스 커서(`SetCursorPos`+`mouse_event`)와 키보드 입력(`SendInput`)을 사용한다.
-실행 중에는 같은 Windows 세션에서 다른 작업을 하기 어려우므로, 자동화를 돌리는
-동안 PC를 함께 써야 한다면 Switch User로 별도 세션을 만들어 그 안에서 실행한다
-(자세한 준비사항은 `..\지식\[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` 5절 참고).
-
-## 실행
-
-- 초기 상태 전체 회귀: `run_all.cmd` 또는 `python run.py run-regression`
-- Print 서버 등록만: `setup_print.cmd`
-- DICOM 전체 등록: `python run.py setup-dicom`
-- Storage 서버/옵션만: `python run.py setup-storage`
-- WorkFlow_01 MWL+Local 9단계: `python run.py run-wf01`
-- WorkFlow_02 2D/3D Demo 촬영 및 Tool 적용: `python run.py run-wf02`
-- WorkFlow_03 DICOM Print Overlay·실제 출력·웹 프리뷰 검증: `python run.py run-wf03`
-- Local 검사 + F8 Demo 촬영: `python run.py run-ui`
-- XIPL 01~06 실제 UI 시험: `python run.py run-xipl`
-- XIPL 표시값 비교(TC01)만: `python run.py run-xipl-01`
-- 2D Image Processing(TC02)만: `python run.py run-xipl-02`
-- 3D Post Reconstruction만 재시험: `python run.py run-xipl-03`
-- Preset별 2D Default Parameter(TC04)만: `python run.py run-xipl-04`
-- Q.C Default Image Process Parameter(TC05)만: `python run.py run-xipl-05`
-- XIPL Parameter 저장 후 Viewer 적용(TC06)만: `python run.py run-xipl-06`
-- System 연동 3D-Narrow/3D-Wide 촬영(TC_System_compatibility_03/04):
-  `python run.py run-sys3d`
-- 다른 PC 실행환경 점검: `python run.py portability-check`
-- 자동화 범위 확인: `python run.py list`
-
-`run-auto`는 설치/환경 정적 점검, MWL·Storage·Print 등록과 Echo, Local 검사 생성,
-F8 Demo 촬영, Viewer 내부 2D/3D 영상 처리 및 DB 판정을 순서대로 수행한다. 실제 X-ray, Gantry, Detector,
-팬텀 촬영, OS 설치/삭제는 수행하지 않는다.
-
-`run-regression`은 Examined 영상 데이터가 없는 초기 상태를 기준으로 Install 01/02 정적
-점검, DICOM 서버 설정, WorkFlow_01 fixture 생성, WorkFlow_02 2D/3D 데이터 생성,
-WorkFlow_03 실제 DICOM Print, **XIPL_01을 포함한 XIPL 01~06**을 의존 순서대로
-실행한다. XIPL_02는 변경 전후 파라미터, Preview 화면 변화,
-Viewer 처리 로그, ImageAction 결과 파일과 재진입 값을 교차 검증한다. XIPL_03은 창이
-닫힌 사실만으로 PASS하지 않고 10개 파라미터의 실제 변경, xtp 전달 로그, Apply 후 재진입
-표시값을 판정한다. 10개 값 유지는 GPU 유무와 관계없이 필수이며 기본값으로 복귀하면
-FAIL이다. GPU가 있는 환경에서는 Recon/Syn DB·파일 변화도 필수다. GPU 미탑재로
-`No GPUS`만 발생하면 결과 생성 검증만 SKIP으로 분리하며, GPU 유무 판단은 실제로
-초기화를 시도하는 Preview 단계의 로그를 기준으로 한다(Apply는 재초기화를 하지 않아
-오류 자체를 남기지 않기 때문). 이 GPU-없음 SKIP 규칙은 XIPL_03뿐 아니라 앞으로 추가될
-3D/Reconstruction 계열 TC에도 동일하게 적용한다.
-`release_note._source`가 교체 필요 상태이거나 `REPLACE_ME`가 남아 있으면 임시 버전과
-설치 버전을 비교해 FAIL로 만들지 않고, 현재 실제 버전을 수집한 뒤 Install_01을 MANUAL로
-보고한다. 승인된 Release Note 기준을 입력한 경우에만 자동 PASS/FAIL 비교를 수행한다.
-
-### XIPL 픽스처(Fixture) 신선도
-
-`open_test_study()`는 `DATA_FLOW_MWL_01`의 InstanceType 0/1/2/3이 모두 있는
-**가장 최근** Study를 연다. Viewer의 View 검색 화면 기본 기간 필터가 "Today"라서,
-며칠 지난 픽스처를 그대로 열려고 하면 검색 자체가 0건이 된다. 이를 막기 위해
-`run-xipl-01`/`02`/`03`을 단독 실행할 때는 시작 전에 오늘 날짜의 InstanceType
-0/1/2/3 픽스처가 있는지 확인하고, 없으면 WF01(MWL 처방 삭제 후 재등록 + Local
-보류 검사 생성)과 WF02(Demo F8 2D/3D 촬영)를 먼저 자동 실행해 오늘 날짜 픽스처를
-새로 만든 뒤 진행한다. `run-regression`은 WF01→WF02를 이미 거치므로 이 재생성이
-다시 일어나지 않는다. MWL 서버에서 지우는 대상은 항상 이 자동화가 사용하는
-patient_id로 한정하며, MWL 서버 전체 삭제(`delete-all`)는 사용하지 않는다.
-
-## 결과
-
-`Reports/Result_YYYYMMDD_HHMMSS.{html,csv,json,txt}`에 TC별
-`PASS/FAIL/MANUAL/SKIP`과 Expected/Actual 결과가 저장된다. 실패 시 프로세스는
-종료 코드 1을 반환하므로 배치/CI에서도 성공 여부를 판정할 수 있다. JSON에는 TC
-전체 `duration_seconds`와 함께 `timings` 배열이 들어있어 Step별 소요시간, 상태
-기반 대기(`wait`)의 이름·시작/종료 시각·소요시간·종료 원인(`control appeared`,
-`log/control completion detected`, `timeout` 등)·세부 detail을 그대로 확인할 수
-있다. 실행 시간을 재려면:
-
-```powershell
-$sw=[Diagnostics.Stopwatch]::StartNew()
-python run.py --config config.json run-regression
-$code=$LASTEXITCODE
-$sw.Stop()
-"ELAPSED_SECONDS=$([math]::Round($sw.Elapsed.TotalSeconds,3))"
+```bash
+python run.py run-regression
 ```
 
-2026-08-11 최적화(고정 sleep 제거 → 상태 기반 대기) 전 전체 회귀는 1290.6초였고,
-2026-08-14 실측 전체 회귀는 895초로 약 396초(30.7%) 단축되었다.
+---
 
-### PASS/FAIL 판정 근거를 신뢰하는 방법
+## 1. 한눈에 보기
 
-자동 판정 결과를 눈으로 재구성할 수 있도록, 모든 TC의 모든 Check는 리포트에
-`Expected`/`Actual` 실제값을 남기고 애매한 판정에는 `note`로 비교 근거(어떤
-로그 문구, DB 컬럼, 재진입 시 UI 값, 파일 해시/시각을 대조했는지)를 밝힌다. 이
-정책은 기존 TC뿐 아니라 앞으로 추가할 TC에도 동일하게 적용한다(자세한 규칙은
-`..\지식\[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` 2절 참고).
+| 항목 | 내용 |
+|---|---|
+| 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
+| 규모 | Python 약 **10,300줄**, 모듈 34개, 커밋 24개 |
+| 시험 범위 | 체크리스트 **39개 TC** 등록 — 완전자동 11 / 부분자동 18 / 수동 10 |
+| 최신 회귀 실적 | **PASS 121 / FAIL 1 / MANUAL 6 / SKIP 1** (2026-08-18) |
+| 그 FAIL 1건 | 자동화가 **실제 제품 결함을 잡아낸** 정상 결과 (§6 참고) |
+| 외부 의존성 | Pillow, pytesseract, openpyxl **3개뿐** (§4 참고) |
 
-주요 Workflow/XIPL은 UI 플로우가 끝났다는 사실만으로 PASS하지 않는다.
+### 이 자동화가 실제로 하는 일
 
-- WorkFlow_01: MWL 원본 응답과 Viewer 표시 환자정보, Study UID, 보류/Local Study DB 값을 대조한다.
-- WorkFlow_02: 새 Study의 InstanceType 0/1/2/3, Series/Group/UID 구조, Tool 전후 OCR·화면 변화, 완료 DB 상태를 대조한다.
-- WorkFlow_03: Print Overlay DB 항목/서버 매핑, Film 1×1 표시 실제값, 신규 Print job, 웹 preview 실제값과 raster를 대조한다.
-- XIPL_01: 같은 Instance의 Viewer–XIPL W1/W2와 실제 PIM 파일명을 대조한다.
-- XIPL_02: 원본 XML, 변경한 5개 UI 값, Preview 변화, 처리 로그/파일, Apply 후 재진입 5개 값을 대조한다.
-- XIPL_03: 변경한 Recon/Syn 10개 값, Preview 처리 로그, Apply의 실제 신규 완료 로그(타임스탬프
-  필터링으로 이전 동작의 지연 로그와 구분), Apply 후 재진입 10개 값을 대조한다. 재진입 시
-  기본값 복귀는 GPU 유무와 무관하게 FAIL이다.
+명령을 넣으면 사람의 개입 없이 아래를 **순서대로 전부** 수행합니다.
 
-## DICOM 설정
+```
+DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
+  → Viewer 실행·로그인 → DICOM 서버 3종 등록 + C-ECHO 연결 확인
+  → MWL 처방 조회·검사 생성 → 2D/3D 촬영(Demo) → Tool 적용 검증
+  → DICOM Print 실제 출력 + 출력물 웹 프리뷰 OCR 대조
+  → XIPL 연동 6종(영상처리 파라미터 왕복 검증)
+  → 3D-Narrow / 3D-Wide 촬영 검증
+  → 리포트 4종(HTML·CSV·JSON·TXT) + 체크리스트 xlsx 결과 기록
+```
 
-- MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`
-- Storage: `BUNNY_TEST / Bunny / 127.0.0.1:3000` (Bunny가 Viewer와 같은 로컬 PC에서 동작하는 환경 기준)
-- Print: `PRINT_TEST / PRINT_SCP / 10.13.0.222:11113`
+---
 
-Bunny는 반드시 설치 폴더를 작업 디렉터리로 실행하며 Storage Server 노드를
-활성화한다. Storage의 Use는 BUNNY_TEST 하나만 남긴다. Burn Option의
-Annotation/Label/Information과 Image Option의 Apply preview position을 체크하고
-Dose SR은 Send로 설정한다. 서버 정보와 옵션이 이미 같으면 재입력/Update 없이
-Echo만 다시 수행한다. Echo는 결과 6단계 이상과 `Connected Fail` 없음으로 판정한다.
-`run-wf03`은 Setting > DICOM > Print Overlay에서 `TC_WF03_OVERLAY`를 만들고 Patient ID,
-Birth Date, Thickness, Compression Force, HVL, AGD 여섯 항목을 Top에 등록한다. 이어서
-Setting > DICOM > Print의 `PRINT_TEST`에 해당 Overlay를 선택해 저장하고 DB Key를 대조한다.
-Display Overlay는 변경하지 않는다. Film은 2×2 기본 상태에서 Control ID 1141로 1×1로
-전환한 후 실제 Print를 수행한다. Print 서버의 신규 job만 식별하여 웹 Viewer가 사용하는
-preview 원본에서 여섯 실제값을 OCR하고, Film과 서버 raster 유사도(기준 0.96)를 비교한다.
+## 2. 왜 만들었나 — 해결한 문제
 
-`run-wf01`은 시작 전에 MWL DB 설정(Use 포함)과 TCP를 확인한다. 미등록/불일치이면
-검색을 시도하지 않고 명확한 FAIL을 출력한다. Viewer가 MWL 오류 팝업을 표시하면
-화면을 증적으로 저장하고 OK로 닫은 뒤 안전하게 중단한다.
+이 제품의 QA에는 자동화를 어렵게 만드는 조건이 겹쳐 있었습니다.
 
-## F8 Demo 촬영
+| 문제 | 이 프로젝트의 해결 |
+|---|---|
+| 버튼 대부분이 **커스텀 렌더링**(`AfxWnd140u`)이라 표준 UI 자동화 도구가 인식 못 함 | `ctypes`로 Win32를 직접 다루고, 물리 마우스·키보드를 제어 |
+| 화면 값이 **텍스트가 아니라 그림**으로 그려져 읽을 수 없음 | 좌표를 계산해 크롭 → Tesseract OCR, 다중 psm 다수결로 오독 방지 |
+| "버튼 눌렀다"만으로는 기능 동작을 증명할 수 없음 | DB·제품 로그·생성 파일·UI 재진입값을 **교차 검증** |
+| 시험마다 데이터가 쌓여 결과가 달라짐 | DB 기준 스냅샷 복원 + 시험 픽스처 자동 정리로 **반복 가능**하게 |
+| 실제 X-ray 노출은 자동으로 쏠 수 없음 | Demo 모드(F8 가상 촬영)로 대체하고, **안전 게이트**로 실촬영을 차단 |
 
-촬영 화면에서 Step을 선택하고 Ready 배너를 확인한 뒤 F8을 누른다. 생성된
-INSTANCE 수, 영상 그룹, Series/SOP Instance UID, Dose 정보를 DB에서 대조한다.
-Demo 영상 내용 자체는 선택한 View Position과 연관되지 않으므로 화질·해부학적
-적합성은 자동 PASS로 판정하지 않는다.
+---
 
-`run-wf02`는 최신 `DATA_FLOW_MWL_01` 보류 검사 중 영상이 없는 검사만 연다. 2D LCC와
-3D-N LCC를 창 상대 위치로 등록하고 Demo F8 촬영 후 `INSTANCE.InstanceType` 0/1/2/3
-(2D/Raw/Recon/Syn)을 확인한다. 2D와 3D Recon에 W/L, Zoom, Pan, Arrow Annotation을
-컨트롤 ID로 적용하고 단계별 화면 변화량과 PNG 증적을 저장한다. `viewer.demo_mode=true`가
-아니면 실제 X-ray 노출을 피하기 위해 촬영 전에 FAIL로 중단한다.
+## 3. 아키텍처
 
-## XIPL
+### 3.1 계층 구조
 
-`run-xipl`은 `DATA_FLOW_MWL_01` 완료 검사를 View 화면에서 Patient ID로 찾아 연다.
-이 fixture는 빈 MWL 검사에서 Procedure `+`로 LCC(2D) 1개와 LCC(3D-N) 1개만
-등록하고 F8로 획득한 데이터다. XIPL은 반드시 Viewer Tools의 XIPL(ID 1160)로
-호출하고, 2D는 Process Control(ID 1151), 3D는 `<<`를 펼친 뒤 Post
-Reconstruction(ID 1178)으로 진입한다.
+```
+run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권한) · 리포트 생성
+│
+├── tests/                 TC별 시나리오와 Pass/Fail 판정
+│   ├── install.py         설치 버전·필수 환경 점검
+│   ├── workflow01.py      MWL 조회 + Local 검사 생성 (9단계)
+│   ├── workflow02.py      2D/3D 촬영 + Tool 적용 검증
+│   ├── workflow03.py      DICOM Print Overlay 실제 출력 검증
+│   ├── xipl_flows.py      XIPL 연동 6종 (가장 복잡, 1,484줄)
+│   ├── system_compat.py   3D-Narrow / 3D-Wide 촬영 검증
+│   └── dataflow.py        Send/Export/Reject 판정 로직
+│
+└── core/                  재사용 계층 (제품 조작 · 증거 수집)
+    ├── ui.py              Win32 컨트롤 열거 · 물리 입력 · 화면 캡처
+    ├── flows.py           화면 전환 시나리오 (로그인·Setting·검사)
+    ├── viewer_processing.py  영상처리 파라미터 UI + OCR 판독
+    ├── viewer_tools.py    Tool(W/L·Zoom·Pan·Annotation) 적용 검증
+    ├── xipl.py            XIPL Studio 제어 (WPF UI Automation)
+    ├── print_overlay.py   Print Overlay 설정 + 출력물 대조
+    ├── db.py              DB 조회 (**조회 전용 — 아래 설계 원칙 참고**)
+    ├── dbreset.py         기준 스냅샷 백업/복원
+    ├── result.py          판정 누적 · 리포트 4종 생성
+    └── checklist.py       체크리스트 xlsx에 결과 기록
+```
 
-원본 Parameter는 수정하지 않고 `TEST_2D_FLOW_M.pim`과 `TEST_3D_FLOW.xtp`
-복사본만 사용한다. 2D의 Contrast/Sharpness/Brightness/Tone/Noise 전 항목과,
-3D Recon·Syn의 Background Masking/Contrast/Sharpness/Brightness/Tone 전 항목을
-크게 변경한다. Recon과 Syn의 Tone은 기본/최대값이 20이므로 모두 감소시킨다.
-Preview, Apply, 재진입 후 Parameter 유지까지 자동으로 판정한다.
+### 3.2 지켜낸 설계 원칙
 
-3D Post Reconstruction은 Preview 화면에 비교 영상이 표시되더라도 10개 UI 값 변경과
-`TEST_3D_FLOW.xtp` 전달 로그(Preview 단계에서 확인)가 맞아야 파라미터 검증을
-PASS한다. Apply는 Preview와 달리 `Initialize Reconstruction` 로그를 다시 남기지
-않으므로(실측 확인, 2026-08-14), Apply의 완료 판정은 Apply 자체가 새로 여는
-Post Recon 스레드의 종료 로그로 확인한다. 이때 로그 오프셋만으로 "이후 발생"을
-판단하면 이전 동작(Preview)의 지연된 스레드 종료 로그를 Apply 완료로 오인할 수
-있어(버퍼링된 로그 flush 지연으로 실제 재현됨), 각 로그 줄 자체의 타임스탬프를
-Apply 클릭 시각과 비교해 필터링한다. Apply 후에는 Post Reconstruction을 다시 열어
-이름과 10개 값을 전부 다시 읽는다. 변경값 유지는 GPU 유무와 관계없이 요구하며
-기본값 복귀는 FAIL이다. GPU가 있는 환경에서는 해당 Study의 InstanceType 2/3 결과
-파일 해시·수정 시간 변화도 요구한다. GPU 유무는 Apply가 아니라 실제로 초기화를
-시도하는 **Preview 단계의 로그**로 판단하며, 그 결과가 정확히 `No GPUS`뿐이면
-결과 생성만 SKIP한다. 그 밖의 Recon 오류는 FAIL이다.
+이 프로젝트에서 **의도적으로 지킨 규칙**들이며, 대부분 실패를 겪고 나서 규칙으로
+승격시킨 것입니다.
 
-TC01은 XIPL을 최대화하지 않는다. Viewer에서 XIPL을 호출한 뒤 영상 로딩 진행창이
-사라지고 2304x3072/W1/W2가 처음 표시되는 프레임을 즉시 읽는다. XIPL 창의 저장
-위치와 크기는 PC마다 달라도 창 자체 좌표계로 OCR하며, PIM 패널이 이전 모니터
-좌표를 기억해 화면 밖에 열리면 Windows UI Automation으로 현재 창 안에 이동한다.
+**① DB는 조회 전용 — 상태 변경은 반드시 UI로**
+`core/db.py`에는 `SELECT`만 있고 저장소 전체에 `INSERT`/`UPDATE`/`DELETE`가
+**한 줄도 없습니다.** DB를 직접 고치면 "제품 UI가 그 동작을 실제로 했다"는 판정
+근거가 무너지기 때문입니다. 시험 데이터 정리도 UI 버튼으로 합니다.
 
-TC06은 XIPL Studio에서 Contrast를 15로 바꿔 `TEST_XIPL_SAVED_M.pim`으로 저장한 뒤
-Viewer Image Processing에서 그 Parameter를 다시 선택해 5개 표시값을 읽고, Apply
-후 재진입 표시값까지 비교한다. Viewer는 Parameter를 **선택하는 순간**
-`Image Process Param Name:<file>, Contrast: ...` 로그를 남기고 **Apply는 이
-로그를 다시 남기지 않는다**(창을 닫고 ImageAction 결과 파일만 쓴다, 실측 확인).
-그래서 파일명·값 로그 증거는 선택 구간에서 확보하고, Apply의 완료 판정은 창 닫힘과
-ImageAction 결과 파일 생성으로 한다. TC02가 Apply 전에 Preview를 눌러 같은 로그를
-만드는 것과 다른 점이니 두 TC의 판정 근거를 섞지 않는다.
+**② 판정은 "사양이 정의한 관찰 대상"으로**
+예: Window Level은 매뉴얼이 *"W1/W2 값의 증가·감소"* 로 정의하므로 **값 증감**으로
+판정합니다. 초기 구현은 "화면 픽셀이 몇 % 바뀌었나"라는 대리 지표를 썼는데,
+값이 실제로 바뀌었는데도 변화율이 임계값에 못 미쳐 **정상 동작을 FAIL로 뒤집는**
+일이 있었습니다.
 
-## System 연동 3D 촬영 (3D-Narrow / 3D-Wide)
+**③ 조작에는 반드시 "의도한 상태가 됐는지" 확인을 붙인다**
+클릭만 보내고 결과를 확인하지 않는 코드는 단독 실행에서는 통과하고 **회귀에서만**
+깨집니다. 실제로 그런 결함 5건(메뉴 토글, 콤보 스크롤, 저장 팝업, 카드 배치,
+툴바 펼침)을 모두 이 형태로 발견했습니다.
 
-`run-sys3d`는 `TC_System_compatibility_03`(3D-Narrow)과
-`TC_System_compatibility_04`(3D-Wide)를 실행한다. 임시 Local 환자로 검사를 시작해
-Procedure `+`에서 해당 Preset 탭의 LCC를 등록하고, Demo F8로 1회 촬영한 뒤 DB로
-판정한다.
+**④ 환경 오염을 제품 결함처럼 보고하지 않는다**
+이전 실행이 남긴 데이터 때문에 수행 불가한 경우는 `FAIL`이 아니라 무엇을 정리해야
+하는지 알려주는 `MANUAL`로 분리합니다. QA 리포트의 신뢰도를 지키는 규칙입니다.
 
-Preset 탭/LCC 카드 control ID는 2D = 기본 탭·`802`, 3D-N = 탭 `2083`·`852`,
-3D-W = 탭 `2084`·`902`이다(`VIEW_POSITION_MODES`). 촬영 종류는
-`INSTANCE_GROUP.Type`/`ExposureMode`로 확정하며 `0/0` = 2D, `1/1` = 3D-Narrow,
-`1/2` = 3D-Wide다. 이 값을 보지 않으면 3D-W TC가 3D-N 촬영으로도 통과하므로
-반드시 함께 판정한다. Step 카드 라벨 OCR은 글자가 작아 `3`이 `G`/`B`로 오독되므로
-보조 증거로만 쓴다.
+**⑤ 고정 sleep 금지 — 상태 기반 대기**
+컨트롤 출현·팝업·로그 기록·파일 생성 등 **실제 증거**가 나타날 때까지 상한을 두고
+polling합니다. 모든 대기에는 타임아웃이 있어 무한 대기가 없습니다.
 
-실제 X-ray 대신 Demo(F8)를 쓰기 때문에 장비 LCD 표시와 2430 패들 연결, Step 회전
-각도(3D-N -7.5~7.5도 / 3D-W -15~15도)는 자동 판정하지 않고 MANUAL로 보고한다.
-그래서 두 TC의 종합 판정은 MANUAL이며, 자동 판정 가능한 등록·촬영·DB 구조 단계는
-PASS/FAIL로 분리해 기록한다.
+---
 
-## 다른 PC에서 실행
+## 4. 기술 선택과 이유
 
-모든 UI 명령은 실행 전에 Primary display를 1920x1080으로 설정하고 다음 조건을
-검사한다. 하나라도 맞지 않으면 첫 UI 클릭 전에 FAIL로 중단한다.
+**외부 의존성을 3개로 억제** (`requirements.txt`: Pillow, pytesseract, openpyxl)
 
-- 관리자 권한 Python
-- Primary display 1920x1080
-- Windows 배율 100%(96 DPI)
-- Viewer, XIPL Studio, XIPL Parameter, Tesseract 경로 존재
+| 필요 기능 | 흔한 선택 | 이 프로젝트의 선택 | 이유 |
+|---|---|---|---|
+| Win32 UI 제어 | pywin32 | **`ctypes`** 직접 호출 | 설치 부담 제거, QA PC 이식성 |
+| SQL Server 접근 | pyodbc | **PowerShell + .NET `SqlClient`** | Windows 기본 제공, 드라이버 설치 불필요 |
+| DICOM 파싱 | pydicom | **자체 `dicomlite.py`** | 필요한 태그만 읽으면 충분 |
 
-설치 경로가 다른 PC는 `config.json`의 `viewer.exe`, `xipl.studio_exe`,
-`xipl.parameter_dir`, `xipl.tesseract_exe`, `data_dir`를 변경한다. 추가 Parameter가
-있어 목록 순서가 달라도 TEST_2D/TEST_3D 이름을 실제로 읽어 선택한다.
+덕분에 새 QA PC에서 `pip install -r requirements.txt` 한 번으로 준비가 끝납니다.
 
-컨트롤 ID는 해상도가 아니라 Bellalun 버전/화면 언어에 종속된다. 현재 기준은
-Bellalun 1.0.12 계열, English UI다. 다른 제품 버전에서는 존재하지 않는 ID를
-임의 클릭하지 않고 해당 단계에서 중단하도록 구성되어 있다.
+**판정에 쓰는 증거 5종** — 하나에만 의존하지 않습니다.
+
+1. **DB 조회** — 검사·영상 구조, UID 유일성, 설정 저장값
+2. **제품 로그** — 적용된 파라미터명·수치 (타임스탬프로 시점 필터링)
+3. **생성 파일** — 영상 파일, ImageAction 산출물, 해시·크기
+4. **UI 재진입** — 저장 후 화면을 다시 열어 표시값 재확인
+5. **화면 캡처 + OCR** — 커스텀 렌더링 값 판독, 증적 이미지 보존
+
+---
+
+## 5. 사용법
+
+### 5.1 준비
+
+```bash
+python -m pip install -r requirements.txt
+copy config.example.json config.json    # 계정·경로·서버 주소 입력
+python run.py portability-check          # 해상도·DPI·권한·필수 경로 사전 점검
+```
+
+**필수 조건** (충족하지 않으면 자동화가 시작 시점에 명확히 FAIL시킵니다)
+
+- **관리자 권한** — `VIEWER.exe`가 `requireAdministrator`라 항상 High Integrity로
+  실행됩니다. 자동화가 일반 권한이면 Windows UIPI가 입력 주입을 막는데, 이때
+  **화면 캡처는 되고 클릭만 조용히 실패**해 엉뚱한 증상으로 보입니다.
+- **1920×1080 @ 100%(96 DPI)** — 좌표 기반 조작이 있어 시작 시 검사합니다.
+- Tesseract-OCR, SQL Server 인스턴스, XIPL Studio (경로는 `config.json`)
+
+### 5.2 실행
+
+```bash
+python run.py list                # 39개 TC의 자동화 수준과 사유
+python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트까지)
+```
+
+개별 실행:
+
+| 명령 | 내용 |
+|---|---|
+| `run.py setup-dicom` | MWL/Storage/Print 등록 + C-ECHO + DB/TCP 검증 |
+| `run.py run-wf01` | MWL 조회 및 Local 검사 생성 |
+| `run.py run-wf02` | 2D/3D Demo 촬영 및 Tool 적용 |
+| `run.py run-wf03` | DICOM Print Overlay 실제 출력·웹 프리뷰 검증 |
+| `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
+| `run.py run-sys3d` | 3D-Narrow / 3D-Wide 촬영 검증 |
+| `run.py snapshot-baseline` | 현재 DB를 기준 스냅샷으로 저장 |
+| `run.py reset-environment` | 기준 스냅샷으로 되돌리기 |
+
+### 5.3 결과물
+
+| 위치 | 내용 |
+|---|---|
+| `Reports/Result_<시각>.html` | 사람이 읽는 판정 리포트 (색상 구분) |
+| `Reports/Result_<시각>.json` | 기계 판독용 전체 판정·근거 |
+| `Evidence/` | 단계별 화면 캡처 (실패 시 원인 추적용) |
+| 체크리스트 xlsx | 원본 TC 행 옆에 판정 열을 덧붙인 사본 |
+
+리포트에는 판정만이 아니라 **무엇과 무엇을 대조했는지**가 함께 남습니다.
+
+```
+[PASS] Step 6 변경된 세부 설정이 대상 영상에 적용
+  values: {'Contrast': 15, 'Sharpness': 10, 'Brightness': 10,
+           'Tone type': 20, 'Noise reduction': 8}
+  applied_log: {'parameter': 'TEST_XIPL_SAVED_M.pim', ...}
+  note: Apply 후 Image Processing에 재진입하여 UI 표시값을 다시 읽어 비교
+```
+
+---
+
+## 6. 실제로 잡아낸 결함
+
+자동화의 가치는 **사람이 놓치는 것을 잡는 것**입니다.
+
+### 제품 결함 (현재도 FAIL로 보고 중)
+
+**`TC_XIPL_compatibility_03` Step 9** — 3D Post Reconstruction에서 파라미터 10개를
+바꾸고 Apply한 뒤 재진입하면 **값이 전부 기본값으로 되돌아갑니다.**
+
+```
+기대: Background Masking 'Not use', Contrast 14, Sharpness 16 ...
+실제: Background Masking 'Use',     Contrast 10, Sharpness 20 ...
+```
+
+GPU 유무와 무관한 결함이라, 이 판정은 **의도적으로 완화하지 않고** FAIL로 유지합니다.
+
+### 자동화 자체의 함정 (수정 완료)
+
+| 증상 | 실제 원인 |
+|---|---|
+| 슬라이더 값이 빈 문자열로 읽힘 | Tesseract `psm 7`이 **한 자리 숫자를 버림** (`8` → `''`). 다중 psm 다수결로 해결 |
+| F8 촬영이 엉뚱한 스텝을 찍고도 성공 처리 | 스크롤 밖으로 잘린 카드를 클릭 — Win32가 여전히 `visible`로 보고 |
+| 화면이 안 넘어감 | 저장 성공 팝업을 닫지 않아 **모달이 이후 클릭을 전부 삼킴** |
+| 회귀에서만 XIPL 4건 붕괴 | 비밀번호 물리 입력 시 문자 유실 → 제한된 재시도로 해결 |
+| Q.C 파라미터가 무효 | `.xtp`를 복사해 `.eap`로 이름만 바꿈 — **포맷이 다른 파일**(평문 XML vs 암호화 바이너리)임을 헤더 실측으로 확인 |
+
+특히 마지막 사례는 **자동화가 "통과한 것처럼 보이던" 위험**이었습니다. 잘못된 파일도
+콤보 목록에 표시되어 선택됐기 때문에, 매뉴얼 원문과 파일 헤더를 실측해 바로잡았습니다.
+
+---
+
+## 7. AI(Claude Code)를 활용한 개발 방식
+
+이 프로젝트는 **Claude Code를 페어 프로그래머로 사용해** 구조화했습니다. 단순히
+"코드를 받아썼다"가 아니라, **AI가 잘 작동하는 작업 환경을 설계한 것**이 핵심입니다.
+
+### 7.1 AI가 매 세션 같은 품질로 일하도록 만든 장치
+
+세션이 끊기거나 다른 PC/계정으로 옮겨도 맥락이 유실되지 않게, 지식을 **문서 계층**으로
+분리했습니다.
+
+| 문서 | 역할 | 수명 |
+|---|---|---|
+| `AGENTS.md` | 작업 시작·검증·커밋 규칙 | 영구 |
+| `..\지식\[자동화 운영 지침]` | 회차와 무관한 **규칙·설계 결정** (14절) | 영구 |
+| `..\지식\[자동화 구현 현황]` | TC별 구현 수준 | 영구 |
+| `NEXT_TASK.md` | 다음 우선순위와 미결정 사항 | 회차 |
+| `인수인계_<날짜>.md` | 그 세션의 결과·근거·남은 일 | 회차 |
+
+운영 지침에는 **실패에서 얻은 교훈을 규칙으로 승격**해 적어둡니다. 예를 들어
+"OCR이 빈 값이면 타이밍을 의심하기 전에 **캡처 이미지를 눈으로 볼 것**"이라는 규칙은,
+AI가 같은 오진(경합 조건으로 추정 → 불필요한 서브프로세스 우회책 작성)을 반복하지
+않게 만든 실제 방지 장치입니다.
+
+### 7.2 AI 결과물을 그대로 믿지 않는 검증 습관
+
+AI 협업에서 가장 위험한 것은 **그럴듯하지만 틀린 진단**입니다. 이 프로젝트에서
+실제로 겪고 대응한 사례:
+
+- **오진 정정**: 인수인계에 "같은 프로세스에서는 실패, 새 프로세스에서는 성공하는
+  캡처 경합"이라 기록돼 있었지만, 캡처를 저장해 눈으로 확인하니 값은 항상 선명했고
+  원인은 OCR 모드였습니다. → 잘못된 우회책을 제거했습니다.
+- **검증 경로 확인**: 단독 실행 통과를 근거로 "검증 완료"라 보고했으나, 해당 함수가
+  *조건이 이미 충족되면 건너뛰는* 구조여서 **고친 분기를 타지 않았습니다.**
+  이후 "회귀와 동일한 시작 상태를 만들어놓고 검증"을 규칙화했습니다.
+- **근거 없는 상향 금지**: 한 TC를 근거 없이 `FULL`로 올린 것을 스스로 되돌리고,
+  실측 PASS를 확인한 뒤에 다시 올렸습니다.
+
+### 7.3 사람이 판단해야 하는 지점은 반드시 물어보고 설계
+
+제품 도메인 지식이 필요한 결정은 AI가 추측하지 않도록 **질문 → 확인 → 설계** 순서를
+지켰습니다. 실제로 이 방식으로 확정한 것들:
+
+- Q.C 3D 파라미터가 `.eap`이어야 하는 이유 (매뉴얼 명칭 + 파일 헤더로 교차 확인)
+- 시험 파라미터 `.pim` 파일명이 `_M`으로 끝나야 하는 제품 규칙
+- **"Q.C 테스트는 열린 검사를 닫아야 실행된다"** — 도메인 지식이라 코드만 봐서는
+  알 수 없었고, 이 한 가지로 막혀 있던 TC가 통과했습니다
+- 빈 검사 삭제 확인 팝업을 자동으로 승인해도 되는지 (파괴적 동작이므로 사전 승인)
+
+파일명 규칙 같은 것은 **주석으로만 적지 않고 코드가 스스로 검사**하게 만들었습니다.
+`.pim` 상수가 `_M`으로 끝나지 않으면 import 시점에 실패합니다.
+
+---
+
+## 8. 이식성 — 다른 QA PC에서 그대로 동작하게
+
+QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프로젝트에서 해결한 것들:
+
+- **드라이브 문자 차이** — `BellalunData`가 C:/D: 어디에 있어도 모든 드라이브를
+  탐색해 찾습니다.
+- **DB 기준 스냅샷 이식** — 세 가지 문제를 순차로 해결했습니다.
+  ① 스냅샷 폴더를 저장소 위치 기준 상대경로로 탐색 (절대경로 하드코딩 제거)
+  ② SQL Server가 **자기 서비스 계정으로** `.bak`을 열기 때문에 사용자 폴더를 못 읽음
+     → 읽을 수 있는 위치로 복사 후 복원
+  ③ `.bak`에 **백업 뜬 PC의 물리 경로가 박혀 있어** 드라이브가 다르면 실패
+     → `sys.master_files`를 읽어 `WITH MOVE`를 동적 생성
+- **설정 파일 분리** — 계정·서버 주소는 `config.json`(Git 제외), 저장소에는
+  `config.example.json` 템플릿만 둡니다.
+
+---
+
+## 9. 현재 상태와 남은 일
+
+### 완전 자동 (11건)
+`Install_01/02`, `WorkFlow_01/02/03`, `XIPL_compatibility_01~06`
+
+### 부분 자동 (18건)
+판정 로직은 있으나 UI 드라이버가 더 필요한 TC들입니다.
+다음 우선순위는 **`WorkFlow_04`(Overlay) / `WorkFlow_05`(DICOM Send)** 이며,
+설계는 사용자 확인을 받아 `NEXT_TASK.md`에 확정돼 있습니다.
+
+### 수동 (10건)
+실물 장비(Detector/Gantry/Phantom)나 신규 OS 설치가 필요해 **의도적으로 자동화하지
+않은** 항목입니다. 임의로 자동 PASS를 만들지 않는 것이 이 프로젝트의 원칙입니다.
+
+---
+
+## 10. 참고 문서
+
+| 문서 | 용도 |
+|---|---|
+| `AGENTS.md` | 코드 수정·검증·커밋 규칙 |
+| `NEXT_TASK.md` | 다음 우선순위, 미결정 사항, 환경 준비 상태 |
+| `PORTABILITY_AUDIT.md` | 이식성 점검 결과 |
+| `automation_scope.json` | 39개 TC의 자동화 수준과 사유 |
+| `..\지식\[자동화 운영 지침] ...md` | 영구 적용 규칙 14절 (실패에서 얻은 교훈 포함) |
+
+---
+
+## 부록: 실행 중 유의사항
+
+**마우스/키보드를 점유합니다.** 커스텀 렌더링 컨트롤이 표준 메시지에 반응하지 않아
+실제 물리 입력(`SetCursorPos`+`mouse_event`, `SendInput`)을 사용합니다. 실행 중
+같은 세션에서 다른 작업을 하려면 Switch User로 별도 Windows 세션에서 돌리십시오.
+
+**실패 후 프로세스가 남았을 때** (안전하게 정리 가능)
+
+```bash
+powershell -NoProfile -Command "Get-Process VIEWER,XIPL.STUDIO -ErrorAction SilentlyContinue | Stop-Process -Force"
+```
+
+**실촬영 안전 게이트**: 2D/3D 촬영은 `config.json > viewer.demo_mode = true`일 때만
+동작합니다. Demo 모드가 아니면 자동화가 촬영을 시도하지 않고 FAIL로 기록합니다.
+실제 X-ray 노출은 자동으로 실행하지 않습니다.
