@@ -146,22 +146,41 @@ x좌표 = 화면 왼→오 순서.
 삭제/잠금/편집 후보(2185/2186/2193)는 데이터를 훼손할 수 있으니 hover나 다른
 방법으로 먼저 식별하라.
 
-### `2197`이 띄우는 대화상자 = WF05의 "Selected/All Images"
+### `2197`은 `Move Image` — DICOM Send가 아니다 (클릭으로 확정)
 
-문구: **"Do you want to move all images of this study?"**
-버튼(좌→우, `_visible_close_buttons`와 같은 ID 체계):
+`2197`을 누르면 **"Do you want to move all images of this study?"** 와
+`All Images`(502) / `Selected`(501) / `Cancel`(500)이 뜬다. 여기서 `All Images`를
+누르면 **`Move Image` 창**(다른 검사로 영상을 옮기는 기능)이 열린다. 문구의
+"move"가 말 그대로였다.
 
-| ctrl_id | rect | 버튼 |
-|---|---|---|
-| **502** | `(770,577,890,621)` | **All Images** |
-| **501** | `(900,577,1020,621)` | **Selected** |
-| **500** | `(1030,577,1150,621)` | **Cancel** |
+확정 방법과 결과(2026-08-18 실측): Bunny(Storage SCP)를 `ensure_bunny()`로 띄우고
+수신 폴더를 비운 뒤 `All Images`를 눌렀으나 **30초 동안 수신 파일 0개**였고 대신
+`Move Image` 창이 떴다. 따라서 이 경로는 WF05가 찾는 DICOM Send가 아니다.
+`Cancel`로 안전하게 빠져나왔다(아무것도 옮기지 않았다).
 
-WF05 원문 Step 5의 "Selected/All Images"가 바로 이 선택이다. 다만 문구가
-"**move**"이므로 이 버튼이 DICOM Send인지 다른 이동 기능인지 **아직 확정하지
-않았다** — 취소하고 나왔다. 확정 방법: `dicom.received_root`
-(`C:\Program Files (x86)\Bunny\Receive`)를 비운 뒤 `All Images`를 눌러 파일이
-수신되는지 확인하면 Send인지 바로 알 수 있다.
+`Move Image` 창 컨트롤: 검색어 `2178`, 기간 사용자지정 `1109`, 돋보기 `2069`,
+**Move `2071`**, **Cancel `1102`**.
+
+**주의**: `All Images` / `Selected` 문구가 WF05 Step 5와 똑같아서 **이 대화상자를
+Send로 오인하기 쉽다.** WF05의 Selected/All 선택은 다른 버튼에서 나오는 별개
+대화상자일 가능성이 크다.
+
+### 남은 Send/Export 후보 (아직 미확인)
+
+`2184`=Import, `2197`=Move로 밝혀졌으므로 Send/Export는 다음 중에 있다.
+**삭제·잠금·편집 후보(2185/2186/2193)는 건드리지 말 것.**
+
+| ctrl_id | x | 아이콘 | 비고 |
+|---|---|---|---|
+| 2188 | 1420 | 프린터 | Print 가능성 높음 |
+| 2191 | 1466 | CD/디스크 | 미디어 내보내기(=Export?) |
+| 2195 | 1742 | ? | 미확인 |
+| 2192 | 1788 | 열린 폴더 | Export 가능성 |
+
+또한 **Examine 화면의 Send 버튼(`flows.EXAMINE["tool_send"]` = 1148)** 이 이미
+알려져 있다. WF05 원문이 "Examine창 / View창 / Examined" 세 경로를 요구하므로,
+가장 확실한 1148(Examine)부터 구현하고 나머지 두 경로의 버튼을 위 후보에서
+클릭으로 확정하는 순서가 안전하다.
 
 ### Import Study 대화상자 컨트롤 (2184)
 
