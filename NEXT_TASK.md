@@ -165,22 +165,51 @@ x좌표 = 화면 왼→오 순서.
 Send로 오인하기 쉽다.** WF05의 Selected/All 선택은 다른 버튼에서 나오는 별개
 대화상자일 가능성이 크다.
 
-### 남은 Send/Export 후보 (아직 미확인)
+### `2191` = **Export Manager** — WF04의 Export 진입점 (확정)
 
-`2184`=Import, `2197`=Move로 밝혀졌으므로 Send/Export는 다음 중에 있다.
-**삭제·잠금·편집 후보(2185/2186/2193)는 건드리지 말 것.**
+`2191`을 누르면 **별도 최상위 창** `Export Manager`가 열린다
+(프로세스 `EXPORT.MANAGER.exe`). Viewer 프로세스가 아니라 **`ViewerUi("EXPORT.MANAGER")`
+로 따로 붙어야** 컨트롤이 열거된다(Viewer 쪽 `ui.controls()`로는 안 보인다).
+
+**사용자 질문에 대한 답 — 폴더 선택 창은 뜨지 않는다.**
+경로 Edit(`1023`)에 **`C:\BellalunData\Export`가 이미 채워져 있다.**
+`CONFIGURATION.EXPORT.ExportDirPath`가 `None`이어도 제품이 이 기본 경로를 쓴다.
+즉 사용자가 원한 "제품 기본 경로 사용"이 그대로 동작한다. config에 경로를
+하드코딩할 필요가 없다.
+
+**Export Manager 컨트롤 (2026-08-18 실측)**
+
+| 영역 | ctrl_id | 비고 |
+|---|---|---|
+| File Format | `1009`/`1011`/`1014`/`1012`/`1013`/`1015`/`1010` | DICOM/DICOMDIR/JPEG/BMP/TIF8/TIF16/RAW/IMG 7개 TextButton |
+| Export Path 드라이브 | `1019` | `C:\` 드롭다운 |
+| **Export Path** | **`1023` (cls=Edit)** | **`C:\BellalunData\Export` 기본값** |
+| Type | `1025` Processed / `1024` Not Processed / `1026` Synthetic | CheckBox |
+| DICOM Option | `1027` Dose SR / `1032` Portable Viewer / `1021` 언어 | |
+| Study List | `1033` (ListCtrl) | 선택된 검사 표시 |
+| **Anonymous** | **`1031`** | CheckBox — WF10(익명 Export)에 필요 |
+| Burning Option | `1028` Annotations / `1029` Label / `1030` Information | |
+| Collimation / Transfer Syntax / Language | `1021`(Cut) / `1020`(Implicit) `1034`(Slider) / `1022`(Default) | |
+| **Start** | **`1017`** | |
+| **Cancel** | **`1018`** | |
+
+실측 시 Start를 누르지 않고 `1018`로 취소했다(아무것도 내보내지 않음).
+
+### `2192` = 검사 폴더 열기 (확정)
+
+Windows 탐색기로 `<data_dir>\Image\Study<Key>_<날짜시각>` 을 연다. Export가 아니다.
+부수 확인: 검사 폴더에는 `DoseSR_<StudyKey>.dcm` 과 `Image<InstanceKey>` 파일들이
+들어 있다(실측: Study48 → DoseSR_48.dcm + Image79~82).
+
+### 남은 미확인 후보
 
 | ctrl_id | x | 아이콘 | 비고 |
 |---|---|---|---|
 | 2188 | 1420 | 프린터 | Print 가능성 높음 |
-| 2191 | 1466 | CD/디스크 | 미디어 내보내기(=Export?) |
-| 2195 | 1742 | ? | 미확인 |
-| 2192 | 1788 | 열린 폴더 | Export 가능성 |
+| 2195 | 1742 | ? | **DICOM Send 유력 후보**(남은 것 중) |
+| 2185/2186/2193 | | 연필/휴지통/자물쇠 | **건드리지 말 것** |
 
-또한 **Examine 화면의 Send 버튼(`flows.EXAMINE["tool_send"]` = 1148)** 이 이미
-알려져 있다. WF05 원문이 "Examine창 / View창 / Examined" 세 경로를 요구하므로,
-가장 확실한 1148(Examine)부터 구현하고 나머지 두 경로의 버튼을 위 후보에서
-클릭으로 확정하는 순서가 안전하다.
+Examine 화면의 Send는 `flows.EXAMINE["tool_send"]` = 1148로 이미 알려져 있다.
 
 ### Import Study 대화상자 컨트롤 (2184)
 
