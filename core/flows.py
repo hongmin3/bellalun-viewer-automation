@@ -926,26 +926,31 @@ def select_step(ui, index, scroll_tries=8):
         raise FlowError(f"Step이 {len(items)}개라 {index}번째를 선택할 수 없습니다.")
     panel = ui.by_id(EXAMINE["step_thumbnails"])
     if panel:
-        pl, pt, pr, pb = panel[0].rect
-        center = ((pl + pr) // 2, (pt + pb) // 2)
-        for _ in range(scroll_tries):
+        seen = None
+        for attempt in range(scroll_tries):
+            panel = ui.by_id(EXAMINE["step_thumbnails"]) or panel
+            pl, pt, pr, pb = panel[0].rect
             current = step_items(ui)
-            if len(current) < index:
-                break                     # 스크롤 중 목록이 흔들리면 아래에서 재확인
-            _, cy = current[index - 1].center
-            if pt <= cy <= pb:
-                break
-            ui.wheel(center, -3 if cy > pb else 3, settle=.4)
-        items = step_items(ui)
-        if len(items) < index:
-            raise FlowError(
-                f"Step이 {len(items)}개로 줄어 {index}번째를 선택할 수 없습니다.")
-        target = items[index - 1]
-        _, cy = target.center
-        if not (pt <= cy <= pb):
-            raise FlowError(
-                f"{index}번째 Step 카드를 패널 안으로 스크롤하지 못했습니다: "
-                f"card={target.rect} panel={panel[0].rect}")
+            if len(current) >= index:
+                target = current[index - 1]
+                _, cy = target.center
+                seen = (target.rect, panel[0].rect)
+                if pt <= cy <= pb:
+                    ui.click(target, settle=0.8)
+                    return target
+                # 패널 밖이면 두 가지 경우가 있다. (1) 정말 스크롤로 잘린 경우
+                # (스텝 5개 이상) → 해당 방향으로 굴리면 들어온다. (2) Examine
+                # 화면이 막 만들어져 카드 좌표가 아직 배치되지 않은 경우 →
+                # 실측(2스텝 픽스처)에서 첫 카드가 panel(y 135~923)보다 위인
+                # y -221~-46으로 보고된 적이 있다. 2스텝은 패널에 다 들어가므로
+                # 스크롤 문제가 아니라 과도 상태다. 그래서 굴리기만 반복하지
+                # 않고 매 회 **실제로 기다렸다가 다시 읽는다.**
+                ui.wheel(((pl + pr) // 2, (pt + pb) // 2),
+                         -3 if cy > pb else 3, settle=.3)
+            time.sleep(.6)
+        raise FlowError(
+            f"{index}번째 Step 카드가 {scroll_tries}회 시도 후에도 패널 안에 "
+            f"들어오지 않았습니다: card/panel={seen}")
     ui.click(items[index - 1], settle=0.8)
     return items[index - 1]
 
