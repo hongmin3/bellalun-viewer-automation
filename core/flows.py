@@ -1073,3 +1073,50 @@ def demo_acquire(ui, count=1, settle=14):
         if not info.get("skipped"):
             shot += 1
     return results
+
+
+# --- DICOM Send -------------------------------------------------------
+# "전송할 영상을 선택합니다. 메시지 박스에서 All Image, Selected 또는 Cancel
+# 버튼을 클릭하십시오." (Operation Manual 8.19 영상 전송하기)
+# 실측 컨트롤 ID (2026-08-18, Bellalun 1.0.12.105) — 종료 옵션 팝업과 같은
+# 좌→우 체계를 쓴다.
+SEND_SCOPE_IDS = {"all": 502, "selected": 501, "cancel": 500}
+
+
+def send_current_study(ui, scope="all", attempts=4, dialog_timeout=5):
+    """Examine 화면에서 선택한 검사/영상을 DICOM Storage로 전송한다.
+
+    사양(Operation Manual 8.19)이 요구하는 전제와 실측으로 확인한 함정을 모두
+    반영한다.
+
+    * **영상을 먼저 선택해야 한다.** 선택 전에는 Send 버튼(1148)이 비활성이라
+      눌러도 아무 일도 일어나지 않는다(실측: 아이콘이 연한 분홍으로 표시됨).
+      호출 전에 `select_step()` 등으로 대상을 선택해 둘 것.
+    * **첫 클릭이 삼켜지는 일이 있다.** 그래서 "All Images/Selected" 메시지
+      박스가 뜨는지 확인하며 상한을 두고 재시도한다(실측: 1회차 무반응,
+      2회차에 등장). 이 저장소에서 반복 확인된 패턴이다.
+
+    반환: {"scope": ..., "clicked": ctrl_id} / 메시지 박스가 안 뜨면 FlowError.
+    """
+    if scope not in SEND_SCOPE_IDS:
+        raise FlowError(f"알 수 없는 전송 범위: {scope}")
+    target_id = SEND_SCOPE_IDS[scope]
+
+    for _ in range(attempts):
+        buttons = [c for c in ui.by_id(EXAMINE["tool_send"]) if c.visible]
+        if not buttons:
+            raise FlowError(
+                f"Send 버튼({EXAMINE['tool_send']})을 찾지 못했습니다. "
+                "Tool 레일이 펼쳐져 있는지 확인하십시오.")
+        ui.click(buttons[0], settle=2.0)
+        end = time.time() + dialog_timeout
+        while time.time() < end:
+            hits = [c for c in ui.by_id(target_id) if c.visible]
+            if hits:
+                ui.click(hits[0], settle=2.5)
+                return {"scope": scope, "clicked": target_id}
+            time.sleep(.5)
+    raise FlowError(
+        f"Send 후 전송 범위 선택 메시지 박스가 {attempts}회 시도에도 "
+        f"나타나지 않았습니다. 전송할 영상이 선택돼 있는지 확인하십시오"
+        f"(선택 전에는 Send 버튼이 비활성입니다).")

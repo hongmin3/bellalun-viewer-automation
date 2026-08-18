@@ -12,7 +12,7 @@
   {"tc_id":"TC_Basic_WorkFlow_02","level":"FULL","reason":"최신 MWL 보류 검사 재개, 2D/3D-N Demo 촬영, InstanceType·Series·Group·UID 구조와 2D/Recon Tool OCR·화면 변화 자동 검증"},
   {"tc_id":"TC_Basic_WorkFlow_03","level":"FULL","reason":"DICOM Print Overlay 6개 설정·Print 서버 등록·Film 1x1 실제 출력·신규 웹 프리뷰 실제값 OCR 및 raster 일치 자동 검증"},
   {"tc_id":"TC_Basic_WorkFlow_04","level":"PARTIAL","reason":"Overlay DB 변경 자동 판정; 표시 육안 확인"},
-  {"tc_id":"TC_Basic_WorkFlow_05","level":"PARTIAL","reason":"수신 DICOM/UID 자동 판정; Send UI 흐름 추가 안정화 필요"},
+  {"tc_id":"TC_Basic_WorkFlow_05","level":"PARTIAL","reason":"Examine 화면 Send를 All Images/Selected 두 범위로 실제 전송하고 수신 DICOM 객체의 SOP Instance UID를 DB와 대조해 자동 판정(tests/send_flows.py, run-wf05). Transfer Syntax를 Bunny가 수락하는 Implicit VR LE로 맞추는 것까지 자동화. View창/Examined 경로는 Send 진입점이 확정되지 않아 MANUAL"},
   {"tc_id":"TC_Basic_WorkFlow_06","level":"PARTIAL","reason":"3D 수신 DICOM 자동 판정; 3D 조건 의존"},
   {"tc_id":"TC_Basic_WorkFlow_07","level":"PARTIAL","reason":"영상/RDSR 수신 자동 판정; 대상 검사 준비 필요"},
   {"tc_id":"TC_Basic_WorkFlow_08","level":"PARTIAL","reason":"Auto Send 수신 판정 가능; 외부 연동 조건 의존"},
