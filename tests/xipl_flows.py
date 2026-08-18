@@ -837,6 +837,79 @@ def _ensure_test_parameters(ctx, r, step_title, needed):
     return True
 
 
+def _owned_test_presets(ctx):
+    """자동화가 만든 시험 Preset 행만 고른다.
+
+    Alias로 찾지 않는다. Alias 셀은 UI에서 말줄임표로 잘려 OCR 재탐색이 안 되고
+    (`_alias_preset_row` 주석 참고), 쌍으로 생성되는 반대쪽(L...) 행은 Alias가
+    비어 있다. 대신 **`Type=0`(2D)이면서 `Roll`이 'RL'/'RM'** 인 행만 고른다 -
+    제품 기본 Preset은 `Roll`이 비어 있어(2026-08-18 실측) 겹치지 않는다.
+    """
+    return ctx.db.query(
+        "PROCEDURE",
+        "SELECT [Key],Alias,Laterality,PositioningKey,Roll FROM VIEW_POSITION_PRESET "
+        "WHERE Type=0 AND Roll IN ('RL','RM') ORDER BY [Key]")
+
+
+def _preset_row_name(row):
+    """목록의 Name 컬럼에 표시되는 문자열(예: RCCRL)."""
+    side = "R" if int(row["Laterality"]) == 2 else "L"
+    return f"{side}CC{row['Roll']}"
+
+
+def _delete_test_presets(ctx, ui):
+    """시험 Preset을 **UI로** 삭제해 TC_04를 반복 실행 가능하게 만든다.
+
+    `core/db.py`는 조회 전용이고 저장소는 상태 변경을 UI로만 한다(운영 지침).
+    그래서 DB에서 지우지 않고 Setting > Procedure > Preset(2D)의 Delete(2549)를
+    누른다. 행은 잘리지 않는 Name 컬럼(RCCRL 등)으로 찾는다.
+
+    엉뚱한 행을 지우면 사용자 Preset이 사라지므로, 삭제 전후 전체 Key 집합을
+    비교해 **의도한 Key만 사라졌는지 확인**하고 아니면 예외를 던진다.
+    """
+    targets = _owned_test_presets(ctx)
+    if not targets:
+        return {"deleted": [], "detail": "삭제할 시험 Preset 없음"}
+
+    def all_keys():
+        return {int(r["Key"]) for r in ctx.db.query(
+            "PROCEDURE", "SELECT [Key] FROM VIEW_POSITION_PRESET")}
+
+    before = all_keys()
+    expected = {int(r["Key"]) for r in targets}
+    names = [_preset_row_name(r) for r in targets]
+
+    flows.open_procedure_setting(ui, "preset")
+    removed = []
+    for index, name in enumerate(names):
+        try:
+            list_ctrl, row_y, _ = _find_preset_row_y(ctx, ui, name, f"del{index}")
+        except Exception:
+            continue                      # 이미 사라진 행(쌍 삭제 등)은 건너뛴다
+        ui.click((list_ctrl.rect[0] + 60, row_y), settle=.4)
+        delete = [c for c in ui.by_id(flows.PRESET_2D_DELETE) if c.visible]
+        if not delete:
+            raise flows.FlowError("Preset(2D) Delete 버튼(2549)을 찾지 못했습니다.")
+        ui.click(delete[0], settle=.8)
+        flows.confirm_setting_dialog(ui, timeout=3)
+        removed.append(name)
+
+    flows.setting_update(ui)
+    flows.confirm_setting_dialog(ui)
+
+    after = all_keys()
+    gone = before - after
+    if gone - expected:
+        raise flows.FlowError(
+            f"시험 Preset 외의 행이 삭제됐습니다: 예상={sorted(expected)} "
+            f"실제 삭제={sorted(gone)}")
+    left = _owned_test_presets(ctx)
+    if left:
+        raise flows.FlowError(
+            f"시험 Preset이 남아 있습니다: {[_preset_row_name(r) for r in left]}")
+    return {"deleted": sorted(gone), "clicked_rows": removed}
+
+
 def compatibility_04(ctx):
     r = TCResult("TC_XIPL_compatibility_04", "Preset별 2D Default Parameter 적용")
     root = (ctx.cfg.get("xipl") or {}).get("parameter_dir", r"C:\XIPL\PARAMETER")
@@ -844,23 +917,29 @@ def compatibility_04(ctx):
                                    [vp.PARAM_2D_A, vp.PARAM_2D_B]):
         return r
 
-    # 이전 실행이 남긴 시험 Preset이 있으면 Add가 "이미 존재"로 실패한다. 이
-    # TC의 정리 절차는 수동이고(아래 마지막 manual 안내 참고) 저장소는 DB를
-    # 직접 수정하지 않는 설계라(core/db.py는 조회 전용) 자동 삭제하지 않는다.
-    # 대신 남은 픽스처 때문인 실행 불가를 제품 FAIL처럼 보고하지 않고, 무엇을
-    # 지워야 하는지 명시한 MANUAL로 분리한다. 그러지 않으면 회귀 리포트에서
-    # 환경 오염이 제품 결함으로 오독된다.
-    leftover = sorted(row["Alias"] for row in ctx.db.query(
-        "PROCEDURE", "SELECT Alias FROM VIEW_POSITION_PRESET "
-                     "WHERE Alias IN ('PRESET_FLOW_A','PRESET_FLOW_B')"))
+    # 이전 실행이 남긴 시험 Preset이 있으면 Add가 "이미 존재"로 실패해 TC를
+    # 아예 수행할 수 없다. 예전에는 이를 MANUAL로 보고하고 사용자가 손으로
+    # 지우게 했지만, 그러면 이 TC가 깨끗한 DB 없이는 두 번 돌지 않는다.
+    # 이제 UI로 직접 지운다(아래 _delete_test_presets 참고 - DB는 조회 전용).
+    leftover = _owned_test_presets(ctx)
+    cleanup = None
     if leftover:
-        r.manual(0, "이전 실행의 시험 Preset 정리 필요",
-                 "Setting > Procedure > Preset(2D)에서 "
-                 f"{', '.join(leftover)} (및 RCCRL/LCCRL/RCCRM/LCCRM) 행을 "
-                 "수동 삭제한 뒤 다시 실행하십시오. 남아 있으면 Preset 추가가 "
-                 "'이미 존재'로 실패해 TC를 수행할 수 없습니다.",
-                 expected="시험 Preset 없음(깨끗한 상태)", actual=leftover)
-        return r
+        cfg_pre = ctx.cfg["viewer"]
+        ui_pre = ViewerUi()
+        ui_pre.ensure_ready(cfg_pre["exe"], cfg_pre["login"]["id"],
+                            cfg_pre["login"]["password"])
+        flows.ensure_patient_screen(ui_pre)
+        try:
+            cleanup = _delete_test_presets(ctx, ui_pre)
+        except Exception as exc:
+            r.manual(0, "이전 실행의 시험 Preset 정리",
+                     "UI 자동 삭제에 실패했습니다. Setting > Procedure > Preset(2D)에서 "
+                     f"{[_preset_row_name(x) for x in leftover]} 행을 수동 삭제한 뒤 "
+                     "다시 실행하십시오.",
+                     expected="시험 Preset 없음", actual=str(exc))
+            return r
+        r.add(0, "이전 실행의 시험 Preset UI 자동 삭제", PASS,
+              expected="Type=0, Roll RL/RM 행 전부 삭제", actual=cleanup)
 
     cfg = ctx.cfg["viewer"]
     ui = ViewerUi()

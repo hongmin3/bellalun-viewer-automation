@@ -76,8 +76,27 @@ class TCResult:
         })
 
     def finalize(self, completed=None):
-        if self.completed is None:
-            self.completed = completed or datetime.now()
+        """종료 시각을 확정한다.
+
+        호출자(`run.py::finish`)는 보통 **다음 TC의 시작 시각**을 넘긴다. 그런데
+        TCResult가 실행 순서와 다른 순서로 만들어지는 경로가 있다(예: XIPL
+        `_prepare` 실패 시 01/02/03과 06의 결과 객체를 먼저 만들고 04/05를
+        나중에 실행). 그때 "다음 것"의 시작이 자기 시작보다 이르면 소요시간이
+        음수로 찍힌다(2026-08-18 회귀 리포트에 -301.6s). 판정에는 영향이
+        없지만 리포트를 못 믿게 만든다.
+
+        그래서 넘어온 값이 자기 시작 이전이면 신뢰하지 않고, 마지막으로 기록된
+        체크 시각(`_step_cursor_wall`)을 종료로 쓴다. 체크가 없으면 시작 시각을
+        그대로 써서 0초로 만든다(음수보다 정직하다).
+        """
+        if self.completed is not None:
+            return self
+        if completed is None:
+            self.completed = datetime.now()
+        elif completed >= self.started:
+            self.completed = completed
+        else:
+            self.completed = max(self.started, self._step_cursor_wall)
         return self
 
     @property

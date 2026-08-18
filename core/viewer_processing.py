@@ -169,9 +169,13 @@ def find_text_boxes(image_path, wanted, scale=2):
         head = text.rstrip(".")
         return len(head) >= 6 and target.startswith(head) and head != target
 
+    # 후보가 **정확히 하나**일 때만 받아들인다. 서로 다른 이름이 같은 문자열로
+    # 잘리는 경우가 있어(예: PRESET_FLOW_A / PRESET_FLOW_B 가 둘 다
+    # 'PRESET_FL...') "문자열 종류가 하나"만 확인하면 여러 행을 함께 반환해
+    # 엉뚱한 행을 클릭한다.
     partial = _collect(_looks_truncated)
-    if len({b[5] for b in partial}) == 1:
-        return [b[:5] for b in partial]
+    if len(partial) == 1:
+        return [partial[0][:5]]
     return []
 
 
