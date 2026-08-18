@@ -709,17 +709,37 @@ def handle_duplicate_patient(ui, action="fail", timeout=5):
     d = ui.wait_dialog(timeout=timeout)
     if not d:
         return None
-    texts = [c.text for c in children(d.hwnd, 2) if c.text]
+    kids = children(d.hwnd, 3)
+    texts = [c.text for c in kids if c.text]
     info = {"title": d.text, "texts": texts}
     if action == "report":
         return info
     if action == "use_existing":
-        for c in children(d.hwnd, 2):
-            if c.cls == "Button":
-                ui.click_button(c.hwnd)
-                info["clicked"] = c.text
+        # 이 팝업의 버튼("Use existing data" / "Change current ID")은 표준
+        # Button이 아니라 커스텀 렌더링 컨트롤이다. 예전 구현은 cls=="Button"만
+        # 찾다가 **아무것도 클릭하지 못하고 조용히 반환**했고, 모달이 남아 이후
+        # 모든 클릭이 막혔다(2026-08-18 실측: TC_04 재실행에서 Step 6이
+        # "Step 등록 실패: 0->4"로 깨진 진짜 원인).
+        #
+        # ID를 하드코딩하지 않고 기하로 고른다. 제목줄의 X를 누르면 의도(기존
+        # 데이터 사용)와 다르게 취소되므로 **대화상자 아래쪽 절반**만 후보로 삼고,
+        # 위→아래·좌→우로 정렬해 왼쪽 버튼(=Use existing data)을 먼저 누른다.
+        # 그리고 **모달이 실제로 닫혔는지 확인**한다.
+        dl, dt, dr, db = d.rect
+        midline = dt + (db - dt) // 2
+        cands = [c for c in kids
+                 if c.visible and c.rect[1] >= midline
+                 and (c.rect[2] - c.rect[0]) >= 60
+                 and 20 <= (c.rect[3] - c.rect[1]) <= 90]
+        cands.sort(key=lambda c: (c.rect[1], c.rect[0]))
+        for c in cands:
+            ui.click(c, settle=1.0)
+            if not ui.dialog():
+                info["clicked"] = {"ctrl_id": c.ctrl_id, "rect": c.rect,
+                                   "text": c.text}
                 return info
-        return info
+        raise FlowError(
+            f"동일 Patient ID 팝업을 닫지 못했습니다(후보 {len(cands)}개): {info}")
     raise FlowError(f"동일 Patient ID 경고 팝업이 표시되었습니다: {info}")
 
 
@@ -753,6 +773,37 @@ def _visible_close_buttons(ui):
                 seen.add(c.hwnd)
                 out.append(c)
     return sorted(out, key=lambda c: c.rect[0])
+
+
+def confirm_study_delete(ui, accept=True, timeout=4):
+    """"This study will be deleted. Are you sure?" 확인 팝업을 처리한다.
+
+    영상이 없는 검사를 Close할 때만 나타난다(영상이 있으면 나타나지 않는다).
+    버튼은 커스텀 렌더링이라 좌=Yes(501), 우=Cancel(500)로 실측됐다. ID를
+    맹신하지 않고 좌우 순서와 ID를 함께 확인해 Yes를 누른다.
+
+    accept=False면 Cancel을 눌러 삭제하지 않는다. 팝업이 없으면 None.
+    """
+    end = time.time() + timeout
+    buttons = []
+    while time.time() < end:
+        buttons = _visible_close_buttons(ui)
+        if ui.dialog() and len(buttons) == 2:
+            break
+        time.sleep(.3)
+    if not (ui.dialog() and len(buttons) == 2):
+        return None
+    yes, cancel = buttons[0], buttons[1]
+    target = yes if accept else cancel
+    expected = 501 if accept else 500
+    if target.ctrl_id != expected:
+        raise FlowError(
+            f"검사 삭제 확인 버튼 구성이 예상과 다릅니다 "
+            f"(기대 {expected}, 실제 {target.ctrl_id}, "
+            f"버튼={[(b.ctrl_id, b.rect[0]) for b in buttons]}). "
+            f"잘못된 버튼을 누르지 않도록 중단합니다.")
+    ui.click(target, settle=1.5)
+    return {"accepted": bool(accept), "ctrl_id": target.ctrl_id}
 
 
 def close_examine(ui, option="close", wait=8, evidence_path=None):
@@ -817,8 +868,18 @@ def close_examine(ui, option="close", wait=8, evidence_path=None):
 
     ui.click(target, settle=1.5)
     time.sleep(wait)
+    # 촬영 영상이 없는 검사를 Close하면 "This study will be deleted. Are you
+    # sure?"(Yes/Cancel) 확인이 한 번 더 뜬다(2026-08-18 실측). 이걸 처리하지
+    # 않으면 "팝업이 남아 있습니다"로 실패하고 화면도 막힌다.
+    # 사용자 승인(2026-08-18): 영상이 없는 검사는 삭제해도 된다 — 영상이 있으면
+    # 이 확인 자체가 뜨지 않으므로, 여기서 Yes를 누르는 것은 빈 검사에만 해당한다.
+    confirm = confirm_study_delete(ui, accept=(option in ("close", "discard")))
+    if confirm:
+        time.sleep(1.5)
     if ui.dialog() or len(_visible_close_buttons(ui)) >= 3:
-        raise FlowError(f"종료 옵션 '{option}' 선택 후에도 팝업이 남아 있습니다.")
+        raise FlowError(
+            f"종료 옵션 '{option}' 선택 후에도 팝업이 남아 있습니다."
+            + (f" (검사 삭제 확인 처리: {confirm})" if confirm else ""))
     return {"dialog": True, "option": option, "evidence": evidence_path}
 
 

@@ -991,7 +991,43 @@ def compatibility_04(ctx):
             ui.click(close[0], settle=1.5)
 
         # Step 5: New Patient에서 DATA_XIPL_PRESET_01 검사 시작
-        flows.ensure_patient_screen(ui)
+        #
+        # 이 TC는 검사를 열어 둔 채 끝난다(마지막에 닫지 않는다). 그래서 재실행
+        # 시에는 시작 시점에 이미 Examine 모드이고, 그 상태에서는 Patient 화면의
+        # New Patient 탭(2285)에 갈 수 없다. 실측(2026-08-18): 이전 실행이 남긴
+        # `XIPL PRESET TEST` 검사가 기본 Procedure 4스텝과 함께 열려 있어
+        # Step 5가 "New Patient 탭 컨트롤(2285)을 찾지 못했습니다"로 죽었고,
+        # 그 전 실행에서는 그 4스텝을 세어 "Step 등록 실패: 0->4"가 됐다.
+        # Q.C 실행 전 검사를 닫아야 하는 것과 같은 종류의 전제 조건이다.
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            # 영상이 없는 잔여 검사는 Close 시 삭제 확인이 뜨고, 사용자 승인에
+            # 따라 삭제한다(core/flows.py::confirm_study_delete). 다른 환자의
+            # 검사가 지워지는 일은 없어야 하므로 전후 Study Key 집합을 비교해
+            # 이 TC의 환자 것만 사라졌는지 확인한다.
+            def _study_keys():
+                return {int(x["Key"]) for x in ctx.db.query(
+                    "DATA", "SELECT [Key] FROM STUDY")}
+
+            def _own_keys():
+                return {int(x["Key"]) for x in ctx.db.query(
+                    "DATA", "SELECT s.[Key] FROM STUDY s JOIN PATIENT p "
+                            "ON p.[Key]=s.PatientKey WHERE p.PatientID=@pid",
+                    {"pid": "DATA_XIPL_PRESET_01"})}
+
+            before_studies, own_before = _study_keys(), _own_keys()
+            flows.close_examine(ui, option="close", wait=10)
+            gone = before_studies - _study_keys()
+            if gone - own_before:
+                raise flows.FlowError(
+                    f"이 TC의 환자가 아닌 검사가 삭제됐습니다: {sorted(gone)} "
+                    f"(허용 {sorted(own_before)})")
+            if gone:
+                r.add(0, "이전 실행의 빈 검사 정리", PASS,
+                      expected="DATA_XIPL_PRESET_01의 영상 없는 검사만 삭제",
+                      actual={"deleted_study_keys": sorted(gone)},
+                      note="촬영 영상이 없는 검사를 Close하면 제품이 삭제 확인을 "
+                           "띄운다(사용자 승인). 영상이 있으면 확인 자체가 뜨지 않는다.")
+        flows.ensure_patient_screen(ui, wait=3)
         patient_id = "DATA_XIPL_PRESET_01"
         flows.fill_new_patient(ui, patient_id, "XIPL PRESET TEST", sex="F")
         flows.start_examine_from_new_patient(ui, wait=6, on_duplicate="use_existing")
@@ -1048,9 +1084,15 @@ def compatibility_04(ctx):
                       expected="영상별 서로 다른 Parameter",
                       actual={"image_a": applied_a, "image_b": applied_b})
 
-        r.add(0, "정리 절차", MANUAL,
-              note="시험 Preset(PRESET_FLOW_A/B, RCCRL/LCCRL/RCCRM/LCCRM)은 "
-                   "Setting > Procedure > Preset에서 수동 삭제할 것")
+        # 정리는 이제 다음 실행이 스스로 한다(시험 Preset은 UI로 삭제하고,
+        # 영상 없는 잔여 검사는 Close 시 삭제 확인을 처리한다). 그래서 예전의
+        # "수동 삭제할 것" MANUAL 안내는 더 이상 사실이 아니라 제거했다.
+        r.add(0, "정리 절차", PASS,
+              expected="다음 실행이 시험 Preset과 잔여 검사를 자동 정리",
+              actual="자동 정리(수동 개입 불필요)",
+              note="시험 Preset은 _delete_test_presets가 UI로 삭제하고, 영상 없는 "
+                   "잔여 검사는 close_examine의 삭제 확인 처리로 정리된다. "
+                   "둘 다 삭제 전후 DB 대조로 대상 외 삭제를 막는다.")
     except Exception as exc:
         r.add(0, "TC_XIPL_compatibility_04 실행", FAIL, actual=str(exc))
     return r
