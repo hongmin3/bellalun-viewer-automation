@@ -78,6 +78,60 @@ PARTIAL 등록돼 있다.
 - `TC_XIPL_compatibility_04`는 검증 9단계 전부 PASS이며 종합 MANUAL은 시험
   Preset 수동 삭제 안내 때문이다(회귀는 DB 복원으로 자동 해소).
 
+## 다음 작업: TC_Basic_WorkFlow_04 / 05 (사용자 확정 설계)
+
+체크리스트 원문과 2026-08-18 사용자 확인 결과다. **임의로 바꾸지 말 것.**
+
+### WF04 (Overlay)
+원문 Step: (1) Setting-Display-Overlay에 Image Overlay 추가 (2) Setting-DICOM-Print
+에 Print Overlay 추가 후 Print의 Overlay 항목에서 선택 (3) DICOM Send/Print/Export 확인.
+Expected: Overlay 항목이 포함된 채 Image 전송. 시스템정보 compression/HVL/AGD/Thickness,
+환자정보 ID/birthdate.
+
+- **범위: Send + Print + Export 전부 자동화**(사용자 확정).
+- **Print Overlay는 WF03가 이미 6개를 등록**하고 그 6개가 Expected Result와 정확히
+  일치한다(`core/print_overlay.py::PRINT_ITEMS` = Patient ID, Birth Date, Thickness,
+  Compression Force, HVL, AGD). 재사용한다.
+- **Image Overlay에 추가할 2개 = `Dose kVp` + `Dose mAs`**(사용자 선택). 카탈로그에
+  실재함을 실측 확인했고, Procedure 패널에 28 kVp / 32 mAs로 값이 보여 화면·전송
+  양쪽 검증이 쉽다. 현재 Image Overlay에는 Patient ID/Patient Name/Birth Date/
+  Sex·Age/Histogram/Window Level(W1/W2) 6개가 들어 있다(FieldID 1,2,15,100,113,134).
+- Image Overlay 카탈로그 목록은 `ctrl_id 2382`(ListCtrl, 실측 rect 418,161~718,875)이며
+  **Thickness / Compression Force / HVL / AGD가 목록 맨 끝 4개**로 실재한다.
+- **Export 경로**: 제품 기본값을 쓴다(사용자 의견). `CONFIGURATION.EXPORT.ExportDirPath`가
+  현재 `None`이고 `<data_dir>\Export` 폴더는 이미 존재한다. 경로를 config에
+  하드코딩하지 말고 DB에서 읽어 비어 있으면 `<data_dir>\Export`로 간주한다.
+  **미확인**: `None`일 때 Export가 폴더 선택 창을 띄우는지 실측해야 한다.
+  띄운다면 사용자에게 다시 확인할 것.
+
+### WF05 (DICOM Send 2D)
+원문 Step: (1) DICOM Storage 등록 (2) Examine창에서 Send (3) View창에서 Send
+(4) Examined에서 Send (5) Selected/All Images. Expected: 선택 영상이 등록된 SCP로 전송.
+
+- **범위: 3개 화면 전부 + Selected/All 둘 다**(사용자 확정).
+- **대상 영상: 기존 픽스처(DATA_FLOW_MWL_01)의 2D 원본(InstanceType=0)**(사용자 확정).
+- 판정 로직은 이미 있다 — `tests/dataflow.py::_send_common`이 Queue 변화와
+  **수신 객체의 PatientID/Study·Series·SOP UID를 DB와 대조**한다. 드라이버(실제 UI
+  Send 흐름)만 새로 만들면 된다.
+- 수신 폴더는 `config.json > dicom.received_root` = `C:\Program Files (x86)\Bunny\Receive`
+  (현재 비어 있음). Storage는 `BUNNY_TEST / Bunny / 127.0.0.1:3000`.
+- Examine 화면의 Send 버튼은 `flows.EXAMINE["tool_send"]` = 1148.
+
+## 새로 드러난 이슈 (TC_04 Step 6)
+
+시험 Preset UI 자동 삭제가 동작하면서 **삭제→재등록 경로가 처음 도달 가능**해졌고,
+그 지점에서 새 실패가 나왔다: `Step 등록 실패: 0->4`
+(`_add_view_position_by_alias`는 +1을 기대하는데 한 번에 4개가 등록됨).
+
+- 실측: 삭제 `{'deleted': [1001,1002,1003,1004], 'clicked_rows': ['RCCRL','RCCRM']}`
+  → Step 1~5 PASS → Step 6에서 위 오류.
+- 유력 가설: `vp.click_viewer_text(ui, alias)`가 View Position 다이얼로그에서
+  의도한 타일이 아닌 것을 클릭했거나, Preset 타일 하나가 R/L 쌍을 함께 등록한다.
+  (`PRESET_FLOW_A`/`B`가 둘 다 `PRESET_FL...`로 잘려 여러 박스를 반환하던 결함은
+  2026-08-18에 "정확히 1개일 때만 허용"으로 조였다. 재확인 필요.)
+- 확인 방법: `python run.py run-xipl-04` 실행 후 실패 순간의
+  `%TEMP%ellalun_click_text_probe.png`를 **눈으로 볼 것**(운영 지침 7절 교훈).
+
 ## 실행 전 필수 확인 (실패 시 최우선 원인)
 
 `VIEWER.exe`는 매니페스트가 `requireAdministrator`라 항상 High Integrity로
