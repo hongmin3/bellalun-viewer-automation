@@ -125,6 +125,85 @@ Selected(1개)와 All(전체)의 차이를 검증할 수 없다.
 `ClassUID`로 구분한다(`DataType` 컬럼도 있지만 값의 의미를 실측 확정하지 못해
 추측하지 않았다). RDSR 미수신 시 Demo 촬영 전제 문제이므로 MANUAL로 보고한다.
 
+### 3. [완료] WF_05 / WF_06 / WF_09 구현과 사양서 인용 체계 (2026-08-19)
+
+**사양서를 코드에서 검색할 수 있게 만들었다.** `pypdf`(MIT, 순수 Python)를
+`requirements.txt`에 추가하고 `core/specs.py`를 만들었다. `portability-check`가
+네 패키지(Pillow / pytesseract / openpyxl / pypdf) 설치 여부를 점검한다.
+
+```python
+specs.search(ctx, "익명")   # -> [{'source':'사양서1','page':134,'srs':[...],'text':...}]
+specs.cite(ctx, "Recon")    # -> 판정 note에 넣을 한 줄 인용문
+```
+
+사양서에는 요구사항마다 `SRS 01-10-10` 형태의 ID가 붙어 있다. 절 번호보다 정확해
+`note`에는 **쪽 번호와 SRS ID를 함께** 적는다. 추출 텍스트는 `.txt`로 캐시되므로
+이후에는 grep도 된다(사양서1이 336쪽이라 매번 뽑으면 느리다).
+
+**이걸로 답을 찾은 두 건**
+
+1. `WF_05` 3D 전송 대상 — 사양서1 **125쪽**(SRS 06-30-30 문맥):
+   "3D 영상은 Recon 영상이 전송된다. Recon 영상이 없을 경우 영상은 전송되지 않는다."
+   체크리스트 Test Data가 "사양 추가 확인 필요"로 남긴 의문의 답이다. Conformance
+   Statement가 For Processing(Raw)을 선언하지 않는 것, 실측(DB 4건 중 2D·Recon
+   2건만 수신)과 모두 일치한다.
+2. `WF_09` 익명화 기대값 — 사양서1 **134쪽**: "Anonymous 체크 시, Patient ID 및
+   Patient Name은 Unknown으로 표시". 처음엔 "사양에 명시돼 있지 않다"고 보고
+   '원본과 다르다'로만 판정했는데 **틀렸다.** `Unknown` 정확 대조로 바꿨고,
+   132쪽의 경로 규칙(`Unknown_Unknown\Anonymous_[StudyKey]`)도 참고 판정에 넣었다.
+   실측이 사양서와 완전히 일치했다(PASS 12/12).
+
+**구현 결과**
+
+| TC | 명령 | 실측 |
+|---|---|---|
+| `WF_05` 3D 수동 DICOM Send | `run-wf05` | PASS (received_types = 2D·Recon, 누락 0) |
+| `WF_06` All Images 및 Dose SR | `run-wf06` | 자동 PASS, RDSR 미수신은 MANUAL |
+| `WF_09` Normal 및 Anonymous Export | `run-wf09` | **PASS 12/12** |
+
+`export_manager`에 `set_path()` / `set_anonymous()` / `is_checked()`를 추가했다.
+WF_09는 Normal과 Anonymous를 **서로 다른 경로**로 내보내야 한다(같은 경로면 덮어써서
+두 결과를 비교할 수 없다).
+
+### 4. [완료] 로그인 화면이 다른 창에 가려지는 경우 (2026-08-19)
+
+**사용자 지적**: 로그인 화면에서 다른 실행 프로그램이나 파일 탐색기가 Viewer를
+가리면 로그인을 제대로 수행하지 못한다. 비밀번호는 **물리 키 입력**이라 포커스가
+다른 창에 있으면 키가 그 창으로 들어간다. 화면 캡처는 되므로 증상이 "로그인 실패"로만
+보인다.
+
+**최종 구현** (`ui.bring_to_front()` + `cold_start` 로그인 루프)
+
+1. 로그인 직전에 Viewer를 전면으로 올린다. `SetForegroundWindow`는 Windows가 무시할
+   수 있으므로 **올라왔는지 확인**한다(최대 4회).
+2. 판정은 **프로세스(PID) 기준**이다. `hwnd` 동일성으로 보면 Viewer가 로그인 화면·
+   대화상자에서 다른 최상위 창을 전면에 두는 정상 상황을 "가려졌다"고 오판한다.
+3. 셸 창(`Program Manager` / `Progman` / `WorkerW` / `Shell_TrayWnd`)은 **가림으로
+   보지 않는다.**
+4. **전면화에 실패해도 중단하지 않는다.** 결과를 기동 로그에 남기고 진행한다.
+   로그인이 **최종 실패했을 때** 그 시점의 최전면 창 제목·PID를 오류 메시지에 실어
+   "가려져서 실패했는지"를 알 수 있게 한다.
+
+**두 번 실패한 기록** (같은 실수를 반복하지 않기 위해 남긴다)
+
+처음에는 "전면화 실패 시 FlowError로 중단"으로 만들었다. 그런데 이 PC에서는 가림을
+**재현할 수 없어서**(Viewer가 전면을 강하게 유지) 실패 분기를 실측하지 못한 상태로
+넣었다. 결과:
+
+- 회귀 13차: `name 'os' is not defined` — `core/flows.py`에 `import os`가 없는데
+  스크린샷 경로를 만들었다. **컴파일은 통과했다.** 14개 TC 연쇄 FAIL.
+- 회귀 14차: import를 고쳤는데 같은 지점에서 또 실패 —
+  `가리고 있는 창: 'Program Manager' (PID 7108)`. 데스크톱 셸을 가림으로 오판했다.
+  Viewer를 새로 띄운 직후에는 최전면이 데스크톱인 정상 순간이 있다.
+
+**얻은 규칙**(운영 지침에 반영): 재현할 수 없는 상황에는 **중단이 아니라 진단**을
+넣는다. 그리고 컴파일은 import 누락을 잡지 못하므로 바꾼 모듈은 실제로 호출해 본다.
+
+**검증**: `setup-dicom` 실행으로 `cold_start` 로그인 경로를 실제로 통과함을 확인했다
+(PASS 14 / FAIL 0, 기동 로그에 전면 경고 없음). **가림 자체는 여전히 재현하지
+못했으므로**, 실제로 가려진 환경을 만나면 오류 메시지의 창 제목과
+`Evidence/ui/login_not_foreground.png`를 먼저 확인할 것.
+
 ### 그 밖의 다음 후보
 
 `TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).

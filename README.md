@@ -18,11 +18,11 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python 약 **12,000줄**, 모듈 37개(core 23 / tests 12), 커밋 44개 |
-| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 12 / 부분자동 5 / 수동 19 (+ 자동화 보조 4) |
-| 최신 회귀 실적 | **PASS 140 / FAIL 1 / MANUAL 10 / SKIP 1** — 18 TC 전수 (2026-08-19 13:50) |
+| 규모 | Python 약 **12,800줄**, 모듈 39개(core 24 / tests 13), 커밋 46개 |
+| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 14 / 부분자동 5 / 수동 17 (+ 자동화 보조 4) |
+| 최신 회귀 실적 | **PASS 160 / FAIL 1 / MANUAL 10 / SKIP 1** — 20 TC 전수 (2026-08-19 16:00) |
 | 그 FAIL 1건 | 자동화가 **실제 제품 결함을 잡아낸** 정상 결과 (§6) |
-| 외부 의존성 | Pillow, pytesseract, openpyxl **3개뿐** (§4 참고) |
+| 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** (§4 참고) |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -137,15 +137,25 @@ polling합니다. 모든 대기에는 타임아웃이 있어 무한 대기가 �
 
 ## 4. 기술 선택과 이유
 
-**외부 의존성을 3개로 억제** (`requirements.txt`: Pillow, pytesseract, openpyxl)
+**외부 의존성을 4개로 억제** (`requirements.txt`: Pillow, pytesseract, openpyxl,
+pypdf)
 
 | 필요 기능 | 흔한 선택 | 이 프로젝트의 선택 | 이유 |
 |---|---|---|---|
 | Win32 UI 제어 | pywin32 | **`ctypes`** 직접 호출 | 설치 부담 제거, QA PC 이식성 |
 | SQL Server 접근 | pyodbc | **PowerShell + .NET `SqlClient`** | Windows 기본 제공, 드라이버 설치 불필요 |
 | DICOM 파싱 | pydicom | **자체 `dicomlite.py`** | 필요한 태그만 읽으면 충분 |
+| 사양서 PDF 읽기 | PyMuPDF, pdfplumber | **`pypdf`** | MIT 라이선스, 순수 Python이라 빌드 도구 불필요 |
+
+`pypdf`는 나중에 추가했습니다. 사양서가 `.pdf`라 grep이 되지 않아 **판정 근거를
+코드에서 인용할 수 없었기** 때문입니다. `core/specs.py`가 사양서에서 문구를 찾아
+**쪽 번호와 SRS ID까지** 돌려주고, 그 값을 판정의 `note`에 적습니다. 라이선스와
+빌드 부담을 함께 본 결과 `pypdf`를 골랐습니다 — PyMuPDF는 AGPL/상용 이중
+라이선스라 의료기기 QA 저장소에 넣기 부담스럽고, pdfplumber는 의존성이 더 깊습니다.
 
 덕분에 새 QA PC에서 `pip install -r requirements.txt` 한 번으로 준비가 끝납니다.
+`portability-check`가 **네 패키지의 설치 여부를 시작 시점에 점검**하고, 빠졌으면
+설치 명령까지 알려줍니다.
 
 **판정에 쓰는 증거 5종** — 하나에만 의존하지 않습니다.
 
@@ -191,8 +201,10 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | `run.py run-wf02` | WF_02 공통 2D/3D 촬영 및 Tool 적용 |
 | `run.py run-wf03` | WF_03 Image Overlay 및 Print Overlay 설정 |
 | `run.py run-wf04` | WF_04 2D 수동 DICOM Send (Selected Images) |
+| `run.py run-wf05` | WF_05 3D 수동 DICOM Send |
 | `run.py run-wf06` | WF_06 All Images 및 Dose SR 전송 |
 | `run.py run-wf08` | WF_08 2D/3D Film Print (실제 출력물 대조) |
+| `run.py run-wf09` | WF_09 Normal 및 Anonymous Export |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
 | `run.py run-sys3d` | 보조: 3D-Narrow / 3D-Wide 촬영 검증 |
 | `run.py list` | 개정본 36개 TC의 자동화 수준과 사유 |
@@ -342,6 +354,78 @@ New Patient 탭 컨트롤(ID 2285)을 20초 동안 찾지 못했습니다.
 비교해 확인한다.** 그리고 실패 메시지에는 "무엇을 못 찾았는가"와 함께 **"지금 무엇이
 보이는가"**(랜드마크·대화상자 문구·캡처)를 남긴다 — 이 한 줄이 세 번째 추측을
 막았습니다.
+
+### 사양서를 코드에서 인용할 수 있게 만든 것
+
+체크리스트가 스스로 미확정을 표시한 항목이 있었습니다 — `WorkFlow_05`의 Test Data에
+*"3D 대상: Recon 영상만 전송 여부는 검증 버전 사양 추가 확인 필요"*.
+
+사양서는 `.pdf`라 grep이 되지 않아 근거를 대기 어려웠습니다. `pypdf`(MIT, 순수
+Python)를 의존성에 추가하고 **`core/specs.py`** 를 만들어 해결했습니다.
+
+```python
+specs.search(ctx, "익명")
+# [{'source': '사양서1', 'page': 134, 'srs': [...], 'text': '... Unknown으로 표시 ...'}]
+```
+
+사양서에는 요구사항마다 `SRS 01-10-10` 형태의 ID가 붙어 있어, 절 번호보다 정확하게
+인용할 수 있습니다. 이걸로 **두 가지 답을 찾았습니다.**
+
+**① 3D 전송 대상** — 사양서1 125쪽(SRS 06-30-30 문맥):
+
+> "3D 영상은 Recon 영상이 전송된다. Recon 영상이 없을 경우 영상은 전송되지 않는다."
+
+DICOM Conformance Statement가 For Processing(Raw)을 선언하지 않는 것과, 실측
+(DB에 4건인데 2D·Recon 2건만 수신)이 모두 일치했습니다.
+
+**② 익명화 기대값 — 제가 틀렸던 것을 정정했습니다.** 처음엔 "익명화 방식이 사양에
+명시돼 있지 않다"고 보고 *"원본과 다르다"* 로만 판정했습니다. 사양서1 134쪽에
+명문으로 있었습니다.
+
+> "익명 처리되는 환자 정보: Patient ID, Patient Name, Accession Number, Other
+> Patient ID, Other Patient Name, Birth Date, Age"
+> "Anonymous 체크 시, **Patient ID 및 Patient Name은 Unknown으로 표시**"
+
+판정을 `Unknown` 정확 대조로 바꾸고 132쪽의 경로 규칙까지 확인하게 했습니다.
+실측 결과가 사양서와 완전히 일치했습니다 — `patient_ids: ['Unknown']`,
+폴더 `Unknown_Unknown` / `Anonymous_48`.
+
+**얻은 것**: 느슨한 판정("원본과 다르다")을 유지했다면 이 정확성을 확인할 수
+없었습니다. 근거 문서를 읽을 수 있게 만드는 것 자체가 검증 강도를 올립니다.
+
+### 예외처리를 넣다가 정상 실행을 막은 일 (회귀 2회 붕괴)
+
+사용자가 *"로그인 화면이 다른 창에 가려져 로그인을 못 할 수 있으니 예외처리해 달라"*
+고 요청했습니다. 비밀번호는 물리 키 입력이라 포커스가 다른 창에 있으면 키가 그쪽으로
+들어가고, 화면 캡처는 되니 원인을 알기 어렵습니다 — 타당한 요청입니다.
+
+그런데 **이 PC에서는 가림을 재현할 수 없었습니다.** 탐색기·메모장을 강제로 전면에
+올려도 Viewer가 전면을 유지했습니다. 그 상태에서 *"전면화 실패 시 중단"* 로직을
+넣었고, 회귀가 두 번 무너졌습니다(`PASS 160 → 30`).
+
+| 회차 | 실패 메시지 | 원인 |
+|---|---|---|
+| 13차 | `name 'os' is not defined` | `os.path.join`을 쓰면서 `import os` 누락. **컴파일은 통과** |
+| 14차 | `가리고 있는 창: 'Program Manager'` | `Program Manager`는 **Windows 데스크톱 셸**. 기동 직후 최전면이 데스크톱인 정상 순간에 발동 |
+
+**무엇을 잘못 설계했나** — 목적은 "가려져서 실패했을 때 **원인을 알 수 있게**"였는데
+"가려졌으면 **아예 중단**"으로 만들었습니다. 정상 실행을 막는 쪽이 훨씬 나쁩니다.
+
+**재설계**: 셸 창은 가림으로 보지 않고, 전면화는 **시도하고 결과만 로그에 남기고
+진행**합니다. 로그인이 최종 실패했을 때 그 시점의 최전면 창 정보를 오류에 실어
+"가려져서 실패했는지"를 알 수 있게 합니다.
+
+**규칙으로 승격한 것**
+
+- **재현할 수 없는 상황에는 '중단'이 아니라 '진단'을 넣는다.** 실패 분기를 실측하지
+  못했다면 그것이 정상 실행을 막을 수 있다고 가정한다.
+- **컴파일은 import 누락을 잡지 못한다.** 바꾼 모듈은 실제로 import 해 호출해 보거나
+  `ast`로 정의되지 않은 전역 이름을 훑는다.
+- "무엇이 비정상인가"를 판단할 때 **OS/셸의 정상 상태를 목록으로 배제한다.**
+
+한 가지는 잘 작동했습니다. 앞서 만든 리포트 상단 **`[먼저 볼 것] 가장 앞선 FAIL`이
+두 번 모두 제 실수를 즉시 지목**했습니다. 14건의 FAIL 중 무엇을 먼저 봐야 하는지
+헤매지 않았습니다.
 
 ### 자동화 자체의 함정 (수정 완료)
 
@@ -503,12 +587,17 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 | 8차 | 08-18 17:52 | 17 | 121 | 5 | 기동·서비스 수정 |
 | 10차 | 08-19 09:55 | 17 | 124 | 2 | Send·화면 이동 수정 |
 | 11차 | 08-19 11:26 | 17 | 124 | 2 | 개정본 기준 TC 번호 전면 재정렬 |
-| 12차 | 08-19 13:50 | 18 | **140** | **1** | 저장 확인 팝업 처리, WF_06 신규, WF_04 강화 |
+| 12차 | 08-19 13:50 | 18 | 140 | 1 | 저장 확인 팝업 처리, WF_06 신규, WF_04 강화 |
+| 13·14차 | 08-19 14:39/14:59 | 20 | 30 | 14 | **제가 넣은 로그인 가드가 정상 실행을 막음**(§6) |
+| 15차 | 08-19 16:00 | 20 | **160** | **1** | 가드 재설계, WF_05·WF_09 신규 |
 
-**12차의 FAIL은 1건이며, 실제 제품 결함입니다**(`XIPL_03` Step 9 — Apply 후 파라미터
+**15차의 FAIL은 1건이며, 실제 제품 결함입니다**(`XIPL_03` Step 9 — Apply 후 파라미터
 기본값 복귀). 자동화가 스스로 막혀서 실패한 항목은 남아 있지 않습니다.
 
-### 완전 자동 (12건)
+13·14차의 급락은 **제 실수**입니다. 숨기지 않고 §6에 경위를 적었습니다 — 재현할 수
+없는 상황에 '중단' 로직을 넣은 것이 원인이었습니다.
+
+### 완전 자동 (14건)
 
 | TC | 내용 |
 |---|---|
@@ -516,7 +605,9 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 | `WorkFlow_01` | MWL 및 Local 검사 생성 |
 | `WorkFlow_02` | 공통 2D/3D 검사 촬영 및 Tool 적용 |
 | `WorkFlow_03` | Image Overlay 및 Print Overlay 설정 |
+| `WorkFlow_05` | 3D 수동 DICOM Send (사양이 정한 Recon 수신 대조) |
 | `WorkFlow_08` | 2D/3D Film Print (실제 출력물 OCR·raster 대조) |
+| `WorkFlow_09` | Normal 및 Anonymous Export (익명화 값까지 대조) |
 | `XIPL_compatibility_01~06` | XIPL 연동 6종 (영상처리 파라미터 왕복 검증) |
 
 ### 부분 자동 (5건)
@@ -537,7 +628,7 @@ Selected Images로 전송 → Queue `State=Done` 확인 → 수신 객체 **정�
 Demo(F8) 가상 촬영이라 그 조건 성립이 확인되지 않았습니다. 전제 미충족을 제품
 결함처럼 보고하지 않습니다.
 
-### 수동 (19건)
+### 수동 (17건)
 
 실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 사양 미확정, 또는 **UI
 드라이버 미구현**이 이유입니다. **임의로 자동 PASS를 만들지 않는 것이 이
@@ -547,8 +638,6 @@ Demo(F8) 가상 촬영이라 그 조건 성립이 확인되지 않았습니다. 
 
 | TC | 재사용할 것 |
 |---|---|
-| `WorkFlow_05` 3D 수동 DICOM Send | `tests/send_flows.py` (전송 대상 3D 영상 종류는 사양 확인 선행) |
-| `WorkFlow_09` Normal 및 Anonymous Export | `core/export_manager.py` (익명화는 `ANONYMOUS` 컨트롤) |
 | `WorkFlow_11/12` Reject 및 Restore | `tests/dataflow.py`의 DB 델타 판정 |
 
 ### 자동화 보조 (4건)
