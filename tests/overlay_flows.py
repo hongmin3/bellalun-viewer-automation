@@ -1,68 +1,56 @@
 # -*- coding: utf-8 -*-
-"""TC_Basic_WorkFlow_04 — Overlay.
+r"""TC_Basic_WorkFlow_03 - Image Overlay 및 Print Overlay 설정.
 
-체크리스트 원문 (변경 금지):
-  Step 1. Setting - Display - Overlay - Image Overlay를 추가한다.
-  Step 2. Setting - DICOM - Print - Print Overlay를 추가한뒤 Print의 Overlay항목에
-          추가한 Print Overlay를 선택한다.
-  Step 3. DICOM Send, Print, Export 확인한다.
-  Expected: 3. Overlay 항목이 포함된채 Image가 전송된다.
-            시스템정보: compression, HVL, AGD, Thickness 등
-            환자정보: ID, birthdate
+체크리스트 원문 (변경 금지) — `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`
+시트 `개정 TC` row 13:
 
-사용자 확정 사항 (2026-08-18):
-  * 범위는 **Send + Print + Export 전부**.
-  * Print Overlay는 WF03가 이미 등록하는 6개를 재사용한다 — Patient ID,
-    Birth Date, Thickness, Compression Force, HVL, AGD. Expected Result의
-    시스템정보/환자정보와 정확히 일치한다.
-  * Image Overlay에 추가할 2개는 **Dose kVp + Dose mAs**.
-  * Export 경로는 **제품 기본값**을 쓴다(폴더 선택 창은 뜨지 않고 경로 Edit에
-    `<data_dir>\\Export`가 이미 채워져 있다 — 실측).
+  Precondition
+    TC_Basic_WorkFlow_03이 Pass이다.
+    DATA_FLOW_MWL_01에 2D/3D 영상이 존재한다.
+  Step 1. Setting > Display > Overlay에서 Image Overlay 항목을 추가한다.
+  Step 2. Setting > DICOM > Print에서 Print Overlay를 추가한다.
+  Step 3. Print 설정에서 추가한 Print Overlay를 선택한다.
+  Step 4. Examined 창에서 DATA_FLOW_MWL_01 검사를 연다.
+  Step 5. 2D 영상의 Image Overlay를 확인한다.
+  Step 6. Film 창에 동일 영상을 추가하고 Print Overlay를 확인한다.
+  Expected 1. 선택한 Image Overlay 항목이 저장된다.
+  Expected 2. Print Overlay 구성이 저장된다.
+  Expected 3. Print 설정에 선택한 Overlay가 적용된다.
+  Expected 4. 동일 환자와 검사 영상이 열린다.
+  Expected 5. 설정한 Image Overlay 항목이 표시된다.
+  Expected 6. Film 창에 설정한 Print Overlay가 표시된다.
 
-판정 근거(운영 지침 2절): 설정 저장은 DB로, 전송은 **실제 수신 객체의 UID를 DB와
-대조**하고, Export는 **경로에 생긴 파일**로 판정한다. 버튼을 눌렀다는 사실만으로
+**2026-08-19 재라벨**: 이전에는 이 모듈이 `TC_Basic_WorkFlow_04 - Overlay`였다.
+그때는 다른 체크리스트(`지식\(TC) R-23-2346...xlsx`)의 번호를 따랐는데, 이 저장소의
+기준 문서는 **개정본**이다(`AGENTS.md` 0절). 개정본에서 이 내용은 `WF_03`이고,
+`WF_04`는 "2D 수동 DICOM Send"(tests/send_flows.py)다.
+
+단계 분담
+  * Step 1~3은 이 모듈이 실제 UI로 수행하고 DB로 대조한다
+    (CONFIGURATION.OVERLAY_ITEM / PRINT_OVERLAY_ITEM / DICOM_PRINT.Overlay).
+  * Step 4~5(Examined에서 열어 Image Overlay 표시 확인)는 이 모듈이 검사를 열어
+    확인한다.
+  * **Step 6(Film 창의 Print Overlay 표시)은 `WF_08`(tests/workflow03.py)이**
+    Film Layout 1x1 구성과 실제 DICOM Print, Print SCP가 수신한 Film의 Overlay
+    실제값 OCR·raster 비교로 검증한다. 중복 출력하지 않고 그 결과를 참조한다.
+
+Print Overlay 6개 항목은 Expected Result의 시스템정보(compression, HVL, AGD,
+Thickness)와 환자정보(ID, birthdate)에 대응한다 — Patient ID, Birth Date,
+Thickness, Compression Force, HVL, AGD. Image Overlay 추가 항목은 Dose kVp,
+Dose mAs다(사용자 확정, 2026-08-18).
+
+판정 근거(운영 지침 2절): 설정 저장은 DB로 대조한다. 버튼을 눌렀다는 사실만으로
 판정하지 않는다.
 """
 
 import os
 import time
 
-from core import dicomlite, export_manager as em, flows, print_overlay
+from core import flows, print_overlay, screen
 from core import viewer_processing as vp
-from core import dicom_settings as ds
-from core.dicom_settings import ensure_bunny
 from core.result import TCResult, FAIL
 
 IMAGE_OVERLAY_ADD = ["Dose kVp", "Dose mAs"]
-
-
-def _received_uids(ctx):
-    root = (ctx.cfg.get("dicom") or {}).get("received_root") or ""
-    if not root or not os.path.isdir(root):
-        return None, []
-    objects = dicomlite.scan_dir(root)
-    return objects, [o.get("SOPInstanceUID") for o in objects
-                     if o.get("SOPInstanceUID")]
-
-
-def _clear_received(ctx):
-    root = (ctx.cfg.get("dicom") or {}).get("received_root") or ""
-    if root and os.path.isdir(root):
-        for dirpath, _, files in os.walk(root):
-            for name in files:
-                try:
-                    os.remove(os.path.join(dirpath, name))
-                except OSError:
-                    pass
-
-
-def _db_uids(ctx, patient_id):
-    return {r["ImageInstanceUID"] for r in ctx.db.query(
-        "DATA",
-        "SELECT i.ImageInstanceUID FROM INSTANCE i "
-        "JOIN STUDY s ON s.[Key]=i.StudyKey JOIN PATIENT p ON p.[Key]=s.PatientKey "
-        "WHERE p.PatientID=@pid AND i.ImageInstanceUID IS NOT NULL",
-        {"pid": patient_id})}
 
 
 def _open_examined(ui, wait=6):
@@ -89,16 +77,11 @@ def _open_examined(ui, wait=6):
     time.sleep(1.5)
 
 
-def workflow_04(ctx):
-    r = TCResult("TC_Basic_WorkFlow_04", "Overlay")
+def workflow_03(ctx):
+    r = TCResult("TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정")
     patient_id = (ctx.cfg.get("xipl") or {}).get(
         "test_patient_id", "DATA_FLOW_MWL_01")
     try:
-        if not ensure_bunny(ctx.cfg):
-            r.add(0, "Storage SCP(Bunny) 기동", FAIL,
-                  expected="Bunny 실행 및 수신 포트 대기", actual="확인 실패")
-            return r
-
         session = vp.open_test_study(ctx)
         ui = session["ui"]
 
@@ -125,96 +108,73 @@ def workflow_04(ctx):
         applied = print_overlay.apply_to_print_server(
             ui, ctx.db, print_spec["name"], po["overlay"]["Key"],
             tesseract_exe=tess)
+        # 개정본은 "Print Overlay를 추가한다"(Step 2)와 "Print 설정에서 선택한다"
+        # (Step 3)를 별개 단계로 둔다. 한 판정으로 묶으면 어느 쪽이 실패했는지
+        # 리포트에서 구분되지 않으므로 나눠서 기록한다.
         r.assert_true(
-            2, "Setting > DICOM > Print Overlay 추가 및 Print에서 선택",
-            len(po["items"]) == len(print_overlay.PRINT_ITEMS)
-            and applied.get("Overlay") == po["overlay"]["Key"],
+            2, "Setting > DICOM > Print에서 Print Overlay 추가",
+            len(po["items"]) == len(print_overlay.PRINT_ITEMS),
             expected={"name": print_overlay.OVERLAY_NAME,
-                      "items": [x[0] for x in print_overlay.PRINT_ITEMS],
-                      "print_server_overlay_key": po["overlay"]["Key"]},
-            actual={"saved": po, "applied": applied},
-            note="Expected Result의 시스템정보(compression/HVL/AGD/Thickness)와 "
-                 "환자정보(ID/birthdate)가 이 6개 항목이다. "
-                 "PRINT_OVERLAY_ITEM 저장과 DICOM_PRINT.Overlay 선택을 DB로 대조.")
+                      "items": [x[0] for x in print_overlay.PRINT_ITEMS]},
+            actual={"saved": po},
+            note="Expected 2. Print Overlay 구성이 저장된다. "
+                 "CONFIGURATION.PRINT_OVERLAY_ITEM으로 대조. Expected Result의 "
+                 "시스템정보(compression/HVL/AGD/Thickness)와 환자정보"
+                 "(ID/birthdate)가 이 6개 항목이다.")
+        r.assert_equal(
+            3, "Print 설정에서 추가한 Print Overlay 선택",
+            po["overlay"]["Key"], applied.get("Overlay"),
+            note="Expected 3. Print 설정에 선택한 Overlay가 적용된다. "
+                 f"DICOM_PRINT({print_spec['name']}).Overlay를 DB로 대조.")
 
-        # --- Step 3-a: DICOM Send -------------------------------------
-        # 전송 전에 Transfer Syntax를 사양이 선언한 값으로 맞춘다. 이 전제가
-        # 없어서 회귀에서 매번 수신 0건으로 FAIL했다 — DB를 기준 복원하면 설정이
-        # 제품 기본값(JPEG 2000 Lossless)으로 돌아가고, conformant SCP는 그
-        # Presentation Context를 거절한다(2026-08-18 Bunny 로그로 확인:
-        # `1.2.840.10008.1.2.4.90` -> `Presentation Context ID: 1 - Rejected`).
-        # **검사를 열기 전에** 해야 한다(Setting을 드나들면 영상 선택이 풀린다).
-        flows.ensure_patient_screen(ui, wait=3)
-        ts = ds.ensure_storage_transfer_syntax(ctx, ui)
-        if not ts["ok"]:
-            r.add(3, "DICOM Send 전제 — Storage Transfer Syntax", FAIL,
-                  expected=f"TransferSyntax={ds.TRANSFER_SYNTAX_IMPLICIT} "
-                           "(Implicit VR LE)",
-                  actual=ts,
-                  note="DICOM Conformance Statement V1.3W1 Proposed Presentation "
-                       "Context Table 기준값. 이 값이 아니면 전송이 거절된다.")
-
+        # --- Step 4~5: Examined에서 검사를 열어 Image Overlay 표시 확인 ----
         session = vp.open_test_study(ctx)
         ui = session["ui"]
         flows.select_step(ui, session["step_2d"])
-        vp.expand_tools(ui)
-        _clear_received(ctx)
-        sent = flows.send_current_study(ui, scope="all")
-        end = time.time() + 60
-        objects, uids = [], []
-        while time.time() < end:
-            objects, uids = _received_uids(ctx)
-            if uids:
-                break
-            time.sleep(2)
-        expected = _db_uids(ctx, patient_id)
-        unknown = set(uids) - expected
+        study = ctx.db.one(
+            "DATA",
+            "SELECT TOP 1 s.[Key], s.StudyInstanceUID, p.PatientID, p.PatientName "
+            "FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
+            "WHERE p.PatientID=@pid ORDER BY s.[Key] DESC", {"pid": patient_id})
         r.assert_true(
-            3, "DICOM Send — Overlay 설정 상태에서 영상 전송",
-            bool(uids) and not unknown,
-            expected=f"수신 객체의 모든 SOP Instance UID가 {patient_id}의 DB와 일치",
-            actual={"send": sent, "received": len(objects),
-                    "modalities": sorted({o.get("Modality") for o in objects}),
-                    "sop_classes": sorted({o.get("SOPClassUID") for o in objects}),
-                    "uids_matched": len(set(uids) & expected),
-                    "uids_not_in_db": sorted(unknown)},
-            note="Queue 상태가 아니라 실제 수신 객체의 UID를 DB와 대조한다.")
+            4, "Examined에서 대상 검사 열기",
+            bool(study) and str(study.get("PatientID")) == patient_id,
+            expected=f"PatientID={patient_id} 검사가 열린다",
+            actual=study,
+            note="DATA.STUDY/PATIENT로 대조. 열린 검사의 환자정보가 Expected 4다.")
 
-        # --- Step 3-b: Export -----------------------------------------
+        shot = os.path.join(ctx.evidence_root, "Flow", "03_Overlay",
+                            "05_image_overlay.png")
+        os.makedirs(os.path.dirname(shot), exist_ok=True)
+        win = ui.main_window()
+        if win:
+            screen.grab(win.rect, path=shot)
+            r.attach(shot)
+        r.manual(
+            5, "2D 영상에 추가한 Image Overlay 항목 표시 확인",
+            f"Step 1에서 추가한 {IMAGE_OVERLAY_ADD} 가 영상 위 Overlay에 표시되는지 "
+            "캡처로 확인한다. 이 항목들은 촬영 조건 값이라 Demo(F8) 가상 촬영에서는 "
+            "실제 노출값이 들어오지 않을 수 있어 자동 판정 대상으로 두지 않는다. "
+            "설정이 저장된 사실은 Step 1이 CONFIGURATION.OVERLAY_ITEM으로 대조했다.",
+            expected=f"영상 Overlay에 {IMAGE_OVERLAY_ADD} 표시",
+            actual=f"증적 캡처: {shot}")
+
+        # --- Step 6: Film 창의 Print Overlay 표시 -------------------------
+        r.manual(
+            6, "Film 창에 설정한 Print Overlay 표시 확인",
+            "TC_Basic_WorkFlow_08(run-wf08)이 Film Layout 1x1 구성과 실제 DICOM "
+            "Print를 수행하고, Print SCP가 수신한 Film의 Overlay 실제값을 OCR로 "
+            "읽어 raster까지 대조한다. 중복 출력하지 않고 그 결과를 참조한다.",
+            expected="Film에 Patient ID/Birth Date/Thickness/Compression Force/"
+                     "HVL/AGD 표시",
+            actual="WF_08에서 자동 검증")
+
         if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
             flows.close_examine(ui, option="suspend", wait=10)
-        flows.ensure_patient_screen(ui, wait=3)
-        _open_examined(ui)
-        picked = vp.click_viewer_text(ui, "MWL", settle=1.5)
-        export_button = [c for c in ui.by_id(2191) if c.visible]
-        if not picked or not export_button:
-            r.add(3, "Export — Overlay 설정 상태에서 파일 내보내기", FAIL,
-                  expected="Examined에서 검사 선택 후 Export(2191)",
-                  actual={"card_selected": picked,
-                          "export_button": bool(export_button)})
-        else:
-            ui.click(export_button[0], settle=3)
-            manager = em.attach()
-            outcome = em.export(manager, wait=120)
-            r.assert_true(
-                3, "Export — Overlay 설정 상태에서 파일 내보내기",
-                bool(outcome["files"]),
-                expected="제품 기본 Export 경로에 파일 생성",
-                actual=outcome,
-                note="경로는 제품 기본값을 그대로 쓴다(폴더 선택 창 없음). "
-                     "버튼 클릭이 아니라 경로에 생긴 파일로 판정한다.")
-
-        # --- Step 3-c: Print -------------------------------------------
-        r.manual(3, "Print — Overlay 항목이 포함된 출력물 확인",
-                 "실제 Film 출력과 출력물의 Overlay 표시 검증은 "
-                 "TC_Basic_WorkFlow_03(run-wf03)이 Print 서버 웹 프리뷰 OCR로 "
-                 "이미 수행한다. WF04에서 중복 출력하지 않고 그 결과를 참조한다.",
-                 expected="Film에 Patient ID/Birth Date/Thickness/Compression/HVL/AGD 표시",
-                 actual="WF03에서 자동 검증됨")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_04 실행", FAIL, actual=str(exc))
+        r.add(0, "TC_Basic_WorkFlow_03 실행", FAIL, actual=str(exc))
     return r
 
 
 def run(ctx):
-    return [workflow_04(ctx)]
+    return [workflow_03(ctx)]

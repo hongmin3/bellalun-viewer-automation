@@ -175,7 +175,7 @@ def _preview_urls(job):
 
 
 def run(ctx):
-    result = TCResult("TC_Basic_WorkFlow_03", "DICOM Print Overlay 실제 출력 및 웹 프리뷰 검증")
+    result = TCResult("TC_Basic_WorkFlow_08", "2D/3D Film Print")
     ui = None
     try:
         target = _fixture(ctx)
@@ -278,5 +278,5 @@ def run(ctx):
                     "film_ocr": film_text, "web_ocr": web_text,
                     "web_values": web_values, "image": similarity})
     except Exception as exc:
-        result.add(0, "TC_Basic_WorkFlow_03 실행", FAIL, actual=str(exc))
+        result.add(0, "TC_Basic_WorkFlow_08 실행", FAIL, actual=str(exc))
     return result

@@ -492,11 +492,52 @@ def _need(ui, ctrl_id, what, timeout=20):
         time.sleep(.4)
         hits = ui.by_id(ctrl_id)
     if not hits:
-        raise FlowError(f"{what} 컨트롤(ID {ctrl_id})을 {timeout}초 동안 "
-                        f"찾지 못했습니다. 현재 화면 랜드마크="
-                        f"{known_screen(ui) or '없음'}. "
-                        "현재 화면을 ui-probe로 확인하십시오.")
+        raise FlowError(
+            f"{what} 컨트롤(ID {ctrl_id})을 {timeout}초 동안 찾지 못했습니다. "
+            + _screen_context(ui))
     return hits[0]
+
+
+def _screen_context(ui):
+    """실패 시점의 화면 상태를 한 줄로 만든다(랜드마크 + 열린 대화상자 + 캡처).
+
+    랜드마크만으로는 부족했다. 2026-08-19 회귀에서 `TC_XIPL_compatibility_04`가
+    `랜드마크=['status_bar','examine']`로 실패했는데, 같은 상태를 직접 만들어
+    재현하니 정상 동작했다. 남은 차이가 **모달 대화상자**일 가능성이 크지만
+    실패 시점 증적이 없어 확인할 수 없었다(이 저장소에서 모달이 클릭을 삼키는
+    문제는 반복 확인됐다 - 운영 지침 11절).
+
+    그래서 실패 순간에 (1) 랜드마크, (2) 열려 있는 대화상자 문구, (3) 전체 화면
+    캡처를 남긴다. 다음 발생 때는 한 번에 원인을 지목할 수 있어야 한다.
+    """
+    parts = [f"화면 랜드마크={known_screen(ui) or '없음'}"]
+    try:
+        dialog = ui.dialog()
+    except Exception:
+        dialog = None
+    if dialog:
+        message = ""
+        try:
+            from core.ui import children
+            texts = [c.text for c in children(dialog.hwnd, 3)
+                     if c.visible and c.text and len(c.text) > 3]
+            message = " | ".join(texts[:4])
+        except Exception:
+            pass
+        parts.append(f"열린 대화상자={dialog.text!r} {message!r}"
+                     " <- 모달이 클릭을 삼켰을 수 있다")
+    else:
+        parts.append("열린 대화상자=없음")
+    try:
+        import os
+        from core import screen
+        from PIL import ImageGrab
+        path = os.path.join("Evidence", "ui", "need_failed.png")
+        screen.grab(ImageGrab.grab(all_screens=True).getbbox(), path=path)
+        parts.append(f"캡처={path}")
+    except Exception as exc:
+        parts.append(f"캡처 실패={exc}")
+    return ". ".join(parts) + "."
 
 
 # --- Patient 화면 -----------------------------------------------------

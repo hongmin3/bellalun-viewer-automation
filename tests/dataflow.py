@@ -1,16 +1,29 @@
 # -*- coding: utf-8 -*-
-"""검사·영상 데이터 흐름 TC.
+r"""검사·영상 데이터 흐름 TC의 판정부 (pre/post DB 스냅샷 대조).
 
-TC_Basic_WorkFlow_01  MWL 및 Local 검사 생성 (판정부)      [pre/post]
-TC_Basic_WorkFlow_05  2D 수동 DICOM Send                   [pre/post]
-TC_Basic_WorkFlow_06  3D 수동 DICOM Send                   [pre/post]
-TC_Basic_WorkFlow_07  All Images 및 Dose SR 전송            [pre/post]
-TC_Basic_WorkFlow_10  Normal 및 Anonymous Export           [pre/post]
-TC_Basic_WorkFlow_12  Image Reject 및 Restore              [pre/post]
-TC_Basic_WorkFlow_13  Study Reject 및 Restore              [pre/post]
+  TC_Basic_WorkFlow_01  MWL 및 Local 검사 생성
+  TC_Basic_WorkFlow_04  2D 수동 DICOM Send
+  TC_Basic_WorkFlow_05  3D 수동 DICOM Send
+  TC_Basic_WorkFlow_06  All Images 및 Dose SR 전송
+  TC_Basic_WorkFlow_09  Normal 및 Anonymous Export
+  TC_Basic_WorkFlow_10  MWL Hospital Code와 Procedure 매핑
+  TC_Basic_WorkFlow_11  Image Reject 및 Restore
+  TC_Basic_WorkFlow_12  Study Reject 및 Restore
+  TC_Basic_WorkFlow_13  계정 추가·수정 및 로그인
+  TC_Basic_WorkFlow_14  Setting Export 및 Import
+  TC_Basic_WorkFlow_16  Kiosk 및 System Launcher
+
+**이 모듈은 `run.py`에 연결돼 있지 않다.** pre/post 스냅샷을 만드는 UI 드라이버가
+아직 없어서, 판정 함수만 준비된 상태다. WF_04는 `tests/send_flows.py`가 실제 UI로
+수행하므로 여기 판정부는 쓰이지 않는다.
+
+**2026-08-19 번호 재정렬**: 이 모듈은 이전 체크리스트 번호를 쓰고 있었다(예:
+"Normal 및 Anonymous Export"가 `WF_10`). 기준 문서인
+`..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`에 맞춰 전부 다시 매겼다
+(`AGENTS.md` 0절). Title은 개정본과 같았고 번호만 어긋나 있었다.
 
 전송/Export 판정은 Queue 상태만 보지 않는다. 실제 수신·생성 객체의
-Patient ID / Study·Series·SOP Instance UID를 원본과 대조한다(지침 반영).
+Patient ID / Study·Series·SOP Instance UID를 원본과 대조한다(운영 지침 2절).
 """
 
 import os
@@ -149,27 +162,27 @@ def _send_common(ctx, pre, post, tc_id, title, expect_rdsr):
     return r
 
 
-def workflow_05_evaluate(ctx, pre, post):
-    return _send_common(ctx, pre, post, "TC_Basic_WorkFlow_05",
+def workflow_04_evaluate(ctx, pre, post):
+    return _send_common(ctx, pre, post, "TC_Basic_WorkFlow_04",
                         "2D 수동 DICOM Send", expect_rdsr=False)
 
 
-def workflow_06_evaluate(ctx, pre, post):
-    r = _send_common(ctx, pre, post, "TC_Basic_WorkFlow_06",
+def workflow_05_evaluate(ctx, pre, post):
+    r = _send_common(ctx, pre, post, "TC_Basic_WorkFlow_05",
                      "3D 수동 DICOM Send", expect_rdsr=False)
     r.manual(2, "3D 전송 대상 영상 종류",
              "Recon만 전송인지 Raw/Synthetic 포함인지 검증 버전 사양 확인 필요")
     return r
 
 
-def workflow_07_evaluate(ctx, pre, post):
-    return _send_common(ctx, pre, post, "TC_Basic_WorkFlow_07",
+def workflow_06_evaluate(ctx, pre, post):
+    return _send_common(ctx, pre, post, "TC_Basic_WorkFlow_06",
                         "All Images 및 Dose SR 전송", expect_rdsr=True)
 
 
 # --------------------------------------------------------------------------
-def workflow_10_evaluate(ctx, pre, post):
-    r = TCResult("TC_Basic_WorkFlow_10", "Normal 및 Anonymous Export")
+def workflow_09_evaluate(ctx, pre, post):
+    r = TCResult("TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export")
     exp = ctx.cfg.get("export") or {}
     normal_dir, anon_dir = exp.get("normal_dir") or "", exp.get("anonymous_dir") or ""
 
@@ -227,9 +240,9 @@ def workflow_10_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def workflow_12_evaluate(ctx, pre, post):
+def workflow_11_evaluate(ctx, pre, post):
     """Image Reject → Restore. pre=Reject 전, post=Restore 후."""
-    r = TCResult("TC_Basic_WorkFlow_12", "Image Reject 및 Restore")
+    r = TCResult("TC_Basic_WorkFlow_11", "Image Reject 및 Restore")
 
     d = snapshot.diff_section(pre, post, "instance_group")
     changed = d["changed"]
@@ -255,9 +268,9 @@ def workflow_12_evaluate(ctx, pre, post):
     return r
 
 
-def workflow_12_mid_evaluate(ctx, pre, mid):
+def workflow_11_mid_evaluate(ctx, pre, mid):
     """Reject 직후 중간 판정 (선택). pre=Reject 전, mid=Reject 직후."""
-    r = TCResult("TC_Basic_WorkFlow_12_mid", "Image Reject 직후 상태 확인")
+    r = TCResult("TC_Basic_WorkFlow_11_mid", "Image Reject 직후 상태 확인")
     d = snapshot.diff_section(pre, mid, "instance_group")
     rejected = [c for c in d["changed"] if "StatusRejected" in c["fields"]]
     r.assert_true(3, "선택한 영상만 Reject 상태로 전환", len(rejected) == 1,
@@ -270,9 +283,9 @@ def workflow_12_mid_evaluate(ctx, pre, mid):
     return r
 
 
-def workflow_13_evaluate(ctx, pre, post):
+def workflow_12_evaluate(ctx, pre, post):
     """Study Reject → Restore. pre=Reject 전, post=Restore 후."""
-    r = TCResult("TC_Basic_WorkFlow_13", "Study Reject 및 Restore")
+    r = TCResult("TC_Basic_WorkFlow_12", "Study Reject 및 Restore")
 
     d = snapshot.diff_section(pre, post, "study")
     reject_fields = {"RejectType", "RejectReason", "RejectUserID", "StudyStatus"}
@@ -293,8 +306,8 @@ def workflow_13_evaluate(ctx, pre, post):
     return r
 
 
-def workflow_13_mid_evaluate(ctx, pre, mid):
-    r = TCResult("TC_Basic_WorkFlow_13_mid", "Study Reject 직후 상태 확인")
+def workflow_12_mid_evaluate(ctx, pre, mid):
+    r = TCResult("TC_Basic_WorkFlow_12_mid", "Study Reject 직후 상태 확인")
     d = snapshot.diff_section(pre, mid, "study")
     rejected = [c for c in d["changed"]
                 if {"RejectType", "StudyStatus", "RejectUserID"} & set(c["fields"])]
@@ -307,25 +320,25 @@ REGISTRY = [
     {"id": "TC_Basic_WorkFlow_01", "title": "MWL 및 Local 검사 생성 (판정부)",
      "mode": "prepost", "evaluate": workflow_01_evaluate,
      "pre_hint": "MWL 조회 전", "post_hint": "MWL/Local 검사 생성 후"},
-    {"id": "TC_Basic_WorkFlow_05", "title": "2D 수동 DICOM Send",
-     "mode": "prepost", "evaluate": workflow_05_evaluate,
+    {"id": "TC_Basic_WorkFlow_04", "title": "2D 수동 DICOM Send",
+     "mode": "prepost", "evaluate": workflow_04_evaluate,
      "pre_hint": "Send 실행 전 (SCP 수신 폴더도 비워둘 것)", "post_hint": "Queue Done 확인 후"},
-    {"id": "TC_Basic_WorkFlow_06", "title": "3D 수동 DICOM Send",
+    {"id": "TC_Basic_WorkFlow_05", "title": "3D 수동 DICOM Send",
+     "mode": "prepost", "evaluate": workflow_05_evaluate,
+     "pre_hint": "Send 실행 전", "post_hint": "Queue Done 확인 후"},
+    {"id": "TC_Basic_WorkFlow_06", "title": "All Images 및 Dose SR 전송",
      "mode": "prepost", "evaluate": workflow_06_evaluate,
      "pre_hint": "Send 실행 전", "post_hint": "Queue Done 확인 후"},
-    {"id": "TC_Basic_WorkFlow_07", "title": "All Images 및 Dose SR 전송",
-     "mode": "prepost", "evaluate": workflow_07_evaluate,
-     "pre_hint": "Send 실행 전", "post_hint": "Queue Done 확인 후"},
-    {"id": "TC_Basic_WorkFlow_10", "title": "Normal 및 Anonymous Export",
-     "mode": "prepost", "evaluate": workflow_10_evaluate,
+    {"id": "TC_Basic_WorkFlow_09", "title": "Normal 및 Anonymous Export",
+     "mode": "prepost", "evaluate": workflow_09_evaluate,
      "pre_hint": "Export 실행 전", "post_hint": "Normal/Anonymous Export 완료 후"},
-    {"id": "TC_Basic_WorkFlow_12", "title": "Image Reject 및 Restore",
+    {"id": "TC_Basic_WorkFlow_11", "title": "Image Reject 및 Restore",
+     "mode": "prepost", "evaluate": workflow_11_evaluate,
+     "mid_evaluate": workflow_11_mid_evaluate,
+     "pre_hint": "Reject 실행 전", "mid_hint": "Reject 직후", "post_hint": "Restore 완료 후"},
+    {"id": "TC_Basic_WorkFlow_12", "title": "Study Reject 및 Restore",
      "mode": "prepost", "evaluate": workflow_12_evaluate,
      "mid_evaluate": workflow_12_mid_evaluate,
-     "pre_hint": "Reject 실행 전", "mid_hint": "Reject 직후", "post_hint": "Restore 완료 후"},
-    {"id": "TC_Basic_WorkFlow_13", "title": "Study Reject 및 Restore",
-     "mode": "prepost", "evaluate": workflow_13_evaluate,
-     "mid_evaluate": workflow_13_mid_evaluate,
      "pre_hint": "Study Reject 실행 전", "mid_hint": "Reject 직후",
      "post_hint": "Restore 완료 후"},
 ]

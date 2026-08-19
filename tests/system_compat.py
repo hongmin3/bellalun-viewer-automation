@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
-"""System 연동 호환성 3D 촬영 TC.
+r"""3D-Narrow / 3D-Wide 촬영 등록 및 획득 (자동화 보조 항목).
 
-TC_System_compatibility_03  3D-Narrow 촬영
-TC_System_compatibility_04  3D-Wide 촬영
+  AUTOMATION_3D_ACQUISITION_3DN  3D-Narrow 촬영 등록 및 획득
+  AUTOMATION_3D_ACQUISITION_3DW  3D-Wide 촬영 등록 및 획득
 
-체크리스트(R-23-2346) 기준 두 TC의 단계는 동일하고 Preset만 다르다.
+**개정본 체크리스트의 TC가 아니다.** 이 흐름은 이전 체크리스트
+(`지식\(TC) R-23-2346...xlsx`)의 `TC_System_compatibility_03/04`에서 왔고,
+기준 문서인 `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`에는
+`TC_System_compatibility_*` 항목이 없다(`AGENTS.md` 0절 참고).
+
+그래서 **개정본 TC ID를 붙이지 않고** `AUTOMATION_*` 보조 항목으로 보고한다.
+검증 자체는 유효하므로(3D 촬영 등록과 ExposureMode 구분) 계속 수행하되, 체크리스트
+결과 xlsx에는 '자동화 추가 항목'으로 덧붙는다. 개정본에서 3D 촬영은 `WF_02`
+(공통 2D/3D 촬영)가 3D-N을 다루고, 3D-W는 `Performance_03`(획득시간)에만 나온다.
+
+두 항목의 단계는 동일하고 Preset만 다르다.
 
   1. 3D-Narrow(또는 3D-Wide)을 등록한다.
   2. System - LCD에 등록된 스텝과 환자정보를 확인한다.
@@ -48,9 +58,11 @@ GROUP_TYPE_3D = 1
 # 체크리스트 비고의 회전 범위. 실제 각도 측정은 장비 없이는 불가하므로
 # MANUAL 노트에 그대로 실어 검증자가 확인할 근거만 남긴다.
 MODES = {
-    "3d": {"tc": "TC_System_compatibility_03", "title": "3D-Narrow 촬영",
+    "3d": {"tc": "AUTOMATION_3D_ACQUISITION_3DN",
+           "title": "3D-Narrow 촬영 등록 및 획득",
            "label": "3D-N", "rotation": "-7.5~7.5도", "exposure_mode": 1},
-    "3d-w": {"tc": "TC_System_compatibility_04", "title": "3D-Wide 촬영",
+    "3d-w": {"tc": "AUTOMATION_3D_ACQUISITION_3DW",
+             "title": "3D-Wide 촬영 등록 및 획득",
              "label": "3D-W", "rotation": "-15~15도", "exposure_mode": 2},
 }
 

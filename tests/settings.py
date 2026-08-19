@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
-"""설정·계정·시스템 계열 TC.
+r"""설정·계정·시스템 계열 TC의 판정부.
 
-TC_Basic_WorkFlow_04  Image/Print Overlay 설정 저장        [pre/post]
-TC_Basic_WorkFlow_11  Hospital Code 및 Procedure 매핑      [pre/post]
-TC_Basic_WorkFlow_14  계정 추가·수정                        [pre/post]
-TC_Basic_WorkFlow_15  Setting Export 및 Import             [pre/post]
-TC_Basic_WorkFlow_18  Kiosk 및 System Launcher (검증부)     [완전 자동]
+  TC_Basic_WorkFlow_03  Image Overlay 및 Print Overlay 설정   [pre/post]
+  TC_Basic_WorkFlow_10  MWL Hospital Code와 Procedure 매핑    [pre/post]
+  TC_Basic_WorkFlow_13  계정 추가·수정 및 로그인               [pre/post]
+  TC_Basic_WorkFlow_14  Setting Export 및 Import              [pre/post]
+  TC_Basic_WorkFlow_16  Kiosk 및 System Launcher (검증부)      [완전 자동]
+
+WF_03은 `tests/overlay_flows.py`가 실제 UI로 수행하므로 여기 판정부는 쓰이지 않는다.
+나머지는 pre/post 스냅샷을 만드는 UI 드라이버가 없어 `run.py`에 연결돼 있지 않다.
+
+**2026-08-19 번호 재정렬**: 이전 체크리스트 번호를 쓰고 있었다(예: Kiosk가 `WF_18`).
+기준 문서인 `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`에 맞춰 다시 매겼다
+(`AGENTS.md` 0절). Title은 개정본과 같았고 번호만 어긋나 있었다.
 """
 
 import os
@@ -20,8 +27,8 @@ def _rows(snap, sec):
 
 
 # --------------------------------------------------------------------------
-def workflow_04_evaluate(ctx, pre, post):
-    r = TCResult("TC_Basic_WorkFlow_04", "Image Overlay 및 Print Overlay 설정")
+def workflow_03_evaluate(ctx, pre, post):
+    r = TCResult("TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정")
 
     # Step 1. Image Overlay 항목 추가 저장
     a = {(x.get("Position"), x.get("FieldID")) for x in _rows(pre, "overlay_item")}
@@ -55,8 +62,8 @@ def workflow_04_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def workflow_11_evaluate(ctx, pre, post):
-    r = TCResult("TC_Basic_WorkFlow_11", "MWL Hospital Code와 Procedure 매핑")
+def workflow_10_evaluate(ctx, pre, post):
+    r = TCResult("TC_Basic_WorkFlow_10", "MWL Hospital Code와 Procedure 매핑")
     code = ctx.cfg["test_data"]["hospital_code"]
     proc = ctx.cfg["test_data"]["procedure_name"]
 
@@ -103,8 +110,8 @@ def workflow_11_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def workflow_14_evaluate(ctx, pre, post):
-    r = TCResult("TC_Basic_WorkFlow_14", "계정 추가·수정 및 로그인")
+def workflow_13_evaluate(ctx, pre, post):
+    r = TCResult("TC_Basic_WorkFlow_13", "계정 추가·수정 및 로그인")
     acc_id = ctx.cfg["test_data"]["account_id"]
 
     d = snapshot.diff_section(pre, post, "account")
@@ -137,13 +144,13 @@ def workflow_14_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def workflow_15_evaluate(ctx, pre, post):
+def workflow_14_evaluate(ctx, pre, post):
     """Setting Export → 설정 변경 → Import → 재시작 후 복원 확인.
 
     pre  : Export 직후(기준 설정) 스냅샷
     post : 설정 변경 → Import → Viewer 재시작 후 스냅샷
     """
-    r = TCResult("TC_Basic_WorkFlow_15", "Setting Export 및 Import")
+    r = TCResult("TC_Basic_WorkFlow_14", "Setting Export 및 Import")
 
     # Step 2. Export 파일 생성
     path = (ctx.cfg.get("settings_export") or {}).get("exported_file") or ""
@@ -188,9 +195,9 @@ def _fmt_diff(d):
 
 
 # --------------------------------------------------------------------------
-def workflow_18_verify(ctx):
+def workflow_16_verify(ctx):
     """Kiosk / System Launcher 검증부. 재시작·로그인은 수동."""
-    r = TCResult("TC_Basic_WorkFlow_18", "Kiosk 및 System Launcher (검증부)")
+    r = TCResult("TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher (검증부)")
 
     row = ctx.db.one("CONFIGURATION",
                      "SELECT UseKiosk,ExitPermission,LastLoginID FROM SYSTEM_COMMON") or {}
@@ -237,19 +244,19 @@ def workflow_18_verify(ctx):
 
 
 REGISTRY = [
-    {"id": "TC_Basic_WorkFlow_04", "title": "Image Overlay 및 Print Overlay 설정",
-     "mode": "prepost", "evaluate": workflow_04_evaluate,
+    {"id": "TC_Basic_WorkFlow_03", "title": "Image Overlay 및 Print Overlay 설정",
+     "mode": "prepost", "evaluate": workflow_03_evaluate,
      "pre_hint": "Overlay 설정 변경 전", "post_hint": "Overlay 설정 저장(Update/OK) 후"},
-    {"id": "TC_Basic_WorkFlow_11", "title": "MWL Hospital Code와 Procedure 매핑",
-     "mode": "prepost", "evaluate": workflow_11_evaluate,
+    {"id": "TC_Basic_WorkFlow_10", "title": "MWL Hospital Code와 Procedure 매핑",
+     "mode": "prepost", "evaluate": workflow_10_evaluate,
      "pre_hint": "Hospital Code 생성 전", "post_hint": "매핑 처방으로 Examine 진입 후"},
-    {"id": "TC_Basic_WorkFlow_14", "title": "계정 추가·수정 및 로그인",
-     "mode": "prepost", "evaluate": workflow_14_evaluate,
+    {"id": "TC_Basic_WorkFlow_13", "title": "계정 추가·수정 및 로그인",
+     "mode": "prepost", "evaluate": workflow_13_evaluate,
      "pre_hint": "계정 추가 전", "post_hint": "계정 추가 및 수정 후"},
-    {"id": "TC_Basic_WorkFlow_15", "title": "Setting Export 및 Import",
-     "mode": "prepost", "evaluate": workflow_15_evaluate,
+    {"id": "TC_Basic_WorkFlow_14", "title": "Setting Export 및 Import",
+     "mode": "prepost", "evaluate": workflow_14_evaluate,
      "pre_hint": "Setting Export 직후(기준 설정 상태)",
      "post_hint": "설정 변경 → Import → Viewer 재시작 후"},
-    {"id": "TC_Basic_WorkFlow_18", "title": "Kiosk 및 System Launcher (검증부)",
-     "mode": "single", "run": workflow_18_verify},
+    {"id": "TC_Basic_WorkFlow_16", "title": "Kiosk 및 System Launcher (검증부)",
+     "mode": "single", "run": workflow_16_verify},
 ]

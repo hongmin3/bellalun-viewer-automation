@@ -148,8 +148,8 @@ def _send_and_verify(ctx, ui, r, step, title, scope, patient_id, wait=60):
     return detail
 
 
-def workflow_05(ctx):
-    r = TCResult("TC_Basic_WorkFlow_05", "DICOM Send(2D)")
+def workflow_04(ctx):
+    r = TCResult("TC_Basic_WorkFlow_04", "2D 수동 DICOM Send")
     patient_id = (ctx.cfg.get("xipl") or {}).get(
         "test_patient_id", "DATA_FLOW_MWL_01")
     try:
@@ -213,4 +213,4 @@ def workflow_05(ctx):
 
 
 def run(ctx):
-    return [workflow_05(ctx)]
+    return [workflow_04(ctx)]

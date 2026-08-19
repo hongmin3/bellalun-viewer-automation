@@ -97,14 +97,12 @@ def main():
     sub.add_parser("setup-print", help="Print 서버만 등록, Echo, DB/TCP 검증")
     sub.add_parser("run-ui", help="Local 검사 생성 + F8 Demo 촬영 완전자동화")
     sub.add_parser("run-wf01", help="TC_Basic_WorkFlow_01 MWL + Local 9단계 완전자동화")
-    # 이 흐름은 체크리스트의 WF02(External Device/Barcode/QR)와 범위가 다르다.
-    # 다른 TC들이 공유하는 촬영 픽스처 생성기 역할이다(automation_scope.json 참고).
     sub.add_parser("run-wf02",
-                   help="2D/3D Demo 촬영 및 Tool 자동화 (WF02 범위 불일치 — "
-                        "픽스처 생성 용도)")
-    sub.add_parser("run-wf03", help="TC_Basic_WorkFlow_03 Print Overlay 실제 출력 및 웹 검증")
-    sub.add_parser("run-wf04", help="TC_Basic_WorkFlow_04 Overlay(Send/Print/Export) 실행")
-    sub.add_parser("run-wf05", help="TC_Basic_WorkFlow_05 DICOM Send(2D) 실행")
+                   help="TC_Basic_WorkFlow_02 공통 2D/3D 촬영 및 Tool 적용 자동화")
+    sub.add_parser("run-wf03",
+                   help="TC_Basic_WorkFlow_03 Image Overlay 및 Print Overlay 설정")
+    sub.add_parser("run-wf04", help="TC_Basic_WorkFlow_04 2D 수동 DICOM Send")
+    sub.add_parser("run-wf08", help="TC_Basic_WorkFlow_08 2D/3D Film Print")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -126,8 +124,18 @@ def main():
         scope_path = os.path.join(ctx.root, "automation_scope.json")
         with open(scope_path, encoding="utf-8") as f:
             scope = json.load(f)
+        print(r"기준 문서: ..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx"
+              "  (시트: 개정 TC)")
+        print("SUPPORT = 개정본 TC가 아닌 자동화 보조 항목")
+        print()
+        counts = {}
         for item in scope:
-            print(f"[{item['level']}] {item['tc_id']} - {item['reason']}")
+            counts[item["level"]] = counts.get(item["level"], 0) + 1
+            title = item.get("title") or ""
+            print(f"[{item['level']:<7}] {item['tc_id']:<32} {title}")
+            print(f"{'':>10}  {item['reason']}")
+        print()
+        print("합계: " + " / ".join(f"{k} {v}" for k, v in sorted(counts.items())))
         return 0
     if args.cmd == "snapshot-baseline":
         from core.dbreset import backup_baseline
@@ -140,7 +148,7 @@ def main():
         restore_baseline(ctx)
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
-    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-xipl",
+    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf08", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -238,11 +246,11 @@ def main():
         results.append(setup_all(ctx))
         results.append(run_workflow01(ctx))
         results.append(run_workflow02(ctx))
-        results.append(run_workflow03(ctx))
-        results.extend(run_overlay(ctx))
-        results.extend(run_xipl(ctx))
-        results.extend(run_send(ctx))
-        results.extend(run_system_3d(ctx))
+        results.extend(run_overlay(ctx))      # WF_03 Overlay 설정
+        results.extend(run_send(ctx))         # WF_04 2D 수동 DICOM Send
+        results.append(run_workflow03(ctx))   # WF_08 2D/3D Film Print
+        results.extend(run_xipl(ctx))         # XIPL_01~06
+        results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
         return finish(ctx, results)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
@@ -259,15 +267,17 @@ def main():
     if args.cmd == "run-wf02":
         from tests.workflow02 import run as run_workflow02
         results.append(run_workflow02(ctx))
+    # 개정본 번호 기준. 2026-08-19에 재정렬했다 — 이전에는 Overlay가 wf04,
+    # 2D Send가 wf05, Film Print가 wf03이었다(다른 체크리스트 번호였다).
     if args.cmd == "run-wf03":
-        from tests.workflow03 import run as run_workflow03
-        results.append(run_workflow03(ctx))
-    if args.cmd == "run-wf04":
         from tests.overlay_flows import run as run_overlay
         results.extend(run_overlay(ctx))
-    if args.cmd == "run-wf05":
+    if args.cmd == "run-wf04":
         from tests.send_flows import run as run_send
         results.extend(run_send(ctx))
+    if args.cmd == "run-wf08":
+        from tests.workflow03 import run as run_film_print
+        results.append(run_film_print(ctx))
     if args.cmd in ("run-xipl", "run-auto"):
         from tests.xipl_flows import run_xipl
         results.extend(run_xipl(ctx))

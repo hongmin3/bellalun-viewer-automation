@@ -9,9 +9,15 @@ import os
 import shutil
 from datetime import datetime
 
-# 기본기능 체크리스트 파일명. `지식` 폴더에 함께 관리된다.
-CHECKLIST_NAME = "(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx"
-KNOWLEDGE_DIR = "지식"
+# 기본기능 체크리스트 **개정본**. 이 저장소의 판정 기준 문서다.
+#
+# 2026-08-19 주의: `지식\(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx`는
+# **다른 문서**이고 TC 번호 매핑이 다르다. 그 문서를 기준으로 착각해
+# `TC_Basic_WorkFlow_02`를 "범위 불일치"로 잘못 강등한 적이 있다(개정본 WF02는
+# "공통 2D/3D 검사 촬영 및 Tool 적용"으로 구현과 정확히 일치한다).
+# **판정 결과를 기록하는 원본은 개정본이고, 판정 근거도 개정본에서 확인한다.**
+CHECKLIST_NAME = "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx"
+CHECKLIST_SHEET = "개정 TC"
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -56,9 +62,10 @@ def source_path(ctx):
         here = os.path.dirname(here)
         if not here:
             break
-        candidate = os.path.join(here, KNOWLEDGE_DIR, CHECKLIST_NAME)
-        if os.path.isfile(candidate):
-            return candidate
+        for candidate in (os.path.join(here, CHECKLIST_NAME),
+                          os.path.join(here, "지식", CHECKLIST_NAME)):
+            if os.path.isfile(candidate):
+                return candidate
     return override or ""
 
 
@@ -86,7 +93,9 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None):
     shutil.copyfile(source_xlsx, out_path)
 
     wb = load_workbook(out_path)
-    ws = wb[sheet_name] if sheet_name else _pick_tc_sheet(wb)
+    ws = wb[sheet_name] if sheet_name else (
+        wb[CHECKLIST_SHEET] if CHECKLIST_SHEET in wb.sheetnames
+        else _pick_tc_sheet(wb))
     hdr_row, tc_col = _find_header_row(ws)
 
     # 결과 열 확보 (이미 있으면 재사용)
