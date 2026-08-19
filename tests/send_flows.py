@@ -28,13 +28,15 @@ import time
 
 from core import dicomlite, flows
 from core import viewer_processing as vp
+from core import dicom_settings as ds
 from core.dicom_settings import ensure_bunny
-from core.result import TCResult, PASS, FAIL, MANUAL
+from core.result import TCResult, PASS, FAIL
 
-# Storage 서버 Option 컨트롤 (Setting > DICOM > Storage), 2026-08-18 실측
-STORAGE_TRANSFER_SYNTAX = 2459
+# Storage 서버 Option 컨트롤 (Setting > DICOM > Storage), 2026-08-18 실측.
+# Transfer Syntax 관련 상수와 조작은 WF04와 공유하려고
+# `core/dicom_settings.py`로 옮겼다(`ds.STORAGE_TRANSFER_SYNTAX`,
+# `ds.TRANSFER_SYNTAX_IMPLICIT`, `ds.ensure_storage_transfer_syntax`).
 STORAGE_MODALITY = 2460
-TRANSFER_SYNTAX_IMPLICIT = 0        # CONFIGURATION.DICOM_STORAGE.TransferSyntax
 
 
 def _received(ctx):
@@ -76,66 +78,26 @@ def _db_instance_uids(ctx, patient_id):
 
 
 def _ensure_transfer_syntax(ctx, ui, r):
-    """Storage 서버의 Transfer Syntax를 Bunny가 받는 값으로 맞춘다.
+    """Storage Transfer Syntax를 사양이 선언한 값으로 맞추고 판정을 기록한다.
 
-    JPEG2000이면 Bunny가 Presentation Context를 Rejected 하여 전송 자체가
-    실패한다(2026-08-18 실측: Bunny 로그 `1 - Rejected`, Viewer 로그
-    `Not Support class`). 이미 Implicit이면 UI를 건드리지 않는다.
+    실제 조작은 `core.dicom_settings.ensure_storage_transfer_syntax`가 한다
+    (WF04와 공유 — 근거와 호출 시점 주의사항은 그 함수 주석 참고).
+
+    **검사를 열기 전에 호출해야 한다.** 검사 진행 중에 Setting을 드나들면
+    Examine 화면의 영상 선택이 풀려 Send 버튼이 비활성이 되고, 전송 범위
+    대화상자가 아예 뜨지 않는다(2026-08-18 회귀에서 Step 2/5가 이렇게 실패했다).
     """
-    current = ctx.db.one(
-        "CONFIGURATION",
-        "SELECT TOP 1 TransferSyntax FROM DICOM_STORAGE WHERE [Use]=1 "
-        "ORDER BY [Key]") or {}
-    if int(current.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
-        r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", PASS,
-              expected="Implicit VR LE (Bunny가 수락하는 Transfer Syntax)",
-              actual=current,
-              note="이미 Implicit이라 UI를 변경하지 않았다.")
-        return True
-
-    flows.open_dicom_setting(ui, "storage", wait=3)
-    from core.dicom_settings import _server_items
-    rows = _server_items(ui)
-    if not rows:
-        r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", FAIL,
-              expected="SCP List에 Storage 서버 존재", actual="목록 비어 있음")
-        return False
-    # Option 영역은 SCP 행을 선택해야 활성화된다(실측).
-    ui.click(rows[0], settle=1.5)
-    combo = [c for c in ui.by_id(STORAGE_TRANSFER_SYNTAX) if c.visible]
-    if not combo:
-        r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", FAIL,
-              expected=f"Transfer Syntax 콤보({STORAGE_TRANSFER_SYNTAX})",
-              actual="찾지 못함")
-        return False
-    ui.click(combo[0], settle=1.2)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    if not popups:
-        r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", FAIL,
-              expected="Transfer Syntax 목록 팝업", actual="열리지 않음")
-        return False
-    pl, pt, pr, _ = popups[0].rect
-    ui.click(((pl + pr) // 2, pt + 17), settle=1.5)   # 첫 항목 = Implicit VR LE
-    flows.setting_update(ui)
-    flows.confirm_setting_dialog(ui)
-
-    end = time.time() + 8
-    saved = {}
-    while time.time() < end:
-        saved = ctx.db.one(
-            "CONFIGURATION",
-            "SELECT TOP 1 TransferSyntax FROM DICOM_STORAGE WHERE [Use]=1 "
-            "ORDER BY [Key]") or {}
-        if int(saved.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
-            break
-        time.sleep(1)
-    ok = int(saved.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT
-    r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", PASS if ok else FAIL,
-          expected=f"TransferSyntax={TRANSFER_SYNTAX_IMPLICIT} (Implicit VR LE)",
-          actual=saved,
-          note="JPEG2000이면 Bunny가 Presentation Context를 Rejected 하여 "
-               "전송이 실패한다(실측). CONFIGURATION.DICOM_STORAGE로 대조.")
-    return ok
+    outcome = ds.ensure_storage_transfer_syntax(ctx, ui)
+    r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인",
+          PASS if outcome["ok"] else FAIL,
+          expected=f"TransferSyntax={ds.TRANSFER_SYNTAX_IMPLICIT} (Implicit VR LE)",
+          actual=outcome,
+          note="DICOM Conformance Statement V1.3W1 Proposed Presentation Context "
+               "Table이 네트워크 Storage SCU에 선언한 값. 제품 기본값인 JPEG 2000 "
+               "Lossless(1.2.840.10008.1.2.4.90)는 conformant SCP가 Presentation "
+               "Context를 거절해 전송이 실패한다(Bunny 로그 실측). "
+               "CONFIGURATION.DICOM_STORAGE로 대조.")
+    return outcome["ok"]
 
 
 def _send_and_verify(ctx, ui, r, step, title, scope, patient_id, wait=60):
@@ -202,16 +164,21 @@ def workflow_05(ctx):
                   actual=root or "미설정")
             return r
 
-        session = vp.open_test_study(ctx)
-        ui = session["ui"]
-
-        # Step 1: Storage 등록 상태와 전송 가능한 Transfer Syntax 확인
+        # Step 1: Storage 등록 상태와 전송 가능한 Transfer Syntax 확인.
+        # **검사를 열기 전에** 한다 — Setting을 드나들면 Examine 화면의 영상 선택이
+        # 풀려 Send가 비활성이 된다(2026-08-18 회귀 실패 원인).
+        ui = flows.cold_start(ctx.cfg, ctx.db)[0]
+        if not flows.ensure_patient_screen(ui):
+            r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인", FAIL,
+                  expected="Patient 화면에서 Setting 진입",
+                  actual={"landmarks": flows.known_screen(ui)})
+            return r
         if not _ensure_transfer_syntax(ctx, ui, r):
             return r
-        # Setting을 닫고 검사 화면으로 되돌린다.
-        if not flows.step_items(ui):
-            session = vp.open_test_study(ctx)
-            ui = session["ui"]
+
+        # 설정을 끝낸 뒤에 검사를 연다.
+        session = vp.open_test_study(ctx)
+        ui = session["ui"]
 
         # Step 2 + Step 5(All Images): Examine 화면에서 전송
         flows.select_step(ui, session["step_2d"])

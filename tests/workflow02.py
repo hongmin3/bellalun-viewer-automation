@@ -1,5 +1,35 @@
 # -*- coding: utf-8 -*-
-"""TC_Basic_WorkFlow_02: 공통 2D/3D 촬영 및 Tool 적용 자동화."""
+"""공통 2D/3D 촬영 및 Tool 적용 자동화.
+
+**확인된 범위 불일치 (2026-08-18) — 제품 결함이 아니라 자동화 라벨 문제다.**
+
+체크리스트(`(TC) R-23-2346_..._Checklist.xlsx` row 12)의 `TC_Basic_WorkFlow_02`
+원문은 **External Device / Barcode / QR Code 설정**이다:
+
+  1. Setting - Patient - External Device : Denso Wave AT20Q설정, Port설정한다.
+  2. 뷰어를 재시작한다.
+  3. Setting - Patient - External Device - External Input을 설정한다.
+  4. Setting - Patient - Barcode를 설정한다.
+  5. Setting - Patient - QR Code를 설정한다.
+  6. 바코드/QR을 인식한다.
+  Expected 2. 뷰어를 재시작시 External Device에 설정한 내용이 적용된다.
+  Expected 6. 바코드/QR을 인식시 설정한 내용에 따라 동작한다.
+
+이 모듈이 실제로 하는 일은 **MWL 보류 검사 재개 + 2D/3D-N Demo 촬영 + Tool 검증**
+으로, 위 원문과 다르다. 촬영 자체는 `TC_Basic_WorkFlow_01`의 "MWL을 조회 및
+**촬영**한다"에 해당하고, 이 흐름은 WF03/WF04/WF05/XIPL이 공유하는 **픽스처
+생성기** 역할을 한다 — 즉 코드는 쓸모가 있으나 TC ID가 잘못 붙어 있다.
+
+조치 방향(사용자 결정 필요, `NEXT_TASK.md` 참고): 이 흐름을 픽스처 단계로
+재명명하고, 실제 WF02를 새로 구현한다. Step 1~5는 `CONFIGURATION.DEVICE_COMMON`
+(`BarcodeReaderType`/`BarcodeReaderPort`/`ExternalInputUseTab`/
+`BarcodeMappingField`/`QRCodeSearchField`)로 자동 판정 가능하고, Expected 2의
+재기동 후 유지도 자동 검증 가능하다. Step 6은 실물 Denso Wave AT20Q 스캐너가
+필요해 MANUAL이다(Service Manual 4.3.6/4.3.7/4.3.8, 6.1 근거).
+
+그때까지 이 모듈은 **판정에 범위 불일치를 MANUAL로 명시**해 리포트가 거짓 주장을
+하지 않게 한다.
+"""
 
 import os
 import time
@@ -356,4 +386,15 @@ def run(ctx):
                     flows.close_examine(ui, option="suspend", wait=5)
             except Exception:
                 pass
+    # 리포트가 "WF02를 검증했다"고 잘못 읽히지 않게 범위를 명시한다.
+    # 체크리스트 결과 xlsx는 TC ID로 행을 매칭하므로, 이 표시가 없으면 Barcode/QR
+    # 행에 PASS가 찍힌다.
+    result.manual(
+        0, "[범위] 체크리스트 원문(External Device/Barcode/QR) 미검증",
+        "이 TC의 체크리스트 원문은 External Device(Denso Wave AT20Q)·Barcode·"
+        "QR Code 설정과 인식이다. 현재 자동화가 수행하는 2D/3D 촬영·Tool 검증은 "
+        "그 범위가 아니다(모듈 docstring 참고). Step 1~5는 DEVICE_COMMON으로 "
+        "자동 판정 가능하고 Step 6은 실물 스캐너가 필요하다.",
+        expected="Step 1~5 설정 저장·재기동 유지, Step 6 바코드/QR 인식",
+        actual="미구현 — 현재 자동화는 촬영 픽스처 생성과 Tool 검증을 수행")
     return result

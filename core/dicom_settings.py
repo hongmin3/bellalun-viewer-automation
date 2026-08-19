@@ -237,6 +237,83 @@ def _exact_saved(rows, spec):
         for row in rows)
 
 
+# --- Storage Transfer Syntax ------------------------------------------------
+#
+# 제품 기본값은 JPEG 2000 Lossless(`1.2.840.10008.1.2.4.90`)이고, conformant SCP는
+# 이 Presentation Context를 거절한다(2026-08-18 Bunny 로그 실측:
+#   Abstract Syntax 1.2.840.10008.5.1.4.1.1.1.2 / Transfer Syntax
+#   1.2.840.10008.1.2.4.90 -> `Presentation Context ID: 1 - Rejected`).
+# DICOM Conformance Statement V1.3W1 "Proposed Presentation Context Table"이
+# 네트워크 Storage SCU에 선언한 값은 Implicit VR LE와 Explicit VR LE 뿐이므로,
+# 여기서 맞추는 것은 우회가 아니라 **선언된 conformance로 되돌리는 것**이다.
+#
+# WF04(Overlay)와 WF05(Send)가 같이 쓴다. WF04에 이 전제가 없어서 회귀에서 매번
+# 수신 0건으로 FAIL했다(DB를 기준 복원하면 설정이 제품 기본값으로 돌아간다).
+#
+# **호출 시점 주의**: 이 함수는 Setting 화면을 드나든다. 검사를 연 상태에서 부르면
+# Examine 화면의 영상 선택이 풀려 Send 버튼이 비활성이 되고, 전송 범위 대화상자가
+# 아예 뜨지 않는다(2026-08-18 회귀에서 WF05 Step 2/5가 이렇게 실패했다).
+# **반드시 검사를 열기 전(Patient 화면)에 호출한다.**
+STORAGE_TRANSFER_SYNTAX = 2459
+TRANSFER_SYNTAX_IMPLICIT = 0
+
+
+def _stored_transfer_syntax(ctx):
+    return ctx.db.one(
+        "CONFIGURATION",
+        "SELECT TOP 1 TransferSyntax FROM DICOM_STORAGE WHERE [Use]=1 "
+        "ORDER BY [Key]") or {}
+
+
+def ensure_storage_transfer_syntax(ctx, ui, timeout=8):
+    """Storage 서버의 Transfer Syntax를 사양이 선언한 Implicit VR LE로 맞춘다.
+
+    반환: {"ok": bool, "changed": bool, "before": {...}, "after": {...},
+           "error": str|None}
+    이미 Implicit이면 UI를 건드리지 않고 `changed=False`로 돌려준다.
+    """
+    before = _stored_transfer_syntax(ctx)
+    out = {"ok": False, "changed": False, "before": before, "after": before,
+           "error": None}
+    if int(before.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
+        out["ok"] = True
+        return out
+
+    flows.open_dicom_setting(ui, "storage", wait=3)
+    rows = _server_items(ui)
+    if not rows:
+        out["error"] = "Storage SCP 목록이 비어 있습니다."
+        return out
+    # Option 영역은 SCP 행을 선택해야 활성화된다(실측).
+    ui.click(rows[0], settle=1.5)
+    combo = [c for c in ui.by_id(STORAGE_TRANSFER_SYNTAX) if c.visible]
+    if not combo:
+        out["error"] = f"Transfer Syntax 콤보({STORAGE_TRANSFER_SYNTAX})를 찾지 못했습니다."
+        return out
+    ui.click(combo[0], settle=1.2)
+    popups = [w for w in ui.windows() if w.text == "ItemList"]
+    if not popups:
+        out["error"] = "Transfer Syntax 목록 팝업이 열리지 않았습니다."
+        return out
+    pl, pt, pr, _ = popups[0].rect
+    ui.click(((pl + pr) // 2, pt + 17), settle=1.5)   # 첫 항목 = Implicit VR LE
+    flows.setting_update(ui)
+    flows.confirm_setting_dialog(ui)
+    out["changed"] = True
+
+    end = time.time() + timeout
+    while True:
+        after = _stored_transfer_syntax(ctx)
+        if int(after.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
+            out.update(ok=True, after=after)
+            return out
+        if time.time() >= end:
+            out["after"] = after
+            out["error"] = "저장 후에도 Implicit VR LE로 바뀌지 않았습니다."
+            return out
+        time.sleep(1)
+
+
 def setup_all(ctx, kinds=None):
     r = TCResult("DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결")
     kinds = set(kinds or ("MWL", "Storage", "Print"))
@@ -245,10 +322,13 @@ def setup_all(ctx, kinds=None):
     # operator has already launched or foregrounded Viewer: doing so can send
     # coordinate clicks to the Windows desktop.  A clean start also prevents
     # stale dialogs/settings pages from changing the control map.
+    startup_log = []
     try:
         ui, startup_log = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
         if not flows.ensure_patient_screen(ui):
-            raise RuntimeError("Viewer Patient screen was not reached")
+            raise RuntimeError(
+                "Viewer Patient screen was not reached "
+                f"(현재 화면 랜드마크: {flows.known_screen(ui) or '없음'})")
         win = ui.activate()
         if not win:
             raise RuntimeError("Viewer main window was not found")
@@ -259,9 +339,26 @@ def setup_all(ctx, kinds=None):
               expected="관리자 권한 Viewer / Patient 화면",
               actual=" / ".join(startup_log) or f"PID {ui.pid}")
     except Exception as exc:
+        # 여기서 실패하면 회귀 전체가 연쇄로 무너진다(2026-08-18: 8개 TC).
+        # 그래서 **기동 로그와 마지막 화면 증적을 반드시 남긴다.** 이전에는
+        # 예외 문구만 남아 어느 단계에서 멈췄는지 추적할 수 없었다.
+        shot = None
+        try:
+            from core import screen
+            from PIL import ImageGrab
+            box = ImageGrab.grab(all_screens=True).getbbox()
+            shot = os.path.join(ctx.cfg.get("evidence_ui_dir", "Evidence/ui"),
+                                "setup_startup_failed.png")
+            screen.grab(box, path=shot)
+        except Exception as shot_exc:
+            shot = f"(캡처 실패: {shot_exc})"
         r.add(0, "Viewer 시작·로그인·전면 활성화", FAIL,
-              expected="첫 UI 클릭 전에 Viewer 준비 완료", actual=str(exc),
-              note="안전장치가 동작하여 DICOM 좌표 클릭을 수행하지 않음")
+              expected="첫 UI 클릭 전에 Viewer 준비 완료",
+              actual={"error": str(exc), "startup_log": startup_log,
+                      "screenshot": shot},
+              note="안전장치가 동작하여 DICOM 좌표 클릭을 수행하지 않음. "
+                   "이 단계가 실패하면 MWL 서버가 미등록으로 남아 후속 TC가 "
+                   "모두 연쇄 실패하므로, 재실행 전 이 증적을 먼저 확인할 것.")
         return r
 
     if "Storage" in kinds:

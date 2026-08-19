@@ -46,7 +46,10 @@ def _ensure_viewer(ctx, r, step=0):
         btn = ui.by_id(flows.WELCOME["examine"])
         if btn:
             ui.click(btn[0], settle=2.0)
-            time.sleep(6)
+            # 고정 sleep 대신 상태바 아이콘이 실제로 나타날 때까지 기다린다.
+            # 아직 없으면 read()가 전부 "컨트롤 없음"으로 읽혀 연결돼 있는데도
+            # MANUAL로 찍힌다.
+            statusbar.wait_ready(ui)
             guard.sweep(tag="_patient")
         st = statusbar.read(ui, evidence_dir=ev, tag="_run")
         summary = statusbar.dicom_summary(st)

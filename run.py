@@ -54,6 +54,28 @@ def finish(ctx, results):
         result.finalize(next_started)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     paths = write_reports(results, ctx.reports_root, stamp)
+
+    # 체크리스트 xlsx에 TC별 판정을 기록한다(원본은 건드리지 않고 사본 생성).
+    # 이 호출이 없어서 `core/checklist.py`가 죽은 코드였고, README가 "체크리스트
+    # xlsx 결과 기록"을 하고 있다고 적어둔 것과 달리 2026-08-10 이후 파일이
+    # 생성되지 않았다(2026-08-18 확인). 실패해도 리포트 생성 자체는 살린다 —
+    # 대신 **조용히 넘기지 않고** 이유를 출력한다.
+    try:
+        from core import checklist
+        source = checklist.source_path(ctx)
+        if not source:
+            expected = os.path.join("..", checklist.KNOWLEDGE_DIR,
+                                    checklist.CHECKLIST_NAME)
+            print("  checklist: 원본 xlsx를 찾지 못해 기록을 건너뜁니다 "
+                  f"(config.json > checklist_xlsx 또는 {expected}).")
+        else:
+            out = os.path.join(ctx.reports_root,
+                               f"Checklist_Result_{stamp}.xlsx")
+            info = checklist.write_results(source, results, out_path=out)
+            paths["checklist"] = info["path"]
+    except Exception as exc:
+        print(f"  checklist: 기록 실패 — {exc}")
+
     for r in results:
         print(f"[{r.verdict}] {r.tc_id} - {r.title}")
         for c in r.checks:
@@ -75,11 +97,15 @@ def main():
     sub.add_parser("setup-print", help="Print 서버만 등록, Echo, DB/TCP 검증")
     sub.add_parser("run-ui", help="Local 검사 생성 + F8 Demo 촬영 완전자동화")
     sub.add_parser("run-wf01", help="TC_Basic_WorkFlow_01 MWL + Local 9단계 완전자동화")
-    sub.add_parser("run-wf02", help="TC_Basic_WorkFlow_02 2D/3D Demo 촬영 및 Tool 자동화")
+    # 이 흐름은 체크리스트의 WF02(External Device/Barcode/QR)와 범위가 다르다.
+    # 다른 TC들이 공유하는 촬영 픽스처 생성기 역할이다(automation_scope.json 참고).
+    sub.add_parser("run-wf02",
+                   help="2D/3D Demo 촬영 및 Tool 자동화 (WF02 범위 불일치 — "
+                        "픽스처 생성 용도)")
     sub.add_parser("run-wf03", help="TC_Basic_WorkFlow_03 Print Overlay 실제 출력 및 웹 검증")
     sub.add_parser("run-wf04", help="TC_Basic_WorkFlow_04 Overlay(Send/Print/Export) 실행")
     sub.add_parser("run-wf05", help="TC_Basic_WorkFlow_05 DICOM Send(2D) 실행")
-    sub.add_parser("run-xipl", help="XIPL 01~03 실제 UI 자동화 및 Pass/Fail 판정")
+    sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
     sub.add_parser("run-xipl-03", help="Viewer 3D Post Reconstruction TC03만 실행")
@@ -165,9 +191,21 @@ def main():
         reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")
         if has_baseline(ctx):
             try:
-                restore_baseline(ctx)
-                reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
-                          PASS, actual="restore 완료")
+                outcome = restore_baseline(ctx)
+                # restore는 DB 단독 접속을 위해 제품 서비스를 내린다. 다시
+                # RUNNING이 되지 않으면 이후 모든 TC가 Viewer 시작 단계에서
+                # 연쇄 실패하므로, 여기서 잡아 원인을 명확히 남긴다
+                # (2026-08-18 실측: 이 누락으로 8개 TC가 연쇄 FAIL).
+                services = outcome.get("services") or {}
+                down = {k: v for k, v in services.items() if v != "RUNNING"}
+                reset.assert_true(
+                    0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원 "
+                       "및 제품 서비스 재기동",
+                    not down,
+                    expected="restore 완료 + 제품 서비스 RUNNING",
+                    actual={"restore": "완료", "services": services},
+                    note="서비스가 내려간 채로 진행하면 첫 Viewer 시작에서 "
+                         "메인 메뉴(2015)를 찾지 못해 회귀가 연쇄 실패한다.")
             except Exception as exc:
                 reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
                           FAIL, actual=str(exc))

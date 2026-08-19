@@ -1,5 +1,23 @@
 # -*- coding: utf-8 -*-
-"""TC_Basic_WorkFlow_03: DICOM Print Overlay, Film print and web verification."""
+"""TC_Basic_WorkFlow_03 - Tool 적용 영상의 DICOM Print Overlay 및 Film 출력 검증.
+
+체크리스트 원문 (변경 금지):
+  Step 1. Tool 동작 확인한다.
+  Step 2. Tool 적용으로 변경된 Image DICOM Send, Print, Export 한다.
+  Expected 2. 변경된 Image가 전송된다.
+
+판정 근거 (AGENTS.md 2항 - 매뉴얼/사양 우선):
+  * Service Manual 4.8.9 "Print Overlay 메뉴" - Print Overlay는 항목을 등록한 뒤
+    4.8.8 "Print 메뉴"의 Print 서버 Overlay 항목에서 선택해야 출력에 반영된다.
+    그래서 등록만으로 PASS 판정하지 않고 **Print 서버에 선택된 것까지** 대조한다.
+  * Operation Manual 9.7 "영상을 Film 창으로 보내기", 10.1.1 "Film 창으로 영상
+    보내기", 10.1.3 "Film 창 확인하기" - 출력은 Film 창에 배치한 뒤 수행하므로
+    Layout(1x1) 구성 후 출력하는 것이 정상 절차다.
+  * Operation Manual 8.5 "영상 조정 도구 버튼" - Step 1의 Tool 동작 확인 대상은
+    조작/레이아웃/주석/관리 도구다.
+  * 출력물 검증은 Print SCP(core/printscp.py)가 수신한 Film의 **실제 픽셀**과
+    Overlay 실제값 OCR로 한다. 버튼을 눌렀다는 사실은 증거가 아니다.
+"""
 
 from __future__ import annotations
 

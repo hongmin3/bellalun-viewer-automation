@@ -585,11 +585,17 @@ def open_test_study(ctx):
         raise RuntimeError("View menu item not found")
     ui.click(view[0], settle=5)
 
+    # Examined 창은 열리는 데 시간이 걸린다. 즉시 조회해 "없다"고 단정하지 않고
+    # 상한을 두고 기다린다(이 저장소에서 반복된 결함 형태 — 조작 대상이
+    # 그려지기 전에 판정하는 것).
+    present = flows.wait_controls(ui, (2177, 2178, 2179), timeout=20)
     field = [c for c in ui.by_id(2177) if c.visible]
     search = [c for c in ui.by_id(2178) if c.visible]
     button = [c for c in ui.by_id(2179) if c.visible]
     if not field or not search or not button:
-        raise RuntimeError("View search controls not found")
+        raise RuntimeError(
+            f"View search controls not found: {present} "
+            "(2177=검색항목 / 2178=입력 / 2179=검색버튼)")
     ui.click(field[0], settle=.5)
     popups = [w for w in ui.windows() if w.text == "ItemList"]
     items, seen = [], set()

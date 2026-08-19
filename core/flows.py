@@ -468,7 +468,7 @@ def _kill_viewer(pid):
                    capture_output=True)
 
 
-def _need(ui, ctrl_id, what, timeout=8):
+def _need(ui, ctrl_id, what, timeout=20):
     """컨트롤을 찾는다. 없으면 `timeout`까지 기다린 뒤에야 실패로 본다.
 
     Viewer는 화면 전환 중(특히 Setting 창을 닫은 직후) 목표 화면의 컨트롤이
@@ -476,6 +476,15 @@ def _need(ui, ctrl_id, what, timeout=8):
     것과 구분되지 않는다(2026-08-18 실측: Overlay 설정 후 New Patient 탭
     (2285)을 못 찾아 TC_04가 중단됐다). 화면이 정말 다르면 대기 후 같은
     오류로 중단된다.
+
+    기본 상한을 8초에서 20초로 올렸다. 8초로는 부족했다 — 2026-08-18 8차 회귀에서
+    `TC_XIPL_compatibility_04`가 `setting_update` + `confirm_setting_dialog` 직후
+    2285를 8초 안에 못 찾아 중단됐다(같은 TC가 7차에서는 통과했으므로 화면이
+    잘못된 게 아니라 **전환이 8초보다 느렸던 것**이다).
+
+    실패 메시지에는 **지금 어떤 화면인지**를 함께 남긴다. 컨트롤 ID만 알려주면
+    "화면이 다른 것"과 "아직 안 그려진 것"을 구분하러 매번 사람이 다시 재현해야
+    한다.
     """
     hits = ui.by_id(ctrl_id)
     end = time.time() + timeout
@@ -484,13 +493,24 @@ def _need(ui, ctrl_id, what, timeout=8):
         hits = ui.by_id(ctrl_id)
     if not hits:
         raise FlowError(f"{what} 컨트롤(ID {ctrl_id})을 {timeout}초 동안 "
-                        f"찾지 못했습니다. 현재 화면을 ui-probe로 확인하십시오.")
+                        f"찾지 못했습니다. 현재 화면 랜드마크="
+                        f"{known_screen(ui) or '없음'}. "
+                        "현재 화면을 ui-probe로 확인하십시오.")
     return hits[0]
 
 
 # --- Patient 화면 -----------------------------------------------------
 def open_new_patient_tab(ui, timeout=8):
     ui.activate()
+    # **탭을 찾기 전에 Patient 화면으로 이동한다.** 이전에는 곧바로 2285를 찾아서,
+    # 검사가 열린 Examine 화면에서 부르면 "탭을 못 찾았다"로 죽었다
+    # (2026-08-19 10차 회귀에서 `TC_XIPL_compatibility_04`가 이렇게 실패했고,
+    #  실패 메시지의 랜드마크가 `['status_bar', 'examine']`이었다).
+    #
+    # 대기 부족이 아니었다 — 상한을 20초로 늘려도 같은 실패였다. 화면 이동을
+    # 시도하지 않은 것이 원인이고, `ensure_patient_screen`이 메인 메뉴로 이동해
+    # 해결한다(그 화면에서 실제로 2285가 나타나는 것을 실측 확인).
+    ensure_patient_screen(ui)
     ui.click(_need(ui, PATIENT["tab_new_patient"], "New Patient 탭"), settle=.2)
     end = time.monotonic() + timeout
     while time.monotonic() < end:
@@ -610,8 +630,69 @@ def read_edit_information(ui, close=True):
     return values
 
 
-def ensure_patient_screen(ui, wait=5):
-    """Welcome/Setting/Examine 어느 화면에서 시작해도 Patient 화면으로 이동."""
+def known_screen(ui):
+    """지금 화면에서 알아볼 수 있는 랜드마크를 돌려준다(없으면 빈 리스트).
+
+    "어느 화면인지 판별 가능한가"를 재는 용도다. 하나도 없으면 아직 화면이
+    그려지지 않은 것이므로 어떤 조작도 하면 안 된다.
+    """
+    found = []
+    for name, ctrl_id in (("patient", PATIENT["tab_new_patient"]),
+                          ("welcome", WELCOME["examine"]),
+                          ("status_bar", STATUS_BAR["menu"]),
+                          ("setting", SETTING_UPDATE_BUTTON),
+                          ("examine", EXAMINE["close"])):
+        if ui.by_id(ctrl_id):
+            found.append(name)
+    return found
+
+
+def wait_known_screen(ui, timeout=60, poll=1.0):
+    """알아볼 수 있는 화면이 나타날 때까지 기다린다. 반환: 랜드마크 목록."""
+    end = time.time() + timeout
+    while True:
+        found = known_screen(ui)
+        if found or time.time() >= end:
+            return found
+        time.sleep(poll)
+
+
+def wait_controls(ui, ctrl_ids, timeout=15, poll=0.5):
+    """지정한 컨트롤이 **모두** 보일 때까지 기다린다.
+
+    화면을 연 직후 컨트롤을 즉시 조회해 "없다"고 판정하면, 아직 그려지지
+    않았을 뿐인데 실패로 찍힌다. 이 저장소에서 반복된 결함 형태다.
+
+    반환: {ctrl_id: 보이는 컨트롤 수} — 하나라도 0이면 시간 안에 못 나온 것.
+    """
+    end = time.time() + timeout
+    while True:
+        found = {cid: len([c for c in ui.by_id(cid) if c.visible])
+                 for cid in ctrl_ids}
+        if all(found.values()) or time.time() >= end:
+            return found
+        time.sleep(poll)
+
+
+def ensure_patient_screen(ui, wait=5, settle_timeout=60):
+    """Welcome/Setting/Examine 어느 화면에서 시작해도 Patient 화면으로 이동.
+
+    **먼저 화면이 그려지기를 기다린다.** 로그인 직후에는 랜드마크 컨트롤이 아직
+    하나도 없을 수 있는데, 그 순간에 곧바로 네비게이션을 시작하면
+    `open_main_menu`가 상태바를 못 찾아 15초 뒤 실패한다. 2026-08-18 회귀에서
+    실제로 이 지점이 무너졌다 - DB 복원 직후 강제 재기동한 Viewer가 화면을
+    그리기 전에 이 함수가 판단을 내려 DICOM 등록이 실패하고, 그 결과 MWL 서버가
+    미등록 상태로 남아 **8개 TC가 연쇄 FAIL**했다(PASS 121 -> 30). 정작 Viewer는
+    잠시 뒤 정상이어서 뒤이은 TC_XIPL_04/05는 통과했다.
+
+    고정 sleep이 아니라 **랜드마크 출현이라는 실제 신호**를 상한을 두고 기다린다.
+
+    반환값은 기존과 같은 bool을 유지한다(예외를 던지면 `tests/ui_flows.py`처럼
+    try 밖에서 부르는 호출부가 깨진다). 실패 원인이 필요하면 호출부에서
+    `known_screen(ui)`를 함께 보고하면 된다 - `core/dicom_settings.py`가 그렇게 한다.
+    """
+    if not wait_known_screen(ui, timeout=settle_timeout):
+        return False
     if ui.by_id(PATIENT["tab_new_patient"]):
         return True
     # Setting 모달을 먼저 닫는다.
@@ -637,6 +718,7 @@ def ensure_patient_screen(ui, wait=5):
         if ui.by_id(PATIENT["tab_new_patient"]):
             return True
         time.sleep(.5)
+
     return False
 
 

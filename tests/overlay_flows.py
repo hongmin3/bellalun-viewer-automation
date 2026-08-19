@@ -29,8 +29,9 @@ import time
 
 from core import dicomlite, export_manager as em, flows, print_overlay
 from core import viewer_processing as vp
+from core import dicom_settings as ds
 from core.dicom_settings import ensure_bunny
-from core.result import TCResult, PASS, FAIL, MANUAL
+from core.result import TCResult, FAIL
 
 IMAGE_OVERLAY_ADD = ["Dose kVp", "Dose mAs"]
 
@@ -70,12 +71,17 @@ def _open_examined(ui, wait=6):
     검색 버튼은 **2179**(돋보기)다. 2180은 새로고침이라 눌러도 목록이 채워지지
     않는다(2026-08-18 실측 — 이걸 혼동해 "목록이 비었다"고 오진한 적이 있다).
     """
-    flows.open_main_menu(ui)
+    # 반환값을 버리면 메뉴가 안 열렸을 때 "View 메뉴 항목을 못 찾았다"는
+    # 엉뚱한 원인으로 보고된다. 실패 지점을 정확히 남긴다.
+    if not flows.open_main_menu(ui):
+        raise flows.FlowError("메인 메뉴가 열리지 않았습니다(Examined 진입 전).")
     view = [c for c in ui.by_id(flows.MAIN_MENU["item_view"])
             if c.visible and c.rect[2] - c.rect[0] > 20]
     if not view:
         raise flows.FlowError("View 메뉴 항목을 찾지 못했습니다.")
     ui.click(view[0], settle=wait)
+    # 창이 그려지기를 기다린다(즉시 조회 금지).
+    flows.wait_controls(ui, (2179,), timeout=20)
     search = [c for c in ui.by_id(2179) if c.visible]
     if not search:
         raise flows.FlowError("Examined 검색 버튼(2179)을 찾지 못했습니다.")
@@ -132,6 +138,22 @@ def workflow_04(ctx):
                  "PRINT_OVERLAY_ITEM 저장과 DICOM_PRINT.Overlay 선택을 DB로 대조.")
 
         # --- Step 3-a: DICOM Send -------------------------------------
+        # 전송 전에 Transfer Syntax를 사양이 선언한 값으로 맞춘다. 이 전제가
+        # 없어서 회귀에서 매번 수신 0건으로 FAIL했다 — DB를 기준 복원하면 설정이
+        # 제품 기본값(JPEG 2000 Lossless)으로 돌아가고, conformant SCP는 그
+        # Presentation Context를 거절한다(2026-08-18 Bunny 로그로 확인:
+        # `1.2.840.10008.1.2.4.90` -> `Presentation Context ID: 1 - Rejected`).
+        # **검사를 열기 전에** 해야 한다(Setting을 드나들면 영상 선택이 풀린다).
+        flows.ensure_patient_screen(ui, wait=3)
+        ts = ds.ensure_storage_transfer_syntax(ctx, ui)
+        if not ts["ok"]:
+            r.add(3, "DICOM Send 전제 — Storage Transfer Syntax", FAIL,
+                  expected=f"TransferSyntax={ds.TRANSFER_SYNTAX_IMPLICIT} "
+                           "(Implicit VR LE)",
+                  actual=ts,
+                  note="DICOM Conformance Statement V1.3W1 Proposed Presentation "
+                       "Context Table 기준값. 이 값이 아니면 전송이 거절된다.")
+
         session = vp.open_test_study(ctx)
         ui = session["ui"]
         flows.select_step(ui, session["step_2d"])

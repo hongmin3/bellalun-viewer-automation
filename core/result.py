@@ -166,6 +166,21 @@ code{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
 """
 
 
+def _one_line(value, limit=200):
+    """리포트 상단 요약에 넣기 위해 한 줄로 줄인다.
+
+    `actual`이 dict면 진단에 핵심인 오류 문구를 앞세운다. 그냥 dict를 문자열로
+    바꾸면 기동 로그 같은 부수 정보가 글자 수를 다 먹어 정작 원인이 잘린다.
+    """
+    if isinstance(value, dict):
+        for key in ("error", "detail", "message"):
+            if value.get(key):
+                value = value[key]
+                break
+    text = " ".join(str(value or "").split())
+    return text if len(text) <= limit else text[:limit - 3] + "..."
+
+
 def write_txt(results, path, env=None):
     """사람이 바로 읽는 Pass/Fail 요약 텍스트."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -187,6 +202,24 @@ def write_txt(results, path, env=None):
         L.append(" [ 시험 환경 ]")
         for k, v in env.items():
             L.append(f"   - {k}: {v}")
+
+    # 회귀는 선행 단계(DB 복원 -> DICOM 등록 -> WF01 -> 촬영)가 뒤 TC의 전제다.
+    # 앞에서 한 번 무너지면 뒤가 줄줄이 FAIL로 찍혀 "제품이 10군데 깨졌다"처럼
+    # 보인다(2026-08-18 실측: FAIL 10건이 전부 첫 FAIL 하나의 결과였다).
+    # 그래서 **가장 앞선 FAIL을 맨 위에 표시**해 읽는 순서를 강제한다.
+    first = next((r for r in results if r.verdict == FAIL), None)
+    if first is not None and total[FAIL] > 1 and len(results) > 1:
+        L.append("")
+        L.append(" [ 먼저 볼 것 ] 가장 앞선 FAIL")
+        L.append(f"   - {first.tc_id}: {first.title}")
+        for chk in first.checks:
+            if chk.status == FAIL:
+                L.append(f"     -> Step {chk.step}: {chk.title}")
+                L.append(f"        실제: {_one_line(chk.actual)}")
+                break
+        L.append(f"   - 이후 FAIL {total[FAIL] - 1}건 중 일부는 이 실패의 결과일 "
+                 f"수 있다. 전제 미충족(fixture 없음 / 서버 미등록) 메시지가 "
+                 f"보이면 제품 판정이 아니다.")
     L.append("")
 
     L.append("-" * 78)
@@ -221,6 +254,15 @@ def write_txt(results, path, env=None):
                 L.append(f"    - {timing['kind']} {timing['name']}: "
                          f"{timing['duration_seconds']:.3f}s / "
                          f"{timing['outcome']} / {timing['detail']}")
+            # 스텝 시각화 밖에서 쓴 시간(전제 준비, 실패 전 재시도 등)을 숨기지
+            # 않는다. 2026-08-18 실측: TC_XIPL_06이 523.9초 걸렸는데 스텝 합계는
+            # 0.000초로 찍혀 "그 8분은 어디서 썼나"를 리포트만으로 알 수 없었다.
+            accounted = sum(t["duration_seconds"] for t in r.timings)
+            unaccounted = r.duration_seconds - accounted
+            if unaccounted > 5:
+                L.append(f"    - (스텝 외) 전제 준비·재시도 등: "
+                         f"{unaccounted:.1f}s / 스텝 합계 {accounted:.1f}s / "
+                         f"TC 전체 {r.duration_seconds:.1f}s")
         L.append("")
 
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]

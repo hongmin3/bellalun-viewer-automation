@@ -26,12 +26,25 @@
 import os
 import shutil
 import subprocess
+import time
 
 DATABASES = ["DATA", "ACCOUNT", "CONFIGURATION", "PROCEDURE"]
 
 # BELLALUN Viewer/Bunny 관련 프로세스. DB 단독 접속을 위해 restore 전 종료한다.
 APP_PROCESSES = ["VIEWER", "Bunny", "BellalunService", "SERVICE.DELEGATOR",
                   "SystemLauncher", "ImageExtractor", "UPSHandler"]
+
+# 위 목록 중 **Windows 서비스**로 등록된 것. 나머지는 런처가 띄우는 일반 프로세스다.
+#
+# `BellalunService.exe`는 `Bellalun Service`(StartMode=Auto)의 본체다. 이걸
+# `taskkill /F`로 죽이면 SCM은 그냥 Stopped로 두고 **다시 살리지 않는다**
+# (`sc qfailure "Bellalun Service"` 결과가 비어 있다 - 복구 동작 미설정).
+# 그러면 restore 이후 첫 `cold_start`에서 Viewer가 메인 화면까지 못 올라와
+# 회귀 전체가 연쇄 실패한다(2026-08-18 실측: DICOM 등록 단계에서
+# "메인 메뉴 버튼(2015)을 15초 동안 찾지 못했습니다" -> 후속 8개 TC 연쇄 FAIL).
+# 그래서 서비스는 SCM으로 중지하고 **restore 후 반드시 다시 올린다.**
+APP_SERVICES = ["Bellalun Service"]
+SERVICE_START_TIMEOUT = 60
 
 
 def _bracket(name):
@@ -71,11 +84,48 @@ def staging_dir(ctx):
 backup_dir = staging_dir
 
 
+def _service_state(name):
+    out = subprocess.run(["sc", "query", name], capture_output=True, text=True)
+    text = (out.stdout or "") + (out.stderr or "")
+    for token in ("RUNNING", "STOPPED", "START_PENDING", "STOP_PENDING"):
+        if token in text:
+            return token
+    return "UNKNOWN"
+
+
 def stop_app_processes():
+    """DB 단독 접속을 위해 제품 프로세스를 내린다.
+
+    서비스는 SCM으로 먼저 중지한다(`taskkill`로 죽이면 SCM 입장에서는 비정상
+    종료이고, 복구 동작이 없어 되살아나지 않는다). 그다음 남은 일반 프로세스를
+    정리한다.
+    """
+    for name in APP_SERVICES:
+        subprocess.run(["net", "stop", name], capture_output=True)
     for name in APP_PROCESSES:
         subprocess.run(
             ["taskkill", "/IM", f"{name}.exe", "/F", "/T"],
             capture_output=True)
+
+
+def start_app_services(timeout=SERVICE_START_TIMEOUT):
+    """중지한 서비스를 다시 올리고 RUNNING이 되는 것까지 확인한다.
+
+    "net start를 호출했다"로 끝내지 않는다 - 이 저장소의 반복된 교훈대로
+    **의도한 상태가 됐는지** 확인한다. 반환: {서비스명: 최종 상태}.
+    """
+    state = {}
+    for name in APP_SERVICES:
+        if _service_state(name) != "RUNNING":
+            subprocess.run(["net", "start", name], capture_output=True)
+        end = time.time() + timeout
+        while time.time() < end:
+            current = _service_state(name)
+            if current == "RUNNING":
+                break
+            time.sleep(1)
+        state[name] = _service_state(name)
+    return state
 
 
 def backup_baseline(ctx):
@@ -87,12 +137,16 @@ def backup_baseline(ctx):
     staging = staging_dir(ctx)
     stop_app_processes()
     saved = {}
-    for db in DATABASES:
-        path = os.path.join(staging, f"{db}.bak")
-        sql = (f"BACKUP DATABASE {_bracket(db)} TO DISK = N'{path}' "
-               f"WITH INIT, FORMAT, STATS=10")
-        ctx.db.query("master", sql)
-        saved[db] = path
+    try:
+        for db in DATABASES:
+            path = os.path.join(staging, f"{db}.bak")
+            sql = (f"BACKUP DATABASE {_bracket(db)} TO DISK = N'{path}' "
+                   f"WITH INIT, FORMAT, STATS=10")
+            ctx.db.query("master", sql)
+            saved[db] = path
+    finally:
+        # restore와 같은 이유로 서비스를 반드시 되살린다.
+        saved["_services"] = start_app_services()
 
     target = source_dir(ctx)
     try:
@@ -182,17 +236,23 @@ def restore_baseline(ctx):
 
     stop_app_processes()
     moved = {}
-    for db in DATABASES:
-        path = os.path.join(stg, f"{db}.bak")
-        b = _bracket(db)
-        move = _move_clauses(ctx, db, path)
-        moved[db] = move
-        restore = (f"RESTORE DATABASE {b} FROM DISK = N'{path}' WITH REPLACE"
-                   + ("".join(f", {m}" for m in move) if move else ""))
-        ctx.db.query("master", f"ALTER DATABASE {b} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
-        try:
-            ctx.db.query("master", restore)
-        finally:
-            # 복원이 실패해도 SINGLE_USER로 방치하면 Viewer가 아예 접속하지 못한다.
-            ctx.db.query("master", f"ALTER DATABASE {b} SET MULTI_USER")
-    return {"restored": DATABASES, "from": stg, "source": src, "moved": moved}
+    try:
+        for db in DATABASES:
+            path = os.path.join(stg, f"{db}.bak")
+            b = _bracket(db)
+            move = _move_clauses(ctx, db, path)
+            moved[db] = move
+            restore = (f"RESTORE DATABASE {b} FROM DISK = N'{path}' WITH REPLACE"
+                       + ("".join(f", {m}" for m in move) if move else ""))
+            ctx.db.query("master", f"ALTER DATABASE {b} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+            try:
+                ctx.db.query("master", restore)
+            finally:
+                # 복원이 실패해도 SINGLE_USER로 방치하면 Viewer가 아예 접속하지 못한다.
+                ctx.db.query("master", f"ALTER DATABASE {b} SET MULTI_USER")
+    finally:
+        # 복원이 실패해도 서비스는 되살린다. 내려둔 채 끝내면 이후 모든 TC가
+        # Viewer 시작 단계에서 연쇄 실패한다(APP_SERVICES 주석 참고).
+        services = start_app_services()
+    return {"restored": DATABASES, "from": stg, "source": src, "moved": moved,
+            "services": services}

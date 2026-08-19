@@ -14,6 +14,7 @@ Operation Manual 3.13 / 11.2.1 근거:
 """
 
 import os
+import time
 
 # 상태바 StatusBarItem 컨트롤 ID (좌 → 우)
 ICONS = {
@@ -50,6 +51,24 @@ def _red_ratio(img):
             if r > 130 and r - g > 55 and r - b > 55:
                 red += 1
     return red / float(w * h)
+
+
+def wait_ready(ui, timeout=20, poll=0.5):
+    """DICOM 상태 아이콘이 화면에 나타날 때까지 기다린다.
+
+    화면 전환 직후 `read()`를 바로 부르면 컨트롤이 아직 없어 전부
+    `connected=None`("컨트롤 없음")이 되고, 연결돼 있는데도 MANUAL로 찍힌다.
+    고정 sleep 대신 **아이콘 출현이라는 실제 신호**를 상한을 두고 기다린다.
+
+    반환: 보이는 DICOM 아이콘 이름 목록(빈 리스트면 상태바가 없는 화면).
+    """
+    end = time.time() + timeout
+    while True:
+        visible = [name for name in DICOM_ICONS
+                   if [c for c in ui.by_id(ICONS[name]) if c.visible]]
+        if len(visible) == len(DICOM_ICONS) or time.time() >= end:
+            return visible
+        time.sleep(poll)
 
 
 def read(ui, evidence_dir=None, tag=""):

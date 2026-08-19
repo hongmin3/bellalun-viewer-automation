@@ -9,6 +9,10 @@ import os
 import shutil
 from datetime import datetime
 
+# 기본기능 체크리스트 파일명. `지식` 폴더에 함께 관리된다.
+CHECKLIST_NAME = "(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx"
+KNOWLEDGE_DIR = "지식"
+
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
@@ -31,6 +35,31 @@ FONTS = {
     SKIP:   Font(color="808080"),
     "미수행": Font(color="A6A6A6"),
 }
+
+
+def source_path(ctx):
+    """체크리스트 원본을 PC 독립적으로 찾는다.
+
+    `config.json > checklist_xlsx`가 있으면 그것을 최우선으로 쓰되, **실제로
+    존재할 때만** 쓴다. 그렇지 않으면 저장소 상위로 올라가며 `지식` 폴더의
+    체크리스트를 찾는다(`core/dbreset.source_dir`와 같은 방식).
+
+    이 함수가 생긴 이유: `config.json`에 다른 PC 사용자의 Downloads 경로가
+    박혀 있어 이 PC에서는 파일이 없었고, 결과 기록이 조용히 빠졌다
+    (2026-08-18 확인 — 08-10 이후 생성 이력 없음).
+    """
+    override = (ctx.cfg.get("checklist_xlsx") or "").strip()
+    if override and os.path.isfile(override):
+        return override
+    here = os.path.abspath(ctx.root)
+    for _ in range(4):                      # auto -> Bellalun Viewer -> 자동화 ...
+        here = os.path.dirname(here)
+        if not here:
+            break
+        candidate = os.path.join(here, KNOWLEDGE_DIR, CHECKLIST_NAME)
+        if os.path.isfile(candidate):
+            return candidate
+    return override or ""
 
 
 def _find_header_row(ws, tc_col_name="TC ID"):

@@ -1,5 +1,23 @@
 # -*- coding: utf-8 -*-
-"""TC_Basic_WorkFlow_01: MWL 조회부터 Local 검사 생성까지 완전자동화."""
+"""TC_Basic_WorkFlow_01 - MWL 조회부터 Local 검사 생성까지 완전자동화.
+
+체크리스트 원문 (변경 금지):
+  Step 1. RIS Server를 실행후 Patient List에서 MWL을 조회 및 촬영한다.
+  Step 2. New Patient - Save후 Patient List에서 조회 및 촬영한다.
+  Expected 1. MWL Study List가 조회되며 촬영가능하다.
+  Expected 2. Local로 스터디가 저장되며 촬영가능하다.
+
+판정 근거 (AGENTS.md 2항 - 매뉴얼/사양 우선):
+  * Operation Manual 6.1 "Patient List 모드", 6.1.1 "Patient List 검색하기" -
+    Patient List는 MWL SCU 조회 결과를 목록으로 표시하고, 목록의 검사를 선택해
+    촬영에 진입한다. 그래서 이 TC는 "조회 버튼을 눌렀다"가 아니라 **보낸 처방의
+    환자정보가 화면 목록과 DB에 그대로 들어왔는지**를 판정한다.
+  * Operation Manual 6.2 "New Patient 모드" - 직접 입력한 환자를 Save하면 Local
+    검사로 저장되고 Patient List에서 다시 조회된다. Step 2의 기대결과가 이것이라
+    저장 후 **재조회와 DB 대조**까지 확인한다.
+  * MWL 조회는 DICOM Conformance Statement의 Modality Worklist SCU 동작을 따른다
+    (C-FIND). 그래서 검증용 RIS는 core/mwl.py의 최소 SCP로 대체한다.
+"""
 import os
 import time
 from datetime import date, datetime
