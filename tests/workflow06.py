@@ -127,16 +127,18 @@ def workflow_06(ctx):
                 expected="Image와 RDSR이 모두 Queue에 등록",
                 actual=detail_queue)
 
-        sv.received = sv.received(ctx) or []
-        rdsr = [o for o in sv.received
+        # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
+        # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
+        received = sv.received(ctx) or []
+        rdsr = [o for o in received
                 if str(o.get("SOPClassUID") or "") == sv.SOP_CLASS_RDSR]
-        images = [o for o in sv.received
+        images = [o for o in received
                   if str(o.get("SOPClassUID") or "")
                   in (sv.SOP_CLASS_MG, sv.SOP_CLASS_DBT)]
         r.add(4, "Storage SCP에서 영상 객체와 RDSR 객체 수 확인",
               PASS if (images and rdsr) else MANUAL,
               expected="전송 대상 영상과 RDSR이 누락 없이 수신",
-              actual={"received_total": len(sv.received),
+              actual={"received_total": len(received),
                       "image_objects": len(images),
                       "rdsr_objects": len(rdsr),
                       "db_instances_by_type": {

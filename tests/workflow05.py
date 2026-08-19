@@ -98,8 +98,10 @@ def workflow_05(ctx):
             note="개정본 Expected 2.")
 
         # 수신 객체를 InstanceType으로 되짚어 어떤 3D 종류가 왔는지 남긴다.
-        sv.received = sv.received(ctx) or []
-        received_uids = {o.get("SOPInstanceUID") for o in sv.received
+        # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
+        # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
+        received = sv.received(ctx) or []
+        received_uids = {o.get("SOPInstanceUID") for o in received
                          if o.get("SOPInstanceUID")}
         uid_to_type = {}
         for t, uids in by_type.items():
@@ -114,11 +116,11 @@ def workflow_05(ctx):
             expected={"declared_3d_types": [sv.INSTANCE_NAMES[t]
                                             for t in sv.SENDABLE_3D_TYPES],
                       "objects": len(expected_uids)},
-            actual={"received_total": len(sv.received),
+            actual={"received_total": len(received),
                     "received_types": [sv.INSTANCE_NAMES.get(t, t)
                                        for t in received_types],
                     "received_sop_classes": sorted(
-                        {o.get("SOPClassUID") for o in sv.received}),
+                        {o.get("SOPClassUID") for o in received}),
                     "db_3d_types": {sv.INSTANCE_NAMES[t]: n
                                     for t, n in db_3d.items()},
                     "declared_missing": sorted(missing)},
