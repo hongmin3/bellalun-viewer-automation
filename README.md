@@ -57,30 +57,53 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 
 ## 3. 아키텍처
 
-### 3.1 계층 구조
+### 3.1 파일명 ↔ TC 번호 맵핑
+
+**`tests/workflowNN.py` 의 NN 이 체크리스트 TC 번호입니다.** 파일명만 보고 어느 TC
+인지 알 수 있어야 하므로 1:1로 맞췄습니다.
+
+| 파일 | 담당 TC | 내용 |
+|---|---|---|
+| `tests/workflow01.py` | `WF_01` | MWL 조회 + Local 검사 생성 |
+| `tests/workflow02.py` | `WF_02` | 2D/3D 촬영 + Tool 적용 |
+| `tests/workflow03.py` | `WF_03` | Image Overlay(Bottom) / Print Overlay(Header·Top·Bottom) 설정 |
+| `tests/workflow04.py` | `WF_04` | 2D 수동 DICOM Send |
+| `tests/workflow05.py` | `WF_05` | 3D 수동 DICOM Send |
+| `tests/workflow06.py` | `WF_06` | All Images 및 Dose SR 전송 |
+| `tests/workflow08.py` | `WF_08` | 2D/3D Film Print (영역별 출력물 대조) |
+| `tests/workflow09.py` | `WF_09` | Normal 및 Anonymous Export |
+| `tests/workflow13.py` | `WF_13` | 계정 추가·수정 (1~3단계) |
+| `tests/xipl_flows.py` | `XIPL_01~06` | XIPL 연동 6종 (한 흐름을 공유하므로 묶음) |
+| `tests/install.py` | `Install_01/02/07/08/09` | 설치·환경 점검 |
+| `tests/system_compat.py` | `System_compatibility_03/04` | 3D-Narrow / 3D-Wide 촬영 |
+
+이 정리 전에는 **`tests/workflow03.py` 가 `WF_08`(Film Print)을 담고 있었습니다.**
+이름이 정면으로 오해를 부르는 상태였고, `send_flows.py` 한 파일에 `WF_04`/`05`/`06`
+세 TC가 섞여 있었습니다. 옮기면서 TC가 아니라 인프라에 해당하는 부분(Queue·수신
+객체·식별 Tag 대조)은 `core/send_verify.py` 로 내렸습니다.
+
+**아직 연결되지 않은 모듈**: `tests/dataflow.py`, `tests/settings.py` 는 pre/post DB
+스냅샷을 받아 판정하는 함수 모음인데 **어디에서도 import되지 않습니다.** UI 드라이버가
+없어 한 번도 실행된 적이 없습니다(`core/checklist.py` 가 8일간 출력을 못 냈던 것과 같은
+종류의 문제 — §6). `WF_11`/`WF_12` 구현 시 이 판정 로직을 재사용할 계획입니다.
 
 ```
 run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권한) · 리포트 생성
 │
-├── tests/                 TC별 시나리오와 Pass/Fail 판정
-│   ├── install.py         설치 버전·필수 환경 점검
-│   ├── workflow01.py      MWL 조회 + Local 검사 생성 (9단계)
-│   ├── workflow02.py      2D/3D 촬영 + Tool 적용 검증
-│   ├── workflow03.py      DICOM Print Overlay 실제 출력 검증
-│   ├── xipl_flows.py      XIPL 연동 6종 (가장 복잡, 1,484줄)
-│   ├── overlay_flows.py   Overlay 설정 후 Send/Export 검증 (WF04)
-│   ├── send_flows.py      DICOM Send(2D) 검증 (WF05)
-│   ├── system_compat.py   3D-Narrow / 3D-Wide 촬영 검증
-│   └── dataflow.py        Send/Export/Reject 판정 로직
+├── tests/                 TC별 시나리오와 Pass/Fail 판정 (위 맵핑표)
 │
 └── core/                  재사용 계층 (제품 조작 · 증거 수집)
     ├── ui.py              Win32 컨트롤 열거 · 물리 입력 · 화면 캡처
-    ├── flows.py           화면 전환 시나리오 (로그인·Setting·검사)
+    ├── uitext.py          커스텀 렌더 컨트롤의 화면 텍스트 OCR · 문구로 항목 선택
+    ├── flows.py           화면 전환 시나리오 (로그인·Setting·검사) + 컨트롤 맵
     ├── viewer_processing.py  영상처리 파라미터 UI + OCR 판독
     ├── viewer_tools.py    Tool(W/L·Zoom·Pan·Annotation) 적용 검증
     ├── xipl.py            XIPL Studio 제어 (WPF UI Automation)
-    ├── print_overlay.py   Print Overlay 설정 + 출력물 대조
+    ├── print_overlay.py   Print Overlay 설정 + 출력물 영역별 대조
+    ├── send_verify.py     DICOM Send 공용 판정 (Queue·수신 객체·식별 Tag)
     ├── export_manager.py  Export Manager 제어 (별도 프로세스)
+    ├── specs.py           사양서 PDF 검색 (SRS 번호 인용)
+    ├── snapshot.py        DB 전 구간 스냅샷 · 섹션 diff
     ├── db.py              DB 조회 (**조회 전용 — 아래 설계 원칙 참고**)
     ├── dbreset.py         기준 스냅샷 백업/복원
     ├── result.py          판정 누적 · 리포트 4종 생성
@@ -105,9 +128,9 @@ Class·Transfer Syntax), 제품 사양서.
 
 TC 모듈 상단에 **체크리스트 원문과 인용한 문서·절 번호**를 적어 두는 것을 규칙으로
 했습니다(`AGENTS.md` 2항). 판정 기준이 어디서 나왔는지 코드만 보고 추적할 수 있게
-하는 장치입니다. 현재 `workflow01` / `workflow03` / `send_flows` / `overlay_flows` /
-`system_compat`에 적용돼 있고, 나머지 모듈은 개별 판정의 `note`에 근거를 남기는
-방식이라 **상단 정리는 아직 진행 중**입니다.
+하는 장치입니다. 현재 `workflow01` / `workflow03` / `workflow04` / `workflow05` /
+`workflow06` / `workflow08` / `workflow13` / `system_compat`에 적용돼 있고, 나머지
+모듈은 개별 판정의 `note`에 근거를 남기는 방식이라 **상단 정리는 아직 진행 중**입니다.
 
 화면을 보고 기준을 역산하면 **결함을 정상으로 인증해 버립니다.** 실제로 겪은 두 건:
 Window Level은 매뉴얼이 *"W1/W2 값의 증가·감소"* 로 정의하는데 초기 구현은 "화면
@@ -206,6 +229,7 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | `run.py run-wf06` | WF_06 All Images 및 Dose SR 전송 |
 | `run.py run-wf08` | WF_08 2D/3D Film Print (실제 출력물 대조) |
 | `run.py run-wf09` | WF_09 Normal 및 Anonymous Export |
+| `run.py run-wf13` | WF_13 계정 추가·수정 (1~3단계 자동, 4~6단계 수동) |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
 | `run.py run-sys3d` | 보조: 3D-Narrow / 3D-Wide 촬영 검증 |
 | `run.py list` | 개정본 36개 TC의 자동화 수준과 사유 |
@@ -680,7 +704,7 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 | `WorkFlow_09` | Normal 및 Anonymous Export (익명화 값까지 대조) |
 | `XIPL_compatibility_01~06` | XIPL 연동 6종 (영상처리 파라미터 왕복 검증) |
 
-### 부분 자동 (5건)
+### 부분 자동 (6건)
 
 `Install_07/08/09` — 설정·데이터 유지는 DB로 자동 판정하고, 설치·업그레이드·제거
 실행 자체는 파괴적이라 수동입니다.
@@ -698,7 +722,18 @@ Selected Images로 전송 → Queue `State=Done` 확인 → 수신 객체 **정�
 Demo(F8) 가상 촬영이라 그 조건 성립이 확인되지 않았습니다. 전제 미충족을 제품
 결함처럼 보고하지 않습니다.
 
-### 수동 (17건)
+`WorkFlow_13`(계정 추가·수정 및 로그인) — **1~3단계는 자동**입니다. Setting >
+System > Account 에서 계정을 추가하고(New Account 모달), 권한 그룹을 고르고, 계정
+정보를 수정한 뒤 `ACCOUNT` 테이블로 대조합니다. `ACCOUNT.Group` 매핑
+**Service=3 / Admin=2 / User=1** 은 실제로 만들어 DB로 확인한 값입니다.
+
+4~6단계(로그오프 → 시험 계정 로그인 → 권한별 메뉴 접근)는 **의도적으로 수동**입니다.
+로그인 계정을 바꾸면 회귀의 뒤따르는 TC가 제한 권한으로 실행되고, 중간에 실패하면
+로그인 상태를 복구할 수 없습니다. 이 저장소는 그런 연쇄 실패를 이미 세 번 겪었고
+(회귀 7·13·14차) 매번 원인 추적에 오래 걸렸습니다. 권한 코드별 기능 범위 표도
+매뉴얼에 없어 6단계의 기대값을 확정할 수 없습니다.
+
+### 수동 (16건)
 
 실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 사양 미확정, 또는 **UI
 드라이버 미구현**이 이유입니다. **임의로 자동 PASS를 만들지 않는 것이 이
@@ -706,9 +741,17 @@ Demo(F8) 가상 촬영이라 그 조건 성립이 확인되지 않았습니다. 
 
 미구현 중 다음은 기존 구조를 재사용할 수 있어 우선순위가 높습니다.
 
-| TC | 재사용할 것 |
-|---|---|
-| `WorkFlow_11/12` Reject 및 Restore | `tests/dataflow.py`의 DB 델타 판정 |
+이번에 **미구현 TC의 진입점을 실측**해 뒀습니다(2026-08-19). 아이콘 모양으로
+추정하지 않고 캡처의 화면 라벨과 rect를 대조해 확정했습니다 — 이 저장소는 예전에
+`2184`를 Send로 추정했다가 실제로는 `Import Study`였던 적이 있습니다.
+
+| TC | 실측한 진입점 | 남은 것 |
+|---|---|---|
+| `WorkFlow_07` Emergency Auto Send | Patient 화면 Emergency = `1100`(사이렌 아이콘) / Setting > DICOM > General `2444` "Study close option on Examine mode" · `2446` "Send urgent patient automatically" Yes | 촬영은 `WF_02` 재사용, Queue·수신 판정은 `core/send_verify.py` 재사용 가능. Emergency 검사가 매 실행 새로 생겨 데이터가 쌓이는 문제를 어떻게 다룰지 결정 필요 |
+| `WorkFlow_11/12` Reject 및 Restore | Setting > Study > Reject/Retake = 페이지 `211`, 옵션 `2421`~`2428`. **전제조건이 이미 충족**돼 있음을 확인(Use reject reason ✓, Always display rejected images ✓, Reason 5건) | **Reject 실행 버튼을 아직 못 찾았습니다.** Examined 툴바 14개에는 없고, 검사를 연 화면에서 찾아야 합니다. 판정은 `tests/dataflow.py`의 DB 델타 로직을 재사용 |
+| `WorkFlow_14` Setting Export/Import | Setting > System > My Settings = 페이지 `193`, `2293` Export / `2294` Import | 파일 대화상자 처리와 Viewer 재시작 후 복원 확인 |
+| `WorkFlow_10` MWL Hospital Code 매핑 | Setting > Procedure > Hospital Code = 페이지 `215` | RIS/MWL 서버에 Hospital Code가 포함된 처방을 등록하는 방법 확인 필요 |
+| `WorkFlow_15` Send Preview 위치 적용 | Setting > DICOM > Storage = 페이지 `219` | 수신 영상의 표시 위치를 Preview와 대조하는 기준 확정 필요 |
 
 ### 자동화 보조 (4건)
 

@@ -14,8 +14,8 @@
 | 개정본 | Title | 코드가 쓰던 옛 번호 | 구현 파일 |
 |---|---|---|---|
 | WF_02 | 공통 2D/3D 검사 촬영 및 Tool 적용 | WF_02 (일치) | `tests/workflow02.py` |
-| WF_03 | Image Overlay 및 Print Overlay 설정 | WF_04 | `tests/overlay_flows.py` |
-| WF_04 | 2D 수동 DICOM Send | WF_05 | `tests/send_flows.py` |
+| WF_03 | Image Overlay 및 Print Overlay 설정 | WF_04 | `tests/workflow03.py` |
+| WF_04 | 2D 수동 DICOM Send | WF_05 | `tests/workflow04.py` |
 | WF_08 | 2D/3D Film Print | WF_03 | `tests/workflow03.py` |
 | WF_09 | Normal 및 Anonymous Export | WF_10 | `tests/dataflow.py`(판정부) |
 | WF_10 | MWL Hospital Code와 Procedure 매핑 | WF_11 | `tests/settings.py`(판정부) |
@@ -34,7 +34,7 @@
 - 개정본에 없는 3D-N/3D-W 촬영은 TC 번호를 떼고 보조 항목
   `AUTOMATION_3D_ACQUISITION_3DN/_3DW`로 분리했다(`run-sys3d` 유지).
 - `core/checklist.py`가 개정본(`개정 TC` 시트)에 결과를 기록한다.
-- `overlay_flows.py`를 개정본 WF_03의 6단계 구조로 재작성했다. Send 판정은 WF_04가,
+- WF_03 모듈(현 `tests/workflow03.py`)을 개정본 WF_03의 6단계 구조로 재작성했다. Send 판정은 WF_04가,
   Film 표시 확인은 WF_08이 하므로 중복을 제거하고 참조로 바꿨다.
 
 **개정본에 없어 빠진 항목**: 이전 scope의 `WF_17`, `WF_18`,
@@ -348,6 +348,97 @@ Top 값은 필름에서 **7px 높이**라 기존 배율(6배)로는 아예 읽�
 **얻은 규칙**: 설정한 값이 화면에 안 보이면 **항목이 아니라 "표시 스위치"를 먼저
 본다.** 제품을 의심하기 전에 설정 화면을 캡처해 눈으로 본다.
 
+### 7. [완료] 자동화 모듈 파일명을 TC 번호와 1:1 맵핑 (2026-08-19)
+
+사용자 요청: "자동화코드는 workflow01.py workflow02.py 처럼 tc번호랑 맵핑해주면
+좋을것 같아."
+
+| 이전 | 담당 TC | 이후 |
+|---|---|---|
+| `tests/workflow03.py` | **WF_08** | `tests/workflow08.py` |
+| `tests/overlay_flows.py` | WF_03 | `tests/workflow03.py` |
+| `tests/export_flows.py` | WF_09 | `tests/workflow09.py` |
+| `tests/send_flows.py` | WF_04 / 05 / 06 | `tests/workflow04.py` / `05` / `06` |
+| (공용 Send 판정) | — | `core/send_verify.py` |
+
+`workflow03.py` 가 `WF_08`(Film Print)을 담고 있어 **이름이 정면으로 오해를
+부르는 상태**였다. `send_flows.py` 는 세 TC가 한 파일에 섞여 있었다.
+
+옮기면서 TC 절차가 아니라 인프라에 해당하는 부분(Queue 상태·수신 객체·식별 Tag
+대조)만 `core/` 로 내렸고, 모듈 밖에서 쓰는 헬퍼는 앞 밑줄을 떼어 공개 이름으로
+바꿨다(`_send_and_verify` -> `send_and_verify`).
+
+**분할에서 실제 버그가 나왔고 `ast` 검사가 잡았다.** 새 모듈에 `flows` / `os` /
+`vp` / `ensure_bunny` / `PASS` / `MANUAL` import 가 빠져 있었다. `py_compile` 은
+통과한다(AGENTS.md 8항의 그 사례). 회귀 사슬의 WF_08 호출 이름도 어긋나 있었다.
+
+### 8. [완료] WF_13 계정 추가·수정 1~3단계 자동화 (2026-08-19)
+
+`run-wf13` 실측: **PASS 4 / FAIL 0 / MANUAL 3**.
+
+실측으로 확정한 제품 동작 세 가지 — 전부 추측하면 틀렸을 것들이다.
+
+1. **`ACCOUNT.Group` = Service 3 / Admin 2 / User 1.** 콤보 라벨을 OCR 로 읽고
+   (`['service','admin','user']`) 실제로 만들어 DB 값을 확인했다.
+2. **계정 삭제 확인 팝업은 좌=Yes(501) / 우=No(500).**
+   `ui.dismiss_dialog()` 는 No 를 눌러 삭제가 되지 않았다. 문구는
+   "Are you sure you want to delete this account?" 다(캡처로 확인). 검사 삭제와
+   같은 버튼 구성이라 `flows.confirm_study_delete` 를 재사용한다.
+3. **계정 수정 시 Password 를 다시 입력해야 저장된다.** 계정을 선택하면
+   Password / Check Password 가 비워진 상태로 표시되는데, 비운 채 Update 하면
+   **조용히 저장되지 않는다.** 팝업 문구가 `WM_GETTEXT` 로 안 읽혀
+   "(문구 미노출)" 만 남아 원인을 몰랐고, **Update 결과 팝업을 OCR 로 읽도록
+   고쳐서** 찾았다. 같은 함정이 다른 Setting 화면에도 있을 수 있다.
+
+`+` 는 인라인 편집이 아니라 **New Account 모달**을 띄운다(2288~2292 / OK 1101 /
+Cancel 1102). 우측 Properties(2283~2287)는 선택된 계정의 표시·수정용이다.
+
+**4~6단계는 붙이지 않았다.** 로그인 계정을 바꾸면 회귀의 뒤따르는 TC 가 제한
+권한으로 돌고, 중간 실패 시 복구가 불가능하다(회귀 7·13·14차 연쇄 실패의 교훈).
+
+### 9. 미구현 TC의 진입점 실측 (2026-08-19) — 다음에 이어서 하면 된다
+
+캡처의 화면 라벨과 rect 를 대조해 확정했다. `core/flows.py` 에 상수로 기록했다.
+
+| 화면 | 확정한 것 |
+|---|---|
+| Setting > System 하위 | 186 General / 187 Security / 188 Region / 189 System Info. / 190 Software Info. / **191 Account** / 192 License / **193 My Settings** / 194 CS |
+| Setting > Study 하위 | 209 General / 210 Study Delete / **211 Reject/Retake** |
+| Account | 2280 목록 / 2281 + / 2282 휴지통 / 2283~2287 Properties |
+| New Account 모달 | 2288 ID / 2289 Name / 2290 PW / 2291 Check PW / 2292 Group / 1101 OK / 1102 Cancel |
+| My Settings | **2293 Export / 2294 Import** |
+| Reject/Retake | 2421·2422 Reject previous image on retake / 2423 Use reject reason / 2424 Use retake reason / 2425 Always display rejected images / 2426 Reasons 목록 / 2427 추가 / 2428 삭제 |
+| Patient 화면 | **1100 Emergency**(사이렌 아이콘) |
+| DICOM General | 2444 Study close option / 2446·2445 Send urgent patient automatically / 2448·2447 Validate study instance UID / 2449 Allow long accession number |
+
+**WF_11/12 전제조건은 이미 충족돼 있다** — Use reject reason ✓, Always display
+rejected images ✓, Reason 5건(Artifacts / Mispositioning / Patient Movement /
+Mechanical Failure / Inappropriate Processing). 자동화는 이 전제를 **바꾸지 않고
+확인**하면 된다.
+
+**남은 미지: Reject 실행 버튼.** Examined 툴바 14개(2181·2183·2189·2190·2196·
+2188·2191·2184·2197·2185·2186·2193·2195·2192)에는 없다. 검사를 연 화면에서
+찾아야 한다. 이번에는 Examined 목록이 기본 필터로 비어 나와(0행) 검사를 열지
+못했다 — `tests/workflow08.py` 의 `_examined_search(ui, PATIENT_ID)` 로 환자 ID 를
+넣고 조회해야 한다.
+
+### 사용자에게 물어볼 것 (2026-08-19)
+
+1. **WF_13 4~6단계** — 시험 계정으로 로그인한 뒤 원래 계정으로 돌아오는 절차를
+   어떻게 할까요? 회귀 중간에 실패하면 뒤따르는 TC 가 전부 무너지므로, 실패 시
+   복구 방법(예: Viewer 재시작 후 service 로 재로그인)을 확정하고 싶습니다.
+   그리고 **권한 그룹별로 어떤 메뉴가 보여야 하는지** 표가 있으면 6단계를
+   자동 판정할 수 있습니다. 매뉴얼·사양서에서 찾지 못했습니다.
+2. **WF_10** — "RIS/MWL 서버에 HC_FLOW_01이 포함된 처방을 등록한다"를 자동화하려면
+   시험용 MWL 서버에 Hospital Code 를 넣어 처방을 만드는 방법이 필요합니다.
+   현재 `core/mwl.py` 가 처방을 만들 수 있는지, 아니면 별도 도구를 쓰는지
+   알려 주시면 구현하겠습니다.
+3. **WF_15** — "수신 영상의 표시 결과가 Send Preview 의 위치와 일치한다"를 무엇으로
+   판정할까요? 수신 DICOM 의 어떤 태그(예: Requested Image Size, Presentation
+   State)로 확인하는 것이 맞는지 확정이 필요합니다.
+4. **WF_07** — Emergency 검사는 실행마다 새 검사를 만듭니다. 회귀에서 데이터가
+   쌓이는 것을 그대로 둘까요, 아니면 TC 끝에 지울까요?
+
 ### 그 밖의 다음 후보
 
 `TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).
@@ -391,7 +482,7 @@ JPEG2000을 선택할 수 있고, 이 상태로 Send하면 conformant SCP 상대
    노출하는 것인지.
 2. 노출이 의도된 것이라면 Conformance Statement에 추가돼야 한다.
 
-자동화 쪽 조치: `tests/send_flows.py:_ensure_transfer_syntax`가 전송 전에
+자동화 쪽 조치: `core/send_verify.py:ensure_transfer_syntax`가 전송 전에
 **선언된 값(Implicit VR LE)으로 되돌린다.** 테스트 SCP에 맞춘 우회가 아니라
 사양 준수 상태를 만드는 것이므로 그대로 유지한다.
 
@@ -459,7 +550,7 @@ MWL 미등록(`DB=[]`) → WF01/02/03/04, XIPL 01/02/03/06, WF05 연쇄 FAIL.
 | 리포트가 연쇄를 안 드러냄 | 상단에 `[ 먼저 볼 것 ] 가장 앞선 FAIL` 추가 | 실패 리포트 재생성으로 확인 |
 | 스텝 밖 소요시간 은폐 | TC 전체와 스텝 합계 차이가 5초 넘으면 명시 | — |
 | `ui_flows.py`의 6초 고정 sleep | `statusbar.wait_ready()`로 아이콘 출현 대기로 교체 | 5초 이상 고정 sleep **0건** |
-| Examined 창 컨트롤 즉시 판정 | `flows.wait_controls()`로 상한 대기 (`viewer_processing`, `overlay_flows`) | — |
+| Examined 창 컨트롤 즉시 판정 | `flows.wait_controls()`로 상한 대기 (`viewer_processing`, `tests/workflow03.py`) | — |
 | `_open_examined`가 `open_main_menu` 반환값 무시 | 실패 지점을 정확히 보고 | — |
 
 ### 읽는 사람을 위한 규칙
