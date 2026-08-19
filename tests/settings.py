@@ -7,7 +7,7 @@ r"""설정·계정·시스템 계열 TC의 판정부.
   TC_Basic_WorkFlow_14  Setting Export 및 Import              [pre/post]
   TC_Basic_WorkFlow_16  Kiosk 및 System Launcher (검증부)      [완전 자동]
 
-WF_03은 `tests/overlay_flows.py`가 실제 UI로 수행하므로 여기 판정부는 쓰이지 않는다.
+WF_03은 `tests/workflow03.py`가 실제 UI로 수행하므로 여기 판정부는 쓰이지 않는다.
 나머지는 pre/post 스냅샷을 만드는 UI 드라이버가 없어 `run.py`에 연결돼 있지 않다.
 
 **2026-08-19 번호 재정렬**: 이전 체크리스트 번호를 쓰고 있었다(예: Kiosk가 `WF_18`).

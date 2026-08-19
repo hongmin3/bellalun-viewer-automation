@@ -93,7 +93,7 @@ def _scan(path):
 
 def _open_export_manager(ctx, ui, r, step, patient_id):
     """Examined에서 대상 검사를 선택하고 Export를 실행한다."""
-    from tests.overlay_flows import _open_examined
+    from tests.workflow03 import _open_examined
     if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
         flows.close_examine(
             ui, option="suspend", wait=10,

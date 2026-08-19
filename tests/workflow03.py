@@ -1,349 +1,234 @@
 # -*- coding: utf-8 -*-
-"""TC_Basic_WorkFlow_03 - Tool 적용 영상의 DICOM Print Overlay 및 Film 출력 검증.
+r"""TC_Basic_WorkFlow_03 - Image Overlay 및 Print Overlay 설정.
 
-체크리스트 원문 (변경 금지):
-  Step 1. Tool 동작 확인한다.
-  Step 2. Tool 적용으로 변경된 Image DICOM Send, Print, Export 한다.
-  Expected 2. 변경된 Image가 전송된다.
+체크리스트 원문 (변경 금지) — `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`
+시트 `개정 TC` row 13:
 
-판정 근거 (AGENTS.md 2항 - 매뉴얼/사양 우선):
-  * Service Manual 4.8.9 "Print Overlay 메뉴" - Print Overlay는 항목을 등록한 뒤
-    4.8.8 "Print 메뉴"의 Print 서버 Overlay 항목에서 선택해야 출력에 반영된다.
-    그래서 등록만으로 PASS 판정하지 않고 **Print 서버에 선택된 것까지** 대조한다.
-  * Operation Manual 9.7 "영상을 Film 창으로 보내기", 10.1.1 "Film 창으로 영상
-    보내기", 10.1.3 "Film 창 확인하기" - 출력은 Film 창에 배치한 뒤 수행하므로
-    Layout(1x1) 구성 후 출력하는 것이 정상 절차다.
-  * Operation Manual 8.5 "영상 조정 도구 버튼" - Step 1의 Tool 동작 확인 대상은
-    조작/레이아웃/주석/관리 도구다.
-  * 출력물 검증은 Print SCP(core/printscp.py)가 수신한 Film의 **실제 픽셀**과
-    Overlay 실제값 OCR로 한다. 버튼을 눌렀다는 사실은 증거가 아니다.
+  Precondition
+    TC_Basic_WorkFlow_03이 Pass이다.
+    DATA_FLOW_MWL_01에 2D/3D 영상이 존재한다.
+  Step 1. Setting > Display > Overlay에서 Image Overlay 항목을 추가한다.
+  Step 2. Setting > DICOM > Print에서 Print Overlay를 추가한다.
+  Step 3. Print 설정에서 추가한 Print Overlay를 선택한다.
+  Step 4. Examined 창에서 DATA_FLOW_MWL_01 검사를 연다.
+  Step 5. 2D 영상의 Image Overlay를 확인한다.
+  Step 6. Film 창에 동일 영상을 추가하고 Print Overlay를 확인한다.
+  Expected 1. 선택한 Image Overlay 항목이 저장된다.
+  Expected 2. Print Overlay 구성이 저장된다.
+  Expected 3. Print 설정에 선택한 Overlay가 적용된다.
+  Expected 4. 동일 환자와 검사 영상이 열린다.
+  Expected 5. 설정한 Image Overlay 항목이 표시된다.
+  Expected 6. Film 창에 설정한 Print Overlay가 표시된다.
+
+**2026-08-19 재라벨**: 이전에는 이 모듈이 `TC_Basic_WorkFlow_04 - Overlay`였다.
+그때는 다른 체크리스트(`지식\(TC) R-23-2346...xlsx`)의 번호를 따랐는데, 이 저장소의
+기준 문서는 **개정본**이다(`AGENTS.md` 0절). 개정본에서 이 내용은 `WF_03`이고,
+`WF_04`는 "2D 수동 DICOM Send"(tests/workflow04.py)다.
+
+단계 분담
+  * Step 1~3은 이 모듈이 실제 UI로 수행하고 DB로 대조한다
+    (CONFIGURATION.OVERLAY_ITEM / PRINT_OVERLAY_ITEM / DICOM_PRINT.Overlay).
+  * Step 4~5(Examined에서 열어 Image Overlay 표시 확인)는 이 모듈이 검사를 열어
+    확인한다.
+  * **Step 6(Film 창의 Print Overlay 표시)은 `WF_08`(tests/workflow03.py)이**
+    Film Layout 1x1 구성과 실제 DICOM Print, Print SCP가 수신한 Film의 Overlay
+    실제값 OCR·raster 비교로 검증한다. 중복 출력하지 않고 그 결과를 참조한다.
+
+Print Overlay 6개 항목은 Expected Result의 시스템정보(compression, HVL, AGD,
+Thickness)와 환자정보(ID, birthdate)에 대응한다 — Patient ID, Birth Date,
+Thickness, Compression Force, HVL, AGD. Image Overlay 추가 항목은 Dose kVp,
+Dose mAs다(사용자 확정, 2026-08-18).
+
+판정 근거(운영 지침 2절): 설정 저장은 DB로 대조한다. 버튼을 눌렀다는 사실만으로
+판정하지 않는다.
 """
 
-from __future__ import annotations
-
 import os
-import re
 import time
-from datetime import datetime
-from pathlib import Path
-
-from PIL import Image, ImageChops, ImageGrab, ImageOps
 
 from core import flows, print_overlay, screen
-from core.printscp import PrintServer
-from core.result import FAIL, PASS, TCResult
-from core.ui import children
-from tests.workflow02 import PATIENT_ID, _examined_search, _study_card_number
+from core import viewer_processing as vp
+from core.result import TCResult, FAIL
+
+IMAGE_OVERLAY_ADD = ["Dose kVp", "Dose mAs"]
+
+# 추가 위치. **Bottom**이다(사용자 확정, 2026-08-19). Dose 정보는 촬영 조건이라
+# 환자정보가 모인 상단과 분리해 영상 하단에 두는 것이 검증자가 보기 좋다.
+# `CONFIGURATION.OVERLAY_ITEM.Position`은 0=Top / 1=Bottom (실측).
+IMAGE_OVERLAY_POSITION = "bottom"
 
 
-EXPECTED_LABELS = tuple(label for label, _ in print_overlay.PRINT_ITEMS)
+def _open_examined(ui, wait=6):
+    """메인 메뉴 > View 로 Examined 창을 열고 검색해 목록을 채운다.
 
-
-def _fixture(ctx):
-    row = ctx.db.one(
-        "DATA", "SELECT TOP 1 s.[Key],s.StudyDate,s.StudyTime,s.StudyInstanceUID,"
-        "p.PatientID,p.PatientBirthDate FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
-        "WHERE p.PatientID=@pid AND EXISTS (SELECT 1 FROM INSTANCE i "
-        "WHERE i.StudyKey=s.[Key] AND i.InstanceType=0) "
-        "AND EXISTS (SELECT 1 FROM INSTANCE i WHERE i.StudyKey=s.[Key] AND i.InstanceType=1) "
-        "ORDER BY s.[Key] DESC", {"pid": PATIENT_ID})
-    if not row:
-        raise RuntimeError(f"2D/3D completed fixture not found: {PATIENT_ID}")
-    instance = ctx.db.one(
-        "DATA", "SELECT TOP 1 [Key],ImageInstanceUID,SeriesKey,GroupKey "
-        "FROM INSTANCE WHERE StudyKey=@study AND InstanceType=0 ORDER BY [Key]",
-        {"study": row["Key"]})
-    row["instance"] = instance
-    return row
-
-
-def _close_setting(ui):
-    closes = [c for c in ui.by_id(4) if c.visible
-              and c.rect[2] - c.rect[0] <= 60 and c.rect[3] - c.rect[1] <= 60]
-    if closes:
-        ui.click(min(closes, key=lambda c: c.rect[1]), settle=3)
-
-
-def _open_examined_fixture(ctx, ui, target):
-    rows = _examined_search(ui, PATIENT_ID)
-    rank = _study_card_number(ctx, target)
-    if rank > len(rows):
-        raise RuntimeError(f"Target card rank {rank}, visible cards {len(rows)}")
-    ui.click(rows[rank - 1], settle=.8)
-    return rows, rank
-
-
-def _film_from_selected_study(ui):
-    buttons = [c for c in ui.by_id(2188) if c.visible]
-    if not buttons:
-        raise RuntimeError("Examined Print button (2188) not found")
-    ui.click(buttons[0], settle=1)
-    selected = [c for c in ui.by_id(501) if c.visible]
-    if not selected:
-        raise RuntimeError("Print Selected button (501) not found")
-    ui.click(selected[0], settle=5)
-    film = [c for c in ui.by_id(158) if c.visible and c.text == "CWndFilmManager"]
-    if not film:
-        raise RuntimeError("Film window did not open")
-    one_by_one = [c for c in ui.by_id(1141) if c.visible and c.rect[0] > 1400]
-    if not one_by_one:
-        raise RuntimeError("Film 1x1 layout button (1141) not found")
-    ui.click(one_by_one[0], settle=2)
-    managers = [c for c in children(film[0].hwnd, 4)
-                if c.ctrl_id == 203 and c.visible]
-    unique = {c.hwnd: c for c in managers}.values()
-    largest = max(unique, key=lambda c: ((c.rect[2] - c.rect[0]) *
-                                         (c.rect[3] - c.rect[1])), default=None)
-    if not largest:
-        raise RuntimeError("Film 1x1 image pane not found")
-    film_area = ((film[0].rect[2] - film[0].rect[0]) *
-                 (film[0].rect[3] - film[0].rect[1]))
-    pane_area = ((largest.rect[2] - largest.rect[0]) *
-                 (largest.rect[3] - largest.rect[1]))
-    if pane_area < film_area * .85:
-        raise RuntimeError(
-            f"Film layout did not change to 1x1: pane={largest.rect}, film={film[0].rect}")
-    return film[0], {"button_id": 1141, "pane": largest.rect,
-                     "film": film[0].rect, "pane_ratio": pane_area / film_area}
-
-
-def _norm(value):
-    # OCR 은 필름 글꼴의 0 을 O 로 자주 읽는다. 기대값도 같은 변환을 거치므로
-    # 이 치환이 판정을 느슨하게 만들지 않는다.
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower()).replace("o", "0")
-
-
-def _ocr_areas(image, path_prefix, tesseract_exe, result=None):
-    """필름/프리뷰를 **영역별로** 크롭해 OCR 하고 크롭 이미지를 증적으로 남긴다.
-
-    한 곳만 크롭하면 영역을 구분하지 못한다 — 6개가 전부 Top 에 몰려 있어도
-    통과해 버린다. 영역별로 읽어야 "Top 이외 영역에도 들어갔는지"가 증명된다.
+    검색 버튼은 **2179**(돋보기)다. 2180은 새로고침이라 눌러도 목록이 채워지지
+    않는다(2026-08-18 실측 — 이걸 혼동해 "목록이 비었다"고 오진한 적이 있다).
     """
-    import pytesseract
-
-    if tesseract_exe:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    width, height = image.size
-    texts = {}
-    for area, box in print_overlay.film_regions(width, height).items():
-        crop = image.crop(box).convert("L")
-        # 배율 하나에 의존하지 않는다 - 8배에서 `MWL` 이 `MIWL` 로 읽히는 것을
-        # 실측했다. 판독본 전부를 남겨 사람이 감사할 수 있게 한다.
-        reads = {}
-        for scale in print_overlay.FILM_OCR_SCALES:
-            big = crop.resize((crop.width * scale, crop.height * scale),
-                              Image.Resampling.LANCZOS)
-            reads[f"x{scale}"] = pytesseract.image_to_string(
-                ImageOps.autocontrast(big), config="--psm 6", lang="eng").strip()
-        texts[area] = reads
-        crop_path = f"{path_prefix}_{area}.png"
-        Path(crop_path).parent.mkdir(parents=True, exist_ok=True)
-        crop.save(crop_path)
-        if result is not None:
-            result.attach(crop_path)
-    return texts
+    # 반환값을 버리면 메뉴가 안 열렸을 때 "View 메뉴 항목을 못 찾았다"는
+    # 엉뚱한 원인으로 보고된다. 실패 지점을 정확히 남긴다.
+    if not flows.open_main_menu(ui):
+        raise flows.FlowError("메인 메뉴가 열리지 않았습니다(Examined 진입 전).")
+    view = [c for c in ui.by_id(flows.MAIN_MENU["item_view"])
+            if c.visible and c.rect[2] - c.rect[0] > 20]
+    if not view:
+        raise flows.FlowError("View 메뉴 항목을 찾지 못했습니다.")
+    ui.click(view[0], settle=wait)
+    # 창이 그려지기를 기다린다(즉시 조회 금지).
+    flows.wait_controls(ui, (2179,), timeout=20)
+    search = [c for c in ui.by_id(2179) if c.visible]
+    if not search:
+        raise flows.FlowError("Examined 검색 버튼(2179)을 찾지 못했습니다.")
+    ui.click(search[0], settle=3)
+    time.sleep(1.5)
 
 
-def _film_expectations(target):
-    """영역별 기대값. 환자 정보는 **DB 값에서** 만든다.
-
-    상수를 박아 두면 픽스처가 바뀌어도 통과한다. 영상 속성값(두께/압박력/HVL/AGD)은
-    영상 생성기가 넣은 값이라 필름 실측 문구를 쓰되, 값과 라벨을 함께 본다.
-
-    필름 렌더링 형태 (2026-08-19 실측)
-      Header : 라벨 없이 **값만**, 1 X 2 두 칸에 나란히
-      Top    : 라벨 없이 **값만** (`0.0 cm`, `35 N`)
-      Bottom : **`라벨: 값`** (`HVL: Not valid`)
-    """
-    pid = _norm(target["PatientID"])
-    birth = _norm(target["PatientBirthDate"])
-    return {
-        "header": {
-            "Patient ID": lambda n: pid in n,
-            "Birth Date": lambda n: birth in n,
-        },
-        "top": {
-            "Thickness": lambda n: "00cm" in n,
-            "Compression Force": lambda n: "35n" in n or "353n" in n,
-        },
-        "bottom": {
-            # 필름의 안티에일리어싱이 V 를 ¥ 로 만들어 정규화 후 "hyl" 이 된다.
-            # 값(`Not valid`)과 라벨을 함께 요구하므로 느슨해지지 않는다.
-            "HVL": lambda n: ("n0tvalid" in n and
-                              ("hvl" in n or "hyl" in n or "hl" in n)),
-            "AGD": lambda n: "n0tvalid" in n and ("agd" in n or "gd" in n),
-        },
-    }
-
-
-def _judge_areas(texts, expect):
-    """영역별 판정 결과 `{area: {label: bool}}` 와 읽은 문구를 함께 돌려준다."""
-    seen = {}
-    for area, checks in expect.items():
-        norms = [_norm(read) for read in (texts.get(area) or {}).values()]
-        seen[area] = {label: any(test(norm) for norm in norms)
-                      for label, test in checks.items()}
-    return seen
-
-
-def _all_ok(seen):
-    return all(ok for area in seen.values() for ok in area.values())
-
-
-def _image_similarity(path_a, path_b):
-    a = Image.open(path_a).convert("L")
-    b = Image.open(path_b).convert("L")
-    # Ignore the 1px red selection border in Film and compare normalized film
-    # rasters at a compact resolution.
-    a = a.crop((2, 2, max(3, a.width - 2), max(3, a.height - 2)))
-    a = ImageOps.fit(a, (256, 320), method=Image.Resampling.LANCZOS)
-    b = ImageOps.fit(b, (256, 320), method=Image.Resampling.LANCZOS)
-    diff = ImageChops.difference(a, b)
-    mean = sum(diff.histogram()[i] * i for i in range(256)) / (256 * 320)
-    return {"mean_delta": round(mean, 3), "similarity": round(1 - mean / 255, 6)}
-
-
-def _preview_urls(job):
-    urls = []
-    for key, value in (job or {}).items():
-        if isinstance(value, str) and ("preview" in key.lower() or
-                                       value.lower().endswith((".png", ".jpg", ".jpeg"))):
-            urls.append(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, str) and item.lower().endswith((".png", ".jpg", ".jpeg")):
-                    urls.append(item)
-    return urls
-
-
-def run(ctx):
-    result = TCResult("TC_Basic_WorkFlow_08", "2D/3D Film Print")
-    ui = None
+def workflow_03(ctx):
+    r = TCResult("TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정")
+    patient_id = (ctx.cfg.get("xipl") or {}).get(
+        "test_patient_id", "DATA_FLOW_MWL_01")
     try:
-        target = _fixture(ctx)
-        result.add(0, "선행 2D/3D 검사 데이터", PASS,
-                   expected=f"{PATIENT_ID}, 2D/3D Instance", actual=target)
-        ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
-        if not flows.ensure_patient_screen(ui):
-            raise RuntimeError("Patient screen is not ready")
-        tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
-        saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess)
-        result.assert_true(
-            1, "DICOM Print Overlay 6개 항목을 Header/Top/Bottom에 저장",
-            print_overlay.matches_expected_areas(saved["items"]),
-            expected={"areas": print_overlay.PRINT_EXPECTED_BY_POSITION,
-                      "labels": list(EXPECTED_LABELS)}, actual=saved)
-        # Header 표시 위치가 None 이면 항목이 저장돼 있어도 필름에 나오지 않는다
-        # (사양서1 297쪽). Layout 칸수는 항목 수 이상이어야 한다(같은 쪽,
-        # "Layout 한 칸당 한 항목씩 표시한다").
-        header_rows = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
-        result.assert_true(
-            1, "Print Overlay Header 표시 위치/Layout 설정",
-            int(saved["overlay"]["HeaderPosition"]) ==
-            print_overlay.HEADER_POSITION_VALUES[print_overlay.HEADER_POSITION] and
-            print_overlay.HEADER_LAYOUT_CELLS[
-                print_overlay.HEADER_LAYOUT_LABELS[
-                    int(saved["overlay"]["HeaderLayout"])]] >= header_rows,
-            expected={"HeaderPosition": print_overlay.HEADER_POSITION,
-                      "layout_cells": f">= {header_rows}"},
-            actual={"HeaderPosition": saved["overlay"]["HeaderPosition"],
-                    "HeaderLayout": saved["overlay"]["HeaderLayout"],
-                    "layout": print_overlay.HEADER_LAYOUT_LABELS[
-                        int(saved["overlay"]["HeaderLayout"])]},
-            note="사양서1 297쪽 - None 으로 설정한 경우 표시되지 않는다 / "
-                 "Layout 한 칸당 한 항목씩 표시한다")
+        session = vp.open_test_study(ctx)
+        ui = session["ui"]
 
+        # --- Step 1: Image Overlay 추가 -------------------------------
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            flows.close_examine(ui, option="suspend", wait=10)
+        flows.ensure_patient_screen(ui, wait=3)
+        added = vp.add_image_overlay_items(
+            ui, ctx.db, IMAGE_OVERLAY_ADD, position=IMAGE_OVERLAY_POSITION)
+        want_ids = {vp.OVERLAY_FIELD_IDS[x] for x in IMAGE_OVERLAY_ADD}
+        want_position = vp.OVERLAY_POSITION[IMAGE_OVERLAY_POSITION]
+        saved = added["after"]
+        # 저장됐는지만 보지 않고 **어느 위치에 들어갔는지**까지 판정한다.
+        # 위치를 확인하지 않으면 Top에 들어가도 PASS가 되어 요구사항을 놓친다.
+        wrong = {fid: saved[fid] for fid in want_ids
+                 if fid in saved and saved[fid][0] != want_position}
+        r.assert_true(
+            1, f"Setting > Display > Overlay의 {IMAGE_OVERLAY_POSITION.title()}에 "
+               "Image Overlay 항목 추가",
+            want_ids <= set(saved) and not wrong,
+            expected={"labels": IMAGE_OVERLAY_ADD,
+                      "field_ids": sorted(want_ids),
+                      "position": f"{IMAGE_OVERLAY_POSITION}"
+                                  f"(OVERLAY_ITEM.Position={want_position})"},
+            actual={**added, "wrong_position": wrong},
+            note="CONFIGURATION.OVERLAY_ITEM의 FieldID와 **Position**을 함께 대조한다. "
+                 "FieldID(Dose kVp=115, Dose mAs=118)와 Position(0=Top, 1=Bottom)은 "
+                 "모두 추가해 보고 실측한 값이다. 개정본 Expected 1은 '선택한 Image "
+                 "Overlay 항목이 저장된다'이고, 표시 위치는 사용자 확정 사항이다.")
+
+        # --- Step 2: Print Overlay 등록 및 Print에서 선택 --------------
+        tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
+        po = print_overlay.ensure_print_overlay(ui, ctx.db, tess)
         print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
                           if x["kind"] == "Print")
         applied = print_overlay.apply_to_print_server(
-            ui, ctx.db, print_spec["name"], saved["overlay"]["Key"],
+            ui, ctx.db, print_spec["name"], po["overlay"]["Key"],
             tesseract_exe=tess)
-        result.assert_equal(2, "PRINT_TEST에 Print Overlay 적용",
-                            saved["overlay"]["Key"], applied.get("Overlay"),
-                            note=f"saved row: {applied}")
-        _close_setting(ui)
+        # 개정본은 "Print Overlay를 추가한다"(Step 2)와 "Print 설정에서 선택한다"
+        # (Step 3)를 별개 단계로 둔다. 한 판정으로 묶으면 어느 쪽이 실패했는지
+        # 리포트에서 구분되지 않으므로 나눠서 기록한다.
+        # 개수만 보면 6개가 전부 Top에 있어도 통과한다. **영역별 배치까지** 대조해
+        # Header / Top / Bottom 세 영역이 실제로 저장되는지 확인한다(사용자 요청).
+        area_ok = print_overlay.matches_expected_areas(po["items"])
+        r.assert_true(
+            2, "Setting > DICOM > Print에서 Print Overlay를 Header/Top/Bottom에 추가",
+            len(po["items"]) == len(print_overlay.PRINT_ITEMS) and area_ok,
+            expected={"name": print_overlay.OVERLAY_NAME,
+                      "areas": {area: [label for label, _ in items]
+                                for area, items
+                                in print_overlay.PRINT_ITEMS_BY_AREA.items()},
+                      "position_map": print_overlay.PRINT_AREA_POSITION,
+                      "expected_by_position": {
+                          k: sorted(v) for k, v
+                          in print_overlay.PRINT_EXPECTED_BY_POSITION.items()}},
+            actual={"saved": po,
+                    "by_position": print_overlay.items_by_position(po["items"])},
+            note="Expected 2. Print Overlay 구성이 저장된다. "
+                 "CONFIGURATION.PRINT_OVERLAY_ITEM의 FieldID와 **Position**을 함께 "
+                 "대조한다. 근거: 사양서1 305쪽 SRS 04-20-10 'Overlay로 표시할 항목 "
+                 "설정 (Header / Top / Bottom)'. Position은 header=2 / top=0 / "
+                 "bottom=1로 실측했다(화면 순서와 다르다). Expected Result의 "
+                 "시스템정보(compression/HVL/AGD/Thickness)와 환자정보"
+                 "(ID/birthdate)가 이 6개 항목이며, 세 영역에 나눠 두어 Top 이외의 "
+                 "영역도 저장되는지 검증한다.")
+        # 항목만 저장돼 있으면 안 된다. Header 표시 위치가 `None` 이면 필름에
+        # 나오지 않으므로(사양서1 297쪽) 표시 설정까지 이 TC 가 확인한다.
+        header_count = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
+        want_position, want_layout, layout_label = print_overlay.header_targets(
+            header_count)
+        r.assert_true(
+            2, "Print Overlay Header 표시 위치와 Layout 설정",
+            print_overlay.header_matches(po["overlay"], header_count),
+            expected={"HeaderPosition": f"{want_position}"
+                                        f"({print_overlay.HEADER_POSITION})",
+                      "HeaderLayout": f"{want_layout}({layout_label})",
+                      "cells_needed": header_count},
+            actual={"HeaderPosition": po["overlay"]["HeaderPosition"],
+                    "HeaderLayout": po["overlay"]["HeaderLayout"],
+                    "header": po.get("header")},
+            note="사양서1 297쪽 - 'Header가 표시될 수 있는 위치는 다음과 같다. "
+                 "None으로 설정한 경우 표시되지 않는다. None, Top, Bottom' / "
+                 "'Header Layout은 1x1에서 3x3까지 선택할 수 있다. Layout 한 칸당 "
+                 "한 항목씩 표시한다.' Header 항목이 "
+                 f"{header_count}개이므로 {header_count}칸 이상이 필요해 "
+                 f"{layout_label}을 고른다. 값 매핑(0=None/1=Top/2=Bottom)은 실측이며 "
+                 "PRINT_OVERLAY.HeaderPosition/HeaderLayout으로 대조한다.")
+        r.assert_equal(
+            3, "Print 설정에서 추가한 Print Overlay 선택",
+            po["overlay"]["Key"], applied.get("Overlay"),
+            note="Expected 3. Print 설정에 선택한 Overlay가 적용된다. "
+                 f"DICOM_PRINT({print_spec['name']}).Overlay를 DB로 대조.")
 
-        rows, rank = _open_examined_fixture(ctx, ui, target)
-        result.assert_true(3, "동일 환자와 검사 선택",
-                           rank <= len(rows) and target["PatientID"] == PATIENT_ID,
-                           expected={"PatientID": PATIENT_ID, "StudyKey": target["Key"]},
-                           actual={"visible": len(rows), "rank": rank, "target": target})
+        # --- Step 4~5: Examined에서 검사를 열어 Image Overlay 표시 확인 ----
+        session = vp.open_test_study(ctx)
+        ui = session["ui"]
+        flows.select_step(ui, session["step_2d"])
+        study = ctx.db.one(
+            "DATA",
+            "SELECT TOP 1 s.[Key], s.StudyInstanceUID, p.PatientID, p.PatientName "
+            "FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
+            "WHERE p.PatientID=@pid ORDER BY s.[Key] DESC", {"pid": patient_id})
+        r.assert_true(
+            4, "Examined에서 대상 검사 열기",
+            bool(study) and str(study.get("PatientID")) == patient_id,
+            expected=f"PatientID={patient_id} 검사가 열린다",
+            actual=study,
+            note="DATA.STUDY/PATIENT로 대조. 열린 검사의 환자정보가 Expected 4다.")
 
-        server = PrintServer(ctx.cfg["dicom"]["print_server_url"])
-        status = server.status()
-        result.assert_true(4, "DICOM Print SCP Online",
-                           status.get("running") is True and
-                           status.get("ae_title") == print_spec["ae_title"],
-                           expected=print_spec, actual=status)
-        known = {str(j.get("id")) for j in server.jobs()}
+        shot = os.path.join(ctx.evidence_root, "Flow", "03_Overlay",
+                            "05_image_overlay.png")
+        os.makedirs(os.path.dirname(shot), exist_ok=True)
+        win = ui.main_window()
+        if win:
+            screen.grab(win.rect, path=shot)
+            r.attach(shot)
+        r.manual(
+            5, "2D 영상에 추가한 Image Overlay 항목 표시 확인",
+            f"Step 1에서 추가한 {IMAGE_OVERLAY_ADD} 가 영상 "
+            f"**{IMAGE_OVERLAY_POSITION}**의 Overlay에 표시되는지 "
+            "캡처로 확인한다. 이 항목들은 촬영 조건 값이라 Demo(F8) 가상 촬영에서는 "
+            "실제 노출값이 들어오지 않을 수 있어 자동 판정 대상으로 두지 않는다. "
+            "설정이 저장된 사실은 Step 1이 CONFIGURATION.OVERLAY_ITEM으로 대조했다.",
+            expected=f"영상 Overlay에 {IMAGE_OVERLAY_ADD} 표시",
+            actual=f"증적 캡처: {shot}")
 
-        film, layout = _film_from_selected_study(ui)
-        result.assert_true(5, "Film 레이아웃 1x1 적용",
-                           layout["pane_ratio"] >= .85,
-                           expected="Control ID 1141, one pane >= 85% Film area",
-                           actual=layout)
-        evidence_dir = os.path.join(ctx.evidence_root, "Flow", "03_WorkFlow")
-        film_path = os.path.join(evidence_dir, "05_film_overlay.png")
-        Path(film_path).parent.mkdir(parents=True, exist_ok=True)
-        film_image = ImageGrab.grab(bbox=film.rect, all_screens=True)
-        film_image.save(film_path)
-        result.attach(film_path)
-        expect = _film_expectations(target)
-        film_texts = _ocr_areas(film_image, os.path.splitext(film_path)[0],
-                                tess, result)
-        film_labels = _judge_areas(film_texts, expect)
-        result.assert_true(
-            5, "Film 프리뷰에 Header/Top/Bottom 영역별 Print Overlay 표시",
-            _all_ok(film_labels),
-            expected={area: sorted(checks) for area, checks in expect.items()},
-            actual={"areas": film_labels, "ocr": film_texts,
-                    "regions": print_overlay.film_regions(*film_image.size)})
+        # --- Step 6: Film 창의 Print Overlay 표시 -------------------------
+        r.manual(
+            6, "Film 창에 설정한 Print Overlay 표시 확인",
+            "TC_Basic_WorkFlow_08(run-wf08)이 Film Layout 1x1 구성과 실제 DICOM "
+            "Print를 수행하고, Print SCP가 수신한 Film의 Overlay 실제값을 OCR로 "
+            "읽어 raster까지 대조한다. 중복 출력하지 않고 그 결과를 참조한다.",
+            expected="Film에 Patient ID/Birth Date/Thickness/Compression Force/"
+                     "HVL/AGD 표시",
+            actual="WF_08에서 자동 검증")
 
-        print_buttons = [c for c in ui.by_id(1149) if c.visible]
-        if not print_buttons:
-            raise RuntimeError("Film Print button (1149) not found")
-        ui.click(print_buttons[0], settle=2)
-        # Print may show an informational acknowledgement; never dismiss a
-        # destructive or ambiguous multi-button dialog here.
-        dialog = ui.dialog()
-        if dialog:
-            buttons = ui.dialog_buttons(dialog)
-            if len(buttons) == 1:
-                ui.click(buttons[0], settle=1)
-
-        wait_started_wall, wait_started = datetime.now(), time.perf_counter()
-        jobs = server.wait_for_jobs(count=1, timeout=90, poll=.5, exclude_ids=known)
-        result.record_timing(
-            "Print SCP 신규 job 수신", wait_started_wall, wait_started,
-            "new print job received" if jobs else "timeout",
-            {"known_ids": sorted(known),
-             "new_ids": [str(item.get("id")) for item in jobs]})
-        if not jobs:
-            raise RuntimeError("Print SCP did not receive a new job within 90 seconds")
-        job = jobs[-1]
-        result.assert_true(6, "실제 DICOM Print job 수신",
-                           str(job.get("id")) not in known,
-                           expected="new Print SCP job", actual=job)
-
-        web_path = os.path.join(evidence_dir, f"06_print_server_job_{job['id']}.png")
-        Path(web_path).write_bytes(server.preview(job["id"]))
-        result.attach(web_path)
-        # 화면 좌표가 아니라 **서버가 저장한 프리뷰**에서 직접 OCR 한다.
-        # viewer.html?id=<job> 이 보여 주는 것과 같은 이미지다. 크기가 필름과
-        # 달라도(1280x1600) 같은 비율 크롭으로 읽힌다(실측).
-        web_image = Image.open(web_path)
-        web_texts = _ocr_areas(web_image, os.path.splitext(web_path)[0],
-                               tess, result)
-        web_values = _judge_areas(web_texts, expect)
-        similarity = _image_similarity(film_path, web_path)
-        result.assert_true(
-            6, "Print 서버 웹 프리뷰 Overlay가 Film 프리뷰와 영역별로 일치",
-            _all_ok(web_values) and web_values == film_labels and
-            similarity["similarity"] >= .96,
-            expected={"areas": film_labels, "image_similarity": ">= 0.96"},
-            actual={"job_url": f"{server.base}/viewer.html?id={job['id']}",
-                    "film_ocr": film_texts, "web_ocr": web_texts,
-                    "web_areas": web_values, "image": similarity})
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            flows.close_examine(ui, option="suspend", wait=10)
     except Exception as exc:
-        result.add(0, "TC_Basic_WorkFlow_08 실행", FAIL, actual=str(exc))
-    return result
+        r.add(0, "TC_Basic_WorkFlow_03 실행", FAIL, actual=str(exc))
+    return r
+
+
+def run(ctx):
+    return [workflow_03(ctx)]

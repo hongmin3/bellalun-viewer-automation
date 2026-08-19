@@ -194,13 +194,14 @@ def main():
         from tests.install import install_01, install_02
         from tests.workflow01 import run as run_workflow01
         from tests.workflow02 import run as run_workflow02
-        from tests.workflow03 import run as run_workflow03
+        from tests.workflow03 import run as run_overlay_setup
         from tests.xipl_flows import run_xipl
         from tests.system_compat import run as run_system_3d
-        from tests.send_flows import run as run_send
-        from tests.send_flows import run_all_images, run_3d
-        from tests.export_flows import run as run_export
-        from tests.overlay_flows import run as run_overlay
+        from tests.workflow04 import run as run_send
+        from tests.workflow06 import run as run_all_images
+        from tests.workflow05 import run as run_3d
+        from tests.workflow09 import run as run_export
+        from tests.workflow03 import run as run_overlay
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -281,22 +282,22 @@ def main():
     # 개정본 번호 기준. 2026-08-19에 재정렬했다 — 이전에는 Overlay가 wf04,
     # 2D Send가 wf05, Film Print가 wf03이었다(다른 체크리스트 번호였다).
     if args.cmd == "run-wf03":
-        from tests.overlay_flows import run as run_overlay
+        from tests.workflow03 import run as run_overlay
         results.extend(run_overlay(ctx))
     if args.cmd == "run-wf04":
-        from tests.send_flows import run as run_send
+        from tests.workflow04 import run as run_send
         results.extend(run_send(ctx))
     if args.cmd == "run-wf05":
-        from tests.send_flows import run_3d
+        from tests.workflow05 import run as run_3d
         results.extend(run_3d(ctx))
     if args.cmd == "run-wf06":
-        from tests.send_flows import run_all_images
+        from tests.workflow06 import run as run_all_images
         results.extend(run_all_images(ctx))
     if args.cmd == "run-wf09":
-        from tests.export_flows import run as run_export
+        from tests.workflow09 import run as run_export
         results.extend(run_export(ctx))
     if args.cmd == "run-wf08":
-        from tests.workflow03 import run as run_film_print
+        from tests.workflow08 import run as run_film_print
         results.append(run_film_print(ctx))
     if args.cmd in ("run-xipl", "run-auto"):
         from tests.xipl_flows import run_xipl
