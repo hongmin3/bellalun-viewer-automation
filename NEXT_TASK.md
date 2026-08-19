@@ -2,51 +2,80 @@
 
 ## 다음 우선순위
 
-### 0. [사용자 결정 필요] `TC_Basic_WorkFlow_02` 범위 불일치
+### 0. [완료] 개정본 체크리스트로 TC 번호 전면 재정렬 (2026-08-19)
 
-**매뉴얼 대조로 발견(2026-08-18).** 제품 결함이 아니라 **자동화 라벨 문제**다.
+**기준 문서는 `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`)
+하나다.** `AGENTS.md` 0절에 못박았다.
 
-체크리스트 row 12의 `TC_Basic_WorkFlow_02` 원문은 **External Device / Barcode /
-QR Code**다:
+`지식\(TC) R-23-2346_...xlsx`는 **다른 문서**다. 같은 형태의 TC ID를 쓰지만 번호
+매핑이 다르다. 이 둘을 혼동해 정상 구현된 `WF_02`를 "범위 불일치"로 잘못 강등한 적이
+있다(사용자가 바로잡아 줬다). 확인해 보니 어긋난 것은 WF02 하나가 아니었다.
+
+| 개정본 | Title | 코드가 쓰던 옛 번호 | 구현 파일 |
+|---|---|---|---|
+| WF_02 | 공통 2D/3D 검사 촬영 및 Tool 적용 | WF_02 (일치) | `tests/workflow02.py` |
+| WF_03 | Image Overlay 및 Print Overlay 설정 | WF_04 | `tests/overlay_flows.py` |
+| WF_04 | 2D 수동 DICOM Send | WF_05 | `tests/send_flows.py` |
+| WF_08 | 2D/3D Film Print | WF_03 | `tests/workflow03.py` |
+| WF_09 | Normal 및 Anonymous Export | WF_10 | `tests/dataflow.py`(판정부) |
+| WF_10 | MWL Hospital Code와 Procedure 매핑 | WF_11 | `tests/settings.py`(판정부) |
+| WF_11 / WF_12 | Image / Study Reject 및 Restore | WF_12 / WF_13 | `tests/dataflow.py`(판정부) |
+| WF_13 | 계정 추가·수정 및 로그인 | WF_14 | `tests/settings.py`(판정부) |
+| WF_14 | Setting Export 및 Import | WF_15 | `tests/settings.py`(판정부) |
+| WF_16 | Kiosk 및 System Launcher | WF_18 | `tests/settings.py`(판정부) |
+
+**적용한 것**
+
+- `automation_scope.json`을 개정본에서 **직접 생성**했다(36 TC = FULL 12 / PARTIAL 4
+  / MANUAL 20). 각 항목에 `title`을 넣어 개정본과 대조 가능하게 했다.
+- 모듈의 `TCResult` ID, `run.py` 명령, 회귀 실행 순서를 개정본 번호로 재정렬했다.
+  `run-wf03`=Overlay 설정, `run-wf04`=2D Send, **`run-wf08`=Film Print**(신설).
+  이전 `run-wf05`는 없어졌다.
+- 개정본에 없는 3D-N/3D-W 촬영은 TC 번호를 떼고 보조 항목
+  `AUTOMATION_3D_ACQUISITION_3DN/_3DW`로 분리했다(`run-sys3d` 유지).
+- `core/checklist.py`가 개정본(`개정 TC` 시트)에 결과를 기록한다.
+- `overlay_flows.py`를 개정본 WF_03의 6단계 구조로 재작성했다. Send 판정은 WF_04가,
+  Film 표시 확인은 WF_08이 하므로 중복을 제거하고 참조로 바꿨다.
+
+**개정본에 없어 빠진 항목**: 이전 scope의 `WF_17`, `WF_18`,
+`TC_System_compatibility_03/04`. 개정본 WorkFlow는 16까지이고
+`TC_System_compatibility_*` 계열이 없다.
+
+**개정본에만 있어 새로 등록한 항목**: `WF_16`(Kiosk 및 System Launcher).
+
+### 1. [미해결] `TC_XIPL_compatibility_04`가 회귀에서만 실패한다
+
+**회귀 8·10·11차에서 3회 연속 같은 지점에서 실패했다. 단독 실행은 통과한다.**
 
 ```
-1. Setting - Patient - External Device : Denso Wave AT20Q설정, Port설정한다.
-2. 뷰어를 재시작한다.
-3. Setting - Patient - External Device - External Input을 설정한다.
-4. Setting - Patient - Barcode를 설정한다.
-5. Setting - Patient - QR Code를 설정한다.
-6. 바코드/QR을 인식한다.
-Expected 2. 뷰어를 재시작시 External Device에 설정한 내용이 적용된다.
-Expected 6. 바코드/QR을 인식시 설정한 내용에 따라 동작한다.
+New Patient 탭 컨트롤(ID 2285)을 20초 동안 찾지 못했습니다.
+현재 화면 랜드마크=['status_bar', 'examine']
 ```
 
-그런데 `tests/workflow02.py`는 **MWL 보류 검사 재개 + 2D/3D-N Demo 촬영 + Tool
-검증**을 한다. 체크리스트 전체를 대조했고 **불일치는 이 한 건뿐**이다
-(WF01/03/04/05, XIPL 01~06, Install_01/02, sys_03/04는 전부 원문과 일치).
+지금까지 확인한 것과 **틀렸던 추정**:
 
-`TC_Basic_WorkFlow_02`는 이 저장소 어디에도 다른 정의가 없다(4개 TC xlsx 전수 검색).
+1. "대기가 부족하다" -> `_need` 상한을 8초에서 20초로 올렸다. **같은 실패였다.**
+2. "검사가 열려 Patient 화면에 닿을 수 없다" -> `ensure_patient_screen`에 열린 검사를
+   보류하는 복구 분기를 넣었다. 그런데 같은 상태를 직접 만들어 확인하니 **그 분기
+   없이도 정상 이동했다.** 근거 없는 상태 변경 코드였으므로 제거했다.
+3. 실제 적용한 수정은 `open_new_patient_tab`이 탭을 찾기 전에
+   `ensure_patient_screen`을 호출하게 한 것이다. 실패 조건을 재현해 성공을
+   확인했지만, **회귀에서는 여전히 실패한다.**
 
-**왜 시급한가**: `finish()`가 체크리스트 xlsx에 **TC ID로 행을 매칭**해 판정을
-기록한다. 그대로 두면 Barcode/QR 행에 PASS가 찍힌다.
+**남은 차이**: 회귀에서는 `TC_XIPL_compatibility_03`(제품 결함으로 FAIL) 직후에
+실행된다. 단독 재현으로는 같은 상태를 만들지 못했다. 유력한 가설은 **모달 대화상자가
+클릭을 삼키는 것**이다(이 저장소에서 반복 확인된 문제 - 운영 지침 11절). 다만
+실패 시점 증적이 없어 확인하지 못했다.
 
-**임시 조치(적용됨)**: `automation_scope.json`의 WF02를 `MANUAL`로 내리고, 모듈이
-판정에 범위 불일치를 MANUAL로 명시한다. 촬영 흐름 자체는 WF03/04/05/XIPL의 픽스처
-생성기로 계속 쓰인다.
+**다음 사람이 할 일**: `_need` 실패 메시지에 이제 **열린 대화상자 문구와 전체 화면
+캡처**(`Evidence/ui/need_failed.png`)가 함께 남는다(`flows._screen_context`).
+다음 회귀에서 이 항목이 실패하면 **그 캡처를 먼저 본다.** 모달이 보이면 XIPL_03의
+종료 경로에서 그 팝업을 닫지 않고 나오는 것이므로 거기를 고친다.
 
-**결정해 주실 것**: 아래 중 어느 방향으로 갈지.
+**하지 말 것**: 캡처를 보지 않고 대기 시간을 더 늘리거나 방어 코드를 추가하는 것.
+위 1·2번이 그렇게 실패했다.
 
-1. (권장) 촬영 흐름을 **픽스처 단계로 재명명**(`FIXTURE_ACQUISITION_2D_3D` 등)하고
-   실제 WF02를 새로 구현한다. Step 1~5는 `CONFIGURATION.DEVICE_COMMON`
-   (`BarcodeReaderType`, `BarcodeReaderPort`, `ExternalInputUseTab`,
-   `BarcodeMappingField`, `QRCodeSearchField`)로 자동 판정 가능하고, **Expected 2의
-   재기동 후 유지도 자동 검증 가능**하다. Step 6만 실물 Denso Wave AT20Q 스캐너가
-   필요해 MANUAL → **6단계 중 5단계 자동화** 가능.
-   근거: Service Manual 4.3.6 External Device 메뉴(p62), 4.3.7 Barcode 메뉴(p63),
-   4.3.8 QR Code 메뉴(p64), 6.1 Denso Wave AT20Q(p140).
-   참고: 이 PC에는 `C:\Tools\Barcode` 경로가 없어 스캐너 설치 흔적이 없다.
-2. 현재 임시 조치를 유지하고 재구현은 나중으로 미룬다.
-
-### 1. [고도화 필요] Send 판정이 All과 Selected를 구분하지 못한다
+### 2. [고도화 필요] Send 판정이 All과 Selected를 구분하지 못한다
 
 **2026-08-19 10차 회귀에서 확인.** 세 Send 단계가 모두 PASS이지만 판정 강도가 약하다.
 
@@ -145,8 +174,8 @@ JPEG2000을 선택할 수 있고, 이 상태로 Send하면 conformant SCP 상대
 - `TC_XIPL_compatibility_03`은 Step 9가 **FAIL로 나오는 것이 정상**이다(제품 실제
   동작을 정확히 잡아낸 결과, GPU 무관 — 절대 완화하지 않는다). Step 10은 GPU
   미탑재 환경에서 SKIP된다.
-- **신규**: `TC_System_compatibility_03`(3D-Narrow 촬영) /
-  `04`(3D-Wide 촬영) — `tests/system_compat.py`, `python run.py run-sys3d`.
+- **보조 항목**: `AUTOMATION_3D_ACQUISITION_3DN`(3D-Narrow) / `_3DW`(3D-Wide) —
+  `tests/system_compat.py`, `python run.py run-sys3d`. 개정본 TC가 아니다(0절).
   등록·Demo F8 촬영·`INSTANCE_GROUP.Type`/`ExposureMode`(`1/1`=3D-N, `1/2`=3D-W)는
   자동 판정하고, 장비 LCD·2430 패들·회전 각도는 MANUAL로 분리 기록한다. 그래서
   종합 판정은 MANUAL이다.
@@ -420,7 +449,7 @@ python run.py run-regression
 python run.py run-xipl-06
 python run.py run-sys3d
 python run.py run-wf04
-python run.py run-wf05
+python run.py run-wf08
 python run.py snapshot-baseline
 python run.py reset-environment
 python run.py setup-dicom

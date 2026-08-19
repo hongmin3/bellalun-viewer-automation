@@ -2,6 +2,56 @@
 
 이 문서의 규칙은 저장소 전체에 적용된다.
 
+## 0. 기준 문서 — 이것부터 확인한다
+
+### 시험 대상 TC의 유일한 기준
+
+```
+..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx   시트: 개정 TC
+```
+
+**이 저장소가 자동화하는 TC는 전부 이 파일에서 나온다.** TC ID, Title,
+Precondition, Step Description, Expected Result, Test Data를 **여기서만** 확인한다.
+`automation_scope.json`, 각 TC 모듈의 원문 주석, 리포트가 결과를 기록하는 대상 모두
+이 문서를 따른다(`core/checklist.py`).
+
+**혼동 주의 — `..\지식\(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx`는
+다른 문서다.** 파일명이 비슷하고 같은 형태의 TC ID를 쓰지만 **번호 매핑이 다르다.**
+예: 개정본 `TC_Basic_WorkFlow_02`는 "공통 2D/3D 검사 촬영 및 Tool 적용"인데,
+R-23-2346의 같은 ID는 "External Device/Barcode/QR"이다. 2026-08-19에 이 둘을
+혼동해 정상 구현된 TC를 "범위 불일치"로 잘못 강등한 적이 있다.
+**TC 판정 근거는 항상 개정본이다.** 지식 폴더의 다른 TC xlsx는 참고 자료일 뿐
+판정 기준이 아니다.
+
+### 사양·절차의 근거 문서 (`..\지식\`)
+
+TC가 "무엇을 하는지"는 개정본에서, **"왜 그것이 정상인지"는 아래 문서에서** 확인한다.
+
+| 문서 | 여기서 확인하는 것 |
+|---|---|
+| `Bellalun Viewer Operation Manual ....txt` | 사용자 조작 절차, 기대 동작, 기능의 선행조건 |
+| `Bellalun Viewer Service Manual ....txt` | Setting 각 항목의 의미·선택지·반영 조건 |
+| `Bellalun Viewer DICOM Conformance Statement ....txt` | SOP Class, Transfer Syntax, SCU/SCP 동작 |
+| `(사양서) Bellalun Viewer 사양서1/2 ....pdf` | 제품 사양, 허용 범위 |
+| `[자동화 운영 지침] ...md` | 영구 적용 규칙 (0절: 문서 근거 규칙) |
+| `[자동화 구현 현황] ...md` | TC별 구현 수준·연결 상태 요약 |
+| `[QA 작성 규칙] ...md` | TC 설계·자체검토 방법론 |
+| `(TC) Mammo System 연동 TestCase (개정).xlsx` 등 | 참고용. **판정 기준 아님** |
+
+`.docx` / `.xlsx` / `.pdf`는 grep이 되지 않는다. 같은 폴더의 추출된 `.txt` 사본을
+검색하고, 없으면 `zipfile`(docx) / `openpyxl`(xlsx)로 추출해서 본다.
+
+```bash
+grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Manual.V1.0.12W1_KO_확인완료.txt"
+```
+
+### 이 기준을 적용하는 시점
+
+**신규 구현과 고도화 모두**에 적용된다. 코드를 쓰기 전에 (1) 개정본에서 TC 원문을
+읽고, (2) 관련 매뉴얼·사양에서 기대 동작의 근거를 찾고, (3) 판정의 `note`에 인용한
+문서와 절 번호를 남긴다. 화면에서 보이는 동작으로 합격 기준을 역산하면 **결함을
+정상으로 인증해 버린다**(실제 사례는 운영 지침 0절).
+
 ## 반드시 지킬 작업 순서
 
 1. **자동화 동작을 바꾸기 전에 먼저 읽는다** — `README.md`, `NEXT_TASK.md`,
@@ -26,9 +76,10 @@
    **결함을 정상으로 인증해 버린다.**
 
    TC를 새로 쓰거나 고칠 때는 먼저:
-   - `(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx`에서 그 TC의 행을 읽고
-     **Step Description과 Expected Result를 원문 그대로** 확인한다.
-     **TC ID만 보고 Step을 추측하지 않는다.**
+   - **`..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`**(시트 `개정 TC`)에서
+     그 TC의 행을 읽고 **Step Description과 Expected Result를 원문 그대로** 확인한다.
+     **TC ID만 보고 Step을 추측하지 않는다.** 0절의 혼동 주의를 반드시 읽는다 —
+     지식 폴더의 다른 체크리스트는 번호 매핑이 다르다.
    - `Bellalun Viewer Operation Manual ....txt`(사용자 절차와 기대 동작)와
      `Bellalun Viewer Service Manual ....txt`(Setting 항목의 의미·선택지·선행조건)
      에서 해당 기능을 찾는다. 이 `.txt`들은 옆에 있는 `.docx`를 grep 가능하도록
@@ -69,8 +120,17 @@
    단독 실행이 방금 고친 분기를 실제로 지나갔는지 확인한다 — 회귀 시작 상태로
    되돌려 검증하지 않으면 "고쳤다"고 말할 수 없다.
 
-9. 자동화 요청을 완료한 뒤에는 **diff를 검토하고**, 관련 소스·문서 변경만 stage 해
-   커밋하고, 같은 작업 안에서 GitHub 원격에 push 한다.
+9. **작업을 마칠 때는 README를 정리해 코드와 함께 올린다.** 순서는 아래와 같다.
+   1. `README.md`를 **포트폴리오 형식**으로 갱신한다 — 자동화가 무엇을 어떻게
+      검증하는지, 어떻게 실행하는지, 실제로 잡아낸 결함, AI를 활용한 개발 방식까지
+      자동화를 처음 보는 사람이 읽고 이해할 수 있게 쓴다(현재 문서 구조를 유지한다).
+   2. 주장하는 수치(코드 규모, 회귀 실적, 자동화 등급 건수)를 **실측으로 다시 확인**
+      하고 기준 시점을 함께 적는다. 낡은 수치를 그대로 두지 않는다.
+   3. `automation_scope.json`, `NEXT_TASK.md`, `..\지식\[자동화 구현 현황]`을
+      바뀐 내용에 맞춘다.
+   4. `diff`를 검토하고 관련 소스·문서 변경만 stage 해 커밋한 뒤,
+      **같은 작업 안에서** GitHub 원격에 push 한다. 코드만 올리고 README를 두고
+      가지 않는다.
 
 10. **절대 커밋하지 않는다** — `config.json`, 자격증명, 토큰, 환자·런타임 데이터,
     DICOM 파일, 그리고 생성물인 `Reports/`, `Evidence/`, `Log/`, `Cache/`, `Temp/`

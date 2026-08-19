@@ -17,10 +17,11 @@ python run.py run-regression
 | 항목 | 내용 |
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
-| 규모 | Python 약 **11,100줄**, 모듈 37개(core 23 / tests 12), 커밋 40개 |
-| 시험 범위 | 체크리스트 **39개 TC** 등록 — 완전자동 10 / 부분자동 18 / 수동 11 |
-| 최신 회귀 실적 | **PASS 124 / FAIL 2 / MANUAL 9 / SKIP 1** — 17 TC 전수 (2026-08-19 09:55) |
-| 그 FAIL 2건 | 1건은 **실제 제품 결함**(§6), 1건은 이 실행 뒤 수정·검증 완료 |
+| 기준 문서 | `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
+| 규모 | Python 약 **11,600줄**, 모듈 37개(core 23 / tests 12), 커밋 42개 |
+| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 12 / 부분자동 4 / 수동 20 (+ 자동화 보조 4) |
+| 최신 회귀 실적 | **PASS 124 / FAIL 2 / MANUAL 9 / SKIP 1** — 17 TC 전수 (2026-08-19 11:26) |
+| 그 FAIL 2건 | 1건은 **실제 제품 결함**(§6), 1건은 회귀에서만 재현되는 미해결 항목 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl **3개뿐** (§4 참고) |
 
 ### 이 자동화가 실제로 하는 일
@@ -177,7 +178,7 @@ python run.py portability-check          # 해상도·DPI·권한·필수 경로
 ### 5.2 실행
 
 ```bash
-python run.py list                # 39개 TC의 자동화 수준과 사유
+python run.py list                # 개정본 36개 TC + 보조 4개의 자동화 수준
 python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트까지)
 ```
 
@@ -186,13 +187,14 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | 명령 | 내용 |
 |---|---|
 | `run.py setup-dicom` | MWL/Storage/Print 등록 + C-ECHO + DB/TCP 검증 |
-| `run.py run-wf01` | MWL 조회 및 Local 검사 생성 |
-| `run.py run-wf02` | 2D/3D Demo 촬영 및 Tool 적용 |
-| `run.py run-wf03` | DICOM Print Overlay 실제 출력·웹 프리뷰 검증 |
-| `run.py run-wf04` | Overlay 설정 후 DICOM Send·Export 검증 |
-| `run.py run-wf05` | DICOM Send(2D) — All Images / Selected |
+| `run.py run-wf01` | WF_01 MWL 및 Local 검사 생성 |
+| `run.py run-wf02` | WF_02 공통 2D/3D 촬영 및 Tool 적용 |
+| `run.py run-wf03` | WF_03 Image Overlay 및 Print Overlay 설정 |
+| `run.py run-wf04` | WF_04 2D 수동 DICOM Send (Selected / All) |
+| `run.py run-wf08` | WF_08 2D/3D Film Print (실제 출력물 대조) |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
-| `run.py run-sys3d` | 3D-Narrow / 3D-Wide 촬영 검증 |
+| `run.py run-sys3d` | 보조: 3D-Narrow / 3D-Wide 촬영 검증 |
+| `run.py list` | 개정본 36개 TC의 자동화 수준과 사유 |
 | `run.py snapshot-baseline` | 현재 DB를 기준 스냅샷으로 저장 |
 | `run.py reset-environment` | 기준 스냅샷으로 되돌리기 |
 
@@ -259,18 +261,62 @@ Associate Accept
 선언 범위 밖 값을 노출하는 것인지는 제품 담당자 확인이 필요해 `NEXT_TASK.md`에
 기록만 남겼습니다.
 
-### QA 기록을 오염시킬 수 있던 문제 (자동화가 스스로 잡아냄)
+### 기준 문서를 잘못 골라 정상 구현을 결함으로 판정한 일
 
-**`TC_Basic_WorkFlow_02`의 체크리스트 원문과 구현 범위가 달랐습니다.** 원문은
-External Device(Denso Wave AT20Q)·Barcode·QR Code 설정인데, 구현은 2D/3D 촬영과
-Tool 검증이었습니다. 4개 TC 문서를 전수 검색해 **다른 정의가 없음**을 확인했고,
-나머지 TC(WF01/03/04/05, XIPL 01~06, Install_01/02, System_03/04)는 전부 원문과
-일치했습니다.
+**자동화가 아니라 제가 틀린 사례입니다.** `지식` 폴더의 다른 체크리스트
+(`(TC) R-23-2346_...xlsx`)를 기준으로 착각해, 정상 구현된 `WorkFlow_02`(공통 2D/3D
+촬영 및 Tool 적용)를 "체크리스트 원문은 Barcode/QR인데 구현이 다르다"며 등급을
+`MANUAL`로 내렸습니다.
 
-리포트는 판정을 **TC ID로 체크리스트 행에 매칭**해 기록합니다. 그대로 두면 검증하지
-않은 Barcode/QR 항목에 PASS가 찍힙니다. 그래서 등급을 `FULL`에서 `MANUAL`로 내리고
-판정에 범위 불일치를 명시했습니다. 촬영 흐름 자체는 다른 TC들이 공유하는 픽스처
-생성기로 계속 씁니다 — 코드가 쓸모없던 게 아니라 **이름이 잘못 붙어 있었습니다.**
+두 문서는 **같은 형태의 TC ID를 쓰지만 번호 매핑이 다릅니다.** 사용자가 바로잡아 준
+뒤 확인해 보니 어긋난 것은 WF02 하나가 아니었습니다.
+
+| 개정본 | 내용 | 코드가 쓰던 옛 번호 |
+|---|---|---|
+| `WF_03` | Image Overlay 및 Print Overlay 설정 | `WF_04` |
+| `WF_04` | 2D 수동 DICOM Send | `WF_05` |
+| `WF_08` | 2D/3D Film Print | `WF_03` |
+| `WF_09` | Normal 및 Anonymous Export | `WF_10` |
+| `WF_11/12` | Image / Study Reject 및 Restore | `WF_12/13` |
+| `WF_16` | Kiosk 및 System Launcher | `WF_18` |
+
+**판정 결과는 TC ID로 체크리스트 행에 기록됩니다.** 번호가 어긋나면 검증하지 않은
+항목에 PASS가 찍힙니다. 그래서 `automation_scope.json`을 개정본에서 **직접 생성**하고,
+모듈의 TC ID·`run.py` 명령·회귀 실행 순서를 전부 개정본 번호로 재정렬했습니다.
+개정본에 없는 항목(3D-N/3D-W 촬영)은 TC 번호를 붙이지 않고 `AUTOMATION_*` 보조
+항목으로 분리했습니다.
+
+**얻은 규칙**: 기준 문서는 하나로 못박고, 그것을 `AGENTS.md` **0절**에 파일명과 시트명
+까지 적는다. 비슷한 이름의 문서가 여러 개 있을 때 "관련 문서를 참고한다"는 지침은
+아무것도 막아주지 못한다.
+
+### 아직 못 고친 것 (숨기지 않고 적습니다)
+
+**`TC_XIPL_compatibility_04`가 회귀에서만 실패합니다.** 단독 실행은 통과하고, 회귀
+8·10·11차에서 3회 연속 같은 지점에서 멈췄습니다.
+
+```
+New Patient 탭 컨트롤(ID 2285)을 20초 동안 찾지 못했습니다.
+현재 화면 랜드마크=['status_bar', 'examine']
+```
+
+**두 번 잘못 짚었습니다.**
+
+1. "대기가 부족하다" → 상한을 8초에서 20초로 올렸습니다. 같은 실패였습니다.
+2. "검사가 열려 있어 Patient 화면에 닿을 수 없다" → 열린 검사를 보류하는 복구
+   코드를 넣었습니다. 그런데 같은 상태를 직접 만들어 **그 분기를 끄고 비교하니
+   없어도 정상 동작**했습니다. 근거 없는 상태 변경 코드였으므로 제거했습니다.
+
+실제로 필요한 수정(탭을 찾기 전에 화면 이동)은 적용해 실패 조건 재현으로 확인했지만,
+**회귀에서는 여전히 실패합니다.** 남은 차이는 직전에 실행되는 `XIPL_03`이 남기는
+상태로 보이며, 유력한 가설은 모달 대화상자가 클릭을 삼키는 것입니다. 다만 **실패
+시점 증적이 없어 확인하지 못했습니다.**
+
+그래서 세 번째 추측을 하는 대신 **다음 발생 때 한 번에 진단되도록 증적을
+강화했습니다.** 이제 컨트롤 탐색 실패 시 화면 랜드마크와 함께 **열린 대화상자
+문구와 전체 화면 캡처**가 남습니다. `NEXT_TASK.md`에는 *"캡처를 보지 않고 대기
+시간을 늘리거나 방어 코드를 추가하지 말 것 — 위 1·2번이 그렇게 실패했다"*를
+적어 두었습니다.
 
 ### 자동화 자체의 함정 (수정 완료)
 
@@ -428,30 +474,60 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 | 6차 | 08-18 12:10 | 15 | 121 | 1 | FAIL 1 = 제품 결함 |
 | 7차 | 08-18 16:56 | 17 | 30 | 10 | **연쇄 실패** — 원인 1개 (§6) |
 | 8차 | 08-18 17:52 | 17 | 121 | 5 | 기동·서비스 수정 |
-| 10차 | 08-19 09:55 | 17 | **124** | **2** | Send·화면 이동 수정 |
+| 10차 | 08-19 09:55 | 17 | 124 | 2 | Send·화면 이동 수정 |
+| 11차 | 08-19 11:26 | 17 | **124** | **2** | 개정본 기준 TC 번호 전면 재정렬 후 |
 
-10차의 FAIL 2건은 제품 결함 1건과 `TC_XIPL_compatibility_04` 1건이며, 후자는 이 실행
-뒤에 원인을 규명해 수정하고 **실패 조건을 그대로 재현해 검증**했습니다.
+11차의 FAIL 2건은 **제품 결함 1건**(`XIPL_03` Step 9)과 **미해결 1건**
+(`XIPL_04` — 회귀에서만 재현, §6)입니다. 미해결 항목을 "곧 고쳐진다"고 적지 않고
+그대로 둔 것은 의도입니다 — 다음 발생 때 무엇을 먼저 볼지를 `NEXT_TASK.md`에
+적어 두었습니다.
 
-### 완전 자동 (10건)
-`Install_01/02`, `WorkFlow_01/03`, `XIPL_compatibility_01~06`
+### 완전 자동 (12건)
 
-### 부분 자동 (18건)
-자동 판정 단계와 수동 확인 단계가 섞인 TC들입니다. `WorkFlow_04`(Overlay)와
-`WorkFlow_05`(DICOM Send)는 **구현 완료** — 설정 저장은 DB로, 전송은 수신 객체
-UID를 DB와 대조해, Export는 생성된 파일로 판정합니다. 남은 경로(Print 출력물,
-View창·Examined Send 진입점)만 수동입니다. `System_compatibility_03/04`는 등록·
-Demo 촬영·DB 구조까지 자동이고 장비 LCD/패들/회전 각도가 수동입니다.
+| TC | 내용 |
+|---|---|
+| `Install_01/02` | 설치 버전·패키지 구성, 실행 전 필수 환경 |
+| `WorkFlow_01` | MWL 및 Local 검사 생성 |
+| `WorkFlow_02` | 공통 2D/3D 검사 촬영 및 Tool 적용 |
+| `WorkFlow_03` | Image Overlay 및 Print Overlay 설정 |
+| `WorkFlow_08` | 2D/3D Film Print (실제 출력물 OCR·raster 대조) |
+| `XIPL_compatibility_01~06` | XIPL 연동 6종 (영상처리 파라미터 왕복 검증) |
 
-### 수동 (11건)
-실물 장비(Detector/Gantry/Phantom)나 신규 OS 설치가 필요해 **의도적으로 자동화하지
-않은** 항목입니다. 임의로 자동 PASS를 만들지 않는 것이 이 프로젝트의 원칙입니다.
+### 부분 자동 (4건)
 
-여기에 `WorkFlow_02`가 포함돼 있습니다 — 자동화가 못 해서가 아니라, **체크리스트
-원문과 구현 범위가 다른 것을 매뉴얼 대조로 발견해 스스로 등급을 내린** 항목입니다.
-원문은 Barcode/QR 스캐너 설정인데 구현은 2D/3D 촬영이었습니다. 검증하지 않은 것을
-PASS로 기록하지 않기 위해 `MANUAL`로 내리고 재구현 범위를 `NEXT_TASK.md`에
-정리했습니다(6단계 중 5단계 자동화 가능).
+`Install_07/08/09` — 설정·데이터 유지는 DB로 자동 판정하고, 설치·업그레이드·제거
+실행 자체는 파괴적이라 수동입니다.
+
+`WorkFlow_04`(2D 수동 DICOM Send) — Examine 창 Send를 Selected/All 두 범위로 실제
+전송하고 **수신 객체의 UID를 DB와 대조**합니다. 전송 전에 Transfer Syntax를 DICOM
+Conformance Statement가 선언한 값으로 맞춥니다(§6). View 창·Examined 경로는 Send
+진입점이 확정되지 않아 수동입니다.
+
+### 수동 (20건)
+
+실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 사양 미확정, 또는 **UI
+드라이버 미구현**이 이유입니다. **임의로 자동 PASS를 만들지 않는 것이 이
+프로젝트의 원칙입니다.**
+
+미구현 중 다음은 기존 구조를 재사용할 수 있어 우선순위가 높습니다.
+
+| TC | 재사용할 것 |
+|---|---|
+| `WorkFlow_05` 3D 수동 DICOM Send | `tests/send_flows.py` (전송 대상 3D 영상 종류는 사양 확인 선행) |
+| `WorkFlow_06` All Images 및 Dose SR | 위와 동일 + RDSR 수신 판정(`tests/dataflow.py`) |
+| `WorkFlow_09` Normal 및 Anonymous Export | `core/export_manager.py` (익명화는 `ANONYMOUS` 컨트롤) |
+| `WorkFlow_11/12` Reject 및 Restore | `tests/dataflow.py`의 DB 델타 판정 |
+
+### 자동화 보조 (4건)
+
+개정본 TC가 아니지만 자동화가 수행하는 항목입니다. 체크리스트 결과 xlsx에는
+'자동화 추가 항목'으로 덧붙습니다.
+
+- `AUTOMATION_ENVIRONMENT_RESET` — DB 기준 스냅샷 복원, 제품 서비스 재기동,
+  XIPL 시험 파라미터 재생성
+- `DICOM_Server_Setup` — MWL/Storage/Print 등록과 C-ECHO 연결
+- `AUTOMATION_3D_ACQUISITION_3DN` / `_3DW` — 3D-N/3D-W Preset 등록과 Demo 촬영,
+  `INSTANCE_GROUP.ExposureMode` 판정
 
 ---
 
@@ -459,18 +535,37 @@ PASS로 기록하지 않기 위해 `MANUAL`로 내리고 재구현 범위를 `NE
 
 | 문서 | 용도 |
 |---|---|
-| `AGENTS.md` | 코드 수정·검증·커밋 규칙 |
+| `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` | **시험 대상 TC의 유일한 기준** (시트 `개정 TC`) |
+| `AGENTS.md` | 기준 문서, 코드 수정·검증·커밋 규칙 (0절부터 읽는다) |
 | `NEXT_TASK.md` | 다음 우선순위, 미결정 사항, 환경 준비 상태 |
 | `PORTABILITY_AUDIT.md` | 이식성 점검 결과 |
-| `automation_scope.json` | 39개 TC의 자동화 수준과 사유 |
+| `automation_scope.json` | 개정본 36개 TC + 보조 4개의 자동화 수준과 사유 |
 | `..\지식\[자동화 운영 지침] ...md` | 영구 적용 규칙 (0절: 어떤 문서를 근거로 삼는가) |
 
-### 판정 근거로 쓰는 원본 문서 (`..\지식\`)
+### 판정 근거로 쓰는 원본 문서
 
 자동화 코드를 새로 쓸 때도, 고도화할 때도 이 문서들이 기준입니다(§3.2 ②).
+**TC가 "무엇을 하는지"는 개정본에서, "왜 그것이 정상인지"는 매뉴얼·사양서에서**
+확인합니다.
 
 | 문서 | 무엇을 여기서 확인하나 |
 |---|---|
+| `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` | **TC의 Step / Expected Result 원문.** 시트 `개정 TC`. TC ID로 내용을 추측하지 않는다 |
+| `..\지식\Bellalun Viewer Operation Manual ...` | 사용자 절차, 기대 동작, 기능의 선행조건 |
+| `..\지식\Bellalun Viewer Service Manual ...` | Setting 각 항목의 의미·선택지·반영 조건 |
+| `..\지식\...DICOM Conformance Statement ...` | SOP Class, Transfer Syntax, SCU/SCP 동작 |
+| `..\지식\(사양서) ....pdf` | 제품 사양·허용 범위 |
+
+`.docx` / `.xlsx` / `.pdf`는 grep이 되지 않으므로 같은 폴더의 추출된 `.txt`
+사본을 검색에 사용합니다.
+
+**한 번 크게 틀린 적이 있습니다.** `지식` 폴더에 있는 다른 체크리스트
+(`(TC) R-23-2346_...xlsx`)를 기준으로 착각해, 정상 구현된 `WorkFlow_02`를 "체크리스트
+원문과 범위가 다르다"며 등급을 내렸습니다. 두 문서는 **같은 형태의 TC ID를 쓰지만
+번호 매핑이 다릅니다.** 사용자가 바로잡아 준 뒤 전 TC를 개정본으로 재정렬했고,
+`AGENTS.md` 0절에 기준 문서를 못박아 같은 혼동이 반복되지 않게 했습니다.
+
+---|---|
 | `(TC) ..._기본기능_Checklist.xlsx` | TC의 Step / Expected Result **원문** — TC ID로 내용을 추측하지 않는다 |
 | `Bellalun Viewer Operation Manual ...` | 사용자 절차, 기대 동작, 기능의 선행조건 |
 | `Bellalun Viewer Service Manual ...` | Setting 각 항목의 의미·선택지·반영 조건 |
