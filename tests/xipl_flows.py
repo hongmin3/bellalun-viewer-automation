@@ -18,6 +18,7 @@ from core.result import FAIL, MANUAL, PASS, TCResult
 from core.ui import ViewerUi
 from core.xipl import XiplStudio
 from core import flows
+from core import screen
 from core import viewer_processing as vp
 
 
@@ -361,11 +362,49 @@ def compatibility_01(ctx, session):
             studio.rendered_fraction(shot) > .01
             and overlay.get("width") == 2304 and overlay.get("height") == 3072,
             expected="2304x3072 영상 렌더링", actual=overlay)
-        r.assert_equal(
+        # 양쪽 모두 화면 숫자를 OCR로 읽는다. 단발 오독에 판정이 흔들리면 안 된다
+        # (2026-08-19 실측: Viewer 쪽 W1 24380을 243380으로 읽어 자리수가 하나 늘었다.
+        #  W2는 정확히 일치했으므로 값이 다른 게 아니라 판독이 틀린 것이다).
+        #
+        # 불일치하면 **양쪽을 다시 캡처해 다시 읽는다.** 진짜로 값이 다르면 재판독
+        # 해도 계속 다르므로 결함이 감춰지지 않는다. 시도 기록을 actual에 남겨
+        # 리포트만 보고도 "판독이 흔들렸는지 값이 달랐는지" 구분할 수 있게 한다.
+        wl_attempts = [{"viewer": {"w1": viewer_overlay.get("w1"),
+                                  "w2": viewer_overlay.get("w2")},
+                        "xipl": {"w1": overlay.get("w1"),
+                                 "w2": overlay.get("w2")}}]
+        for attempt in range(2):
+            last = wl_attempts[-1]
+            if last["viewer"] == last["xipl"]:
+                break
+            reshot_viewer = _ev(
+                ctx, f"TC_XIPL_compatibility_01_viewer_retry{attempt + 1}.png")
+            reshot_xipl = _ev(
+                ctx, f"TC_XIPL_compatibility_01_xipl_retry{attempt + 1}.png")
+            try:
+                screen.grab(ui.main_window().rect, path=reshot_viewer)
+                again_viewer = vp.read_viewer_w1_w2(reshot_viewer)
+                again_xipl = studio.capture_first_overlay(reshot_xipl)
+            except Exception as exc:
+                wl_attempts.append({"error": str(exc)})
+                break
+            wl_attempts.append(
+                {"viewer": {"w1": again_viewer.get("w1"),
+                            "w2": again_viewer.get("w2")},
+                 "xipl": {"w1": again_xipl.get("w1"),
+                          "w2": again_xipl.get("w2")}})
+            r.attach(reshot_viewer)
+            r.attach(reshot_xipl)
+        final = wl_attempts[-1]
+        r.assert_true(
             4, "Viewer와 XIPL Histogram/Window Level 값 일치",
-            {"w1": viewer_overlay["w1"], "w2": viewer_overlay["w2"]},
-            {"w1": overlay.get("w1"), "w2": overlay.get("w2")},
-            note="양쪽 화면의 표시 숫자를 각각 OCR하여 비교")
+            bool(final.get("viewer")) and final.get("viewer") == final.get("xipl"),
+            expected="Viewer 표시 W1/W2 == XIPL 표시 W1/W2",
+            actual={"final": final, "attempts": wl_attempts},
+            note="개정본 Expected 3(뷰어에 표시된 Histogram/Window Level과 XIPL의 "
+                 "값이 동일). 양쪽 모두 화면 숫자를 OCR로 읽으므로, 불일치하면 "
+                 "재캡처해 다시 읽고 시도 기록을 함께 남긴다. 값이 정말 다르면 "
+                 "재판독해도 계속 다르다.")
 
         parameter_shot = _ev(ctx, "TC_XIPL_compatibility_01_parameter.png")
         parameter_attempts = []

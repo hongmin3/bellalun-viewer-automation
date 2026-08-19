@@ -929,7 +929,113 @@ def confirm_study_delete(ui, accept=True, timeout=4):
     return {"accepted": bool(accept), "ctrl_id": target.ctrl_id}
 
 
-def close_examine(ui, option="close", wait=8, evidence_path=None):
+UNSAVED_CHANGES_MARKERS = ("there are changes", "do you like to save")
+STUDY_DELETE_MARKERS = ("will be deleted", "are you sure")
+
+
+def read_dialog_message(ui, dialog, tesseract_exe=None):
+    """대화상자 문구를 **OCR로** 읽는다.
+
+    `ui.dialog_text()`(WM_GETTEXT)는 이 제품의 커스텀 팝업에서 **빈 문자열만**
+    돌려준다(2026-08-19 실측: `dialog.text=''`, `dialog_text=''`, 하위 컨트롤은
+    `AfxWnd140u`/`TextButton`뿐). 그래서 문구로 팝업을 구분하려면 화면을 읽어야
+    한다.
+
+    문구는 팝업 높이의 대략 30~70% 구간에 있다(버튼은 그 아래). 창 위치·크기가
+    달라져도 되도록 **팝업 rect에 대한 비율**로 잘라낸다.
+    """
+    if not dialog:
+        return ""
+    if tesseract_exe:
+        try:
+            import pytesseract
+            pytesseract.pytesseract.tesseract_cmd = tesseract_exe
+        except Exception:
+            pass
+    left, top, right, bottom = dialog.rect
+    height = bottom - top
+    if height <= 0:
+        return ""
+    box = (left + 10, top + int(height * 0.30),
+           right - 10, top + int(height * 0.70))
+    try:
+        from core import screen
+        return (screen.ocr(box, scale=3, psm=6) or "").strip()
+    except Exception:
+        return ""
+
+
+def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
+    """"There are changes. Do you like to save them?" 저장 확인 팝업을 처리한다.
+
+    **발견 경위 (2026-08-19)**: `TC_XIPL_compatibility_04`가 회귀에서만 3회 연속
+    같은 지점에서 실패했다. 두 번 잘못 짚은 뒤(대기 시간, 열린 검사) 실패 시점
+    캡처를 남기게 하고서야 원인이 보였다 — Close를 누르면 제품이 이 팝업을 띄우는데
+    아무도 답하지 않아 **모달이 이후 모든 클릭을 삼켰다.**
+
+    `close_examine`은 종료 옵션 팝업(Close/Suspend/Cancel, 버튼 3개)만 알고 있어서
+    버튼이 3개 미만이면 그냥 반환했다. 이 팝업은 Yes/No 2개다.
+
+    **2버튼 팝업이 두 종류라 문구로 구분한다.** 같은 상황에서
+    "This study will be deleted. Are you sure?"(`confirm_study_delete`)도 2버튼으로
+    뜬다. 문구를 확인하지 않고 누르면 엉뚱한 팝업의 버튼을 누른다.
+
+    `save=True`(기본)는 **Yes** — 변경을 저장한다. 이 저장소의 기존 판단과 같은
+    방향이다(`close_examine`이 데이터를 잃지 않는 Suspend를 택하는 이유와 동일).
+    공용 픽스처의 영상 조정 상태는 `WF_02` Expected 6/7과 `WF_08` Film 출력 비교가
+    쓰므로, 버리면 뒤 TC의 근거가 흔들린다.
+
+    버튼은 커스텀 렌더링이고 **좌=Yes(501), 우=No(500)** 로 실측됐다
+    (2026-08-19: 팝업 rect (728,440,1192,641), Yes x=835, No x=965).
+    `confirm_study_delete`와 같은 방식으로 **좌우 순서와 컨트롤 ID를 함께 확인**하고,
+    다르면 클릭하지 않고 중단한다.
+
+    **문구는 OCR로 읽는다.** `ui.dialog_text()`는 이 팝업에서 빈 문자열만 준다
+    (실측). 처음 구현할 때 이걸 몰라서 문구 검사가 항상 실패했고, 핸들러가
+    발동하지 않아 같은 실패가 한 번 더 났다.
+
+    반환: {"saved": bool, "ctrl_id": int, "message": str} / 팝업 없으면 None.
+    """
+    end = time.time() + timeout
+    dialog, buttons = None, []
+    while time.time() < end:
+        dialog = ui.dialog()
+        buttons = _visible_close_buttons(ui)
+        if dialog and len(buttons) == 2:
+            break
+        time.sleep(.3)
+    if not (dialog and len(buttons) == 2):
+        return None
+
+    message = read_dialog_message(ui, dialog, tesseract_exe)
+    low = message.lower()
+    if any(m in low for m in STUDY_DELETE_MARKERS):
+        # "This study will be deleted. Are you sure?" 다. 여기서 좌측(501)을
+        # 누르면 **검사가 삭제된다.** 저장 확인과 버튼 구성이 같으므로 문구로
+        # 구분하지 못하면 절대 누르지 않는다. 처리는 confirm_study_delete가 한다.
+        return None
+    if not any(m in low for m in UNSAVED_CHANGES_MARKERS):
+        raise FlowError(
+            "Close 직후 2버튼 팝업이 떴지만 문구를 확정하지 못했습니다"
+            f"(OCR={message!r}, 버튼={[(b.ctrl_id, b.rect[0]) for b in buttons]}). "
+            "저장 확인 팝업과 검사 삭제 확인 팝업은 버튼 구성이 같아서, 문구를 "
+            "읽지 못한 상태로 누르면 검사를 삭제할 수 있습니다. 안전하게 중단합니다.")
+
+    yes, no = buttons[0], buttons[1]
+    target = yes if save else no
+    expected = 501 if save else 500
+    if target.ctrl_id != expected:
+        raise FlowError(
+            f"저장 확인 팝업의 버튼 구성이 예상과 다릅니다 "
+            f"(기대 {expected}, 실제 {target.ctrl_id}, "
+            f"버튼={[(b.ctrl_id, b.rect[0]) for b in buttons]}, 문구={message!r}). "
+            f"잘못된 버튼을 누르지 않도록 중단합니다.")
+    ui.click(target, settle=1.5)
+    return {"saved": bool(save), "ctrl_id": target.ctrl_id, "message": message}
+
+
+def close_examine(ui, option="close", wait=8, evidence_path=None,
+                  save_changes=True, tesseract_exe=None):
     """Examine 모드에서 검사를 종료한다.
 
     Close 버튼은 강제 종료가 아니라 열려 있는 검사를 닫는 정상 동작이다.
@@ -959,6 +1065,13 @@ def close_examine(ui, option="close", wait=8, evidence_path=None):
         raise FlowError("Close 버튼(2204)을 찾지 못했습니다.")
     ui.click(btn[0], settle=1.5)
 
+    # Close를 누르면 영상 변경사항이 있을 때 "There are changes. Do you like to
+    # save them?"이 **먼저** 뜬다. 이 팝업은 버튼이 2개라 아래 종료 옵션 판별
+    # (3개 필요)에 걸리지 않고, 방치하면 모달이 이후 모든 클릭을 삼킨다
+    # (2026-08-19 회귀에서 TC_XIPL_04가 이 때문에 3회 연속 실패했다).
+    unsaved = confirm_unsaved_changes(ui, save=save_changes,
+                                     tesseract_exe=tesseract_exe)
+
     end = time.time() + 6
     d, buttons = None, []
     while time.time() < end:
@@ -969,7 +1082,8 @@ def close_examine(ui, option="close", wait=8, evidence_path=None):
         time.sleep(.25)
     if len(buttons) < 3:
         time.sleep(wait)
-        return {"dialog": False, "option": None, "evidence": None}
+        return {"dialog": False, "option": None, "evidence": None,
+                "unsaved_changes": unsaved}
 
     if evidence_path and d:
         try:
