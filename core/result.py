@@ -194,9 +194,21 @@ def write_txt(results, path, env=None):
     L.append(" Bellalun Viewer 기본기능 자동화 결과")
     L.append("=" * 78)
     L.append(f" 수행 일시 : {datetime.now():%Y-%m-%d %H:%M:%S}")
+    # **두 층을 구분해 적는다.** 아래 "판정 합계"는 Step(체크) 단위 합계라서 TC
+    # 개수보다 훨씬 크다. 예: TC 20개인데 체크 172개 -> PASS 160.
+    # 구분하지 않으면 "TC가 20개인데 왜 PASS가 160개냐"는 오해가 생긴다
+    # (2026-08-19 사용자 지적).
+    tc_total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    for r in results:
+        if r.verdict in tc_total:
+            tc_total[r.verdict] += 1
     L.append(f" TC 건수   : {len(results)}")
-    L.append(f" 판정 합계 : PASS {total[PASS]} / FAIL {total[FAIL]} / "
-             f"MANUAL {total[MANUAL]} / SKIP {total[SKIP]}")
+    L.append(f" TC 판정   : PASS {tc_total[PASS]} / FAIL {tc_total[FAIL]} / "
+             f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]}   (TC 단위)")
+    checks = sum(total.values())
+    L.append(f" 검증 판정 : PASS {total[PASS]} / FAIL {total[FAIL]} / "
+             f"MANUAL {total[MANUAL]} / SKIP {total[SKIP]}   "
+             f"(Step 단위, 총 {checks}개 체크)")
     if env:
         L.append("")
         L.append(" [ 시험 환경 ]")

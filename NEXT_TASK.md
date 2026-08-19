@@ -204,6 +204,79 @@ WF_09는 Normal과 Anonymous를 **서로 다른 경로**로 내보내야 한다(
 못했으므로**, 실제로 가려진 환경을 만나면 오류 메시지의 창 제목과
 `Evidence/ui/login_not_foreground.png`를 먼저 확인할 것.
 
+### 5. [완료] Image Overlay를 Bottom에 배치 + 리포트 수치 오해 수정 (2026-08-19)
+
+**① 리포트의 "PASS 160"이 TC 개수로 오해됐다** (사용자 지적). 그 값은 **Step(체크)
+단위**였다. 리포트 머리글을 두 줄로 분리했다.
+
+```
+ TC 건수   : 20
+ TC 판정   : PASS 13 / FAIL 1 / MANUAL 6 / SKIP 0   (TC 단위)
+ 검증 판정 : PASS 160 / FAIL 1 / MANUAL 10 / SKIP 1   (Step 단위, 총 172개 체크)
+```
+
+README에는 과거 9개 회차를 리포트 JSON에서 재계산해 두 층을 함께 적었다. 그 과정에서
+**체크 수 자체가 연쇄 실패의 신호**라는 것이 드러났다 — 정상 172개, 연쇄 실패 시 49개.
+
+**② Dose kVp / Dose mAs 를 Bottom 에 배치** (사용자 확정).
+
+실측한 컨트롤과 DB 값:
+
+```
+2382 Available   2380 Top 목록      2381 Bottom 목록
+2383 Add Top     2384 Remove Top
+2385 Add Bottom  2386 Remove Bottom
+OVERLAY_ITEM.Position:  0 = Top, 1 = Bottom
+```
+
+버튼 ID는 **눌러서 DB로 확인**했다. `Dose mA`(116)를 2385로 넣으니 `Position=1`이
+되고 2386으로 빼니 사라졌다. 이 저장소에서 아이콘 추측이 여러 번 틀렸으므로
+(2184=Import, 2197=Move Image) 반드시 실측한다.
+
+`add_image_overlay_items(ui, db, labels, position="bottom")`이고, 판정은 저장 여부만
+보지 않고 **Position 까지 대조**한다. 위치를 확인하지 않으면 Top 에 들어가도 PASS 가
+되어 요구사항을 놓친다.
+
+**내가 만든 버그와 수정** (같은 실수를 반복하지 않기 위해 남긴다)
+
+첫 구현에서 `Patient ID`(FieldID 1)와 `Patient Name`(2)이 **삭제됐다.** 행에서
+FieldID 를 화면으로 읽을 수 없다는 이유로 "위에서부터 한 건씩 지운다"는 **임의 규칙**을
+만든 것이 원인이다. Dose kVp(Order=6)/mAs(Order=7)를 지우려다 Order 0·1 을 지웠다.
+**"불확실하면 추측하지 않는다"는 규칙을 내가 어겼다.**
+
+수정:
+- `OVERLAY_ITEM.Order`가 표시 순서이므로 그 값으로 **정확한 행 인덱스를 계산**한다.
+- **Order 가 큰 것부터** 지운다. 위쪽을 먼저 지우면 아래 항목 인덱스가 당겨진다.
+- 중간에 DB 를 확인하지 않는다 — **Setting 변경은 Update 를 누를 때까지 DB 에
+  반영되지 않는다**(실측). 검증은 저장 뒤 한 번 한다.
+- 저장 뒤 `unintended_loss`로 **의도하지 않은 삭제를 검출**해 발생 시 즉시 중단한다.
+
+**③ 부수 발견 — Setting 이탈 시 저장 확인 팝업**
+
+작업이 중단된 상태에서 Setting 을 벗어나려 하자 `Do you want to save changed
+configuration?`(3버튼: 좌 502 Yes / 중 501 No / 우 500 Cancel)이 떠 **모달이 이후 모든
+클릭을 삼켰다**(`메인 메뉴가 열리지 않았습니다`로 죽음). `flows.confirm_config_save()`를
+추가하고 `ensure_patient_screen`이 Setting 을 닫을 때 호출한다. 기본값은 **No** —
+자동화의 의도한 설정 변경은 항상 `setting_update()`로 명시적으로 저장하므로, 이 팝업이
+뜨는 것은 그 경로를 타지 않은 잔여 변경이라는 뜻이다. 문구를 OCR 로 확정하지 못하면
+누르지 않는다(3버튼 팝업은 검사 종료 옵션과 구성이 같다).
+
+**검증 (영향 범위만, 약 18분)**
+
+전체 회귀(60분)를 돌리지 않았다. `add_image_overlay_items` 호출부가 `WF_03` 한 곳뿐이라
+나머지 TC 는 이 변경과 무관하다.
+
+```bash
+python run.py setup-dicom && python run.py run-wf01 && python run.py run-wf02 && python run.py run-wf03
+```
+
+결과: `WF_03` PASS 4 / MANUAL 2, `added={115:(1,0), 118:(1,1)}`,
+`unintended_loss=[]`, Top 항목(1/2/15/100/113/134) 전부 유지.
+
+**단독 검증 시 주의**: `WF_03/04/05/06/08/09`는 `DATA_FLOW_MWL_01` 픽스처를 요구한다.
+DB 를 복원한 직후에 단독 실행하면 `Viewer XIPL fixture not found`로 죽는다. 위
+사슬(`setup-dicom → run-wf01 → run-wf02`)을 먼저 돌려 전제를 만든다.
+
 ### 그 밖의 다음 후보
 
 `TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).

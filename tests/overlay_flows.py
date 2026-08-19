@@ -52,6 +52,11 @@ from core.result import TCResult, FAIL
 
 IMAGE_OVERLAY_ADD = ["Dose kVp", "Dose mAs"]
 
+# 추가 위치. **Bottom**이다(사용자 확정, 2026-08-19). Dose 정보는 촬영 조건이라
+# 환자정보가 모인 상단과 분리해 영상 하단에 두는 것이 검증자가 보기 좋다.
+# `CONFIGURATION.OVERLAY_ITEM.Position`은 0=Top / 1=Bottom (실측).
+IMAGE_OVERLAY_POSITION = "bottom"
+
 
 def _open_examined(ui, wait=6):
     """메인 메뉴 > View 로 Examined 창을 열고 검색해 목록을 채운다.
@@ -89,16 +94,28 @@ def workflow_03(ctx):
         if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
             flows.close_examine(ui, option="suspend", wait=10)
         flows.ensure_patient_screen(ui, wait=3)
-        added = vp.add_image_overlay_items(ui, ctx.db, IMAGE_OVERLAY_ADD)
+        added = vp.add_image_overlay_items(
+            ui, ctx.db, IMAGE_OVERLAY_ADD, position=IMAGE_OVERLAY_POSITION)
         want_ids = {vp.OVERLAY_FIELD_IDS[x] for x in IMAGE_OVERLAY_ADD}
-        saved_ids = set(added["after"])
+        want_position = vp.OVERLAY_POSITION[IMAGE_OVERLAY_POSITION]
+        saved = added["after"]
+        # 저장됐는지만 보지 않고 **어느 위치에 들어갔는지**까지 판정한다.
+        # 위치를 확인하지 않으면 Top에 들어가도 PASS가 되어 요구사항을 놓친다.
+        wrong = {fid: saved[fid] for fid in want_ids
+                 if fid in saved and saved[fid][0] != want_position}
         r.assert_true(
-            1, "Setting > Display > Overlay에 Image Overlay 항목 추가",
-            want_ids <= saved_ids,
-            expected={"labels": IMAGE_OVERLAY_ADD, "field_ids": sorted(want_ids)},
-            actual=added,
-            note="CONFIGURATION.OVERLAY_ITEM으로 대조. FieldID는 추가해 보고 실측한 값"
-                 "(Dose kVp=115, Dose mAs=118).")
+            1, f"Setting > Display > Overlay의 {IMAGE_OVERLAY_POSITION.title()}에 "
+               "Image Overlay 항목 추가",
+            want_ids <= set(saved) and not wrong,
+            expected={"labels": IMAGE_OVERLAY_ADD,
+                      "field_ids": sorted(want_ids),
+                      "position": f"{IMAGE_OVERLAY_POSITION}"
+                                  f"(OVERLAY_ITEM.Position={want_position})"},
+            actual={**added, "wrong_position": wrong},
+            note="CONFIGURATION.OVERLAY_ITEM의 FieldID와 **Position**을 함께 대조한다. "
+                 "FieldID(Dose kVp=115, Dose mAs=118)와 Position(0=Top, 1=Bottom)은 "
+                 "모두 추가해 보고 실측한 값이다. 개정본 Expected 1은 '선택한 Image "
+                 "Overlay 항목이 저장된다'이고, 표시 위치는 사용자 확정 사항이다.")
 
         # --- Step 2: Print Overlay 등록 및 Print에서 선택 --------------
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
@@ -152,7 +169,8 @@ def workflow_03(ctx):
             r.attach(shot)
         r.manual(
             5, "2D 영상에 추가한 Image Overlay 항목 표시 확인",
-            f"Step 1에서 추가한 {IMAGE_OVERLAY_ADD} 가 영상 위 Overlay에 표시되는지 "
+            f"Step 1에서 추가한 {IMAGE_OVERLAY_ADD} 가 영상 "
+            f"**{IMAGE_OVERLAY_POSITION}**의 Overlay에 표시되는지 "
             "캡처로 확인한다. 이 항목들은 촬영 조건 값이라 Demo(F8) 가상 촬영에서는 "
             "실제 노출값이 들어오지 않을 수 있어 자동 판정 대상으로 두지 않는다. "
             "설정이 저장된 사실은 Step 1이 CONFIGURATION.OVERLAY_ITEM으로 대조했다.",

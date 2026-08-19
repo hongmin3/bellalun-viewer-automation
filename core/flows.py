@@ -768,6 +768,9 @@ def ensure_patient_screen(ui, wait=5, settle_timeout=60):
                  if c.visible and c.rect[1] < top + 100]
         if close:
             ui.click(close[0], settle=1)
+        # Setting을 벗어날 때 잔여 변경이 있으면 저장 확인 팝업이 뜬다. 방치하면
+        # 모달이 이후 모든 클릭을 삼킨다(2026-08-19 실측).
+        confirm_config_save(ui, save=False, timeout=3)
     if ui.by_id(WELCOME["examine"]):
         ui.click(ui.by_id(WELCOME["examine"])[0], settle=2)
     if ui.by_id(PATIENT["tab_new_patient"]):
@@ -954,6 +957,8 @@ def confirm_study_delete(ui, accept=True, timeout=4):
 
 
 UNSAVED_CHANGES_MARKERS = ("there are changes", "do you like to save")
+CONFIG_SAVE_MARKERS = ("save changed configuration", "changed configuration")
+CONFIG_SAVE_IDS = {"yes": 502, "no": 501, "cancel": 500}
 STUDY_DELETE_MARKERS = ("will be deleted", "are you sure")
 
 
@@ -987,6 +992,54 @@ def read_dialog_message(ui, dialog, tesseract_exe=None):
         return (screen.ocr(box, scale=3, psm=6) or "").strip()
     except Exception:
         return ""
+
+
+def confirm_config_save(ui, save=False, timeout=6, tesseract_exe=None):
+    """"Do you want to save changed configuration?" 팝업을 처리한다.
+
+    Setting 화면을 벗어날 때 변경이 남아 있으면 뜬다. 방치하면 **모달이 이후 모든
+    클릭을 삼켜** "메인 메뉴가 열리지 않았습니다" 같은 엉뚱한 증상으로 죽는다
+    (2026-08-19 실측).
+
+    버튼은 좌 502(Yes) / 중 501(No) / 우 500(Cancel)로 실측됐다. 이 저장소의 3버튼
+    순서 규약(`CLOSE_OPTION_IDS`)과 같다.
+
+    `save=False`(기본)는 **No** — 저장하지 않는다. 자동화가 의도한 설정 변경은 항상
+    `setting_update()`로 **명시적으로** 저장한다. 이 팝업이 뜨는 상황은 그 경로를
+    타지 않은 잔여 변경이라는 뜻이므로, 저장하면 의도하지 않은 설정이 남는다.
+
+    문구는 OCR로 읽는다(이 제품의 커스텀 팝업은 WM_GETTEXT로 빈 문자열만 준다).
+    문구를 확정하지 못하면 **누르지 않고** None을 돌려준다 — 3버튼 팝업은 검사 종료
+    옵션(Suspend/Close/Cancel)과 구성이 같아서, 잘못 누르면 검사 상태를 바꾼다.
+
+    반환: {"saved": bool, "ctrl_id": int, "message": str} / 해당 팝업이 없으면 None.
+    """
+    end = time.time() + timeout
+    dialog, buttons = None, []
+    while time.time() < end:
+        dialog = ui.dialog()
+        buttons = _visible_close_buttons(ui)
+        if dialog and len(buttons) == 3:
+            break
+        time.sleep(.3)
+    if not (dialog and len(buttons) == 3):
+        return None
+
+    message = read_dialog_message(ui, dialog, tesseract_exe)
+    if not any(m in message.lower() for m in CONFIG_SAVE_MARKERS):
+        # 다른 3버튼 팝업(예: 검사 종료 옵션)이다. 건드리지 않는다.
+        return None
+
+    key = "yes" if save else "no"
+    expected = CONFIG_SAVE_IDS[key]
+    target = next((b for b in buttons if b.ctrl_id == expected), None)
+    if target is None:
+        raise FlowError(
+            f"설정 저장 확인 팝업에서 '{key}' 버튼(ID {expected})을 찾지 못했습니다"
+            f"(버튼={[(b.ctrl_id, b.rect[0]) for b in buttons]}, 문구={message!r}). "
+            "잘못된 버튼을 누르지 않도록 중단합니다.")
+    ui.click(target, settle=1.5)
+    return {"saved": bool(save), "ctrl_id": target.ctrl_id, "message": message}
 
 
 def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):

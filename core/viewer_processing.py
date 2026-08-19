@@ -322,6 +322,23 @@ OVERLAY_CATALOGUE = {
 
 # 카탈로그 index -> CONFIGURATION.OVERLAY_ITEM.FieldID (추가해 보고 실측한 값).
 # WF04가 "요청한 항목이 실제로 저장됐는가"를 DB로 판정할 때 쓴다.
+# Setting > Display > Overlay 화면의 목록과 버튼 (2026-08-19 실측).
+# 버튼은 아이콘만 있어 텍스트로 구분할 수 없다. 눌러서 DB 변화로 확인한 값이다.
+OVERLAY_LIST_AVAILABLE = 2382
+OVERLAY_LIST_TOP = 2380
+OVERLAY_LIST_BOTTOM = 2381
+OVERLAY_ADD_TOP = 2383
+OVERLAY_REMOVE_TOP = 2384
+OVERLAY_ADD_BOTTOM = 2385
+OVERLAY_REMOVE_BOTTOM = 2386
+
+# CONFIGURATION.OVERLAY_ITEM.Position 값 (실측).
+OVERLAY_POSITION = {"top": 0, "bottom": 1}
+OVERLAY_ADD_BUTTON = {"top": OVERLAY_ADD_TOP, "bottom": OVERLAY_ADD_BOTTOM}
+OVERLAY_REMOVE_BUTTON = {"top": OVERLAY_REMOVE_TOP,
+                         "bottom": OVERLAY_REMOVE_BOTTOM}
+OVERLAY_LIST = {"top": OVERLAY_LIST_TOP, "bottom": OVERLAY_LIST_BOTTOM}
+
 OVERLAY_FIELD_IDS = {
     "Patient ID": 1, "Patient Name": 2, "Birth Date": 15, "Sex / Age": 100,
     "Histogram": 113, "Window Level (W1/W2)": 134,
@@ -329,63 +346,144 @@ OVERLAY_FIELD_IDS = {
 }
 
 
-def add_image_overlay_items(ui, db, labels):
-    """Setting > Display > Overlay의 Top 목록에 카탈로그 항목을 추가한다.
+def _overlay_positions(db):
+    """{FieldID: (Position, Order)} 를 돌려준다."""
+    return {int(r["FieldID"]): (int(r["Position"]), int(r["Order"]))
+            for r in db.query(
+                "CONFIGURATION",
+                "SELECT FieldID,Position,[Order] FROM OVERLAY_ITEM")}
+
+
+def _overlay_list_rows(ui, ctrl_id):
+    hits = _visible(ui, ctrl_id)
+    if not hits:
+        return []
+    return sorted({c.hwnd: c for c in children(hits[0].hwnd, 5)
+                   if c.text == "ListItem" and c.visible}.values(),
+                  key=lambda c: c.rect[1])
+
+
+def add_image_overlay_items(ui, db, labels, position="top"):
+    """Setting > Display > Overlay 의 Top 또는 Bottom 목록에 항목을 추가한다.
+
+    `position`은 `"top"` / `"bottom"`이다. `CONFIGURATION.OVERLAY_ITEM.Position`이
+    0/1로 저장되며 이 매핑은 실측했다(`OVERLAY_POSITION` 주석 참고).
 
     FieldID를 미리 알 수 없는 항목(예: Dose kVp/mAs)도 다룰 수 있게, 추가 전후
-    `CONFIGURATION.OVERLAY_ITEM`을 비교해 **실제로 생긴 FieldID를 실측으로
-    돌려준다.** 이미 목록에 있는 항목은 다시 추가하지 않는다(중복 방지).
+    `OVERLAY_ITEM`을 비교해 **실제로 생긴 FieldID와 Position을 실측으로 돌려준다.**
 
-    반환: {"before": [...], "after": [...], "added_field_ids": [...],
-           "requested": [...]}
+    **이미 다른 위치에 있으면 먼저 그 목록에서 제거한다.** 제품은 같은 항목을 Top과
+    Bottom에 동시에 두지 않으므로, 제거하지 않으면 원하는 위치로 옮겨지지 않는다.
+    회귀는 DB 기준 복원으로 시작해 목록이 깨끗하지만, 단독 실행에서는 앞선 실행이
+    남긴 위치가 그대로 있다.
+
+    반환: {"before": {...}, "after": {...}, "position": str,
+           "expected_position": int, "added": {FieldID: (Position, Order)},
+           "requested": [...], "removed_from": [...]}
     """
-    def ids():
-        return sorted(int(r["FieldID"]) for r in db.query(
-            "CONFIGURATION", "SELECT FieldID FROM OVERLAY_ITEM"))
-
+    if position not in OVERLAY_POSITION:
+        raise RuntimeError(f"알 수 없는 Overlay 위치: {position!r}")
     unknown = [x for x in labels if x not in OVERLAY_CATALOGUE]
     if unknown:
         raise RuntimeError(f"카탈로그에 없는 Overlay 항목: {unknown}")
 
-    before = ids()
+    want_position = OVERLAY_POSITION[position]
+    before = _overlay_positions(db)
+
     flows.open_setting(ui, wait=3)
     flows.open_setting_group(ui, "display", wait=2)
     flows._click_setting_control(ui, 201, "Display > Overlay", wait=2)
-    available = _visible(ui, 2382)
-    add_top = _visible(ui, 2383)
-    if not available or not add_top:
+    if not _visible(ui, OVERLAY_LIST_AVAILABLE):
         raise RuntimeError("Display > Overlay item controls not found")
+
+    # 이미 반대편 목록에 있는 항목을 먼저 제거한다. 제품은 같은 항목을 Top과
+    # Bottom에 동시에 두지 않으므로, 제거하지 않으면 원하는 위치로 옮겨지지 않는다.
+    #
+    # **행 위치는 DB의 Order로 계산한다.** 목록 행에서 FieldID를 화면으로 읽을 수
+    # 없다고 "위에서부터 지운다"고 하면 엉뚱한 항목을 지운다 — 2026-08-19에 실제로
+    # Dose kVp(Order=6)/mAs(Order=7)를 지우려다 Patient ID(0)/Patient Name(1)을
+    # 삭제했다. `OVERLAY_ITEM.Order`가 표시 순서이므로 그 값이 곧 행 인덱스다.
+    #
+    # **Order가 큰 것부터** 지운다. 위쪽을 먼저 지우면 아래 항목의 인덱스가 당겨져
+    # 어긋난다. 중간에 DB를 확인하지는 않는다 — Setting 변경은 Update를 누를 때까지
+    # DB에 반영되지 않으므로(실측), 검증은 저장 뒤에 한 번 한다.
+    removed_from = []
+    targets = {OVERLAY_FIELD_IDS[label] for label in labels
+               if label in OVERLAY_FIELD_IDS}
+    for other in [k for k in OVERLAY_POSITION if k != position]:
+        other_position = OVERLAY_POSITION[other]
+        stale = sorted(
+            ((order, fid) for fid, (pos, order) in before.items()
+             if fid in targets and pos == other_position),
+            reverse=True)
+        if not stale:
+            continue
+        rows = _overlay_list_rows(ui, OVERLAY_LIST[other])
+        for order, fid in stale:
+            if order >= len(rows):
+                raise RuntimeError(
+                    f"Overlay {other} 목록에서 FieldID {fid}(Order {order}) 행을 "
+                    f"찾지 못했습니다(보이는 행 {len(rows)}개). Order와 화면 행이 "
+                    "어긋났을 수 있으므로 잘못된 행을 지우지 않도록 중단합니다.")
+            ui.click(rows[order], settle=.4)
+            remove = _visible(ui, OVERLAY_REMOVE_BUTTON[other])
+            if not remove:
+                raise RuntimeError(
+                    f"Overlay {other} 제거 버튼"
+                    f"({OVERLAY_REMOVE_BUTTON[other]})을 찾지 못했습니다.")
+            ui.click(remove[0], settle=.6)
+            if ui.dialog():
+                flows.confirm_setting_dialog(ui, timeout=3)
+            rows = _overlay_list_rows(ui, OVERLAY_LIST[other])
+        removed_from.append(other)
 
     for label in labels:
         index = OVERLAY_CATALOGUE[label]
-        rows = sorted({c.hwnd: c for c in children(available[0].hwnd, 5)
-                       if c.text == "ListItem" and c.visible}.values(),
-                      key=lambda c: c.rect[1])
+        rows = _overlay_list_rows(ui, OVERLAY_LIST_AVAILABLE)
         if len(rows) <= index:
             raise RuntimeError(
                 f"Overlay 카탈로그에서 '{label}'(index {index}) 행이 보이지 "
                 f"않습니다(보이는 행 {len(rows)}개).")
         ui.click(rows[index], settle=.4)
-        ui.click(add_top[0], settle=.8)
+        add = _visible(ui, OVERLAY_ADD_BUTTON[position])
+        if not add:
+            raise RuntimeError(
+                f"Overlay {position} 추가 버튼"
+                f"({OVERLAY_ADD_BUTTON[position]})을 찾지 못했습니다.")
+        ui.click(add[0], settle=.8)
         if ui.dialog():
             # 이미 추가된 항목이면 제품이 경고를 띄운다. 중복은 오류가 아니다.
             flows.confirm_setting_dialog(ui, timeout=3)
 
     flows.setting_update(ui, wait=3)
     flows.confirm_setting_dialog(ui)
-    end = time.time() + 8
-    after = ids()
-    while time.time() < end and after == before:
+    end_at = time.time() + 8
+    after = _overlay_positions(db)
+    while time.time() < end_at and after == before:
         time.sleep(1)
-        after = ids()
+        after = _overlay_positions(db)
     flows.confirm_setting_dialog(ui, timeout=2)
-    closes = [c for c in ui.by_id(4) if c.visible
-              and c.rect[2] - c.rect[0] <= 60 and c.rect[3] - c.rect[1] <= 60]
-    if closes:
-        ui.click(min(closes, key=lambda c: c.rect[1]), settle=2)
-    return {"before": before, "after": after,
-            "added_field_ids": sorted(set(after) - set(before)),
-            "requested": list(labels)}
+
+    # 저장 뒤 최종 검증. **의도하지 않은 항목이 사라졌는지** 여기서 잡는다.
+    # 제거 대상이 아닌 FieldID가 없어졌다면 잘못된 행을 지운 것이므로 즉시 알린다
+    # (2026-08-19에 Patient ID/Name을 잃은 적이 있다).
+    lost = sorted(set(before) - set(after) - targets)
+    if lost:
+        raise RuntimeError(
+            f"의도하지 않은 Overlay 항목이 삭제됐습니다: FieldID {lost}. "
+            f"제거 대상은 {sorted(targets)} 였습니다. "
+            "Setting > Display > Overlay 목록을 확인하십시오.")
+
+    return {
+        "before": before,
+        "after": after,
+        "position": position,
+        "expected_position": want_position,
+        "added": {fid: after[fid] for fid in sorted(after) if fid in targets},
+        "requested": list(labels),
+        "removed_from": removed_from,
+        "unintended_loss": lost,
+    }
 
 
 def ensure_tc01_overlay(ui, db):
