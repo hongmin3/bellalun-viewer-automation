@@ -102,9 +102,12 @@ def main():
     sub.add_parser("run-wf03",
                    help="TC_Basic_WorkFlow_03 Image Overlay 및 Print Overlay 설정")
     sub.add_parser("run-wf04", help="TC_Basic_WorkFlow_04 2D 수동 DICOM Send")
+    sub.add_parser("run-wf05", help="TC_Basic_WorkFlow_05 3D 수동 DICOM Send")
     sub.add_parser("run-wf06",
                    help="TC_Basic_WorkFlow_06 All Images 및 Dose SR 전송")
     sub.add_parser("run-wf08", help="TC_Basic_WorkFlow_08 2D/3D Film Print")
+    sub.add_parser("run-wf09",
+                   help="TC_Basic_WorkFlow_09 Normal 및 Anonymous Export")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -150,7 +153,8 @@ def main():
         restore_baseline(ctx)
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
-    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf06", "run-wf08", "run-xipl",
+    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
+                   "run-wf08", "run-wf09", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -194,7 +198,8 @@ def main():
         from tests.xipl_flows import run_xipl
         from tests.system_compat import run as run_system_3d
         from tests.send_flows import run as run_send
-        from tests.send_flows import run_all_images
+        from tests.send_flows import run_all_images, run_3d
+        from tests.export_flows import run as run_export
         from tests.overlay_flows import run as run_overlay
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
@@ -251,8 +256,10 @@ def main():
         results.append(run_workflow02(ctx))
         results.extend(run_overlay(ctx))      # WF_03 Overlay 설정
         results.extend(run_send(ctx))         # WF_04 2D 수동 DICOM Send
+        results.extend(run_3d(ctx))           # WF_05 3D 수동 DICOM Send
         results.extend(run_all_images(ctx))   # WF_06 All Images 및 Dose SR
         results.append(run_workflow03(ctx))   # WF_08 2D/3D Film Print
+        results.extend(run_export(ctx))       # WF_09 Normal/Anonymous Export
         results.extend(run_xipl(ctx))         # XIPL_01~06
         results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
         return finish(ctx, results)
@@ -279,9 +286,15 @@ def main():
     if args.cmd == "run-wf04":
         from tests.send_flows import run as run_send
         results.extend(run_send(ctx))
+    if args.cmd == "run-wf05":
+        from tests.send_flows import run_3d
+        results.extend(run_3d(ctx))
     if args.cmd == "run-wf06":
         from tests.send_flows import run_all_images
         results.extend(run_all_images(ctx))
+    if args.cmd == "run-wf09":
+        from tests.export_flows import run as run_export
+        results.extend(run_export(ctx))
     if args.cmd == "run-wf08":
         from tests.workflow03 import run as run_film_print
         results.append(run_film_print(ctx))

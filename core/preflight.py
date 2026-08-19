@@ -52,9 +52,44 @@ def check_xipl():
     }
 
 
+# `requirements.txt`와 짝을 이루는 필수 패키지. 여기만 고치면 안 되고 두 곳을
+# 함께 갱신한다.
+#
+#   Pillow      화면 캡처와 이미지 비교
+#   pytesseract 커스텀 컨트롤 값 OCR (Tesseract 실행 파일은 별도 설치)
+#   openpyxl    체크리스트 xlsx 읽기/결과 기록
+#   pypdf       사양서 PDF에서 판정 근거 검색 (core.specs)
+REQUIRED_PACKAGES = {
+    "PIL": "Pillow",
+    "pytesseract": "pytesseract",
+    "openpyxl": "openpyxl",
+    "pypdf": "pypdf",
+}
+
+
+def check_packages():
+    """필수 패키지 설치 여부. 반환: (ok, 누락 목록, 상세 문자열)."""
+    import importlib
+    missing = []
+    for module, package in sorted(REQUIRED_PACKAGES.items()):
+        try:
+            importlib.import_module(module)
+        except Exception:
+            missing.append(package)
+    if not missing:
+        return True, [], f"{len(REQUIRED_PACKAGES)}개 모두 설치됨"
+    return (False, missing,
+            f"누락: {', '.join(missing)} — "
+            "`python -m pip install -r requirements.txt` 로 설치하십시오")
+
+
 def check_all(cfg, db, require_viewer=False):
     """전체 전제 조건 점검. (ok, 항목리스트) 반환."""
     items = []
+
+    pkg_ok, missing, pkg_detail = check_packages()
+    items.append({"name": "필수 Python 패키지", "ok": pkg_ok,
+                  "detail": pkg_detail, "blocking": True})
 
     x = check_xipl()
     items.append({"name": "XIPL.SERVER 가동", "ok": x["ok"], "detail": x["detail"],

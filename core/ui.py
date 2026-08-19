@@ -160,6 +160,29 @@ def children(hwnd, max_depth=4, _depth=1):
 
 
 # ---------------------------------------------------------------------
+# Windows 셸 창. 이것들이 최전면인 것은 **가림이 아니다.**
+#
+# `Program Manager`는 데스크톱 자체이고, Viewer를 새로 띄운 직후에는 창이 아직
+# 올라오지 않아 최전면이 데스크톱인 정상 순간이 있다. 2026-08-19 회귀에서 이걸
+# 가림으로 오판해 로그인을 중단시켜 14개 TC가 연쇄 FAIL했다.
+SHELL_WINDOW_TITLES = ("Program Manager",)
+SHELL_WINDOW_CLASSES = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+
+
+def _is_shell_window(front):
+    """최전면 창이 Windows 셸(데스크톱/작업표시줄)인지."""
+    if not front:
+        return False
+    if front.get("title") in SHELL_WINDOW_TITLES:
+        return True
+    try:
+        buf = ctypes.create_unicode_buffer(256)
+        u32.GetClassNameW(front["hwnd"], buf, 256)
+        return buf.value in SHELL_WINDOW_CLASSES
+    except Exception:
+        return False
+
+
 class ViewerUi:
     """Viewer 프로세스 1개를 대상으로 하는 드라이버."""
 
@@ -414,6 +437,61 @@ class ViewerUi:
             u32.SetForegroundWindow(win.hwnd)
             time.sleep(0.3)
         return win
+
+    def foreground_window(self):
+        """현재 최전면 창의 (hwnd, 제목, 프로세스 ID)."""
+        hwnd = u32.GetForegroundWindow()
+        if not hwnd:
+            return None
+        length = u32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(length + 1)
+        u32.GetWindowTextW(hwnd, buf, length + 1)
+        pid = w.DWORD()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return {"hwnd": hwnd, "title": buf.value, "pid": int(pid.value)}
+
+    def is_foreground(self):
+        """최전면 창이 **Viewer 프로세스의 것인지**.
+
+        `main_window()`의 hwnd와 비교하지 않는다. Viewer는 로그인 화면이나
+        대화상자에서 다른 최상위 창을 최전면에 두는데, hwnd로 비교하면 그 정상
+        상황을 "가려졌다"고 오판해 로그인을 중단시킨다(2026-08-19 실측으로 확인).
+
+        막아야 하는 것은 키 입력이 **다른 프로그램**으로 들어가는 것이므로
+        프로세스 동일성으로 판정한다.
+        """
+        front = self.foreground_window()
+        return bool(front and self.pid and front["pid"] == self.pid)
+
+    def bring_to_front(self, attempts=4, settle=0.4):
+        """Viewer를 최전면으로 올리고 **실제로 올라왔는지 확인**한다.
+
+        `SetForegroundWindow`는 Windows가 무시할 수 있다(다른 프로세스가 포커스를
+        쥐고 있을 때). 그래서 호출만 하고 넘어가면, 가려진 상태에서 물리 키 입력을
+        보내 **비밀번호가 다른 창으로 들어간다.**
+
+        올리지 못하면 마지막으로 최전면이던 창 정보를 함께 돌려준다. 호출자가
+        "무엇이 가리고 있었는지" 보고할 수 있게 하는 것이 목적이다.
+
+        반환: {"ok": bool, "blocking": {...}|None, "attempts": int}
+        """
+        win = self.main_window()
+        if not win:
+            return {"ok": False, "blocking": None, "attempts": 0}
+        for attempt in range(1, attempts + 1):
+            if self.is_foreground():
+                return {"ok": True, "blocking": None, "attempts": attempt - 1}
+            # 최소화되어 있으면 먼저 복원한다(SW_RESTORE = 9).
+            u32.ShowWindow(win.hwnd, 9)
+            u32.SetForegroundWindow(win.hwnd)
+            u32.BringWindowToTop(win.hwnd)
+            time.sleep(settle)
+        front = self.foreground_window()
+        blocking = None
+        if front and front["pid"] != self.pid and not _is_shell_window(front):
+            blocking = {"title": front["title"], "pid": front["pid"]}
+        return {"ok": self.is_foreground(), "blocking": blocking,
+                "attempts": attempts}
 
     # --- 대기 ----------------------------------------------------------
     def wait_dialog(self, title=None, timeout=20, poll=0.5):

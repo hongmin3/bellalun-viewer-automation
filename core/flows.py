@@ -5,6 +5,7 @@
 같은 내용이다. 화면이 바뀌면 `python run.py ui-probe` 로 다시 뜬다.
 """
 
+import os
 import time
 
 from core.ui import ViewerUi, children
@@ -437,6 +438,21 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
         # 하고, 로그인하지 못한 경우에만 재시도/중단한다.
         attempts = int((cfg["viewer"].get("login_attempts") or 3))
         for attempt in range(1, attempts + 1):
+            # Viewer를 최전면으로 올린다. 비밀번호는 물리 키 입력이라 포커스가
+            # 다른 창에 있으면 키가 그 창으로 들어간다.
+            #
+            # **실패해도 중단하지 않는다.** 기동 직후에는 최전면이 데스크톱인
+            # 정상 순간이 있고, 여기서 중단하면 멀쩡한 실행을 막는다(2026-08-19
+            # 회귀에서 `Program Manager`를 가림으로 오판해 14개 TC가 연쇄 FAIL).
+            # 결과만 기동 로그에 남기고, 로그인이 **최종 실패했을 때** 그 정보를
+            # 오류 메시지에 실어 "가려져서 실패했는지"를 알 수 있게 한다.
+            front = ui.bring_to_front()
+            if not front["ok"]:
+                blocking = front.get("blocking")
+                say("Viewer가 최전면이 아닙니다" +
+                    (f" — 가리고 있는 창: {blocking['title']!r} "
+                     f"(PID {blocking['pid']})" if blocking else
+                     " (셸/미확인 창이 전면)"))
             say(f"로그인: {login['id']}" + (f" (재시도 {attempt - 1})" if attempt > 1 else ""))
             ok = ui.login(login["id"], login["password"])
             popped = guard.sweep()
@@ -447,9 +463,18 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                 break
             if attempt >= attempts:
                 detail = f"마지막 팝업: {msgs} " if popped else ""
+                # 가려져서 실패한 것인지 바로 알 수 있게 최전면 창을 함께 남긴다.
+                front_now = ui.foreground_window()
+                occluded = ""
+                if front_now and front_now["pid"] != ui.pid:
+                    occluded = (f" 최전면 창이 Viewer가 아닙니다: "
+                                f"{front_now['title']!r} (PID {front_now['pid']}). "
+                                "비밀번호는 물리 키 입력이라 다른 창이 포커스를 쥐고 "
+                                "있으면 키가 그 창으로 들어갑니다 — 그 창을 닫거나 "
+                                "최소화한 뒤 다시 실행하십시오.")
                 raise FlowError(
                     f"로그인에 {attempts}회 실패했습니다. {detail}"
-                    "(증적은 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.")
+                    f"(증적은 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.{occluded}")
             say(f"로그인 재시도 예정 (원인: {msgs or '로그인 화면 유지'})")
             time.sleep(1.5)
         say("로그인 완료")
@@ -529,7 +554,6 @@ def _screen_context(ui):
     else:
         parts.append("열린 대화상자=없음")
     try:
-        import os
         from core import screen
         from PIL import ImageGrab
         path = os.path.join("Evidence", "ui", "need_failed.png")

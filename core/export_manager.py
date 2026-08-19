@@ -85,6 +85,69 @@ def cancel(ui, timeout=10):
     return False
 
 
+def set_path(ui, path):
+    """Export 경로 Edit(1023)에 경로를 써넣고 되읽어 확인한다.
+
+    `PATH_EDIT`은 실제 `Edit` 컨트롤이라 `set_text`가 통한다(실측). 폴더 선택
+    창을 띄우지 않으므로 경로를 직접 지정할 수 있다.
+
+    개정본 WF_09는 Normal 과 Anonymous 를 **별도 경로**로 내보내라고 한다
+    (Step 6 "Anonymous 옵션과 별도 경로를 선택한다"). 같은 경로에 두 번 내보내면
+    덮어써서 두 결과를 비교할 수 없다.
+    """
+    hits = [c for c in ui.by_id(PATH_EDIT) if c.cls == "Edit"]
+    if not hits:
+        raise ExportManagerError(f"Export 경로 Edit({PATH_EDIT})을 찾지 못했습니다.")
+    os.makedirs(path, exist_ok=True)
+    ui.set_text(hits[0], path)
+    got = (ui.get_text(hits[0]) or "").strip()
+    if os.path.normcase(os.path.normpath(got)) != os.path.normcase(
+            os.path.normpath(path)):
+        raise ExportManagerError(
+            f"Export 경로가 반영되지 않았습니다(기대 {path!r}, 실제 {got!r}).")
+    return got
+
+
+def is_checked(ui, ctrl_id):
+    """체크 상태를 읽는다. 커스텀 컨트롤이라 표준 메시지가 통하지 않는다.
+
+    `core.screen.radio_selected`가 컨트롤 좌상단의 표시 색으로 판정한다
+    (이 저장소가 라디오/체크 판정에 쓰는 방식과 같다).
+    """
+    hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+    if not hits:
+        return None
+    from core import screen
+    try:
+        return bool(screen.radio_selected(hits[0]))
+    except Exception:
+        return None
+
+
+def set_anonymous(ui, enabled=True, attempts=3):
+    """Anonymous 옵션(1031)을 원하는 상태로 만든다.
+
+    토글이므로 **누르기 전에 현재 상태를 확인**하고, 누른 뒤 실제로 바뀌었는지
+    다시 확인한다(운영 지침 11절 - 조작 전후 상태 확인).
+
+    반환: {"requested": bool, "final": bool|None, "clicked": int}
+    """
+    clicked = 0
+    for _ in range(attempts):
+        state = is_checked(ui, ANONYMOUS)
+        if state is enabled:
+            return {"requested": bool(enabled), "final": state,
+                    "clicked": clicked}
+        hits = [c for c in ui.by_id(ANONYMOUS) if c.visible]
+        if not hits:
+            raise ExportManagerError(
+                f"Anonymous 옵션({ANONYMOUS})을 찾지 못했습니다.")
+        ui.click(hits[0], settle=.8)
+        clicked += 1
+    return {"requested": bool(enabled), "final": is_checked(ui, ANONYMOUS),
+            "clicked": clicked}
+
+
 def export(ui, wait=120, poll=2.0):
     """Start를 눌러 내보내고, 경로에 파일이 생길 때까지 기다린다.
 
