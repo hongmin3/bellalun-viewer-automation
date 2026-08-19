@@ -6,7 +6,10 @@ r"""TC_Basic_WorkFlow_05 — 3D 수동 DICOM Send.
 """
 
 from core import dicom_settings as ds
+from core import flows
 from core import send_verify as sv
+from core import viewer_processing as vp
+from core.dicom_settings import ensure_bunny
 from core.result import TCResult, FAIL
 
 def workflow_05(ctx):

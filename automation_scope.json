@@ -20,7 +20,7 @@
   {"tc_id": "TC_Basic_WorkFlow_10", "title": "MWL Hospital Code와 Procedure 매핑", "level": "MANUAL", "reason": "MWL Hospital Code와 Procedure 매핑 미구현. tests/dataflow.py에 DB 매핑 판정 로직이 있으나 MWL 연동 UI 드라이버가 없다"},
   {"tc_id": "TC_Basic_WorkFlow_11", "title": "Image Reject 및 Restore", "level": "MANUAL", "reason": "Image Reject/Restore 미구현. tests/dataflow.py에 DB 델타 판정 로직(중간 상태 포함)이 있으나 UI 드라이버가 없다"},
   {"tc_id": "TC_Basic_WorkFlow_12", "title": "Study Reject 및 Restore", "level": "MANUAL", "reason": "Study Reject/Restore 미구현. tests/dataflow.py에 DB 델타 판정 로직이 있으나 UI 드라이버가 없다"},
-  {"tc_id": "TC_Basic_WorkFlow_13", "title": "계정 추가·수정 및 로그인", "level": "MANUAL", "reason": "계정 추가·수정 및 로그인 미구현. tests/dataflow.py에 ACCOUNT 델타 판정 로직이 있다"},
+  {"tc_id": "TC_Basic_WorkFlow_13", "title": "계정 추가·수정 및 로그인", "level": "PARTIAL", "reason": "1~3단계(계정 추가 / 권한 그룹 설정 / 계정 정보 수정)를 실제 UI로 수행하고 ACCOUNT 테이블로 자동 판정한다(tests/workflow13.py, run-wf13). New Account 모달(2288~2292)에 입력하고 Group은 콤보 항목을 OCR로 읽어 고른다. ACCOUNT.Group 매핑 Service=3 / Admin=2 / User=1은 실측이다. 4~6단계(로그오프·시험 계정 로그인·권한별 메뉴 접근)는 의도적으로 MANUAL — 로그인 계정을 바꾸면 회귀의 뒤따르는 TC가 제한 권한으로 실행되고 중간 실패 시 복구가 불가능하다. 권한 코드별 기능 범위 표도 매뉴얼에 없어 기대값을 확정할 수 없다(NEXT_TASK.md)"},
   {"tc_id": "TC_Basic_WorkFlow_14", "title": "Setting Export 및 Import", "level": "MANUAL", "reason": "Setting Export/Import 미구현. tests/dataflow.py에 설정 전수 비교 로직이 있다"},
   {"tc_id": "TC_Basic_WorkFlow_15", "title": "Send Preview 위치 적용", "level": "MANUAL", "reason": "Send Preview 위치 적용 미구현. 기대 사양이 확정되지 않았다"},
   {"tc_id": "TC_Basic_WorkFlow_16", "title": "Kiosk 및 System Launcher", "level": "MANUAL", "reason": "Kiosk 및 System Launcher 미구현. tests/dataflow.py에 Kiosk 설정 판정 로직이 있으나 재부팅·종료 동작은 자동 판정 대상이 아니다"},

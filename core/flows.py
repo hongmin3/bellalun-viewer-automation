@@ -196,9 +196,14 @@ SETTING_UPDATE_BUTTON = 2226
 
 # Setting > DICOM > General 페이지 컨트롤
 SETTING_DICOM_GENERAL = {
-    "study_close_option": 2444,      # 콤보 (None / Auto Send 등)
-    "urgent_auto_send_yes": 2446,
-    "urgent_auto_send_no": 2445,
+    # 화면 라벨을 캡처로 확인했다(2026-08-19,
+    # `Evidence/ui/probe_setting_dicom_general.png`).
+    "study_close_option": 2444,      # "Study close option on Examine mode" 콤보
+    "urgent_auto_send_yes": 2446,    # "Send urgent patient automatically" Yes
+    "urgent_auto_send_no": 2445,     # 같은 항목 No (제품 기본값)
+    "validate_study_uid_yes": 2448,  # "Validate study instance UID" Yes (기본값)
+    "validate_study_uid_no": 2447,
+    "long_accession_no": 2449,       # "Allow long accession number" No (기본값)
     "ip_address": 2436,              # 읽기 전용
     "station_name": 2434,
     "station_ae_title": 2435,
@@ -243,6 +248,99 @@ def open_dicom_setting(ui, page, wait=2.5):
 def setting_update(ui, wait=2.0):
     """Setting 화면의 Update(적용) 버튼을 누른다."""
     return _click_setting_control(ui, SETTING_UPDATE_BUTTON, "Update 버튼", wait)
+
+
+# Setting > System 하위 페이지 (2026-08-19 실측 — 캡처 라벨과 rect 대조).
+#   화면 순서: General / Security / Region / System Info. / Software Info. /
+#   Account / License / My Settings / CS
+SETTING_SYSTEM_PAGES = {
+    "general": 186, "security": 187, "region": 188, "system_info": 189,
+    "software_info": 190, "account": 191, "license": 192,
+    "my_settings": 193, "cs": 194,
+}
+
+# Setting > System > Account (WF_13). 목록 컬럼은 ID / Name / Group / System.
+SETTING_ACCOUNT = {
+    "list": 2280,            # ListCtrl — 하위 ListItem 이 계정 행
+    "add": 2281,             # +
+    "delete": 2282,          # 휴지통
+    "user_id": 2283,
+    "user_name": 2284,
+    "password": 2285,
+    "check_password": 2286,
+    "group": 2287,           # 콤보 (Service / Admin / User ...)
+}
+
+# Account 페이지의 `+`(2281)가 띄우는 **New Account 모달** (2026-08-19 실측).
+#   인라인 편집이 아니다 — 우측 Properties(2283~2287)는 선택된 계정의 표시용이고,
+#   추가는 이 모달에서 한다. Password 는 제품이 8자 이상을 요구한다
+#   (모달의 "At least 8 characters").
+#   Group 콤보(2292) 항목은 OCR 로 읽어 확정했다: Service / Admin / User.
+#   `ACCOUNT.Group` 실측값 (2026-08-19): Service=3 / Admin=2 / **User=1**.
+#   콤보 라벨과 DB 값을 실제로 만들어 대조해 확정했다(추측 아님).
+ACCOUNT_GROUPS = {"Service": 3, "Admin": 2, "User": 1}
+
+NEW_ACCOUNT = {
+    "user_id": 2288,
+    "user_name": 2289,
+    "password": 2290,
+    "check_password": 2291,
+    "group": 2292,
+    "ok": 1101,
+    "cancel": 1102,
+}
+
+# Setting > System > My Settings (WF_14). 버튼 두 개뿐이다.
+SETTING_MY_SETTINGS = {"export": 2293, "import": 2294}
+
+# Setting > Study 하위 페이지 (2026-08-19 실측)
+SETTING_STUDY_PAGES = {"general": 209, "study_delete": 210, "reject_retake": 211}
+
+# Setting > Study > Reject/Retake (WF_11 / WF_12 의 전제조건 확인용).
+#   2026-08-19 기준 제품 기본값: reject_on_retake=No, 나머지 세 옵션은 모두 체크,
+#   Reasons 5건(Artifacts / Mispositioning / Patient Movement / Mechanical
+#   Failure / Inappropriate Processing). 자동화는 이 전제를 **바꾸지 않고 확인**한다.
+SETTING_REJECT_RETAKE = {
+    "reject_on_retake_yes": 2421,
+    "reject_on_retake_no": 2422,
+    "use_reject_reason": 2423,
+    "use_retake_reason": 2424,
+    "always_display_rejected": 2425,
+    "reason_list": 2426,
+    "reason_add": 2427,
+    "reason_delete": 2428,
+}
+
+# Patient 화면 우상단의 빨간 원형 버튼 = Emergency (WF_07).
+#   사이렌 아이콘을 캡처로 확인했다(`Evidence/ui/zoom_circle.png`).
+PATIENT_EMERGENCY = 1100
+
+
+def open_system_setting(ui, page, wait=2.5):
+    """Setting > System > <page> 로 이동한다.
+
+    page: general | security | region | system_info | software_info |
+          account | license | my_settings | cs
+    """
+    if page not in SETTING_SYSTEM_PAGES:
+        raise FlowError(f"알 수 없는 System 설정 페이지: {page}")
+    open_setting(ui, wait=3.0)
+    open_setting_group(ui, "system", wait=2.0)
+    return _click_setting_control(ui, SETTING_SYSTEM_PAGES[page],
+                                  f"System 설정 '{page}'", wait)
+
+
+def open_study_setting(ui, page, wait=2.5):
+    """Setting > Study > <page> 로 이동한다.
+
+    page: general | study_delete | reject_retake
+    """
+    if page not in SETTING_STUDY_PAGES:
+        raise FlowError(f"알 수 없는 Study 설정 페이지: {page}")
+    open_setting(ui, wait=3.0)
+    open_setting_group(ui, "study", wait=2.0)
+    return _click_setting_control(ui, SETTING_STUDY_PAGES[page],
+                                  f"Study 설정 '{page}'", wait)
 
 
 # Setting > Procedure 하위 페이지 (2026-08-14 실측, Bellalun 1.0.12.105)

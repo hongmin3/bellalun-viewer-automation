@@ -5,8 +5,13 @@ r"""TC_Basic_WorkFlow_04 — 2D 수동 DICOM Send.
 공용 판정 헬퍼는 `core/send_verify.py`.
 """
 
+import os
+
 from core import dicom_settings as ds
+from core import flows
 from core import send_verify as sv
+from core import viewer_processing as vp
+from core.dicom_settings import ensure_bunny
 from core.result import TCResult, FAIL
 
 def workflow_04(ctx):

@@ -108,6 +108,8 @@ def main():
     sub.add_parser("run-wf08", help="TC_Basic_WorkFlow_08 2D/3D Film Print")
     sub.add_parser("run-wf09",
                    help="TC_Basic_WorkFlow_09 Normal 및 Anonymous Export")
+    sub.add_parser("run-wf13",
+                   help="TC_Basic_WorkFlow_13 계정 추가·수정 (1~3단계 자동)")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -154,7 +156,7 @@ def main():
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
-                   "run-wf08", "run-wf09", "run-xipl",
+                   "run-wf08", "run-wf09", "run-wf13", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -194,7 +196,6 @@ def main():
         from tests.install import install_01, install_02
         from tests.workflow01 import run as run_workflow01
         from tests.workflow02 import run as run_workflow02
-        from tests.workflow03 import run as run_overlay_setup
         from tests.xipl_flows import run_xipl
         from tests.system_compat import run as run_system_3d
         from tests.workflow04 import run as run_send
@@ -202,6 +203,8 @@ def main():
         from tests.workflow05 import run as run_3d
         from tests.workflow09 import run as run_export
         from tests.workflow03 import run as run_overlay
+        from tests.workflow08 import run as run_film_print
+        from tests.workflow13 import run as run_account
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -259,8 +262,11 @@ def main():
         results.extend(run_send(ctx))         # WF_04 2D 수동 DICOM Send
         results.extend(run_3d(ctx))           # WF_05 3D 수동 DICOM Send
         results.extend(run_all_images(ctx))   # WF_06 All Images 및 Dose SR
-        results.append(run_workflow03(ctx))   # WF_08 2D/3D Film Print
+        results.append(run_film_print(ctx))   # WF_08 2D/3D Film Print
         results.extend(run_export(ctx))       # WF_09 Normal/Anonymous Export
+        # WF_13은 계정 CRUD만 수행하고 로그인 계정을 바꾸지 않는다. 로그인 계정을
+        # 바꾸면 뒤따르는 TC가 제한 권한으로 돌아 연쇄 실패한다(tests/workflow13.py).
+        results.append(run_account(ctx))      # WF_13 계정 추가·수정
         results.extend(run_xipl(ctx))         # XIPL_01~06
         results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
         return finish(ctx, results)
@@ -296,6 +302,10 @@ def main():
     if args.cmd == "run-wf09":
         from tests.workflow09 import run as run_export
         results.extend(run_export(ctx))
+    if args.cmd == "run-wf13":
+        from tests.workflow13 import run as run_account
+        return finish(ctx, [run_account(ctx)])
+
     if args.cmd == "run-wf08":
         from tests.workflow08 import run as run_film_print
         results.append(run_film_print(ctx))
