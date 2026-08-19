@@ -128,16 +128,52 @@ def workflow_03(ctx):
         # 개정본은 "Print Overlay를 추가한다"(Step 2)와 "Print 설정에서 선택한다"
         # (Step 3)를 별개 단계로 둔다. 한 판정으로 묶으면 어느 쪽이 실패했는지
         # 리포트에서 구분되지 않으므로 나눠서 기록한다.
+        # 개수만 보면 6개가 전부 Top에 있어도 통과한다. **영역별 배치까지** 대조해
+        # Header / Top / Bottom 세 영역이 실제로 저장되는지 확인한다(사용자 요청).
+        area_ok = print_overlay.matches_expected_areas(po["items"])
         r.assert_true(
-            2, "Setting > DICOM > Print에서 Print Overlay 추가",
-            len(po["items"]) == len(print_overlay.PRINT_ITEMS),
+            2, "Setting > DICOM > Print에서 Print Overlay를 Header/Top/Bottom에 추가",
+            len(po["items"]) == len(print_overlay.PRINT_ITEMS) and area_ok,
             expected={"name": print_overlay.OVERLAY_NAME,
-                      "items": [x[0] for x in print_overlay.PRINT_ITEMS]},
-            actual={"saved": po},
+                      "areas": {area: [label for label, _ in items]
+                                for area, items
+                                in print_overlay.PRINT_ITEMS_BY_AREA.items()},
+                      "position_map": print_overlay.PRINT_AREA_POSITION,
+                      "expected_by_position": {
+                          k: sorted(v) for k, v
+                          in print_overlay.PRINT_EXPECTED_BY_POSITION.items()}},
+            actual={"saved": po,
+                    "by_position": print_overlay.items_by_position(po["items"])},
             note="Expected 2. Print Overlay 구성이 저장된다. "
-                 "CONFIGURATION.PRINT_OVERLAY_ITEM으로 대조. Expected Result의 "
+                 "CONFIGURATION.PRINT_OVERLAY_ITEM의 FieldID와 **Position**을 함께 "
+                 "대조한다. 근거: 사양서1 305쪽 SRS 04-20-10 'Overlay로 표시할 항목 "
+                 "설정 (Header / Top / Bottom)'. Position은 header=2 / top=0 / "
+                 "bottom=1로 실측했다(화면 순서와 다르다). Expected Result의 "
                  "시스템정보(compression/HVL/AGD/Thickness)와 환자정보"
-                 "(ID/birthdate)가 이 6개 항목이다.")
+                 "(ID/birthdate)가 이 6개 항목이며, 세 영역에 나눠 두어 Top 이외의 "
+                 "영역도 저장되는지 검증한다.")
+        # 항목만 저장돼 있으면 안 된다. Header 표시 위치가 `None` 이면 필름에
+        # 나오지 않으므로(사양서1 297쪽) 표시 설정까지 이 TC 가 확인한다.
+        header_count = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
+        want_position, want_layout, layout_label = print_overlay.header_targets(
+            header_count)
+        r.assert_true(
+            2, "Print Overlay Header 표시 위치와 Layout 설정",
+            print_overlay.header_matches(po["overlay"], header_count),
+            expected={"HeaderPosition": f"{want_position}"
+                                        f"({print_overlay.HEADER_POSITION})",
+                      "HeaderLayout": f"{want_layout}({layout_label})",
+                      "cells_needed": header_count},
+            actual={"HeaderPosition": po["overlay"]["HeaderPosition"],
+                    "HeaderLayout": po["overlay"]["HeaderLayout"],
+                    "header": po.get("header")},
+            note="사양서1 297쪽 - 'Header가 표시될 수 있는 위치는 다음과 같다. "
+                 "None으로 설정한 경우 표시되지 않는다. None, Top, Bottom' / "
+                 "'Header Layout은 1x1에서 3x3까지 선택할 수 있다. Layout 한 칸당 "
+                 "한 항목씩 표시한다.' Header 항목이 "
+                 f"{header_count}개이므로 {header_count}칸 이상이 필요해 "
+                 f"{layout_label}을 고른다. 값 매핑(0=None/1=Top/2=Bottom)은 실측이며 "
+                 "PRINT_OVERLAY.HeaderPosition/HeaderLayout으로 대조한다.")
         r.assert_equal(
             3, "Print 설정에서 추가한 Print Overlay 선택",
             po["overlay"]["Key"], applied.get("Overlay"),

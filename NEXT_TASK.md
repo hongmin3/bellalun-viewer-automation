@@ -277,6 +277,77 @@ python run.py setup-dicom && python run.py run-wf01 && python run.py run-wf02 &&
 DB 를 복원한 직후에 단독 실행하면 `Viewer XIPL fixture not found`로 죽는다. 위
 사슬(`setup-dicom → run-wf01 → run-wf02`)을 먼저 돌려 전제를 만든다.
 
+### 6. [완료] Print Overlay를 Header/Top/Bottom에 분리 + Header 표시 설정 (2026-08-19)
+
+사용자 요청: "print overlay를 만들때도 Header/top/bottom 에 나눠서 셋팅되도록 한번
+고도화해줄 수 있을까? top 말고도 다른 영역에도 잘 셋팅되는지 확인하고 싶어서."
+
+**① 영역 분리.** 사양서1 305쪽 SRS 04-20-10 "Overlay로 표시할 항목 설정
+(Header / Top / Bottom)". 컨트롤과 `Position` 값은 **넣어 보고 DB로 확인**했다.
+
+| 영역 | 목록 | 추가 | 제거 | `PRINT_OVERLAY_ITEM.Position` | 항목 |
+|---|---|---|---|---|---|
+| Header | 2486 | 2501 | 2502 | **2** | Patient ID, Birth Date |
+| Top | 2487 | 2503 | 2504 | **0** | Thickness, Compression Force |
+| Bottom | 2488 | 2505 | 2506 | **1** | HVL, AGD |
+
+화면은 위에서 Header / Top / Bottom 순인데 값은 **2 / 0 / 1**이다. 추측했으면 틀렸다.
+
+항목 배분은 사양이 정한다 — 297쪽 "**영상별로 값이 다를 수 있는 항목은 Header에
+삽입할 수 없다**"(허용 목록에 Patient ID / Patient Birthdate가 있다). 그래서
+Thickness·압박력·HVL·AGD는 Top/Bottom에만 넣는다.
+
+**② Header가 필름에 나오지 않았다** — 원인은 제품이 아니라 설정이었다.
+
+DB에는 `Position=2`로 정상 저장돼 있는데 필름 OCR은 `'LCC'`만 읽혔다. 원인은 같은
+화면 우측 Option의 **`Header Layout` 표시 위치가 `None`**. 사양서1 **297쪽**이
+"None으로 설정한 경우 표시되지 않는다"고 적어 둔 정상 동작이다. **사용자가 설정
+화면을 보고 먼저 찾아냈다.**
+
+`core/print_overlay.py`에 `ensure_header_layout()`을 추가했다.
+
+- `HeaderPosition`을 `Top`으로 설정하고 **DB 값으로 확인**한다.
+  실측 매핑: `0 = None / 1 = Top / 2 = Bottom`.
+- `HeaderLayout`은 항목 수를 담을 **최소 칸수**를 계산한다(`required_header_layout`).
+  297쪽 "**Layout 한 칸당 한 항목씩 표시한다**" — Header 항목 2개 → `1 X 2`.
+  칸이 항목보다 적으면 넘치는 항목이 조용히 사라진다.
+- 표시 위치가 `None`이면 Layout 콤보가 **회색 비활성**이다(실측). 그래서 위치를
+  먼저 고른다.
+- `ensure_print_overlay`는 항목 배치만 보지 않고 `HeaderPosition`/`HeaderLayout`
+  까지 대조한다. 항목은 맞고 Header 설정만 다르면 **그것만** 고친다.
+
+**콤보 항목 순서를 믿지 않는다.** 표시 위치 콤보의 두 번째 항목을 눌렀더니
+`HeaderPosition`이 Top(1)이 아니라 Bottom(2)이 됐다. 그래서 `_pick_combo_by_text`가
+**항목 문구를 OCR로 읽어** 원하는 것을 고르고, 못 찾으면 아무것도 누르지 않고 읽은
+문구를 붙여 실패시킨다. 실제 판독값: 위치 `['top']`, Layout `['1x1','1x2']`.
+
+**③ 판정을 영역별로 바꿨다.** 그전에는 필름 우상단 한 곳만 크롭해 전체 텍스트를
+훑었기 때문에 **6개가 전부 Top에 몰려 있어도 통과**했다 — 영역을 나눈 의미가 판정에
+없었다. `print_overlay.film_regions()`가 영역별 crop box를 돌려주고,
+`tests/workflow03.py`가 영역별로 읽어 그 영역의 값이 있는지 따로 판정한다.
+
+Header 밴드 높이는 상수로 박지 않고 **사양 공식**으로 계산한다 — 296쪽 "Header
+영역은 (전체 필름 높이의 3% × 선택한 Header Layout의 행수)". 실측 필름(723×904)의
+Header 텍스트가 y 8–23에서 끝나고 공식값 27px과 일치했다. Top 밴드는 Header 높이에
+얹어 잡는다(Header를 끄면 아래 항목이 그만큼 올라온다).
+
+```
+Header  (0,   0, 723,  27)   'DATA_FLOW_MWL_01 1980/01/01'        <- 라벨 없이 값만
+Top     (578, 72, 723, 117)  '0.0 cm' / '35 N'                    <- 라벨 없이 값만
+Bottom  (361,840, 723, 904)  'HVL: Not valid' / 'AGD: Not valid'  <- 라벨: 값
+```
+
+Top 값은 필름에서 **7px 높이**라 기존 배율(6배)로는 아예 읽히지 않았다. 배율 하나에
+의존하면 흔들려서(8배에서 `MWL`이 `MIWL`로 읽힘) **배율 12·8·5로 읽고 하나라도
+기대값과 일치하면 통과**로 본다. 기대값은 `PatientID`/`PatientBirthDate`를 **DB에서**
+가져와 만들므로 느슨해지지 않는다 — 다른 환자의 필름은 어느 배율에서도 일치하지
+않는다. 판독본 전부와 영역별 크롭 이미지를 증적으로 남긴다.
+
+같은 비율이 Film 창(723×904)과 Print 서버 웹 프리뷰(1280×1600) 양쪽에서 통한다.
+
+**얻은 규칙**: 설정한 값이 화면에 안 보이면 **항목이 아니라 "표시 스위치"를 먼저
+본다.** 제품을 의심하기 전에 설정 화면을 캡처해 눈으로 본다.
+
 ### 그 밖의 다음 후보
 
 `TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).

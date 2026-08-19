@@ -107,45 +107,87 @@ def _film_from_selected_study(ui):
                      "film": film[0].rect, "pane_ratio": pane_area / film_area}
 
 
-def _ocr_region(control, path, tesseract_exe):
+def _norm(value):
+    # OCR 은 필름 글꼴의 0 을 O 로 자주 읽는다. 기대값도 같은 변환을 거치므로
+    # 이 치환이 판정을 느슨하게 만들지 않는다.
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower()).replace("o", "0")
+
+
+def _ocr_areas(image, path_prefix, tesseract_exe, result=None):
+    """필름/프리뷰를 **영역별로** 크롭해 OCR 하고 크롭 이미지를 증적으로 남긴다.
+
+    한 곳만 크롭하면 영역을 구분하지 못한다 — 6개가 전부 Top 에 몰려 있어도
+    통과해 버린다. 영역별로 읽어야 "Top 이외 영역에도 들어갔는지"가 증명된다.
+    """
     import pytesseract
 
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    image = ImageGrab.grab(bbox=control.rect, all_screens=True)
-    image.save(path)
     if tesseract_exe:
         pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    # In 1x1 the six overlay values occupy the top-right of the single film.
     width, height = image.size
-    crop = image.crop((int(width * .58), 0, width, int(height * .23)))
-    gray = ImageOps.autocontrast(crop.convert("L"))
-    return pytesseract.image_to_string(gray.resize((gray.width * 6, gray.height * 6)),
-                                       config="--psm 6", lang="eng")
+    texts = {}
+    for area, box in print_overlay.film_regions(width, height).items():
+        crop = image.crop(box).convert("L")
+        # 배율 하나에 의존하지 않는다 - 8배에서 `MWL` 이 `MIWL` 로 읽히는 것을
+        # 실측했다. 판독본 전부를 남겨 사람이 감사할 수 있게 한다.
+        reads = {}
+        for scale in print_overlay.FILM_OCR_SCALES:
+            big = crop.resize((crop.width * scale, crop.height * scale),
+                              Image.Resampling.LANCZOS)
+            reads[f"x{scale}"] = pytesseract.image_to_string(
+                ImageOps.autocontrast(big), config="--psm 6", lang="eng").strip()
+        texts[area] = reads
+        crop_path = f"{path_prefix}_{area}.png"
+        Path(crop_path).parent.mkdir(parents=True, exist_ok=True)
+        crop.save(crop_path)
+        if result is not None:
+            result.attach(crop_path)
+    return texts
 
 
-def _norm(value):
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+def _film_expectations(target):
+    """영역별 기대값. 환자 정보는 **DB 값에서** 만든다.
 
+    상수를 박아 두면 픽스처가 바뀌어도 통과한다. 영상 속성값(두께/압박력/HVL/AGD)은
+    영상 생성기가 넣은 값이라 필름 실측 문구를 쓰되, 값과 라벨을 함께 본다.
 
-def _labels_seen(text):
-    norm = _norm(text)
-    return {label: _norm(label) in norm for label in EXPECTED_LABELS}
-
-
-def _overlay_values(text):
-    norm = _norm(text).replace("o", "0")
+    필름 렌더링 형태 (2026-08-19 실측)
+      Header : 라벨 없이 **값만**, 1 X 2 두 칸에 나란히
+      Top    : 라벨 없이 **값만** (`0.0 cm`, `35 N`)
+      Bottom : **`라벨: 값`** (`HVL: Not valid`)
+    """
+    pid = _norm(target["PatientID"])
+    birth = _norm(target["PatientBirthDate"])
     return {
-        "Patient ID": "datafl0wmwl01" in norm,
-        "Birth Date": "19800101" in norm,
-        "Thickness": "00cm" in norm,
-        "Compression Force": "35n" in norm or "353n" in norm,
-        # Film anti-aliasing can make the V look like a yen sign; after
-        # normalization that becomes "hl".  The value and the other label
-        # still have to match, so this remains a data assertion.
-        "HVL": ("n0tvalid" in norm and
-                ("hvl" in norm or "hyl" in norm or "hl" in norm)),
-        "AGD": "n0tvalid" in norm and ("agd" in norm or "gd" in norm),
+        "header": {
+            "Patient ID": lambda n: pid in n,
+            "Birth Date": lambda n: birth in n,
+        },
+        "top": {
+            "Thickness": lambda n: "00cm" in n,
+            "Compression Force": lambda n: "35n" in n or "353n" in n,
+        },
+        "bottom": {
+            # 필름의 안티에일리어싱이 V 를 ¥ 로 만들어 정규화 후 "hyl" 이 된다.
+            # 값(`Not valid`)과 라벨을 함께 요구하므로 느슨해지지 않는다.
+            "HVL": lambda n: ("n0tvalid" in n and
+                              ("hvl" in n or "hyl" in n or "hl" in n)),
+            "AGD": lambda n: "n0tvalid" in n and ("agd" in n or "gd" in n),
+        },
     }
+
+
+def _judge_areas(texts, expect):
+    """영역별 판정 결과 `{area: {label: bool}}` 와 읽은 문구를 함께 돌려준다."""
+    seen = {}
+    for area, checks in expect.items():
+        norms = [_norm(read) for read in (texts.get(area) or {}).values()]
+        seen[area] = {label: any(test(norm) for norm in norms)
+                      for label, test in checks.items()}
+    return seen
+
+
+def _all_ok(seen):
+    return all(ok for area in seen.values() for ok in area.values())
 
 
 def _image_similarity(path_a, path_b):
@@ -186,9 +228,30 @@ def run(ctx):
             raise RuntimeError("Patient screen is not ready")
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
         saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess)
-        result.assert_true(1, "DICOM Print Overlay 6개 항목 저장",
-                           len(saved["items"]) == 6,
-                           expected=list(EXPECTED_LABELS), actual=saved)
+        result.assert_true(
+            1, "DICOM Print Overlay 6개 항목을 Header/Top/Bottom에 저장",
+            print_overlay.matches_expected_areas(saved["items"]),
+            expected={"areas": print_overlay.PRINT_EXPECTED_BY_POSITION,
+                      "labels": list(EXPECTED_LABELS)}, actual=saved)
+        # Header 표시 위치가 None 이면 항목이 저장돼 있어도 필름에 나오지 않는다
+        # (사양서1 297쪽). Layout 칸수는 항목 수 이상이어야 한다(같은 쪽,
+        # "Layout 한 칸당 한 항목씩 표시한다").
+        header_rows = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
+        result.assert_true(
+            1, "Print Overlay Header 표시 위치/Layout 설정",
+            int(saved["overlay"]["HeaderPosition"]) ==
+            print_overlay.HEADER_POSITION_VALUES[print_overlay.HEADER_POSITION] and
+            print_overlay.HEADER_LAYOUT_CELLS[
+                print_overlay.HEADER_LAYOUT_LABELS[
+                    int(saved["overlay"]["HeaderLayout"])]] >= header_rows,
+            expected={"HeaderPosition": print_overlay.HEADER_POSITION,
+                      "layout_cells": f">= {header_rows}"},
+            actual={"HeaderPosition": saved["overlay"]["HeaderPosition"],
+                    "HeaderLayout": saved["overlay"]["HeaderLayout"],
+                    "layout": print_overlay.HEADER_LAYOUT_LABELS[
+                        int(saved["overlay"]["HeaderLayout"])]},
+            note="사양서1 297쪽 - None 으로 설정한 경우 표시되지 않는다 / "
+                 "Layout 한 칸당 한 항목씩 표시한다")
 
         print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
                           if x["kind"] == "Print")
@@ -221,12 +284,20 @@ def run(ctx):
                            actual=layout)
         evidence_dir = os.path.join(ctx.evidence_root, "Flow", "03_WorkFlow")
         film_path = os.path.join(evidence_dir, "05_film_overlay.png")
-        film_text = _ocr_region(film, film_path, tess)
+        Path(film_path).parent.mkdir(parents=True, exist_ok=True)
+        film_image = ImageGrab.grab(bbox=film.rect, all_screens=True)
+        film_image.save(film_path)
         result.attach(film_path)
-        film_labels = _overlay_values(film_text)
-        result.assert_true(5, "Film 프리뷰에 설정한 Print Overlay 표시",
-                           all(film_labels.values()), expected=list(EXPECTED_LABELS),
-                           actual={"labels": film_labels, "ocr": film_text})
+        expect = _film_expectations(target)
+        film_texts = _ocr_areas(film_image, os.path.splitext(film_path)[0],
+                                tess, result)
+        film_labels = _judge_areas(film_texts, expect)
+        result.assert_true(
+            5, "Film 프리뷰에 Header/Top/Bottom 영역별 Print Overlay 표시",
+            _all_ok(film_labels),
+            expected={area: sorted(checks) for area, checks in expect.items()},
+            actual={"areas": film_labels, "ocr": film_texts,
+                    "regions": print_overlay.film_regions(*film_image.size)})
 
         print_buttons = [c for c in ui.by_id(1149) if c.visible]
         if not print_buttons:
@@ -257,26 +328,22 @@ def run(ctx):
         web_path = os.path.join(evidence_dir, f"06_print_server_job_{job['id']}.png")
         Path(web_path).write_bytes(server.preview(job["id"]))
         result.attach(web_path)
+        # 화면 좌표가 아니라 **서버가 저장한 프리뷰**에서 직접 OCR 한다.
+        # viewer.html?id=<job> 이 보여 주는 것과 같은 이미지다. 크기가 필름과
+        # 달라도(1280x1600) 같은 비율 크롭으로 읽힌다(실측).
         web_image = Image.open(web_path)
-        # OCR directly from the saved server preview rather than screen
-        # coordinates.  This is the same image shown at viewer.html?id=<job>.
-        import pytesseract
-        if tess:
-            pytesseract.pytesseract.tesseract_cmd = tess
-        w, h = web_image.size
-        crop = web_image.crop((int(w * .76), 0, w, int(h * .17)))
-        gray = ImageOps.autocontrast(crop.convert("L")).resize(
-            (crop.width * 4, crop.height * 4))
-        web_text = pytesseract.image_to_string(gray, config="--psm 6", lang="eng")
-        web_values = _overlay_values(web_text)
+        web_texts = _ocr_areas(web_image, os.path.splitext(web_path)[0],
+                               tess, result)
+        web_values = _judge_areas(web_texts, expect)
         similarity = _image_similarity(film_path, web_path)
         result.assert_true(
-            6, "Print 서버 웹 프리뷰 Overlay가 Film 프리뷰와 일치",
-            all(web_values.values()) and similarity["similarity"] >= .96,
-            expected={"values": film_labels, "image_similarity": ">= 0.96"},
+            6, "Print 서버 웹 프리뷰 Overlay가 Film 프리뷰와 영역별로 일치",
+            _all_ok(web_values) and web_values == film_labels and
+            similarity["similarity"] >= .96,
+            expected={"areas": film_labels, "image_similarity": ">= 0.96"},
             actual={"job_url": f"{server.base}/viewer.html?id={job['id']}",
-                    "film_ocr": film_text, "web_ocr": web_text,
-                    "web_values": web_values, "image": similarity})
+                    "film_ocr": film_texts, "web_ocr": web_texts,
+                    "web_areas": web_values, "image": similarity})
     except Exception as exc:
         result.add(0, "TC_Basic_WorkFlow_08 실행", FAIL, actual=str(exc))
     return result
