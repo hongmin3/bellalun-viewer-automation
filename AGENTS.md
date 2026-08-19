@@ -1,24 +1,94 @@
-# Repository working rules
+# 저장소 작업 규칙
 
-These instructions apply to the entire repository.
+이 문서의 규칙은 저장소 전체에 적용된다.
 
-## Required workflow
+## 반드시 지킬 작업 순서
 
-1. Read `README.md`, `NEXT_TASK.md`, the user-attached checklist, and the relevant manuals/specifications before changing automation behavior. Also read the durable guidance in `..\지식\`: `[자동화 구현 현황] Bellalun Viewer auto 구현 상태.md` (what's implemented, wired into `run.py`, and last verified — read this first for a quick status pass), `[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` (implementation rules: state-based waiting, log-timestamp filtering, PASS/FAIL evidence policy, GPU-less handling, fixture freshness, session-separation), and `[QA 작성 규칙] Bellalun Viewer TC 설계·자동화·자체검토 가이드.md` (TC design methodology). Update the 구현 현황 doc when you change what's implemented or wired up. `HANDOFF.md`, when present, is a one-off per-session handoff only — durable rules live in the `지식` folder, not there.
-2. Do not guess when a Bellalun UI action, expected result, or destructive behavior is unclear. Inspect read-only evidence first and ask the user when the answer cannot be established safely.
-3. Implement UI automation as standalone Python code that runs without an AI session and emits PASS/FAIL evidence.
-4. Prefer Win32 control IDs, visible text, OCR, and window-relative geometry. Never use absolute desktop coordinates when a portable selector is possible.
-5. Every check (current or new TC) must record what was actually compared — expected/actual values, and a note naming the log/DB/file/UI-reread evidence used — so a PASS/FAIL verdict is auditable from the report alone. Never confirm success from a log phrase alone; corroborate with DB/file/UI state where possible. See `지식` guidance for the log-timestamp-filtering requirement on log-based waits.
-6. For GPU/Reconstruction-dependent TCs, a confirmed no-GPU error (e.g. exact `No GPUS`) only excuses the result-generation assertion (SKIP it) — never a behavioral assertion that must hold regardless of GPU (e.g. parameter retention after Apply). Determine GPU availability from the step that actually attempts and logs it, not a later step that may not re-attempt.
-7. Run proportionate validation after every automation change. At minimum run Python compilation; run the affected live TC when the required external systems are available.
-8. After completing an automation request, inspect the diff, stage only relevant source/documentation changes, commit them, and push them to the GitHub remote in the same task.
-9. Never commit `config.json`, credentials, tokens, patient/runtime data, DICOM files, or generated `Reports/`, `Evidence/`, `Log/`, `Cache/`, and `Temp/` contents.
-10. Do not rewrite published history or force-push. If commit or push fails, report the exact blocker rather than claiming completion.
+1. **자동화 동작을 바꾸기 전에 먼저 읽는다** — `README.md`, `NEXT_TASK.md`,
+   사용자가 첨부한 체크리스트, 그리고 관련 매뉴얼·사양서.
+   `..\지식\` 폴더의 영구 지침도 함께 본다.
+   - `[자동화 구현 현황] Bellalun Viewer auto 구현 상태.md` — 무엇이 구현돼 있고
+     `run.py`에 연결돼 있으며 언제 검증됐는지. **상태 파악은 이 문서부터** 본다.
+     구현 범위나 연결이 바뀌면 이 문서도 같이 갱신한다.
+   - `[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md` — 구현 규칙
+     (상태 기반 대기, 로그 시각 필터링, PASS/FAIL 증적 정책, GPU 없는 환경 처리,
+     픽스처 신선도, 세션 분리).
+   - `[QA 작성 규칙] Bellalun Viewer TC 설계·자동화·자체검토 가이드.md` — TC 설계
+     방법론.
 
-## Git conventions
+   `HANDOFF.md`가 있다면 그것은 **한 세션용 인수인계**일 뿐이다. 영구 규칙은
+   `지식` 폴더에 두고, 그 파일에 두지 않는다.
 
-- Remote: `https://github.com/hongmin3/bellalun-viewer-automation.git`
-- Default branch: `main`
-- Use a concise commit message describing the TC or automation change.
-- Report the pushed branch and commit SHA in the final response.
+2. **모든 TC는 — 신규 구현이든 고도화든 — `..\지식\`의 매뉴얼·사양서·체크리스트를
+   근거로 만든다. 화면에서 보이는 동작을 근거로 삼지 않는다.**
 
+   권고가 아니라 **필수**다. 관찰된 동작에서 합격 기준을 역산하는 자동화는
+   **결함을 정상으로 인증해 버린다.**
+
+   TC를 새로 쓰거나 고칠 때는 먼저:
+   - `(TC) R-23-2346_BellalunViewer_기본기능_Checklist.xlsx`에서 그 TC의 행을 읽고
+     **Step Description과 Expected Result를 원문 그대로** 확인한다.
+     **TC ID만 보고 Step을 추측하지 않는다.**
+   - `Bellalun Viewer Operation Manual ....txt`(사용자 절차와 기대 동작)와
+     `Bellalun Viewer Service Manual ....txt`(Setting 항목의 의미·선택지·선행조건)
+     에서 해당 기능을 찾는다. 이 `.txt`들은 옆에 있는 `.docx`를 grep 가능하도록
+     추출해 둔 사본이다. 필요한 매뉴얼에 `.txt`가 없으면 `zipfile`로 추출한다.
+   - DICOM 동작은 DICOM Conformance Statement를, 제품 한계는 `(사양서) ....pdf`를
+     본다.
+   - 사양이 "관찰 가능하다"고 말하는 것에서 판정 기준을 끌어내고, **그 문서와 절
+     번호를 판정의 `note`에 적는다.** 그래야 리포트만 보고도 기준의 출처를 알 수 있다.
+
+   문서별 용도 표와, 이 절차를 건너뛰어 실제로 잘못된 판정이 나온 사례는
+   `[자동화 운영 지침]` **0절**에 있다(정상 동작하는 Window Level을 FAIL로 뒤집은 건,
+   형식이 깨진 Q.C 파라미터 파일이 PASS처럼 보인 건).
+
+3. **불확실하면 추측하지 않는다.** Bellalun UI 조작, 기대 결과, 파괴적 동작이
+   불분명하면 먼저 조회 전용 증거를 확인하고, 안전하게 확정할 수 없으면
+   사용자에게 묻는다.
+
+4. UI 자동화는 **AI 세션 없이 단독 실행되는 Python 코드**로 구현하고 PASS/FAIL
+   증적을 남긴다.
+
+5. Win32 컨트롤 ID, 화면에 보이는 텍스트, OCR, **창 기준 상대 좌표**를 쓴다.
+   이식 가능한 선택자가 있는 상황에서 절대 데스크톱 좌표를 쓰지 않는다.
+
+6. **모든 판정은 무엇을 실제로 비교했는지 기록한다** — 기대값/실제값, 그리고
+   사용한 근거(로그·DB·파일·UI 재진입)를 밝힌 `note`. 리포트만으로 판정을 감사할
+   수 있어야 한다. **로그 문구 하나로 성공을 단정하지 않는다** — 가능하면 DB·파일·
+   UI 상태로 교차 확인한다. 로그 기반 대기의 시각 필터링 요구사항은 `지식` 지침을
+   본다.
+
+7. GPU/Reconstruction 의존 TC에서 확인된 GPU 없음 오류(예: 정확히 `No GPUS`)는
+   **결과 생성 판정만** 면제한다(SKIP). GPU와 무관하게 성립해야 하는 동작 판정
+   (예: Apply 후 파라미터 유지)은 절대 면제하지 않는다. GPU 가용성은 **실제로 시도
+   하고 로그를 남긴 단계**에서 판단하고, 재시도하지 않을 수 있는 뒤 단계에서
+   판단하지 않는다.
+
+8. **자동화를 바꿀 때마다 규모에 맞는 검증을 수행한다.** 최소한 Python 컴파일을
+   돌리고, 필요한 외부 시스템이 준비돼 있으면 해당 TC를 실제로 실행한다.
+   단독 실행이 방금 고친 분기를 실제로 지나갔는지 확인한다 — 회귀 시작 상태로
+   되돌려 검증하지 않으면 "고쳤다"고 말할 수 없다.
+
+9. 자동화 요청을 완료한 뒤에는 **diff를 검토하고**, 관련 소스·문서 변경만 stage 해
+   커밋하고, 같은 작업 안에서 GitHub 원격에 push 한다.
+
+10. **절대 커밋하지 않는다** — `config.json`, 자격증명, 토큰, 환자·런타임 데이터,
+    DICOM 파일, 그리고 생성물인 `Reports/`, `Evidence/`, `Log/`, `Cache/`, `Temp/`
+    내용.
+
+11. 공개된 이력을 다시 쓰거나 force-push 하지 않는다. 커밋이나 push가 실패하면
+    완료했다고 주장하지 말고 **정확한 원인을 보고한다.**
+
+## 문서 작성 규칙
+
+- 저장소의 `.md` 문서는 **한국어를 기본**으로 쓴다. 제품 용어, 컨트롤 ID, DICOM
+  UID, 코드 식별자는 원문 그대로 둔다.
+- 수치를 주장하면(코드 규모, 회귀 실적, 자동화 등급 건수) **그 근거를 실측하고**
+  어느 시점 기준인지 함께 적는다. 근거 없는 수치는 적지 않는다.
+
+## Git 규약
+
+- 원격: `https://github.com/hongmin3/bellalun-viewer-automation.git`
+- 기본 브랜치: `main`
+- 커밋 메시지는 어떤 TC나 자동화를 바꿨는지 간결하게 적는다.
+- 최종 응답에 **push 한 브랜치와 커밋 SHA**를 보고한다.

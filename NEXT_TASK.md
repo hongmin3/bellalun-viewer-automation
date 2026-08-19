@@ -1,25 +1,140 @@
-# Next automation handoff
+# 다음 작업 인수인계
 
-## Next priority
+## 다음 우선순위
 
-`TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고). 다음 후보:
+### 0. [사용자 결정 필요] `TC_Basic_WorkFlow_02` 범위 불일치
+
+**매뉴얼 대조로 발견(2026-08-18).** 제품 결함이 아니라 **자동화 라벨 문제**다.
+
+체크리스트 row 12의 `TC_Basic_WorkFlow_02` 원문은 **External Device / Barcode /
+QR Code**다:
+
+```
+1. Setting - Patient - External Device : Denso Wave AT20Q설정, Port설정한다.
+2. 뷰어를 재시작한다.
+3. Setting - Patient - External Device - External Input을 설정한다.
+4. Setting - Patient - Barcode를 설정한다.
+5. Setting - Patient - QR Code를 설정한다.
+6. 바코드/QR을 인식한다.
+Expected 2. 뷰어를 재시작시 External Device에 설정한 내용이 적용된다.
+Expected 6. 바코드/QR을 인식시 설정한 내용에 따라 동작한다.
+```
+
+그런데 `tests/workflow02.py`는 **MWL 보류 검사 재개 + 2D/3D-N Demo 촬영 + Tool
+검증**을 한다. 체크리스트 전체를 대조했고 **불일치는 이 한 건뿐**이다
+(WF01/03/04/05, XIPL 01~06, Install_01/02, sys_03/04는 전부 원문과 일치).
+
+`TC_Basic_WorkFlow_02`는 이 저장소 어디에도 다른 정의가 없다(4개 TC xlsx 전수 검색).
+
+**왜 시급한가**: `finish()`가 체크리스트 xlsx에 **TC ID로 행을 매칭**해 판정을
+기록한다. 그대로 두면 Barcode/QR 행에 PASS가 찍힌다.
+
+**임시 조치(적용됨)**: `automation_scope.json`의 WF02를 `MANUAL`로 내리고, 모듈이
+판정에 범위 불일치를 MANUAL로 명시한다. 촬영 흐름 자체는 WF03/04/05/XIPL의 픽스처
+생성기로 계속 쓰인다.
+
+**결정해 주실 것**: 아래 중 어느 방향으로 갈지.
+
+1. (권장) 촬영 흐름을 **픽스처 단계로 재명명**(`FIXTURE_ACQUISITION_2D_3D` 등)하고
+   실제 WF02를 새로 구현한다. Step 1~5는 `CONFIGURATION.DEVICE_COMMON`
+   (`BarcodeReaderType`, `BarcodeReaderPort`, `ExternalInputUseTab`,
+   `BarcodeMappingField`, `QRCodeSearchField`)로 자동 판정 가능하고, **Expected 2의
+   재기동 후 유지도 자동 검증 가능**하다. Step 6만 실물 Denso Wave AT20Q 스캐너가
+   필요해 MANUAL → **6단계 중 5단계 자동화** 가능.
+   근거: Service Manual 4.3.6 External Device 메뉴(p62), 4.3.7 Barcode 메뉴(p63),
+   4.3.8 QR Code 메뉴(p64), 6.1 Denso Wave AT20Q(p140).
+   참고: 이 PC에는 `C:\Tools\Barcode` 경로가 없어 스캐너 설치 흔적이 없다.
+2. 현재 임시 조치를 유지하고 재구현은 나중으로 미룬다.
+
+### 1. [고도화 필요] Send 판정이 All과 Selected를 구분하지 못한다
+
+**2026-08-19 10차 회귀에서 확인.** 세 Send 단계가 모두 PASS이지만 판정 강도가 약하다.
+
+| 단계 | 범위 | 수신 판정 |
+|---|---|---|
+| WF04 Step 3 | all | `received: 1` |
+| WF05 Step 2 | all | `received_objects: 1` |
+| WF05 Step 5 | selected | `received_objects: 1` |
+
+SCP 로그에는 이번 실행에서 **C-STORE가 5건** 찍혔는데(WF04 2건, WF05 All 2건,
+WF05 Selected 1건) 판정에는 전부 `1`로 기록됐다. 원인은 대기 루프가 **UID가 하나라도
+보이면 즉시 break** 하기 때문이다.
+
+```python
+while time.time() < end:
+    objects, uids = _received_uids(ctx)
+    if uids:          # <- 첫 파일만 보고 빠져나온다
+        break
+    time.sleep(2)
+```
+
+**왜 문제인가**: 체크리스트 WF05 Step 5는 `Selected/All Images`이고, **그 둘의
+차이가 시험 대상**이다. 지금 판정으로는 All이 Selected와 같은 개수만 보내도 통과한다.
+"전송됐다"는 확인은 되지만 "**범위대로** 전송됐다"는 확인이 안 된다.
+
+**결정이 필요한 부분**: All Images의 기대 개수를 무엇으로 볼지는 제품 동작에 달렸다.
+`WF06`(3D Send) 항목에 "3D는 Recon 영상만 전송함"이라는 비고가 있어, 2D 검사에서
+All이 InstanceType 0/1/2/3 중 어디까지 보내는지 확인이 필요하다. 임의로 정하지 않고
+사양·매뉴얼 근거를 찾거나 사용자에게 확인한 뒤 판정에 반영할 것.
+
+**구현 방향**: 수신 개수가 늘지 않고 안정될 때까지 기다린 뒤(연속 N회 동일) 개수를
+확정하고, All >= Selected 이며 All이 기대 개수와 일치하는지 판정한다.
+
+### 그 밖의 다음 후보
+
+`TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).
 
 1. **WF05의 View창/Examined Send 경로** — Examine 경로(1148)는 자동화됐지만 나머지
    두 경로의 Send 진입점을 아직 못 찾았다. Examined 툴바 14개에는 Send가 없다.
-2. **`DICOM_STORAGE` 중복 정리** — `SELECT Name FROM DICOM_STORAGE`가 BUNNY_TEST
-   7행이다(UI 목록에는 1건만 보인다). UI가 편집하는 건 가장 낮은 Key 하나뿐이라
-   전송에는 영향이 없었지만, `setup-dicom`이 매 실행마다 추가하는지 점검할 것.
+2. ~~**`DICOM_STORAGE` 중복 정리**~~ — **해소 확인(2026-08-18 17:15 실측).**
+   기준 스냅샷 복원 + `setup-dicom` 1회 실행 후 세 테이블 모두 1행이다
+   (`DICOM_STORAGE` Key=17 BUNNY_TEST / `DICOM_PRINT` Key=13 PRINT_TEST /
+   `DICOM_MWL` Key=6 MWL_TEST). 즉 `setup-dicom`이 매 실행마다 추가하는 게
+   아니라, 이전에 본 7행은 **복원 전 누적분**이었다. 회귀는 항상 복원으로
+   시작하므로 추가 조치가 필요 없다.
 3. `TC_Basic_WorkFlow_06`(3D Send) — WF05 구조를 그대로 재사용할 수 있다.
 4. `tests/dataflow.py`의 WF_07/10/12/13 판정 로직에 UI 드라이버 붙이기.
    WF10(익명 Export)은 `core/export_manager.py`의 `ANONYMOUS`(1031)를 쓰면 된다.
 
-## Current verified state (2026-08-14, 2차)
+## 사양 대조로 확인한 불일치 — Storage Transfer Syntax (2026-08-18)
+
+**확인 필요(제품 담당자 판단 대상).** 자동화 판정으로는 올리지 않고 기록만 한다.
+
+DICOM Conformance Statement V1.3W1 "Association Initiation Policy / Proposed
+Presentation Context Table"에 따르면 네트워크 Storage SCU가 제안하는 Transfer
+Syntax는 다음 두 가지뿐이다.
+
+| Abstract Syntax | Transfer Syntax |
+|---|---|
+| Digital Mammography X-ray Image Storage - For Presentation (`1.2.840.10008.5.1.4.1.1.1.2`) | Implicit VR LE (`1.2.840.10008.1.2`), Explicit VR LE (`1.2.840.10008.1.2.1`) |
+| Breast tomosynthesis Image Storage (`1.2.840.10008.5.1.4.1.1.13.1.3`) | 같음 |
+| X-Ray Radiation Dose SR Storage (`1.2.840.10008.5.1.4.1.1.88.67`) | 같음 |
+
+같은 문서에서 **JPEG은 General Purpose DVD-RAM/USB 매체 저장 프로파일에만**
+나온다. 네트워크 전송용 JPEG 계열 Transfer Syntax(`1.2.840.10008.1.2.4.*`)는
+문서 전체에 **한 번도 선언돼 있지 않다**(grep으로 확인).
+
+그런데 제품 `Setting > DICOM > Storage`의 Transfer Syntax 옵션(컨트롤 `2459`)에는
+JPEG2000을 선택할 수 있고, 이 상태로 Send하면 conformant SCP 상대로 전송이
+**실패**한다 — Bunny 로그 `1 - Rejected`, Viewer 로그 `Not Support class`.
+
+확인할 것:
+1. 이 옵션이 사양에서 빠진 것인지(문서 누락), 아니면 UI가 선언 범위 밖의 값을
+   노출하는 것인지.
+2. 노출이 의도된 것이라면 Conformance Statement에 추가돼야 한다.
+
+자동화 쪽 조치: `tests/send_flows.py:_ensure_transfer_syntax`가 전송 전에
+**선언된 값(Implicit VR LE)으로 되돌린다.** 테스트 SCP에 맞춘 우회가 아니라
+사양 준수 상태를 만드는 것이므로 그대로 유지한다.
+
+## 현재 검증된 상태 (2026-08-19 갱신)
 
 - 저장소: GitHub `hongmin3/bellalun-viewer-automation`, 브랜치 `main`.
   로컬 경로는 PC마다 다르므로 문서에 하드코딩하지 않는다.
-- 자동화 범위 총 39건 = **FULL 11 / PARTIAL 18 / MANUAL 10**
+- 자동화 범위 총 39건 = **FULL 10 / PARTIAL 18 / MANUAL 11**
   (`python run.py list`로 확인).
-- **FULL**: Install_01/02, WF_01/02/03, XIPL_01/02/03/04/05/06.
+- **FULL**: Install_01/02, WF_01/03, XIPL_01/02/03/04/05/06.
+  `WF_02`는 체크리스트 원문과 구현 범위가 달라 **MANUAL로 내렸다**(위 0절 참고).
 - `TC_XIPL_compatibility_05`는 2026-08-18 **전 단계 PASS**로 검증됐다. 시험 파라미터
   (`TEST_QC_2D_M.pim`/`TEST_QC_3D.eap`)는 제품 기본값 복사로 자동 생성한다.
   다만 그 내용이 Q.C 임계값 판정에 적절한지는 사용자 확인이 필요하다.
@@ -35,7 +150,7 @@
   등록·Demo F8 촬영·`INSTANCE_GROUP.Type`/`ExposureMode`(`1/1`=3D-N, `1/2`=3D-W)는
   자동 판정하고, 장비 LCD·2430 패들·회전 각도는 MANUAL로 분리 기록한다. 그래서
   종합 판정은 MANUAL이다.
-- Verified servers:
+- 검증된 서버 등록값:
   - MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`
   - Storage: `BUNNY_TEST / Bunny / 127.0.0.1:3000` (유일한 `Use=1` Storage)
   - Print: `PRINT_TEST / PRINT_SCP / 10.13.0.222:11113`
@@ -53,6 +168,38 @@
   (`tests/xipl_flows.py::_delete_test_presets`). 행은 `Type=0 AND Roll IN ('RL','RM')`
   으로 식별하고(제품 기본 Preset은 Roll이 비어 있다), 삭제 전후 전체 Key 집합을
   비교해 의도한 Key만 사라졌는지 확인한다. `core/db.py`는 여전히 조회 전용이다.
+
+## 회귀 7차 (2026-08-18 16:56) — 연쇄 실패와 그 수정
+
+`PASS 30 / FAIL 10` (17 TC). **FAIL 10건 전부가 첫 FAIL 하나의 결과였다.**
+자세한 경위와 교훈은 `지식/[자동화 운영 지침]` 11절 사례를 볼 것. 요약:
+
+`DB 복원(프로세스 전체 종료)` → `cold_start(force_restart=True)`로 재기동 →
+로그인 성공 → **`ensure_patient_screen`이 화면이 그려지기 전 t=0에 판단** →
+`open_main_menu`가 상태바를 못 찾고 15초 뒤 사망 → DICOM 등록 실패 →
+MWL 미등록(`DB=[]`) → WF01/02/03/04, XIPL 01/02/03/06, WF05 연쇄 FAIL.
+
+실측 기동 소요는 **약 36초**였다. 예산 부족이 아니라 **기다리지 않은 것**이다.
+
+### 수정 (모두 실제 경로로 검증)
+
+| 문제 | 조치 | 검증 |
+|---|---|---|
+| 화면 그려지기 전 조작 | `flows.wait_known_screen()` 추가, `ensure_patient_screen`이 랜드마크 출현까지 상한 60초 대기 | `setup-dicom` 재실행 → 해당 단계 **36.6s PASS** (이전 53.6s FAIL) |
+| `Bellalun Service`를 죽이고 안 되살림 | 서비스는 SCM(`net stop`)으로 내리고 `start_app_services()`로 `finally`에서 복구 + RUNNING 확인 | `RUNNING → STOPPED → RUNNING` 왕복 실측 |
+| 실패 시 진단 정보 유실 | `setup_all`이 기동 로그 + 마지막 화면 스크린샷을 남김 | 캡처 동작 확인 |
+| 리포트가 연쇄를 안 드러냄 | 상단에 `[ 먼저 볼 것 ] 가장 앞선 FAIL` 추가 | 실패 리포트 재생성으로 확인 |
+| 스텝 밖 소요시간 은폐 | TC 전체와 스텝 합계 차이가 5초 넘으면 명시 | — |
+| `ui_flows.py`의 6초 고정 sleep | `statusbar.wait_ready()`로 아이콘 출현 대기로 교체 | 5초 이상 고정 sleep **0건** |
+| Examined 창 컨트롤 즉시 판정 | `flows.wait_controls()`로 상한 대기 (`viewer_processing`, `overlay_flows`) | — |
+| `_open_examined`가 `open_main_menu` 반환값 무시 | 실패 지점을 정확히 보고 | — |
+
+### 읽는 사람을 위한 규칙
+
+**FAIL 개수보다 가장 앞선 FAIL을 먼저 본다.** 그리고 **한 실행 안에서 뒤 TC가
+통과했다는 사실은 앞 TC 실패를 환경 문제에서 제외하는 근거가 아니다** — 7차에서
+`TC_XIPL_04/05`가 PASS해서 "환경은 정상"으로 보였지만, 그때쯤 Viewer가 이미 떠
+있어 재사용된 것뿐이었다.
 
 ## 최신 회귀 결과 (2026-08-18 12:10)
 
@@ -265,7 +412,7 @@ Windows 탐색기로 `<data_dir>\Image\Study<Key>_<날짜시각>` 을 연다. Ex
 조용히 실패**해 엉뚱한 증상으로 보인다. UI TC가 갑자기 전부 깨지면 코드보다
 권한을 먼저 확인한다(운영 지침 6절).
 
-## Useful commands
+## 자주 쓰는 명령
 
 ```powershell
 python run.py list
@@ -282,7 +429,7 @@ python run.py setup-dicom
 실제 `config.json`과 생성된 증적/리포트는 의도적으로 로컬 파일이며 Git에서
 제외된다. 보존하고, 저장소 템플릿은 `config.example.json`만 사용한다.
 
-## Completion rule
+## 마무리 규칙
 
 작업이 끝나면 이 파일을 다음 TC 기준으로 갱신하거나 제거하고, `AGENTS.md`에 따라
 검증·커밋·푸시한다. 로컬 설정과 런타임 증적은 커밋하지 않는다. 계속 적용해야 하는
