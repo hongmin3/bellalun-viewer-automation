@@ -250,6 +250,45 @@ def setting_update(ui, wait=2.0):
     return _click_setting_control(ui, SETTING_UPDATE_BUTTON, "Update 버튼", wait)
 
 
+# Examined 창의 Pre-send Preview (WF_15). 2026-08-20 실측 — 사용자가 툴팁 캡처로
+# 버튼을 지목해 줬다.
+#
+# **아이콘 추정이 또 틀린 사례다.** 2196 의 아이콘은 "목록 + 돋보기" 모양이라
+# 2026-08-19 에 "검사 내 검색"으로 추정 기록했는데 실제는 `Pre-send Preview` 였다.
+# 앞선 사례: 2184 를 Send 로 추정했으나 Import Study.
+#
+# 흐름
+#   Examined 에서 검사 선택 -> 2196 -> 범위 선택 대화상자
+#     "Do you want to send all images of the selected study?"
+#     502 All Images / 501 Selected / 500 Cancel
+#   -> `Pre-send Preview` 창(제목이 평문으로 읽힌다, 1766x978)
+#
+# 창 안에서 확인된 것
+#   203  UIInstanceManager — Step 영상 패널. **보이는 개수 = 표시된 영상 수**
+#   201  UIInstance — 실제 영상
+#   2131 Storage 서버 선택 콤보 (`BUNNY_TEST (Use)`)
+#   2128 Images 썸네일 목록
+#   1148 **Send** — Examine 화면의 tool_send 와 같은 ID다(기능별로 ID 가 일관된다)
+#   1105 Close
+#   도구: 1111 Select / 1112 Select All / 1114 Pan / 1124 Fit / 1127 Center /
+#         1115 W/L / 1173 Multi / 1183 Status
+#   Layout: 1141 1x1 / 1142 1x2 / 1144 2x1 / 1143 2x2
+EXAMINED_PRE_SEND_PREVIEW = 2196
+PRE_SEND_SCOPE = {"all": 502, "selected": 501, "cancel": 500}
+PRE_SEND_PREVIEW = {
+    "title": "Pre-send Preview",
+    "instance_panel": 203,
+    "instance": 201,
+    "storage_combo": 2131,
+    "thumbnails": 2128,
+    "send": 1148,
+    "close": 1105,
+    "layout_1x1": 1141,
+    "layout_1x2": 1142,
+    "layout_2x1": 1144,
+    "layout_2x2": 1143,
+}
+
 # Setting > DICOM > MWL 의 `Hospital Code Mapping` 콤보 (WF_10, 2026-08-20 실측).
 #
 # 사용자가 알려 준 절차: "mwl 서버에 임의의 코드에 커스텀 태그를 만들고 값을 넣은

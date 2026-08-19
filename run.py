@@ -110,6 +110,8 @@ def main():
                    help="TC_Basic_WorkFlow_09 Normal 및 Anonymous Export")
     sub.add_parser("run-wf13",
                    help="TC_Basic_WorkFlow_13 계정 추가·수정 (1~3단계 자동)")
+    sub.add_parser("run-wf15",
+                   help="TC_Basic_WorkFlow_15 Pre-send Preview 표시 및 전송")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -156,7 +158,7 @@ def main():
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
-                   "run-wf08", "run-wf09", "run-wf13", "run-xipl",
+                   "run-wf08", "run-wf09", "run-wf13", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -205,6 +207,7 @@ def main():
         from tests.workflow03 import run as run_overlay
         from tests.workflow08 import run as run_film_print
         from tests.workflow13 import run as run_account
+        from tests.workflow15 import run as run_presend
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -267,6 +270,7 @@ def main():
         # WF_13은 계정 CRUD만 수행하고 로그인 계정을 바꾸지 않는다. 로그인 계정을
         # 바꾸면 뒤따르는 TC가 제한 권한으로 돌아 연쇄 실패한다(tests/workflow13.py).
         results.append(run_account(ctx))      # WF_13 계정 추가·수정
+        results.append(run_presend(ctx))      # WF_15 Pre-send Preview
         results.extend(run_xipl(ctx))         # XIPL_01~06
         results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
         return finish(ctx, results)
@@ -305,6 +309,10 @@ def main():
     if args.cmd == "run-wf13":
         from tests.workflow13 import run as run_account
         return finish(ctx, [run_account(ctx)])
+
+    if args.cmd == "run-wf15":
+        from tests.workflow15 import run as run_presend
+        return finish(ctx, [run_presend(ctx)])
 
     if args.cmd == "run-wf08":
         from tests.workflow08 import run as run_film_print

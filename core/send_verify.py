@@ -147,6 +147,20 @@ def ensure_transfer_syntax(ctx, ui, r):
 
 QUEUE_STATE_DONE = 7          # DICOM_STORAGE_QUEUE.State (2026-08-18 실측)
 
+# Queue 행이 영상인지 Dose SR 인지 가른다 (2026-08-20 실측).
+#   영상 : DataType 이 1 이 아니고 InstanceKey / InstanceUID 가 실제 값
+#   RDSR : DataType = 1, InstanceKey = -1, InstanceUID = NULL
+# 이 환경(Demo F8 가상 촬영)에서는 RDSR 행이 **항상 State=3 으로 남는다** — 여러
+# 실행에서 반복 확인했다(Key 32/35/38). RDSR 생성 조건이 성립하지 않기 때문이고
+# 제품 결함이 아니다(WF_06 과 같은 판단).
+QUEUE_DATATYPE_DOSE_SR = 1
+
+
+def is_dose_sr_row(row):
+    """Queue 행이 Dose SR 인가."""
+    return (int(row.get("DataType") or 0) == QUEUE_DATATYPE_DOSE_SR
+            and not row.get("InstanceUID"))
+
 # DICOM Conformance Statement V1.3W1 Proposed Presentation Context Table
 SOP_CLASS_MG = "1.2.840.10008.5.1.4.1.1.1.2"      # Digital Mammography X-Ray Image
 SOP_CLASS_DBT = "1.2.840.10008.5.1.4.1.1.13.1.3"  # Breast tomosynthesis Image
