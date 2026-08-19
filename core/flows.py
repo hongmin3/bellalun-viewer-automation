@@ -250,6 +250,19 @@ def setting_update(ui, wait=2.0):
     return _click_setting_control(ui, SETTING_UPDATE_BUTTON, "Update 버튼", wait)
 
 
+# Setting > DICOM > MWL 의 `Hospital Code Mapping` 콤보 (WF_10, 2026-08-20 실측).
+#
+# 사용자가 알려 준 절차: "mwl 서버에 임의의 코드에 커스텀 태그를 만들고 값을 넣은
+# 다음에 Setting > DICOM > MWL 에서 hospital code 토글을 설정하면 된다. 토글을 넣은
+# 다음에 **리스트를 확인**한 다음 그 리스트에 있는 항목으로 MWL 서버 커스텀 태그를
+# 넣으면 될 듯."
+#
+# 즉 순서가 있다 — Setting > Procedure > Hospital Code(페이지 215)에서 코드를 먼저
+# 만들어야 이 콤보에 항목이 생긴다. 코드가 없을 때 콤보를 누르면 **목록이 아예 열리지
+# 않는다**(실측). 그래서 "콤보가 안 열림"을 실패로 보지 말고 "등록된 코드가 없다"로
+# 읽어야 한다.
+MWL_HOSPITAL_CODE_MAPPING = 2453
+
 # Setting > System 하위 페이지 (2026-08-19 실측 — 캡처 라벨과 rect 대조).
 #   화면 순서: General / Security / Region / System Info. / Software Info. /
 #   Account / License / My Settings / CS
