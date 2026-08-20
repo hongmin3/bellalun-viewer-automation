@@ -153,6 +153,15 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
      죽는다. 2026-08-19에 이 한 줄 때문에 회귀가 첫 단계에서 무너져 14개 TC가
      연쇄 FAIL했다. 그래서 바꾼 모듈은 **실제로 import 해 새 함수를 한 번 호출**해
      보거나, `ast`로 정의되지 않은 전역 이름을 훑는다.
+   - **`ast` 검사는 "다른 분기의 import"도 잡지 못한다.** 2026-08-20에 회귀 사슬에
+     TC를 추가하면서 `import`가 회귀 블록이 아니라 다른 분기(`run-wf10` 단독 실행)에
+     들어갔다. 함수 어딘가에 그 이름의 import가 있으면 정적 검사에는 "정의됨"으로
+     보이지만, 실제로는 그 분기에서 unbound다. 회귀가 **41분을 돌고 나서**
+     `UnboundLocalError: cannot access local variable 'run_emergency'`로 죽었다.
+     자동 치환이 `from tests.workflow10 import ...`의 **첫 등장**을 바꾼 것이 원인이다.
+     그래서 `tools_check_regression_names.py`를 만들었다 — 회귀 블록이 호출하는
+     `run_*`/`install_*`/`setup_*` 이름이 **그 블록 안에서** 묶여 있는지 확인한다.
+     긴 실행을 시작하기 전에 반드시 돌린다.
    - **`ast` 검사는 "존재하는 이름에 대입하는 것"을 잡지 못한다.** 2026-08-19에
      모듈을 나누면서 자동 치환으로 공용 헬퍼를 `sv.`로 한정했는데, **같은 이름의
      지역 변수까지** 접두사가 붙어 `sv.received = sv.received(ctx)`가 됐다. 모듈

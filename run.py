@@ -203,21 +203,24 @@ def main():
         if env.verdict == "FAIL":
             return finish(ctx, [env])
     if args.cmd == "run-regression":
+        # 개정본 TC 행 순서대로 적는다(읽는 사람이 실행 순서를 그대로 본다).
         from tests.install import install_01, install_02
         from tests.workflow01 import run as run_workflow01
         from tests.workflow02 import run as run_workflow02
-        from tests.xipl_flows import run_xipl
-        from tests.system_compat import run as run_system_3d
-        from tests.workflow04 import run as run_send
-        from tests.workflow06 import run as run_all_images
-        from tests.workflow05 import run as run_3d
-        from tests.workflow09 import run as run_export
         from tests.workflow03 import run as run_overlay
+        from tests.workflow04 import run as run_send
+        from tests.workflow05 import run as run_3d
+        from tests.workflow06 import run as run_all_images
+        from tests.workflow07 import run as run_emergency
         from tests.workflow08 import run as run_film_print
-        from tests.workflow13 import run as run_account
+        from tests.workflow09 import run as run_export
+        from tests.workflow10 import run as run_hospital_code
         from tests.workflow11 import run as run_reject
         from tests.workflow12 import run as run_study_reject
+        from tests.workflow13 import run as run_account
         from tests.workflow15 import run as run_presend
+        from tests.xipl_flows import run_xipl
+        from tests.system_compat import run as run_system_3d
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -267,26 +270,32 @@ def main():
             reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
                       expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
         results.append(reset)
-        results.extend([install_01(ctx), install_02(ctx)])
-        results.append(setup_all(ctx))
-        results.append(run_workflow01(ctx))
-        results.append(run_workflow02(ctx))
-        results.extend(run_overlay(ctx))      # WF_03 Overlay 설정
-        results.extend(run_send(ctx))         # WF_04 2D 수동 DICOM Send
-        results.extend(run_3d(ctx))           # WF_05 3D 수동 DICOM Send
-        results.extend(run_all_images(ctx))   # WF_06 All Images 및 Dose SR
-        results.append(run_film_print(ctx))   # WF_08 2D/3D Film Print
-        results.extend(run_export(ctx))       # WF_09 Normal/Anonymous Export
-        # WF_13은 계정 CRUD만 수행하고 로그인 계정을 바꾸지 않는다. 로그인 계정을
-        # 바꾸면 뒤따르는 TC가 제한 권한으로 돌아 연쇄 실패한다(tests/workflow13.py).
-        results.append(run_account(ctx))      # WF_13 계정 추가·수정
-        results.append(run_emergency(ctx))    # WF_07 Emergency 검사 Auto Send
-        results.append(run_hospital_code(ctx)) # WF_10 MWL Hospital Code 매핑
-        results.append(run_reject(ctx))       # WF_11 Image Reject 및 Restore
-        results.append(run_study_reject(ctx)) # WF_12 Study Reject 및 Restore
-        results.append(run_presend(ctx))      # WF_15 Pre-send Preview
-        results.extend(run_xipl(ctx))         # XIPL_01~06
-        results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
+        # **개정본 체크리스트의 TC 행 순서대로 수행한다**(사용자 요청 2026-08-20).
+        # 체크리스트가 의존성 순서로 설계돼 있어서 행 순서 = 실행 순서가 된다.
+        #   WF_03~15 는 DATA_FLOW_MWL_01 픽스처를 쓰고 WF_01·WF_02 가 그것을 만든다.
+        #   WF_08 은 WF_03 이 만든 Print Overlay 를, WF_15 는 WF_03 이 만든
+        #   Image Overlay 를 읽는다.
+        # 설정을 바꾸는 TC 는 스스로 되돌리므로 순서를 미룰 필요가 없다 —
+        #   WF_07 은 Auto Send 를, WF_13 은 로그인 계정을 finally 에서 원복한다
+        #   (둘 다 실측으로 확인). 되돌리지 못하면 그 사실을 판정으로 남긴다.
+        results.extend([install_01(ctx), install_02(ctx)])   # 행 1~2
+        results.append(setup_all(ctx))                       # 보조: DICOM 서버 등록
+        results.append(run_workflow01(ctx))                  # 행 10  WF_01
+        results.append(run_workflow02(ctx))                  # 행 11  WF_02
+        results.extend(run_overlay(ctx))                     # 행 12  WF_03
+        results.extend(run_send(ctx))                        # 행 13  WF_04
+        results.extend(run_3d(ctx))                          # 행 14  WF_05
+        results.extend(run_all_images(ctx))                  # 행 15  WF_06
+        results.append(run_emergency(ctx))                   # 행 16  WF_07
+        results.append(run_film_print(ctx))                  # 행 17  WF_08
+        results.extend(run_export(ctx))                      # 행 18  WF_09
+        results.append(run_hospital_code(ctx))               # 행 19  WF_10
+        results.append(run_reject(ctx))                      # 행 20  WF_11
+        results.append(run_study_reject(ctx))                # 행 21  WF_12
+        results.append(run_account(ctx))                     # 행 22  WF_13
+        results.append(run_presend(ctx))                     # 행 24  WF_15
+        results.extend(run_xipl(ctx))                        # 행 26~31 XIPL_01~06
+        results.extend(run_system_3d(ctx))                   # 보조: 3D-N/3D-W 촬영
         return finish(ctx, results)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
