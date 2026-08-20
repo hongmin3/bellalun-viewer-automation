@@ -430,6 +430,12 @@ PRE_SEND_PREVIEW = {
 #   행을 **바로 만든다**(2026-08-20 실측 — 프로브를 다섯 번 돌려 DB 에 5행을 남긴
 #   사고로 확인했다). Print Overlay / Account 는 Update 까지 눌러야 저장되는데 이
 #   화면은 다르다. 화면마다 다르다고 봐야 한다.
+# **주의 1-1 - 셀 편집은 Update 가 필요하다.** `+` 로 만든 행은 즉시 DB 에 들어가지만
+#   Code 셀을 고친 값은 Update 를 눌러야 반영된다. 같은 화면에서도 **조작마다 다르다.**
+# **주의 1-2 - Code 셀은 진짜 더블클릭으로만 편집 모드가 열린다.** `ui.click()` 을 두 번
+#   부르면 settle 때문에 간격이 400~900ms 로 벌어져 Windows 가 더블클릭으로 인식하지
+#   않는다(임계값 기본 500ms). `ui.double_click()` 을 쓴다 — 그렇게 하면 Code 열에
+#   표준 `Edit` 컨트롤(rect 는 Code 열 폭)이 열린다.
 # **주의 2 - 행 중앙에 톱니바퀴 버튼이 있다.** `ui.click(row)` 는 행 중앙을 누르는데
 #   이 목록은 중앙 x 가 정확히 그 버튼 위치다. 행을 **선택**하려면 좌측 Code 셀을
 #   눌러야 한다(`hospital_code_cell(row, "code")`). 중앙을 누르면 View Position
@@ -478,6 +484,45 @@ def hospital_code_cell(row, which="code"):
 # 않는다**(실측). 그래서 "콤보가 안 열림"을 실패로 보지 말고 "등록된 코드가 없다"로
 # 읽어야 한다.
 MWL_HOSPITAL_CODE_MAPPING = 2453
+
+# 그 콤보의 항목은 **Hospital Code 값이 아니라 DICOM 태그 목록**이다(2026-08-20 실측).
+# 즉 "Viewer 가 Hospital Code 를 어느 태그에서 읽을지" 를 정하는 설정이다.
+#
+# `core/mwl.py` 의 `make_mg_order(..., hospital_code=...)` 는 그 값을
+# `rp_code_value`(Requested Procedure Code Value)로 넣으므로
+# **(0032,1064) Requested Procedure Code Sequence** 와 짝이 맞는다.
+#
+# **SCP 목록에서 서버를 먼저 선택해야 이 콤보가 활성화된다.** 선택하지 않으면 눌러도
+# 목록이 열리지 않는다(Print Overlay 와 같은 패턴).
+MWL_CODE_MAPPING_TAGS = {
+    "none": "None",
+    "requested_procedure_id": "(0040,1001)",
+    "requested_procedure_description": "(0032,1060)",
+    "requested_procedure_code_sequence": "(0032,1064)",
+    "sps_description": "(0040,0007)",
+    "sps_id": "(0040,0009)",
+}
+
+
+def select_first_scp(ui, tesseract_exe=None):
+    """Setting > DICOM 의 SCP 목록에서 첫 항목을 선택한다.
+
+    우측 설정은 목록에서 서버를 고른 뒤에야 활성화된다.
+    반환: 선택한 행의 OCR 문구(없으면 None).
+    """
+    from core import uitext
+    from core.ui import children
+
+    lists = [c for c in ui.controls(max_depth=8)
+             if c.visible and c.text == "ListCtrl" and c.rect[0] > 380]
+    for lc in lists:
+        rows = sorted({x.hwnd: x for x in children(lc.hwnd, 5)
+                       if x.visible and x.text == "ListItem"}.values(),
+                      key=lambda x: x.rect[1])
+        if rows:
+            ui.click(rows[0], settle=1.5)
+            return uitext.ocr(rows[0], tesseract_exe)
+    return None
 
 # Setting > System 하위 페이지 (2026-08-19 실측 — 캡처 라벨과 rect 대조).
 #   화면 순서: General / Security / Region / System Info. / Software Info. /

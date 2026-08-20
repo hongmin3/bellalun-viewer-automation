@@ -112,6 +112,8 @@ def main():
                    help="TC_Basic_WorkFlow_12 Study Reject 및 Restore")
     sub.add_parser("run-wf13",
                    help="TC_Basic_WorkFlow_13 계정 추가·수정 (1~3단계 자동)")
+    sub.add_parser("run-wf10",
+                   help="TC_Basic_WorkFlow_10 MWL Hospital Code와 Procedure 매핑")
     sub.add_parser("run-wf11",
                    help="TC_Basic_WorkFlow_11 Image Reject 및 Restore")
     sub.add_parser("run-wf15",
@@ -162,7 +164,7 @@ def main():
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
-                   "run-wf08", "run-wf09", "run-wf11", "run-wf12", "run-wf13", "run-wf15", "run-xipl",
+                   "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -321,6 +323,10 @@ def main():
     if args.cmd == "run-wf13":
         from tests.workflow13 import run as run_account
         return finish(ctx, [run_account(ctx)])
+
+    if args.cmd == "run-wf10":
+        from tests.workflow10 import run as run_hospital_code
+        return finish(ctx, [run_hospital_code(ctx)])
 
     if args.cmd == "run-wf11":
         from tests.workflow11 import run as run_reject

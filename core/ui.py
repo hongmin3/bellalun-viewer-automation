@@ -346,6 +346,23 @@ class ViewerUi:
         u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
         time.sleep(settle)
 
+    def double_click(self, target, settle=1.2, gap=0.08):
+        """진짜 더블클릭. 두 클릭 사이 간격을 시스템 임계값 안으로 유지한다.
+
+        `click()` 을 두 번 부르면 `settle` 때문에 간격이 수백 ms 로 벌어져 Windows
+        가 더블클릭으로 인식하지 않는다(기본 임계값 500ms). 인라인 편집이 열리지
+        않아 "편집할 수 없다"고 오판한 적이 있다(2026-08-20 Hospital Code).
+        """
+        x, y = target.center if isinstance(target, Control) else target
+        u32.SetCursorPos(int(x), int(y))
+        time.sleep(0.06)
+        for _ in range(2):
+            u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+            time.sleep(0.03)
+            u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            time.sleep(gap)
+        time.sleep(settle)
+
     def hover(self, target, settle=1.5):
         """커서만 올린다(클릭하지 않는다).
 

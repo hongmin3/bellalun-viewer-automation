@@ -91,12 +91,19 @@ def find_row_by_text(ui, list_id, wanted, tesseract_exe=None,
 
 
 def pick_combo_by_text(ui, control_id, wanted, tesseract_exe=None, what="콤보",
-                       settle=1.0):
+                       settle=1.0, match="exact"):
     """콤보를 열어 **OCR 로 읽은 항목 문구**가 맞는 것을 고른다.
+
+    `match="exact"`(기본)는 정규화 후 완전일치, `"contains"` 는 부분일치다.
+    부분일치는 항목이 `(0032,1064) Requested Procedure Code Sequence` 처럼 길고
+    앞부분(태그 번호)만으로 특정되는 경우에 쓴다. **두 항목 이상이 걸리면 아무것도
+    누르지 않는다** — 애매한 상태에서 하나를 고르면 설정이 조용히 틀어진다.
 
     반환: `{"wanted": str, "items_read": [str, ...]}`
     원하는 문구가 없으면 아무것도 누르지 않고 `RuntimeError` 를 던진다.
     """
+    if match not in ("exact", "contains"):
+        raise ValueError(f"알 수 없는 match: {match!r}")
     hits = visible(ui, control_id)
     if not hits:
         raise RuntimeError(f"{what} 콤보({control_id})를 찾지 못했습니다"
@@ -108,20 +115,20 @@ def pick_combo_by_text(ui, control_id, wanted, tesseract_exe=None, what="콤보"
     items = sorted({c.hwnd: c for c in children(popups[0].hwnd, 4)
                     if c.visible and c.text == "TextButton"}.values(),
                    key=lambda c: c.rect[1])
-    seen = []
-    target = None
-    for item in items:
-        text = norm(ocr(item, tesseract_exe))
-        seen.append(text)
-        if text == norm(wanted):
-            target = item
-            break
-    if target is None:
+    key = norm(wanted)
+    seen = [norm(ocr(item, tesseract_exe)) for item in items]
+    if match == "exact":
+        hits = [item for item, text in zip(items, seen) if text == key]
+    else:
+        hits = [item for item, text in zip(items, seen) if key and key in text]
+    if len(hits) != 1:
         raise RuntimeError(
-            f"{what} 콤보에서 {wanted!r} 항목을 찾지 못했습니다. "
-            f"읽은 항목={seen}. 잘못된 항목을 고르지 않도록 중단합니다.")
-    ui.click(target, settle=settle)
-    return {"wanted": wanted, "items_read": seen}
+            f"{what} 콤보에서 {wanted!r} 항목을 "
+            f"{'찾지 못했습니다' if not hits else f'{len(hits)}개 찾았습니다'}"
+            f"(match={match}). 읽은 항목={seen}. "
+            "잘못된 항목을 고르지 않도록 중단합니다.")
+    ui.click(hits[0], settle=settle)
+    return {"wanted": wanted, "items_read": seen, "match": match}
 
 
 def read_combo_items(ui, control_id, tesseract_exe=None, what="콤보"):
