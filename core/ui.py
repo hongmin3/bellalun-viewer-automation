@@ -574,8 +574,14 @@ class ViewerUi:
         if not self.at_login_screen():
             return True  # 이미 로그인된 상태
 
-        cur = self.current_login_id()
-        if cur and cur.strip().lower() != user_id.strip().lower():
+        cur = (self.current_login_id() or "").strip()
+        # 콤보는 긴 ID를 **잘라서** 보여준다(`TEST_USER_FLOW` -> `TEST_USE`).
+        # 그래서 완전일치가 아니라 **접두사**로 본다. 너무 짧은 표시로 오판하지
+        # 않도록 최소 길이를 둔다. `service`는 `TEST_USER_FLOW`의 접두사가 아니므로
+        # 엉뚱한 계정으로 진행하는 것은 그대로 막힌다.
+        want = user_id.strip().lower()
+        if cur and not (cur.lower() == want
+                        or (len(cur) >= 4 and want.startswith(cur.lower()))):
             raise RuntimeError(
                 f"로그인 ID가 '{cur}'로 선택되어 있습니다. 요청한 ID는 '{user_id}'입니다. "
                 f"ID 콤보(컨트롤 {self.LOGIN_ID_COMBO})를 먼저 변경하십시오.")

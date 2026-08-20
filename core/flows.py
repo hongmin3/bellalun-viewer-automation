@@ -345,6 +345,55 @@ NEW_ACCOUNT = {
 # Setting > System > My Settings (WF_14). 버튼 두 개뿐이다.
 SETTING_MY_SETTINGS = {"export": 2293, "import": 2294}
 
+# Setting > Patient / Display / Tool / Device 하위 페이지 (2026-08-20 실측).
+#
+# 각 항목을 OCR 로 읽어 사양서1 78~80쪽 권한 표의 순서와 대조했다(56개 전부 일치).
+# **ID 가 화면 순서와 무관하다.** Patient 의 External Device/Barcode/QR Code 는
+# 228/235/236 으로 멀리 떨어져 있고, Device 는 234-226-230-231-229-232-233-227 로
+# 순서가 완전히 뒤섞였다. 연속이라고 추정했으면 전부 틀렸다.
+SETTING_PATIENT_PAGES = {
+    "general": 195, "patient_list": 196, "new_patient": 197, "examined": 198,
+    "physician": 199, "external_device": 228, "barcode": 235, "qr_code": 236,
+}
+SETTING_DISPLAY_PAGES = {
+    "general": 200, "overlay": 201, "layout": 202, "lut": 203,
+    "monitor_correction": 204,
+}
+SETTING_TOOL_PAGES = {
+    "general": 205, "predefined_text": 206, "image_tool": 207, "status_bar": 208,
+}
+SETTING_DEVICE_PAGES = {
+    "general": 234, "device_info": 226, "aec": 230, "aec_3d": 231,
+    "gantry": 229, "gantry_misc": 232, "viewposition": 233, "ups": 227,
+}
+
+
+def setting_pages(group):
+    """그룹 이름 -> {페이지 이름: 컨트롤 ID}. 실측된 그룹만 돌려준다."""
+    return {
+        "system": SETTING_SYSTEM_PAGES,
+        "patient": SETTING_PATIENT_PAGES,
+        "display": SETTING_DISPLAY_PAGES,
+        "tool": SETTING_TOOL_PAGES,
+        "study": SETTING_STUDY_PAGES,
+        "procedure": SETTING_PROCEDURE_PAGES,
+        "dicom": SETTING_DICOM_PAGES,
+        "device": SETTING_DEVICE_PAGES,
+        "qc": SETTING_QC_PAGES,
+    }[group]
+
+
+def open_group_page(ui, group, page, wait=2.5):
+    """Setting > <group> > <page> 로 이동한다(그룹 무관 공용)."""
+    pages = setting_pages(group)
+    if page not in pages:
+        raise FlowError(f"알 수 없는 {group} 설정 페이지: {page}")
+    open_setting(ui, wait=3.0)
+    open_setting_group(ui, group, wait=2.0)
+    return _click_setting_control(ui, pages[page],
+                                  f"{group} 설정 '{page}'", wait)
+
+
 # Setting > Study 하위 페이지 (2026-08-19 실측)
 SETTING_STUDY_PAGES = {"general": 209, "study_delete": 210, "reject_retake": 211}
 
@@ -476,6 +525,37 @@ class FlowError(RuntimeError):
 
 
 # --- Cold start -------------------------------------------------------
+def select_login_id(ui, user_id, tesseract_exe=None):
+    """로그인 화면의 ID 콤보에서 `user_id` 를 고른다.
+
+    사양서1 78쪽: ID 입력창은 **등록된 계정 목록**이고 직접 입력이 아니라 선택하는
+    방식이다. 이미 그 계정이 선택돼 있으면 아무것도 하지 않는다.
+
+    반환: {"already": bool, "picked": {...}} / 고르지 못하면 예외.
+    """
+    from core import uitext
+
+    # 콤보는 긴 ID를 잘라서 보여준다(`TEST_USER_FLOW` -> `TEST_USE`). 접두사로 본다.
+    def matches(shown):
+        shown = (shown or "").strip().lower()
+        want = user_id.strip().lower()
+        return bool(shown) and (shown == want
+                                or (len(shown) >= 4 and want.startswith(shown)))
+
+    current = (ui.current_login_id() or "").strip()
+    if matches(current):
+        return {"already": True, "current": current}
+    picked = uitext.pick_combo_by_text(
+        ui, ui.LOGIN_ID_COMBO, user_id, tesseract_exe, what="로그인 ID")
+    after = (ui.current_login_id() or "").strip()
+    if not matches(after):
+        raise FlowError(
+            f"로그인 ID 를 {user_id!r} 로 바꾸지 못했습니다(현재 {after!r}). "
+            f"읽은 항목={picked.get('items_read')}. 엉뚱한 계정으로 로그인하지 "
+            "않도록 중단합니다.")
+    return {"already": False, "current": after, "picked": picked}
+
+
 def cold_start(cfg, db, on_event=None, force_restart=None):
     """Viewer가 꺼져 있는 상태를 전제로 기동부터 수행한다.
 
@@ -572,6 +652,15 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
 
     login = cfg["viewer"]["login"]
     if ui.at_login_screen():
+        # ID 입력창은 등록된 계정 목록이다(사양서1 78쪽). 요청한 계정이 선택돼
+        # 있지 않으면 목록에서 고른다 — 고르지 못하면 `ui.login` 의 가드가 잡는다.
+        try:
+            chosen = select_login_id(
+                ui, login["id"], (cfg.get("xipl") or {}).get("tesseract_exe"))
+            if not chosen.get("already"):
+                say(f"로그인 ID 선택: {login['id']}")
+        except Exception as exc:
+            say(f"로그인 ID 선택 실패(계속 진행): {exc}")
         # 비밀번호는 물리 키 입력으로 넣기 때문에(ui.type_text 주석 참고), Viewer
         # 기동 직후 포커스가 완전히 잡히기 전에는 일부 문자가 유실돼 "Wrong ID or
         # password" 팝업이 뜨는 일이 있다(2026-08-14 회귀에서 실제 발생, 같은

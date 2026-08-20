@@ -63,6 +63,58 @@ from core.result import FAIL, MANUAL, PASS, TCResult
 GROUP_LABEL = "User"        # 체크리스트의 "허용 권한" — 가장 제한적인 그룹
 NAME_SUFFIX = " (edited)"   # 3단계에서 바꿀 표시 이름
 
+# 사양서1 **78~80쪽** "Setting에서 계정 그룹별로 사용할 수 있는 메뉴는 다음과 같다"
+# 의 `User` 열을 그대로 옮겼다. 근거 SRS 는 77쪽 제목 **SRS 01-30-20**
+# ("로그인한 계정의 권한 그룹에 따라 사용할 수 있는 기능을 제한한다").
+# 사용자가 표를 이미지로 확인해 줬고(2026-08-20) 텍스트 추출 결과와 일치했다.
+#
+#   True  = O (사용 가능)
+#   False = X (사용 불가)
+#   문자열 = 부분 제한 (표의 비고를 그대로 적는다)
+USER_MENU_TABLE = {
+    "system": {
+        "general": False,
+        "security": "Date/Time Change 만 사용 (KIOSK 사용 중일 때만 버튼 활성화)",
+        "region": False, "system_info": False,
+        "software_info": True, "account": True,
+        "license": False, "my_settings": False, "cs": True,
+    },
+    "patient": {
+        "general": False, "patient_list": False, "new_patient": False,
+        "examined": False, "physician": False, "external_device": False,
+        "barcode": False, "qr_code": False,
+    },
+    "display": {
+        "general": False, "overlay": False, "layout": False, "lut": False,
+        "monitor_correction": False,
+    },
+    "tool": {
+        "general": False, "predefined_text": False,
+        "image_tool": True,                 # 표에서 User 가 O 인 항목
+        "status_bar": False,
+    },
+    "study": {"general": False, "study_delete": False, "reject_retake": False},
+    "procedure": {
+        "general": False, "preset": False, "procedure": False,
+        "hospital_code": True,              # 표에서 User 가 O 인 항목
+    },
+    "dicom": {
+        "general": False, "mwl": False, "mpps": False, "storage": False,
+        "storage_group": False, "storage_commitment": False, "print": False,
+        "print_overlay": False, "query_retrieve": False, "tag_mapping": False,
+    },
+    "device": {
+        "general": False, "device_info": False, "aec": False, "aec_3d": False,
+        "gantry": False, "gantry_misc": False, "viewposition": False,
+        "ups": False,
+    },
+    "qc": {
+        "setting_2d": False, "setting_3d": False, "scheduler": False,
+        "auto_delete": False,
+        "regular_inspection": "Inspection Information 항목만 표시",
+    },
+}
+
 
 def _account_rows(db):
     return {r["ID"]: r for r in db.query(
@@ -208,6 +260,88 @@ def _delete_account(ui, ctx, account_id, tesseract_exe):
     return account_id not in _account_rows(ctx.db)
 
 
+def _menu_visibility(ui):
+    """모든 Setting 그룹의 하위 페이지가 **보이는지** 그룹별로 실측한다.
+
+    사양의 `O`/`X` 가 "메뉴가 안 보인다"인지 "보이지만 비활성"인지 표에 적혀 있지
+    않다. 추측하지 않고 보이는지 여부를 그대로 남긴다.
+    """
+    seen = {}
+    for group, pages in ((g, flows.setting_pages(g))
+                         for g in flows.SETTING_GROUPS):
+        try:
+            flows.open_setting(ui, wait=2.5)
+            flows.open_setting_group(ui, group, wait=2.0)
+        except Exception as exc:
+            # 그룹 자체가 안 보이면 그 그룹의 모든 페이지가 접근 불가다.
+            seen[group] = {"_group_error": str(exc)}
+            continue
+        state = {}
+        for name, ctrl_id in pages.items():
+            hits = [c for c in ui.controls(max_depth=8)
+                    if c.ctrl_id == ctrl_id and c.visible
+                    and c.rect[2] - c.rect[0] > 20]
+            state[name] = bool(hits)
+        seen[group] = state
+    return seen
+
+
+def _compare_with_spec(seen):
+    """실측 가시성을 사양서 표와 대조한다.
+
+    반환: (틀린 항목 목록, 요약). 부분 제한 항목은 "접근 가능"으로 기대한다 —
+    표의 비고가 화면 안에서의 제한을 말하기 때문이다.
+    """
+    wrong = []
+    summary = {"allowed_ok": 0, "denied_ok": 0, "partial_ok": 0, "checked": 0}
+    for group, expected in USER_MENU_TABLE.items():
+        measured = seen.get(group, {})
+        if "_group_error" in measured:
+            # 그룹을 못 열었다 = 그 그룹의 모든 페이지가 접근 불가.
+            for name, want in expected.items():
+                summary["checked"] += 1
+                if want is False:
+                    summary["denied_ok"] += 1
+                else:
+                    wrong.append({"group": group, "page": name,
+                                  "expected": want, "measured": "그룹 접근 불가",
+                                  "reason": measured["_group_error"][:80]})
+            continue
+        for name, want in expected.items():
+            summary["checked"] += 1
+            got = measured.get(name)
+            if want is False:
+                if got:
+                    wrong.append({"group": group, "page": name,
+                                  "expected": "X (사용 불가)", "measured": "보임"})
+                else:
+                    summary["denied_ok"] += 1
+            else:
+                if got:
+                    summary["partial_ok" if isinstance(want, str)
+                            else "allowed_ok"] += 1
+                else:
+                    wrong.append({"group": group, "page": name,
+                                  "expected": ("부분 제한: " + want)
+                                  if isinstance(want, str) else "O (사용 가능)",
+                                  "measured": "안 보임"})
+    return wrong, summary
+
+
+def _login_as(ctx, account_id, password):
+    """시험 계정으로 Viewer 를 재기동해 로그인한다.
+
+    `cold_start` 는 `cfg["viewer"]["login"]` 을 쓰므로 **설정 복사본**을 넘긴다.
+    원본 `ctx.cfg` 를 건드리면 복구가 원래 계정으로 되지 않는다.
+    """
+    import copy
+
+    cfg = copy.deepcopy(ctx.cfg)
+    cfg["viewer"]["login"] = {"id": account_id, "password": password}
+    cfg["viewer"]["force_restart"] = True
+    return flows.cold_start(cfg, ctx.db, force_restart=True)
+
+
 def run(ctx):
     r = TCResult("TC_Basic_WorkFlow_13", "계정 추가·수정 및 로그인")
     account_id = (ctx.cfg.get("test_data") or {}).get("account_id")
@@ -220,6 +354,7 @@ def run(ctx):
     evidence_dir = os.path.join(ctx.evidence_root, "Flow", "13_Account")
     ui = None
     created = False
+    logged_in_as_test = False
     try:
         password = _password(ctx)
         name = "Auto Flow User"
@@ -319,21 +454,83 @@ def run(ctx):
                  f"선택한 행은 OCR로 확인했다({picked['rows_read']}). "
                  f"Update 결과: {edit_msg!r}")
 
-        # --- Step 4~6: 로그인 계정 변경 (의도적으로 수동) ---------------------
-        r.manual(4, "로그오프 후 로그인 화면에 이전 사용자 정보가 남지 않음",
-                 "자동화하지 않는다 — 로그인 계정을 바꾸면 회귀의 뒤따르는 TC가 "
-                 "제한 권한으로 실행되고, 중간 실패 시 복구가 불가능하다. "
-                 "복구 절차를 합의한 뒤 붙인다(NEXT_TASK.md).")
-        r.manual(5, f"{account_id} 계정으로 로그인",
-                 "위와 같은 이유로 수동. 계정과 권한이 저장된 것은 Step 1~3에서 "
-                 "DB로 확인했다.")
-        r.manual(6, "허용된 기능만 사용 가능",
-                 "권한별 메뉴 노출 범위가 매뉴얼에 표로 정리돼 있지 않아 기대값을 "
-                 "확정할 수 없다. 사양 확인이 필요하다(NEXT_TASK.md).")
+        # --- Step 4~5: 로그오프하고 시험 계정으로 로그인 ----------------------
+        # Viewer 재기동으로 로그오프와 로그인이 함께 이뤄진다. 이 시점부터 실패해도
+        # `finally` 가 원래 계정으로 되돌린다.
+        # 플래그를 **시도 전에** 세운다. 로그인 도중 실패해도 `finally` 가 원래
+        # 계정으로 되돌려야 한다 — 세운 뒤 실패하면 복구가 돌지 않는다.
+        logged_in_as_test = True
+        ui, startup2 = _login_as(ctx, account_id, password)
+        entered = flows.ensure_patient_screen(ui)
+        path = os.path.join(evidence_dir, "03_logged_in_as_test.png")
+        screen.grab(ui.main_window().rect, path=path)
+        r.attach(path)
+
+        r.assert_true(
+            4, "로그오프 후 로그인 화면을 지나 재로그인",
+            any("로그인" in str(x) for x in startup2),
+            expected="Viewer 재기동 시 로그인 화면을 지난다",
+            actual={"startup": startup2},
+            note="Expected 4. 로그인 화면이 표시되고 이전 사용자 정보가 남지 않는다. "
+                 "재기동으로 로그오프+로그인을 함께 수행한다. ID 입력창은 목록형이라 "
+                 "등록된 계정이 목록에 남는 것이 정상이다(사양서1 78쪽 '기존에 등록했던 "
+                 "계정 목록이 표시되며, 목록 중에 선택해서 로그인할 수 있다').")
+
+        r.assert_true(
+            5, f"{account_id} 계정으로 로그인", entered,
+            expected=f"{account_id} 로 로그인되고 Patient 화면 진입",
+            actual={"startup": startup2, "patient_screen": entered},
+            note="Expected 5. 수정한 계정 정보로 로그인된다. 비밀번호는 이 실행에서 "
+                 "만든 값을 쓰며 어디에도 기록하지 않는다.")
+
+        # --- Step 6: 권한 그룹에 따른 메뉴 접근 (사양서 표 56개 전부) ---------
+        seen = _menu_visibility(ui)
+        wrong, summary = _compare_with_spec(seen)
+        path = os.path.join(evidence_dir, "04_user_setting_menus.png")
+        screen.grab(ui.main_window().rect, path=path)
+        r.attach(path)
+
+        r.assert_true(
+            6, f"권한 그룹({GROUP_LABEL})에 허용된 메뉴만 접근 가능 "
+               f"(사양서 표 {summary['checked']}개 항목)",
+            not wrong,
+            expected={"근거": "사양서1 78~80쪽 계정 그룹별 사용 가능 메뉴 표 "
+                             "(SRS 01-30-20) 의 User 열",
+                      "O(사용 가능)": [f"{g}>{n}" for g, d in USER_MENU_TABLE.items()
+                                    for n, v in d.items() if v is True],
+                      "부분 제한": [f"{g}>{n}" for g, d in USER_MENU_TABLE.items()
+                                for n, v in d.items() if isinstance(v, str)]},
+            actual={"불일치": wrong, "요약": summary, "실측": seen},
+            note="Expected 6. 허용된 기능만 사용할 수 있다. 사양서 표의 56개 항목을 "
+                 "전부 대조한다. 페이지 컨트롤 ID 는 2026-08-20 에 각 항목을 OCR 로 "
+                 "읽어 표 순서와 짝지어 확정했다 — ID 가 화면 순서와 무관해서"
+                 "(Device 는 234-226-230-231-229-232-233-227) 추정하면 틀린다. "
+                 "표가 O/X 가 '안 보임'인지 '보이지만 비활성'인지 적지 않았으므로 "
+                 "**보이는지 여부**로 판정하고 실측값을 그대로 남긴다. 부분 제한 항목은 "
+                 "접근 가능으로 기대한다 — 표의 비고는 화면 안에서의 제한이다.")
     except Exception as exc:
         r.add(0, "TC_Basic_WorkFlow_13 실행", FAIL, actual=str(exc))
     finally:
+        # **로그인 계정을 반드시 되돌린다.** 시험 계정으로 남으면 뒤따르는 TC 가
+        # 제한 권한으로 돌아 연쇄 실패한다(회귀 7·13·14차의 교훈).
+        if logged_in_as_test:
+            try:
+                original = ctx.cfg["viewer"]["login"]["id"]
+                ui, back = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+                ok = flows.ensure_patient_screen(ui)
+                r.add(0, "뒷정리: 원래 계정으로 복구", PASS if ok else FAIL,
+                      expected=f"{original} 로 재로그인",
+                      actual={"startup": back, "patient_screen": ok},
+                      note="로그인 계정을 바꾸는 TC 는 반드시 되돌린다. 되돌리지 "
+                           "못하면 뒤따르는 TC 가 전부 무너진다.")
+            except Exception as exc:
+                r.add(0, "뒷정리: 원래 계정으로 복구", FAIL,
+                      actual=f"복구 실패({exc}). **뒤따르는 TC 가 제한 권한으로 "
+                             f"실행될 수 있다.** Viewer 를 재시작하고 "
+                             f"{ctx.cfg['viewer']['login']['id']} 로 로그인하십시오.")
+
         # 시험 계정을 남기지 않는다. 지우지 못하면 리포트에 남겨 사람이 알게 한다.
+        # **원래 계정으로 돌아온 뒤에** 지운다 — 제한 권한으로는 못 지울 수 있다.
         if ui is not None and created:
             try:
                 gone = _delete_account(ui, ctx, account_id, tess)
