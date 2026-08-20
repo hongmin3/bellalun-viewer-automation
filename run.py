@@ -108,6 +108,8 @@ def main():
     sub.add_parser("run-wf08", help="TC_Basic_WorkFlow_08 2D/3D Film Print")
     sub.add_parser("run-wf09",
                    help="TC_Basic_WorkFlow_09 Normal 및 Anonymous Export")
+    sub.add_parser("run-wf12",
+                   help="TC_Basic_WorkFlow_12 Study Reject 및 Restore")
     sub.add_parser("run-wf13",
                    help="TC_Basic_WorkFlow_13 계정 추가·수정 (1~3단계 자동)")
     sub.add_parser("run-wf11",
@@ -160,7 +162,7 @@ def main():
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
-                   "run-wf08", "run-wf09", "run-wf11", "run-wf13", "run-wf15", "run-xipl",
+                   "run-wf08", "run-wf09", "run-wf11", "run-wf12", "run-wf13", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -210,6 +212,7 @@ def main():
         from tests.workflow08 import run as run_film_print
         from tests.workflow13 import run as run_account
         from tests.workflow11 import run as run_reject
+        from tests.workflow12 import run as run_study_reject
         from tests.workflow15 import run as run_presend
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
@@ -274,6 +277,7 @@ def main():
         # 바꾸면 뒤따르는 TC가 제한 권한으로 돌아 연쇄 실패한다(tests/workflow13.py).
         results.append(run_account(ctx))      # WF_13 계정 추가·수정
         results.append(run_reject(ctx))       # WF_11 Image Reject 및 Restore
+        results.append(run_study_reject(ctx)) # WF_12 Study Reject 및 Restore
         results.append(run_presend(ctx))      # WF_15 Pre-send Preview
         results.extend(run_xipl(ctx))         # XIPL_01~06
         results.extend(run_system_3d(ctx))    # 보조: 3D-N/3D-W 촬영
@@ -310,6 +314,10 @@ def main():
     if args.cmd == "run-wf09":
         from tests.workflow09 import run as run_export
         results.extend(run_export(ctx))
+    if args.cmd == "run-wf12":
+        from tests.workflow12 import run as run_study_reject
+        return finish(ctx, [run_study_reject(ctx)])
+
     if args.cmd == "run-wf13":
         from tests.workflow13 import run as run_account
         return finish(ctx, [run_account(ctx)])

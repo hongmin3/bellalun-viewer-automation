@@ -259,6 +259,65 @@ def setting_update(ui, wait=2.0):
 
 
 # ---------------------------------------------------------------------------
+# Study Reject / Restore (WF_12). 2026-08-20 실측 — 사용자가 캡처로 알려 주고
+# hover 툴팁으로 확정했다.
+#
+# **2186 은 같은 버튼이 상태에 따라 토글된다.**
+#   일반 검사 선택 -> 툴팁 "Reject Study"  (아이콘 휴지통)
+#   Rejected 검사 선택 -> 툴팁 "Restore Study"  (아이콘 되돌리기 화살표)
+#
+# 내가 2026-08-19 에 이 버튼을 "휴지통(삭제) — **절대 누르지 말 것**" 으로 기록했다.
+# 아이콘 추정 오류의 네 번째 사례다(2184 Import Study / 2196 Pre-send Preview /
+# 2207 Left Implant 에 이어). 그래서 파괴적으로 보이는 아이콘도 `ui.hover` 로
+# 툴팁을 먼저 읽는다.
+EXAMINED_REJECT_STUDY = 2186        # = Restore Study (상태에 따라 토글)
+
+# Examined 의 데이터 소스 드롭리스트(2200) 항목. Reject 된 검사는 기본 목록에서
+# 빠지므로 `rejected` 로 바꿔야 보인다 — WF_12 Step 3 이 이걸 요구한다.
+EXAMINED_SOURCE_DROPLIST = 2200
+EXAMINED_SOURCE_ITEMS = {
+    "all": 1184, "rejected": 1187, "no_rejected": 1188,
+    "suspended": 1189, "locked": 1190,
+}
+
+# `STUDY.StudyStatus` 실측값. Study Reject 는 3 -> **5** 로 바꾸고
+# RejectType / RejectReason / RejectUserID 를 기록한다(2026-08-20).
+STUDY_STATUS_REJECTED = 5
+
+# Study Reject 도 Image Reject 와 **같은 사유 팝업**(701~707)을 쓴다(실측).
+
+
+def select_examined_source(ui, source, tesseract_exe=None):
+    """Examined 의 데이터 소스를 바꾼다(all / rejected / ...).
+
+    항목 문구를 OCR 로 확인해 고른다 — 순서로 고르면 조용히 틀어진다.
+    """
+    from core import uitext
+
+    if source not in EXAMINED_SOURCE_ITEMS:
+        raise FlowError(f"알 수 없는 Examined 데이터 소스: {source}")
+    drop = [c for c in ui.by_id(EXAMINED_SOURCE_DROPLIST) if c.visible]
+    if not drop:
+        raise FlowError(
+            f"Examined 데이터 소스 드롭리스트({EXAMINED_SOURCE_DROPLIST})를 "
+            "찾지 못했습니다.")
+    ui.click(drop[0], settle=1.2)
+    ctrl_id = EXAMINED_SOURCE_ITEMS[source]
+    hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+    if not hits:
+        raise FlowError(
+            f"데이터 소스 항목 {source}({ctrl_id})을 찾지 못했습니다.")
+    text = uitext.ocr(hits[0], tesseract_exe)
+    if source != "all" and uitext.norm(source.replace("_", "")) not in \
+            uitext.norm(text):
+        raise FlowError(
+            f"데이터 소스 항목 {ctrl_id} 가 {source!r} 이 아닙니다"
+            f"(읽은 값 {text!r}). 잘못된 필터를 고르지 않도록 중단합니다.")
+    ui.click(hits[0], settle=2.0)
+    return {"source": source, "ctrl_id": ctrl_id, "ocr": text}
+
+
+# ---------------------------------------------------------------------------
 # Image Reject / Restore (WF_11). 2026-08-20 실측 — 사용자가 위치를 알려 주고
 # 툴팁으로 확정했다.
 #
