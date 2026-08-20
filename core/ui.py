@@ -31,6 +31,8 @@ except Exception:
 WM_SETTEXT, WM_GETTEXT, WM_GETTEXTLENGTH = 0x000C, 0x000D, 0x000E
 BM_CLICK = 0x00F5
 MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP = 0x0002, 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_WHEEL = 0x0800
 KEYEVENTF_KEYUP = 0x0002
 VK = {"F5": 0x74, "F8": 0x77, "ENTER": 0x0D, "TAB": 0x09, "ESC": 0x1B}
@@ -342,6 +344,33 @@ class ViewerUi:
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         time.sleep(0.06)
         u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        time.sleep(settle)
+
+    def hover(self, target, settle=1.5):
+        """커서만 올린다(클릭하지 않는다).
+
+        커스텀 렌더 아이콘의 기능을 **툴팁으로** 확인할 때 쓴다. 아이콘 모양 추정은
+        이 저장소에서 두 번 틀렸다(2184 를 Send 로 추정했으나 Import Study,
+        2196 을 검사 내 검색으로 추정했으나 Pre-send Preview). 파괴적일 수 있는
+        버튼은 누르기 전에 이걸로 먼저 확인한다.
+        """
+        x, y = target.center if isinstance(target, Control) else target
+        u32.SetCursorPos(int(x), int(y))
+        time.sleep(settle)
+        return (int(x), int(y))
+
+    def right_click(self, target, settle=0.8):
+        """Control 또는 (x, y)를 우클릭한다.
+
+        커스텀 렌더 목록에서 컨텍스트 메뉴를 확인할 때 쓴다. 좌클릭과 같은 방식으로
+        물리 입력을 보낸다 — `WM_CONTEXTMENU` 주입은 이 UI 에서 통하지 않는다.
+        """
+        x, y = target.center if isinstance(target, Control) else target
+        u32.SetCursorPos(int(x), int(y))
+        time.sleep(0.08)
+        u32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+        time.sleep(0.06)
+        u32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
         time.sleep(settle)
 
     def drag(self, start, end, duration=.4, settle=.4):

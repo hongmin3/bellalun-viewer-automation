@@ -71,8 +71,16 @@ EXAMINE = {
     "status_banner": 2202,        # 상단 우측 상태 배너 (Ready / 미준비)
     "step_thumbnails": 155,       # SystemThumbnail — 하위 SystemThumbnailItem 1..N = Step
     "edit_information": 2203,     # 헤더의 연필 아이콘 → Edit Information 대화상자
-    "procedure_add": 2208,        # Procedure 패널 +
-    "procedure_delete": 2207,     # Procedure 패널 휴지통
+    # 2026-08-20 **툴팁으로 확정** — 이전 기록("procedure_add 2208 / 
+    # procedure_delete 2207")은 **둘 다 틀렸다.** 아이콘 모양으로 추정한 결과였고,
+    # 실제는 Implant 표시 버튼이다. 이 저장소의 아이콘 추정 오류 세 번째 사례
+    # (앞선 둘: 2184 를 Send 로 추정했으나 Import Study, 2196 을 검사 내 검색으로
+    # 추정했으나 Pre-send Preview).
+    "implant_right": 2208,        # 툴팁 "Right Implant"
+    "implant_left": 2207,         # 툴팁 "Left Implant"
+    # Procedure 라벨 옆 두 버튼 (2026-08-20 툴팁으로 확정). WF_11 의 진입점이다.
+    "reject_image": 1168,         # 툴팁 "Reject Image" — 휴지통 모양
+    "multi_select": 1169,         # 툴팁 "Multi Select"
     "close": 2204,                # 검사 종료
     "retake": 2205,
     "tool_select": 1111,
@@ -249,6 +257,58 @@ def setting_update(ui, wait=2.0):
     """Setting 화면의 Update(적용) 버튼을 누른다."""
     return _click_setting_control(ui, SETTING_UPDATE_BUTTON, "Update 버튼", wait)
 
+
+# ---------------------------------------------------------------------------
+# Image Reject / Restore (WF_11). 2026-08-20 실측 — 사용자가 위치를 알려 주고
+# 툴팁으로 확정했다.
+#
+# 흐름
+#   Examined 에서 검사 선택 -> View(2182) -> 우측 Procedure 패널의 썸네일에서
+#   대상 영상 선택 -> **1168 "Reject Image"** -> 사유 팝업에서 사유 선택
+#   -> 영상에 빨간 `REJECTED` 스탬프가 찍히고 썸네일에 되돌리기 화살표(↺)가 겹친다
+#   -> ↺ 를 누르면 "Do you want to restore the images?" -> 좌 Yes(501) 로 원복
+#
+# 사유 팝업 항목 (Setting > Study > Reject/Retake 목록에는 스크롤 때문에 5개만
+# 보이지만 팝업에는 7개다).
+REJECT_REASONS = {
+    "artifacts": 701,
+    "mispositioning": 702,
+    "patient_movement": 703,
+    "mechanical_failure": 704,
+    "inappropriate_processing": 705,
+    "double_exposure": 706,
+    "others": 707,
+}
+
+# Reject 된 썸네일 안의 ↺(Restore) 는 **별도 컨트롤이 아니다** — 커스텀 렌더링이라
+# `SystemThumbnailItem` 의 자식 윈도우가 없다. 그래서 썸네일 `rect` 에서 위치를
+# 계산한다. 좌표 상수를 저장하지 않고 비율만 둔다(실측 (1615,238) / rect
+# (1559,137,1890,312)).
+RESTORE_ICON_RATIO = (0.17, 0.58)
+
+# Restore 확인 팝업 — 문구 "Do you want to restore the images?" (OCR 확인).
+# **좌 = Yes(501) / 우 = No(500)** 다. `ui.dismiss_dialog()` 는 No 를 눌러 원복이
+# 되지 않았다(계정 삭제와 같은 함정). 좌우 순서와 ID 를 함께 확인해 Yes 를 누른다.
+RESTORE_CONFIRM = {"yes": 501, "no": 500}
+RESTORE_MARKERS = ("restore the image", "want to restore")
+
+# 썸네일 목록 컨트롤과 항목 클래스.
+THUMBNAIL_LIST = 155
+THUMBNAIL_ITEM = "SystemThumbnailItem"
+
+
+def restore_point(thumbnail):
+    """Reject 된 썸네일 안 ↺ 아이콘의 클릭 좌표를 rect 에서 계산한다."""
+    left, top, right, bottom = thumbnail.rect
+    return (left + int((right - left) * RESTORE_ICON_RATIO[0]),
+            top + int((bottom - top) * RESTORE_ICON_RATIO[1]))
+
+
+# 검사를 **View 로 열었을 때** 하단의 3D 영상 종류 전환 버튼 (2026-08-20 실측,
+# 캡처로 라벨 확인). Examine 모드의 Retake(2205)는 View 모드에 없다.
+VIEW_INSTANCE_TYPE = {"raw": 2122, "recon": 2123, "syn": 2124}
+VIEW_CLOSE = 2204          # View 모드의 닫기(366x64, Examine 의 2204 와 같은 ID)
+EXAMINED_VIEW_BUTTON = 2182  # Examined 창 하단의 `View`
 
 # Examined 창의 Pre-send Preview (WF_15). 2026-08-20 실측 — 사용자가 툴팁 캡처로
 # 버튼을 지목해 줬다.
