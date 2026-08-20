@@ -487,7 +487,43 @@ User 에게 보이는 것은 `system>software_info / account / cs / security`,
 판정부는 이미 준비돼 있어(`tests/dataflow.py` 의 `workflow_11_evaluate` /
 `workflow_12_evaluate` / `*_mid_evaluate`) 진입점만 알면 바로 붙습니다.
 
-### 14. WF_10 — MWL 커스텀 태그 등록 방법 (물어볼 것)
+### 15. WF_10 진행 상황 (2026-08-20) — Code 셀 편집만 남았다
+
+**core/mwl.py 는 이미 처방을 등록할 수 있다.** 내가 "처방을 만들 수 있는지 확인이
+필요하다"고 적었던 것은 코드를 먼저 읽지 않은 탓이다. `POST /worklist/new` 와
+`make_mg_order(..., hospital_code=...)` 가 있고 Hospital Code 를
+`rp_code_value`(Requested Procedure Code Value)로 넣는다.
+
+실측해 확정한 것 (`core/flows.py` 에 기록)
+
+| 화면 | 확정 |
+|---|---|
+| Setting > Procedure > Hospital Code (215) | 2557 목록(Code / Procedure·View Position / Type / Description) / 2558 추가 / 2559 삭제 |
+| 새 행 | `+` 가 인라인 행을 만든다. Code 는 `Code`, `Code_1`, ... **자동 생성** |
+| Procedure 열 | 톱니바퀴를 누르면 `View Position` 대화상자 |
+| View Position 대화상자 | 탭 2082 Preset(2D) / 2083 Preset(3D-N) / 2084 Preset(3D-W) / **2086 Procedure** / 1101 OK / 1102 Cancel |
+| Procedure 탭 | 목록 행 ctrl_id 가 `PROCEDURE_INFO.Key` 와 일치(1 Routine Mammography / 2 Mammography (Rt) / ...). 헤더도 id=1 이라 문구를 OCR 로 읽어 고른다 |
+| DB | `HOSPITAL_CODE(Key, Code, Description, MappingKey, MappingType)` — 매핑은 MappingKey = PROCEDURE_INFO.Key |
+
+**남은 미지 하나 — Code 셀 값을 바꾸는 방법.**
+`Code`(자동 생성)를 `HC_FLOW_01` 로 바꿔야 하는데, 다음을 모두 시도해도 편집 모드가
+열리지 않았다(진짜 `Edit` 클래스 컨트롤이 생기지 않고 셀 문구도 그대로였다).
+  한 번 클릭 / 더블클릭 / 천천히 더블클릭 / F2 / Enter / 클릭 후 직접 타이핑
+
+**물어볼 것**: Hospital Code 의 `Code` 값은 어떻게 입력하나요? 자동 생성 값
+(`Code`, `Code_1`...)을 그대로 쓰는 것이 맞나요, 아니면 편집하는 별도 방법이
+있나요? 자동 생성 값을 쓰는 것이 맞다면 TC 문서의 `HC_FLOW_01` 표기를 그에 맞게
+보완하겠습니다(TC 번호는 건드리지 않습니다).
+
+**이번에 낸 사고와 조치**: `+` 가 Update 없이도 DB 에 즉시 저장된다는 것을 모르고
+프로브를 다섯 번 돌려 `HOSPITAL_CODE` 에 `Code`~`Code_4` 5행을 남겼다. UI 삭제로
+전부 정리해 현재 0행이다. 재발 방지 규칙을 `AGENTS.md` 3항과 지식 운영 지침
+10-1-2 / 10-1-3 절에 넣었다.
+
+### 14. WF_10 — MWL 커스텀 태그 등록 방법 (해소됨, 2026-08-20)
+
+아래 항목은 **해소됐다.** `core/mwl.py` 를 읽어 보니 처방 등록이 가능하다.
+자세한 것은 15항 참고.
 
 `Setting > DICOM > MWL` 의 `Hospital Code Mapping` 콤보(**2453**)와 순서는 확정했다
 (등록된 Hospital Code 가 없으면 콤보가 아예 열리지 않는다).

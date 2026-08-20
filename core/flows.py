@@ -418,6 +418,23 @@ PRE_SEND_PREVIEW = {
 # `Code / Unknown / (빈 Type) / (빈 Description)` 으로 시작하고, Procedure 열의
 # **톱니바퀴(⚙)** 를 누르면 `View Position` 대화상자가 열린다. ⚙ 는 별도 컨트롤이
 # 아니라 셀에 그려져 있어 행 rect 에서 위치를 계산한다(상대 x≈0.50).
+# **주의 1 — 즉시 저장.** `+`(2558)는 Update 없이도 `PROCEDURE.HOSPITAL_CODE` 에
+#   행을 **바로 만든다**(2026-08-20 실측, 프로브를 다섯 번 돌려 DB 에 5행을 남긴
+#   사고로 확인했다). Print Overlay / Account 는 Update 까지 눌러야 저장되는데 이
+#   화면은 다르다 — 화면마다 다르다고 봐야 한다.
+# **주의 2 — 행 중앙에 ⚙ 가 있다.** `ui.click(row)` 는 행 중앙을 누르는데 이 목록은
+#   중앙 x 가 정확히 ⚙ 위치다. 행을 **선택**하려면 좌측 Code 셀을 눌러야 한다
+#   (`hospital_code_cell(row, "code")`). 중앙을 누르면 View Position 대화상자가
+#   열리고, 그 위에 뜨는 "Please select item to add." 팝업이 이후 클릭을 삼킨다.
+# **주의 1 - 즉시 저장.** `+`(2558)는 Update 없이도 `PROCEDURE.HOSPITAL_CODE` 에
+#   행을 **바로 만든다**(2026-08-20 실측 — 프로브를 다섯 번 돌려 DB 에 5행을 남긴
+#   사고로 확인했다). Print Overlay / Account 는 Update 까지 눌러야 저장되는데 이
+#   화면은 다르다. 화면마다 다르다고 봐야 한다.
+# **주의 2 - 행 중앙에 톱니바퀴 버튼이 있다.** `ui.click(row)` 는 행 중앙을 누르는데
+#   이 목록은 중앙 x 가 정확히 그 버튼 위치다. 행을 **선택**하려면 좌측 Code 셀을
+#   눌러야 한다(`hospital_code_cell(row, "code")`). 중앙을 누르면 View Position
+#   대화상자가 열리고, 그 위에 뜨는 "Please select item to add." 팝업이 이후 클릭을
+#   전부 삼킨다.
 SETTING_HOSPITAL_CODE = {
     "list": 2557,
     "add": 2558,
