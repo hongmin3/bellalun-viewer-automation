@@ -18,8 +18,8 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python 약 **13,900줄**, 모듈 44개(core 27 / tests 17), 커밋 53개 |
-| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 14 / 부분자동 6 / 수동 16 (+ 자동화 보조 4) |
+| 규모 | Python 약 **16,500줄**, 모듈 49개(core 27 / tests 22), 커밋 65개 |
+| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 18 / 부분자동 7 / 수동 11 (+ 자동화 보조 4) |
 | 최신 전체 회귀 | **21개 TC 중 PASS 13 / FAIL 2 / MANUAL 6** (2026-08-19 20:18, 57분) |
 | 그 안의 검증 항목 | **176개 체크 중 PASS 163 / FAIL 2 / MANUAL 10 / SKIP 1** |
 | 그 FAIL 2건 | 제품 결함 1건(자동화가 잡아낸 정상 결과) + **제가 만든 버그 1건** — 숨기지 않고 §6에 적었습니다 |
@@ -72,7 +72,12 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 | `tests/workflow05.py` | `WF_05` | 3D 수동 DICOM Send |
 | `tests/workflow06.py` | `WF_06` | All Images 및 Dose SR 전송 |
 | `tests/workflow08.py` | `WF_08` | 2D/3D Film Print (영역별 출력물 대조) |
+| `tests/workflow07.py` | `WF_07` | Emergency 검사 Auto Send |
 | `tests/workflow09.py` | `WF_09` | Normal 및 Anonymous Export |
+| `tests/workflow10.py` | `WF_10` | MWL Hospital Code와 Procedure 매핑 |
+| `tests/workflow11.py` | `WF_11` | Image Reject 및 Restore |
+| `tests/workflow12.py` | `WF_12` | Study Reject 및 Restore |
+| `tests/workflow15.py` | `WF_15` | Pre-send Preview 표시 및 전송 |
 | `tests/workflow13.py` | `WF_13` | 계정 추가·수정 (1~3단계) |
 | `tests/xipl_flows.py` | `XIPL_01~06` | XIPL 연동 6종 (한 흐름을 공유하므로 묶음) |
 | `tests/install.py` | `Install_01/02/07/08/09` | 설치·환경 점검 |
@@ -230,7 +235,12 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | `run.py run-wf06` | WF_06 All Images 및 Dose SR 전송 |
 | `run.py run-wf08` | WF_08 2D/3D Film Print (실제 출력물 대조) |
 | `run.py run-wf09` | WF_09 Normal 및 Anonymous Export |
-| `run.py run-wf13` | WF_13 계정 추가·수정 (1~3단계 자동, 4~6단계 수동) |
+| `run.py run-wf07` | WF_07 Emergency 검사 Auto Send |
+| `run.py run-wf10` | WF_10 MWL Hospital Code와 Procedure 매핑 |
+| `run.py run-wf11` | WF_11 Image Reject 및 Restore |
+| `run.py run-wf12` | WF_12 Study Reject 및 Restore |
+| `run.py run-wf13` | WF_13 계정 추가·수정 및 로그인 (권한 표 56개 항목 대조) |
+| `run.py run-wf15` | WF_15 Pre-send Preview 표시 및 전송 |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
 | `run.py run-sys3d` | 보조: 3D-Narrow / 3D-Wide 촬영 검증 |
 | `run.py list` | 개정본 36개 TC의 자동화 수준과 사유 |
@@ -328,6 +338,54 @@ Associate Accept
 **얻은 규칙**: 기준 문서는 하나로 못박고, 그것을 `AGENTS.md` **0절**에 파일명과 시트명
 까지 적는다. 비슷한 이름의 문서가 여러 개 있을 때 "관련 문서를 참고한다"는 지침은
 아무것도 막아주지 못한다.
+
+### 아이콘 모양으로 기능을 추정해 네 번 틀린 일
+
+이 저장소에서 **같은 실수를 네 번** 했습니다. 커스텀 렌더링 UI라 컨트롤이 텍스트를
+돌려주지 않아서, 아이콘 모양으로 기능을 추정해 기록한 것이 원인입니다.
+
+| 컨트롤 | 제가 추정한 것 | 실제 (툴팁·클릭으로 확정) |
+|---|---|---|
+| `2184` | Send | **Import Study** |
+| `2196` | 검사 내 검색 (목록+돋보기 아이콘) | **Pre-send Preview** |
+| `2207` | Procedure 삭제 (휴지통) | **Left Implant** |
+| `2186` | 휴지통(삭제) — "절대 누르지 말 것" | **Reject Study** (Rejected 검사 선택 시 `Restore Study`로 토글) |
+
+마지막 사례가 특히 위험했습니다. `2186`을 "삭제 버튼"으로 알고 피하고 있었는데
+실제로는 WF_12가 써야 하는 버튼이었습니다. 반대로 진짜 파괴적인 버튼을 안전하다고
+기록했을 수도 있었습니다.
+
+**대응**: `core/ui.py`에 `hover()`를 만들어 **누르기 전에 툴팁을 읽습니다.** 파괴적일
+수 있는 아이콘은 클릭 대신 커서만 올려 확인합니다. `right_click()`과
+`double_click()`도 함께 추가했는데, `double_click()`은 별도 이유가 있습니다 — `click()`
+을 두 번 부르면 `settle` 때문에 간격이 400~900ms로 벌어져 **Windows가 더블클릭으로
+인식하지 않습니다**(임계값 500ms). Hospital Code의 Code 셀이 "편집 불가"로 보였던
+것이 이 때문이었습니다.
+
+### 저장 시점을 가정해 사용자 DB를 오염시킨 일
+
+**자동화가 아니라 제가 낸 사고입니다.** `Setting > Procedure > Hospital Code`의 `+`
+버튼이 **Update 없이도 DB에 즉시 행을 만든다**는 것을 모른 채 프로브를 다섯 번
+돌려, 사용자 DB에 `Code`~`Code_4` 5행을 남겼습니다. 프로브 주석에는 이렇게 적어
+두었습니다 — **확인하지 않고 단정한 것입니다.**
+
+> Update를 누르지 않으므로 DB에는 아무 변화가 없다.
+
+Print Overlay와 Account는 Update까지 눌러야 저장되고, Hospital Code의 `+`는 즉시
+저장되며, 같은 화면의 **셀 편집은 다시 Update가 필요합니다.** 화면마다, 조작마다
+다릅니다.
+
+정리마저 한 번 실패했습니다. `ui.click(row)`는 행 **중앙**을 누르는데 이 목록은 행
+중앙 x가 정확히 톱니바퀴 버튼 위치였습니다. 행을 선택하려던 클릭이 대화상자를 열고,
+그 위에 뜬 `"Please select item to add."` 팝업이 이후 삭제 클릭을 **전부 삼켰습니다.**
+12번 반복해도 한 행도 지워지지 않은 이유입니다. 좌측 셀을 누르도록 고쳐 5행 전부
+지웠고, 픽스처·Reject 상태·계정이 모두 정상임을 확인했습니다.
+
+**얻은 규칙** (`AGENTS.md` 3항, 지식 운영 지침 10-1-2·10-1-3절):
+"관찰만 한다"는 프로브도 앞뒤로 DB를 찍어 대조한다. 목록 행을 **선택**할 때는 눌러도
+안전한 셀의 좌표를 rect에서 계산해 누른다. 되돌리기 어려운 조작 앞에서는 떠 있는
+대화상자를 먼저 정리한다 — 모달 하나가 남으면 이후 클릭이 전부 무효가 되고, 그
+증상은 "버튼이 동작하지 않는다"로 보여 원인을 엉뚱한 곳에서 찾게 됩니다.
 
 ### 미표시를 제품 문제로 의심하다 설정에서 원인을 찾은 일
 
@@ -719,7 +777,7 @@ sv.received = sv.received(ctx) or []  # 치환 결과 — 모듈 함수를 리�
 13·14차의 급락은 **제 실수**입니다. 숨기지 않고 §6에 경위를 적었습니다 — 재현할 수
 없는 상황에 '중단' 로직을 넣은 것이 원인이었습니다.
 
-### 완전 자동 (14건)
+### 완전 자동 (18건)
 
 | TC | 내용 |
 |---|---|
@@ -729,10 +787,14 @@ sv.received = sv.received(ctx) or []  # 치환 결과 — 모듈 함수를 리�
 | `WorkFlow_03` | Image Overlay(Bottom) 및 Print Overlay(Header/Top/Bottom) 설정 |
 | `WorkFlow_05` | 3D 수동 DICOM Send (사양이 정한 Recon 수신 대조) |
 | `WorkFlow_08` | 2D/3D Film Print (Header/Top/Bottom **영역별** 출력물 OCR·raster 대조) |
+| `WorkFlow_07` | Emergency 검사 Auto Send (**Send를 누르지 않고** 전송되는 것까지) |
 | `WorkFlow_09` | Normal 및 Anonymous Export (익명화 값까지 대조) |
+| `WorkFlow_11` | Image Reject 및 Restore (사유 값까지 DB 대조) |
+| `WorkFlow_12` | Study Reject 및 Restore (Rejected 필터로 목록 확인) |
+| `WorkFlow_13` | 계정 추가·수정 및 로그인 (**권한 표 56개 항목** 실측 대조) |
 | `XIPL_compatibility_01~06` | XIPL 연동 6종 (영상처리 파라미터 왕복 검증) |
 
-### 부분 자동 (6건)
+### 부분 자동 (7건)
 
 `Install_07/08/09` — 설정·데이터 유지는 DB로 자동 판정하고, 설치·업그레이드·제거
 실행 자체는 파괴적이라 수동입니다.
@@ -761,7 +823,7 @@ System > Account 에서 계정을 추가하고(New Account 모달), 권한 그�
 (회귀 7·13·14차) 매번 원인 추적에 오래 걸렸습니다. 권한 코드별 기능 범위 표도
 매뉴얼에 없어 6단계의 기대값을 확정할 수 없습니다.
 
-### 수동 (16건)
+### 수동 (11건)
 
 실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 사양 미확정, 또는 **UI
 드라이버 미구현**이 이유입니다. **임의로 자동 PASS를 만들지 않는 것이 이
