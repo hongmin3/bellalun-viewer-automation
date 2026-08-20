@@ -1422,6 +1422,13 @@ CONFIG_SAVE_MARKERS = ("save changed configuration", "changed configuration")
 CONFIG_SAVE_IDS = {"yes": 502, "no": 501, "cancel": 500}
 STUDY_DELETE_MARKERS = ("will be deleted", "are you sure")
 
+# Emergency 검사를 닫을 때 뜨는 팝업 (2026-08-20 실측, OCR):
+#   "This study is registered as Emergency study.
+#    Do you want to modify study information?"
+# 환자 정보를 제품이 자동 생성하므로 닫기 전에 수정 기회를 준다. 자동화는 정보를
+# 수정하지 않으므로 **No** 를 누른다.
+EMERGENCY_MODIFY_MARKERS = ("registered as emergency", "modify study information")
+
 
 def read_dialog_message(ui, dialog, tesseract_exe=None):
     """대화상자 문구를 **OCR로** 읽는다.
@@ -1552,6 +1559,13 @@ def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
         # 누르면 **검사가 삭제된다.** 저장 확인과 버튼 구성이 같으므로 문구로
         # 구분하지 못하면 절대 누르지 않는다. 처리는 confirm_study_delete가 한다.
         return None
+    if any(m in low for m in EMERGENCY_MODIFY_MARKERS):
+        # "This study is registered as Emergency study. Do you want to modify
+        #  study information?" — 정보를 수정하지 않으므로 **No**(우측)를 누른다.
+        no = buttons[-1]
+        ui.click(no, settle=1.5)
+        return {"saved": False, "ctrl_id": no.ctrl_id, "message": message,
+                "kind": "emergency_modify"}
     if not any(m in low for m in UNSAVED_CHANGES_MARKERS):
         raise FlowError(
             "Close 직후 2버튼 팝업이 떴지만 문구를 확정하지 못했습니다"

@@ -105,6 +105,8 @@ def main():
     sub.add_parser("run-wf05", help="TC_Basic_WorkFlow_05 3D 수동 DICOM Send")
     sub.add_parser("run-wf06",
                    help="TC_Basic_WorkFlow_06 All Images 및 Dose SR 전송")
+    sub.add_parser("run-wf07",
+                   help="TC_Basic_WorkFlow_07 Emergency 검사 Auto Send")
     sub.add_parser("run-wf08", help="TC_Basic_WorkFlow_08 2D/3D Film Print")
     sub.add_parser("run-wf09",
                    help="TC_Basic_WorkFlow_09 Normal 및 Anonymous Export")
@@ -163,7 +165,7 @@ def main():
         restore_baseline(ctx)
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
-    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06",
+    ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06", "run-wf07",
                    "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
@@ -335,6 +337,10 @@ def main():
     if args.cmd == "run-wf15":
         from tests.workflow15 import run as run_presend
         return finish(ctx, [run_presend(ctx)])
+
+    if args.cmd == "run-wf07":
+        from tests.workflow07 import run as run_emergency
+        return finish(ctx, [run_emergency(ctx)])
 
     if args.cmd == "run-wf08":
         from tests.workflow08 import run as run_film_print
