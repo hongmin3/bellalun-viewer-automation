@@ -280,6 +280,8 @@ def main():
         # WF_13은 계정 CRUD만 수행하고 로그인 계정을 바꾸지 않는다. 로그인 계정을
         # 바꾸면 뒤따르는 TC가 제한 권한으로 돌아 연쇄 실패한다(tests/workflow13.py).
         results.append(run_account(ctx))      # WF_13 계정 추가·수정
+        results.append(run_emergency(ctx))    # WF_07 Emergency 검사 Auto Send
+        results.append(run_hospital_code(ctx)) # WF_10 MWL Hospital Code 매핑
         results.append(run_reject(ctx))       # WF_11 Image Reject 및 Restore
         results.append(run_study_reject(ctx)) # WF_12 Study Reject 및 Restore
         results.append(run_presend(ctx))      # WF_15 Pre-send Preview
@@ -327,6 +329,7 @@ def main():
         return finish(ctx, [run_account(ctx)])
 
     if args.cmd == "run-wf10":
+        from tests.workflow07 import run as run_emergency
         from tests.workflow10 import run as run_hospital_code
         return finish(ctx, [run_hospital_code(ctx)])
 
