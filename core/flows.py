@@ -408,6 +408,47 @@ PRE_SEND_PREVIEW = {
     "layout_2x2": 1143,
 }
 
+# ---------------------------------------------------------------------------
+# Setting > Procedure > Hospital Code (WF_10 Step 1~2). 2026-08-20 실측.
+#
+# 목록 컬럼이 `Code / Procedure·View Position / Type / Description` 이라서
+# **코드 추가(Step 1)와 Procedure 매핑(Step 2)이 같은 화면**에서 이뤄진다.
+#
+# `+`(2558)는 모달이 아니라 **인라인 행**을 추가한다. 새 행은
+# `Code / Unknown / (빈 Type) / (빈 Description)` 으로 시작하고, Procedure 열의
+# **톱니바퀴(⚙)** 를 누르면 `View Position` 대화상자가 열린다. ⚙ 는 별도 컨트롤이
+# 아니라 셀에 그려져 있어 행 rect 에서 위치를 계산한다(상대 x≈0.50).
+SETTING_HOSPITAL_CODE = {
+    "list": 2557,
+    "add": 2558,
+    "delete": 2559,
+    # 행 안에서의 상대 위치. 좌표 상수를 저장하지 않고 비율만 둔다.
+    "code_cell_ratio": 0.08,
+    "gear_ratio": 0.50,
+}
+
+# ⚙ 가 띄우는 `View Position` 대화상자. 탭 4개와 OK/Cancel (실측).
+#   Procedure 탭의 목록 **행 ctrl_id 가 `PROCEDURE.PROCEDURE_INFO.Key` 와 일치**한다
+#   (1 = Routine Mammography, 2 = Mammography (Rt), ...). 다만 헤더 행도 id=1 이라
+#   y 좌표로 구분해야 한다 — 그래서 항목은 문구를 OCR 로 읽어 고른다.
+VIEW_POSITION_DIALOG = {
+    "tab_preset_2d": 2082,
+    "tab_preset_3dn": 2083,
+    "tab_preset_3dw": 2084,
+    "tab_procedure": 2086,
+    "ok": 1101,
+    "cancel": 1102,
+}
+
+
+def hospital_code_cell(row, which="code"):
+    """Hospital Code 행에서 셀(또는 ⚙)의 클릭 좌표를 rect 에서 계산한다."""
+    ratio = SETTING_HOSPITAL_CODE[
+        "code_cell_ratio" if which == "code" else "gear_ratio"]
+    left, top, right, bottom = row.rect
+    return (left + int((right - left) * ratio), (top + bottom) // 2)
+
+
 # Setting > DICOM > MWL 의 `Hospital Code Mapping` 콤보 (WF_10, 2026-08-20 실측).
 #
 # 사용자가 알려 준 절차: "mwl 서버에 임의의 코드에 커스텀 태그를 만들고 값을 넣은
