@@ -115,8 +115,15 @@ class TCResult:
     def manual(self, step, title, note, expected="", actual=""):
         return self.add(step, title, MANUAL, expected, actual, note)
 
-    def skip(self, step, title, note):
-        return self.add(step, title, SKIP, note=note)
+    def skip(self, step, title, note, expected="", actual=""):
+        """수행하지 않은 확인 항목.
+
+        **SKIP 은 TC 판정을 MANUAL 로 끌어내리지 않는다**(`verdict` 참고).
+        "확인해야 하는데 사람이 해야 한다"(MANUAL)와 "이 환경에서는 확인 대상이
+        아니다"(SKIP)는 다르기 때문이다. 그래서 SKIP 을 쓸 때는 `note` 에
+        **왜 대상이 아닌지**를 반드시 남긴다.
+        """
+        return self.add(step, title, SKIP, expected, actual, note)
 
     def attach(self, path):
         self.evidence.append(path)
@@ -131,12 +138,24 @@ class TCResult:
 
     @property
     def verdict(self):
+        """TC 단위 판정.
+
+        정책 (2026-08-21 사용자 확정)
+          FAIL 이 하나라도 있으면 FAIL.
+          MANUAL 이 남아 있으면 MANUAL — 사람이 아직 확인할 것이 있다는 뜻이다.
+          **SKIP 은 판정을 끌어내리지 않는다.** SKIP 은 "이 환경에서 확인 대상이
+          아니다"(예: 검증 환경서가 DICOM 전용 어댑터를 지정하지 않는 PC)이고,
+          MANUAL 은 "확인해야 하는데 자동으로 못 한다"이다. 둘을 같이 취급하면
+          대상이 아닌 항목 때문에 TC 가 영구히 MANUAL 로 남는다.
+        """
         c = self.counts
         if c[FAIL]:
             return FAIL
-        if c[PASS] == 0:
-            return SKIP if c[SKIP] else MANUAL
-        return MANUAL if c[MANUAL] else PASS
+        if c[MANUAL]:
+            return MANUAL
+        if c[PASS]:
+            return PASS
+        return SKIP
 
     def as_dict(self):
         return {
@@ -152,18 +171,108 @@ class TCResult:
 
 # ---------------------------------------------------------------------
 _STYLE = """
-body{font-family:'Malgun Gothic',sans-serif;margin:24px;color:#1a1a1a;background:#fff}
-h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 6px}
-.meta{color:#666;font-size:12px;margin-bottom:18px}
+:root{--fg:#1a1a1a;--mut:#666;--line:#d8d8d8;--head:#f3f4f6;--card:#fafafa}
+body{font-family:'Malgun Gothic',sans-serif;margin:0;color:var(--fg);background:#fff}
+.wrap{max-width:1500px;margin:0 auto;padding:24px}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:26px 0 8px;padding-top:10px;border-top:2px solid #eee}
+h3{font-size:13px;margin:14px 0 4px;color:#444}
+.meta{color:var(--mut);font-size:12px;margin-bottom:18px}
 table{border-collapse:collapse;width:100%;font-size:12.5px;margin-bottom:8px}
-th,td{border:1px solid #d8d8d8;padding:6px 8px;text-align:left;vertical-align:top}
-th{background:#f3f4f6;font-weight:600}
-td.s{font-weight:700;text-align:center;width:74px}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--head);font-weight:600}
+td.s{font-weight:700;text-align:center}
+/* 단계별 판정 표 — 기대값/실제값을 **같은 폭**으로 고정하고 판정 열을 줄인다
+   (2026-08-21 사용자 요청). `table-layout:fixed` + colgroup 이라야 브라우저가
+   내용 길이로 폭을 재조정하지 않아 두 열이 실제로 같은 크기로 보인다. */
+table.steps{table-layout:fixed}
+table.steps td,table.steps th{overflow-wrap:anywhere;word-break:break-word}
+table.steps col.c-step{width:38px}
+table.steps col.c-title{width:15%}
+table.steps col.c-verdict{width:46px}
+table.steps col.c-exp{width:27%}
+table.steps col.c-act{width:27%}
+table.steps col.c-note{width:auto}
+table.steps td.s{padding:6px 2px;font-size:10.5px;letter-spacing:-.4px}
+table.steps code{font-size:11.5px}
+/* 실패 항목 표도 같은 균형을 쓴다(TC/Step 열만 다르다). */
+table.fails{table-layout:fixed}
+table.fails td,table.fails th{overflow-wrap:anywhere;word-break:break-word}
+table.fails col.c-tc{width:190px}
+table.fails col.c-step{width:38px}
+table.fails col.c-title{width:15%}
+table.fails col.c-exp{width:27%}
+table.fails col.c-act{width:27%}
+table.fails col.c-note{width:auto}
 .PASS{color:#0a7f3f}.FAIL{color:#c62828}.MANUAL{color:#a06000}.SKIP{color:#777}
 .sum td.s{font-size:13px}
-tr.hdr td{background:#fafafa}
+tr.hdr td{background:var(--card)}
 code{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
+/* 대시보드 */
+.dash{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0 6px}
+.tile{flex:1 1 150px;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--card)}
+.tile .n{font-size:26px;font-weight:700;line-height:1.1}
+.tile .k{font-size:11.5px;color:var(--mut);margin-top:2px}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--line);margin:8px 0 2px}
+.bar span{display:block}
+.bPASS{background:#2e9e63}.bFAIL{background:#d34a4a}.bMANUAL{background:#e0a740}.bSKIP{background:#b8b8b8}
+.legend{font-size:11.5px;color:var(--mut)}
+.k{font-size:11px;color:var(--mut)}
+table.cov{table-layout:fixed}
+table.cov td,table.cov th{overflow-wrap:anywhere}
+tr.gh td{background:#eef1f5;font-weight:700;font-size:12.5px}
+table.holds{table-layout:fixed}
+table.holds td,table.holds th{overflow-wrap:anywhere}
+/* TC 카드 */
+.spec{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 12px}
+.spec>div{flex:1 1 260px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--card)}
+.spec h4{margin:0 0 4px;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
+.spec pre{margin:0;font-family:'Malgun Gothic',sans-serif;font-size:12px;white-space:pre-wrap;line-height:1.5}
+.files code{display:block}
+.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid var(--line);margin-left:6px;vertical-align:2px;color:var(--mut);background:#fff}
+a{color:#1558b0}
+.note{white-space:pre-wrap}
 """
+
+
+#: 자동화 커버리지 총괄 섹션의 분류 표시 순서 (2026-08-21 사용자 요청).
+#  "무엇을 자동화했고, 못 한 것은 왜 못 했는가"를 리포트 앞에서 한 번에 보여 준다.
+#  분류 문구와 사유는 `automation_scope.json` 의 각 TC `coverage` 항목에서 온다 —
+#  리포트가 사유를 스스로 만들지 않는다(근거 없는 설명을 만들지 않기 위해서다).
+COVERAGE_ORDER = (
+    "자동 판정(구현 완료)",
+    "부분 자동 — 남은 항목 있음",
+    "미구현 — 구현 가능(다음 작업 후보)",
+    "실물 장비·촬영 환경 필요",
+    "OS 신규 설치 환경 필요",
+    "파괴적 작업(설치·재부팅·종료)",
+    "판정 기준·문서 정보 미확정",
+    "사용자 지정 수동",
+)
+
+def _coverage_groups(coverage):
+    """커버리지 항목을 분류별로 묶어 표시 순서대로 돌려준다."""
+    buckets = {}
+    for item in coverage:
+        buckets.setdefault(str(item.get("category") or "(분류 미기재)"),
+                           []).append(item)
+    ordered = [(name, buckets.pop(name)) for name in COVERAGE_ORDER
+               if name in buckets]
+    ordered.extend(sorted(buckets.items()))
+    return ordered
+
+
+def _pct(part, whole):
+    return 0 if not whole else round(part * 100.0 / whole, 1)
+
+
+def _file_url(path):
+    """로컬 파일을 브라우저에서 열 수 있는 링크로 만든다."""
+    from urllib.parse import quote
+    p = str(path or "").replace("\\", "/")
+    if not p:
+        return ""
+    return "file:///" + quote(p, safe="/:")
 
 
 def _one_line(value, limit=200):
@@ -295,9 +404,18 @@ def write_txt(results, path, env=None):
     return path
 
 
-def write_reports(results, out_dir, run_name=None):
-    """CSV / JSON / HTML 리포트를 out_dir에 생성하고 경로를 반환한다."""
+def write_reports(results, out_dir, run_name=None, meta=None):
+    """CSV / JSON / HTML / TXT 리포트를 out_dir에 생성하고 경로를 반환한다.
+
+    `meta` (있으면 HTML 에 함께 실린다):
+      {"env":      {"항목": "값"},             # 실행 환경·버전
+       "checklist":{tc_id: {precondition, steps, expected, test_data, ...}},
+       "modules":  {tc_id: ["tests/workflow14.py", ...]},
+       "scope":    {tc_id: {"level":.., "reason":..}},
+       "command":  "python run.py run-regression"}
+    """
     os.makedirs(out_dir, exist_ok=True)
+    meta = meta or {}
     stamp = run_name or datetime.now().strftime("%Y%m%d_%H%M%S")
     base = os.path.join(out_dir, f"Result_{stamp}")
 
@@ -318,60 +436,324 @@ def write_reports(results, out_dir, run_name=None):
                    "results": [r.as_dict() for r in results]}, f, ensure_ascii=False, indent=2)
 
     # HTML
+    txt_path = write_txt(results, base + ".txt", env=meta.get("env"))
+    html_path = base + ".html"
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(_render_html(results, meta,
+                             siblings={"csv": csv_path, "json": json_path,
+                                       "txt": txt_path}))
+
+    return {"csv": csv_path, "json": json_path, "html": html_path, "txt": txt_path}
+
+
+def _render_html(results, meta, siblings=None):
+    """상세 HTML 리포트를 만든다.
+
+    포함해야 하는 것(사용자 요구): 요약 대시보드 / TC별 사양과 검증 목적 /
+    사전 조건 / 단계별 수행 내용과 기대 결과 / 실제 결과와 판정 근거 /
+    시작·종료 시각과 소요 시간 / 로그·스크린샷 링크 / 실패 원인 /
+    BLOCKED·SKIPPED 사유 / 자동화 코드 위치 / 실행 환경과 버전.
+    """
     e = html.escape
     total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
     for r in results:
         for k, v in r.counts.items():
             total[k] += v
+    checks = sum(total.values())
+    tc_total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    for r in results:
+        if r.verdict in tc_total:
+            tc_total[r.verdict] += 1
+    wall = sum(r.duration_seconds for r in results)
+    first_start = min((r.started for r in results), default=None)
+    last_end = max(((r.completed or datetime.now()) for r in results),
+                   default=None)
 
-    parts = [f"<style>{_STYLE}</style>",
-             "<h1>Bellalun Viewer 기본기능 자동화 결과</h1>",
-             f"<div class='meta'>생성 {datetime.now():%Y-%m-%d %H:%M:%S} &nbsp;|&nbsp; "
-             f"TC {len(results)}건 &nbsp;|&nbsp; "
-             f"<span class='PASS'>PASS {total[PASS]}</span> / "
-             f"<span class='FAIL'>FAIL {total[FAIL]}</span> / "
-             f"<span class='MANUAL'>MANUAL {total[MANUAL]}</span> / "
-             f"<span class='SKIP'>SKIP {total[SKIP]}</span></div>",
-             "<h2>요약</h2><table class='sum'><tr><th>TC ID</th><th>Title</th><th>판정</th>"
-             "<th>P</th><th>F</th><th>M</th><th>S</th><th>소요시간</th></tr>"]
+    cl = meta.get("checklist") or {}
+    mods = meta.get("modules") or {}
+    scope = meta.get("scope") or {}
+
+    P = [f"<style>{_STYLE}</style>", "<div class='wrap'>",
+         "<h1>Bellalun Viewer 기본기능 자동화 상세 리포트</h1>",
+         "<div class='meta'>기준 문서 "
+         "<code>Bellalun_Viewer_기본기능_Checklist_개정본.xlsx</code> "
+         "(시트 <code>개정 TC</code>) &nbsp;|&nbsp; 생성 "
+         f"{datetime.now():%Y-%m-%d %H:%M:%S}"
+         + (f" &nbsp;|&nbsp; 실행 명령 <code>{e(meta['command'])}</code>"
+            if meta.get("command") else "") + "</div>"]
+
+    # --- 대시보드 -----------------------------------------------------
+    P.append("<h2 style='border:0;padding:0;margin-top:6px'>요약 대시보드</h2>")
+    P.append("<div class='dash'>")
+    P.append(f"<div class='tile'><div class='n'>{len(results)}</div>"
+             "<div class='k'>수행 TC</div></div>")
+    for k in (PASS, FAIL, MANUAL, SKIP):
+        P.append(f"<div class='tile'><div class='n {k}'>{tc_total[k]}</div>"
+                 f"<div class='k'>TC {k}</div></div>")
+    P.append(f"<div class='tile'><div class='n'>{checks}</div>"
+             "<div class='k'>검증 항목(Step 단위)</div></div>")
+    P.append(f"<div class='tile'><div class='n'>{wall / 60:.1f}<span "
+             "style='font-size:14px'> 분</span></div>"
+             "<div class='k'>총 소요 시간</div></div>")
+    P.append("</div>")
+
+    P.append("<div class='bar'>")
+    for k in (PASS, FAIL, MANUAL, SKIP):
+        if total[k]:
+            P.append(f"<span class='b{k}' style='width:"
+                     f"{_pct(total[k], checks)}%' title='{k} {total[k]}'></span>")
+    P.append("</div>")
+    P.append("<div class='legend'>검증 항목 "
+             + " / ".join(f"<b class='{k}'>{k} {total[k]}</b> "
+                          f"({_pct(total[k], checks)}%)"
+                          for k in (PASS, FAIL, MANUAL, SKIP)) + "</div>")
+    if first_start and last_end:
+        P.append(f"<div class='meta'>실행 구간 {first_start:%Y-%m-%d %H:%M:%S} "
+                 f"~ {last_end:%Y-%m-%d %H:%M:%S}</div>")
+
+    # --- 실행 환경 ----------------------------------------------------
+    if meta.get("env"):
+        P.append("<h2>실행 환경 및 버전</h2><table>")
+        for k, v in meta["env"].items():
+            text = str(v)
+            # 실제로 존재하는 경로는 눌러서 열 수 있게 링크로 만든다
+            # (Viewer 로그·증적 폴더를 리포트에서 바로 열기 위해서다).
+            cell = (f"<a href='{_file_url(text)}'><code>{e(text)}</code></a>"
+                    if os.path.exists(text) else f"<code>{e(text)}</code>")
+            P.append(f"<tr><th style='width:230px'>{e(str(k))}</th>"
+                     f"<td>{cell}</td></tr>")
+        P.append("</table>")
+
+    # --- 자동화 커버리지 총괄 (기준 체크리스트 전체) --------------------
+    # 2026-08-21 사용자 요청: "실제 자동화 TC 를 못 만들어서 MANUAL 로 남겨 놓은
+    # TC" 를 리포트 초반에 한 섹션으로 모은다. 이번 실행에서 수행한 TC 뿐 아니라
+    # **기준 체크리스트 전체 행**을 대상으로 하며, 사유는 자동으로 추측하지 않고
+    # `automation_scope.json` 의 `coverage` 항목에서 읽는다.
+    coverage = meta.get("coverage") or []
+    if coverage:
+        groups = _coverage_groups(coverage)
+        # 타일은 **자동화 등급**(`automation_scope.json` 의 `level`) 으로 센다.
+        # 아래 표의 묶음은 **미자동화 사유 분류**라 기준이 다르다 — 예를 들어
+        # `Install_01` 은 코드가 완성된 FULL 이지만 승인 Release Note 가 없어
+        # '판정 기준 미확정' 으로 묶인다. 두 기준을 한 숫자로 섞으면 "FULL 20인데
+        # 자동 판정 19"처럼 읽혀 오해가 생긴다(2026-08-21에 실제로 그랬다).
+        levels = {}
+        for x in coverage:
+            levels[str(x.get("level"))] = levels.get(str(x.get("level")), 0) + 1
+        P.append(f"<h2>자동화 커버리지 총괄 — 기준 체크리스트 {len(coverage)} TC</h2>")
+        P.append("<div class='meta'>이번 실행 결과와 별개로, <b>기준 체크리스트의 "
+                 "모든 TC</b>가 자동화됐는지와 못 한 것의 사유를 모아 둔 표다. "
+                 "사유는 <code>automation_scope.json</code> 의 각 TC "
+                 "<code>coverage</code> 항목에서 그대로 읽는다 — 리포트가 사유를 "
+                 "만들어 내지 않는다. <b>타일은 자동화 등급</b>(FULL/PARTIAL/"
+                 "MANUAL)이고, <b>아래 표의 묶음은 미자동화 사유 분류</b>라 기준이 "
+                 "다르다.</div>")
+        P.append("<div class='dash'>")
+        P.append(f"<div class='tile'><div class='n'>{len(coverage)}</div>"
+                 "<div class='k'>기준 TC 총계</div></div>")
+        P.append(f"<div class='tile'><div class='n PASS'>"
+                 f"{levels.get('FULL', 0)}</div>"
+                 "<div class='k'>FULL — 전 단계 자동 판정</div></div>")
+        P.append(f"<div class='tile'><div class='n MANUAL'>"
+                 f"{levels.get('PARTIAL', 0)}</div>"
+                 "<div class='k'>PARTIAL — 일부 수동</div></div>")
+        P.append(f"<div class='tile'><div class='n SKIP'>"
+                 f"{levels.get('MANUAL', 0)}</div>"
+                 "<div class='k'>MANUAL — 수동 전용</div></div>")
+        P.append("</div>")
+        P.append("<table class='cov'><colgroup><col style='width:200px'>"
+                 "<col style='width:20%'><col style='width:66px'>"
+                 "<col style='width:28%'><col></colgroup>"
+                 "<tr><th>TC ID</th><th>Title</th><th>범위</th>"
+                 "<th>자동화하지 못한 지점</th><th>해제 조건</th></tr>")
+        for name, items in groups:
+            P.append(f"<tr class='gh'><td colspan='5'>{e(name)} — "
+                     f"{len(items)}건</td></tr>")
+            for x in items:
+                tc_id = str(x.get("tc_id") or "")
+                link = (f"<a href='#{e(tc_id)}'>{e(tc_id)}</a>"
+                        if tc_id in {r.tc_id for r in results} else e(tc_id))
+                P.append(f"<tr><td>{link}</td><td>{e(str(x.get('title') or ''))}</td>"
+                         f"<td class='s'>{e(str(x.get('level') or '-'))}</td>"
+                         f"<td class='note'>{e(str(x.get('gap') or '-'))}</td>"
+                         f"<td class='note'>{e(str(x.get('unblock') or '-'))}</td>"
+                         "</tr>")
+        P.append("</table>")
+
+    # --- 먼저 볼 것: FAIL 원인 ----------------------------------------
+    fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
+    if fails:
+        P.append(f"<h2>실패 항목 {len(fails)}건 — 원인</h2>")
+        P.append("<div class='meta'>회귀는 앞 단계가 뒤 TC 의 전제다. "
+                 "<b>가장 위의 FAIL 부터</b> 읽는다 — 아래 FAIL 중 일부는 그 "
+                 "실패의 결과일 수 있다.</div>")
+        P.append("<table class='fails'><colgroup>"
+                 "<col class='c-tc'><col class='c-step'><col class='c-title'>"
+                 "<col class='c-exp'><col class='c-act'><col class='c-note'>"
+                 "</colgroup>"
+                 "<tr><th>TC</th>"
+                 "<th>Step</th><th>확인 항목</th>"
+                 "<th>기대값</th><th>실제값</th><th>판정 근거 / 비고</th></tr>")
+        for r, c in fails:
+            P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
+                     f"<td>{e(str(c.step))}</td><td>{e(c.title)}</td>"
+                     f"<td><code>{e(str(c.expected))}</code></td>"
+                     f"<td><code>{e(str(c.actual))}</code></td>"
+                     f"<td class='note'>{e(c.note)}</td></tr>")
+        P.append("</table>")
+
+    # --- MANUAL / SKIP 사유 (TC 별로 한 행) ----------------------------
+    # 2026-08-21 사용자 요청: MANUAL Step 을 전부 행으로 펼치지 않고 **TC 별로
+    # 한 행**에 모은다. 이전에는 17행이 나와 "어느 TC 가 왜 막혔는가"가 묻혔다.
+    holds = []
+    for r in results:
+        items = [c for c in r.checks if c.status in (MANUAL, SKIP)]
+        if items:
+            holds.append((r, items))
+    if holds:
+        total_items = sum(len(x) for _, x in holds)
+        P.append(f"<h2>수동 확인 / 미수행 — TC {len(holds)}건 "
+                 f"(확인 항목 {total_items}개) — 사유와 해제 조건</h2>")
+        P.append("<div class='meta'>TC 하나에 여러 항목이 걸려 있어도 "
+                 "<b>한 행</b>으로 묶어 적는다. 항목별 원문 사유는 각 TC 상세의 "
+                 "단계별 판정 표에 그대로 남아 있다.</div>")
+        P.append("<table class='holds'><colgroup><col style='width:190px'>"
+                 "<col style='width:52px'><col style='width:30%'>"
+                 "<col></colgroup>"
+                 "<tr><th>TC</th><th>건수</th><th>확인 항목</th>"
+                 "<th>사유 / 해제 조건</th></tr>")
+        for r, items in holds:
+            labels = "<br>".join(
+                f"<span class='s {c.status}'>[{c.status}]</span> "
+                f"Step {e(str(c.step))} {e(c.title)}" for c in items)
+            # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
+            # 중복을 접어 **서로 다른 사유만** 남긴다.
+            reasons, seen = [], set()
+            for c in items:
+                text = " ".join(str(c.note or "").split())
+                if text and text not in seen:
+                    seen.add(text)
+                    reasons.append(text)
+            body = "<br><br>".join(e(x) for x in reasons) or "(사유 미기재)"
+            P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a><br>"
+                     f"<span class='k'>{e(r.title)}</span></td>"
+                     f"<td style='text-align:center'>{len(items)}</td>"
+                     f"<td>{labels}</td>"
+                     f"<td class='note'>{body}</td></tr>")
+        P.append("</table>")
+
+    # --- TC 요약 표 + 목차 ---------------------------------------------
+    P.append("<h2>TC 별 판정</h2>")
+    P.append("<table class='sum'><tr><th>TC ID</th><th>Title</th>"
+             "<th>자동화 범위</th><th>판정</th><th>P</th><th>F</th><th>M</th>"
+             "<th>S</th><th>시작</th><th>종료</th><th>소요</th></tr>")
     for r in results:
         c = r.counts
-        parts.append(f"<tr><td>{e(r.tc_id)}</td><td>{e(r.title)}</td>"
-                     f"<td class='s {r.verdict}'>{r.verdict}</td>"
-                     f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td><td>{c[SKIP]}</td>"
-                     f"<td>{r.duration_seconds:.1f}s</td></tr>")
-    parts.append("</table>")
+        lvl = (scope.get(r.tc_id) or {}).get("level", "-")
+        end = r.completed or datetime.now()
+        P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
+                 f"<td>{e(r.title)}</td><td>{e(str(lvl))}</td>"
+                 f"<td class='s {r.verdict}'>{r.verdict}</td>"
+                 f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td>"
+                 f"<td>{c[SKIP]}</td>"
+                 f"<td>{r.started:%H:%M:%S}</td><td>{end:%H:%M:%S}</td>"
+                 f"<td>{r.duration_seconds:.1f}s</td></tr>")
+    P.append("</table>")
 
+    # --- TC 상세 -------------------------------------------------------
     for r in results:
-        parts.append(f"<h2>{e(r.tc_id)} — {e(r.title)} "
-                     f"<span class='{r.verdict}'>[{r.verdict}]</span></h2>")
-        parts.append("<table><tr><th style='width:46px'>Step</th><th>확인 항목</th>"
-                     "<th style='width:74px'>판정</th><th>기대값</th><th>실제값</th><th>비고</th></tr>")
+        spec = cl.get(r.tc_id) or {}
+        sc = scope.get(r.tc_id) or {}
+        end = r.completed or datetime.now()
+        P.append(f"<h2 id='{e(r.tc_id)}'>{e(r.tc_id)} — {e(r.title)} "
+                 f"<span class='{r.verdict}'>[{r.verdict}]</span>"
+                 + (f"<span class='badge'>{e(str(sc.get('level')))}</span>"
+                    if sc.get("level") else "") + "</h2>")
+        P.append(f"<div class='meta'>시작 {r.started:%Y-%m-%d %H:%M:%S}"
+                 f" &nbsp;→&nbsp; 종료 {end:%Y-%m-%d %H:%M:%S}"
+                 f" &nbsp;|&nbsp; 소요 {r.duration_seconds:.1f}s</div>")
+
+        # 사양·검증 목적 (기준 문서 원문)
+        cells = []
+        if spec.get("precondition"):
+            cells.append(("사전 조건 (Precondition)", spec["precondition"]))
+        if spec.get("steps"):
+            cells.append(("수행 단계 (Step Description)", spec["steps"]))
+        if spec.get("expected"):
+            cells.append(("기대 결과 (Expected Result)", spec["expected"]))
+        if spec.get("test_data"):
+            cells.append(("테스트 데이터 (Test Data)", spec["test_data"]))
+        if sc.get("reason"):
+            cells.append(("자동화 범위와 사유", sc["reason"]))
+        if cells:
+            P.append("<h3>기준 문서 원문 — 이 TC 가 무엇을 검증하는가</h3>")
+            P.append("<div class='spec'>")
+            for head, body in cells:
+                P.append(f"<div><h4>{e(head)}</h4><pre>{e(body)}</pre></div>")
+            P.append("</div>")
+
+        # 자동화 코드 위치
+        files = mods.get(r.tc_id) or []
+        if files:
+            P.append("<h3>자동화 코드 위치</h3>"
+                     "<div class='meta files'>"
+                     + "".join(f"<code>{e(p)}</code>" for p in files)
+                     + "</div>")
+
+        # 단계별 판정
+        P.append("<h3>단계별 판정 — 기대값 / 실제값 / 근거</h3>")
+        # 기대값/실제값을 **같은 폭**으로 고정하고 판정 열을 좁힌다
+        # (2026-08-21 사용자 요청: 표를 봤을 때 두 값이 바로 대조되어야 한다).
+        P.append("<table class='steps'><colgroup>"
+                 "<col class='c-step'><col class='c-title'>"
+                 "<col class='c-verdict'><col class='c-exp'><col class='c-act'>"
+                 "<col class='c-note'></colgroup>"
+                 "<tr><th>Step</th><th>확인 항목</th>"
+                 "<th>판정</th><th>기대값</th><th>실제값</th>"
+                 "<th>판정 근거 / 비고</th></tr>")
         for c in r.checks:
-            parts.append(f"<tr><td>{e(str(c.step))}</td><td>{e(c.title)}</td>"
-                         f"<td class='s {c.status}'>{c.status}</td>"
-                         f"<td><code>{e(str(c.expected))}</code></td>"
-                         f"<td><code>{e(str(c.actual))}</code></td>"
-                         f"<td>{e(c.note)}</td></tr>")
-        parts.append("</table>")
-        if r.timings:
-            parts.append("<table><tr><th>종류</th><th>단계/대기</th><th>소요시간</th>"
-                         "<th>종료 원인</th><th>상세</th></tr>")
-            for timing in r.timings:
-                parts.append(
-                    f"<tr><td>{e(timing['kind'])}</td><td>{e(timing['name'])}</td>"
-                    f"<td>{timing['duration_seconds']:.3f}s</td>"
-                    f"<td>{e(timing['outcome'])}</td>"
-                    f"<td>{e(timing['detail'])}</td></tr>")
-            parts.append("</table>")
+            P.append(f"<tr><td>{e(str(c.step))}</td><td>{e(c.title)}</td>"
+                     f"<td class='s {c.status}'>{c.status}</td>"
+                     f"<td><code>{e(str(c.expected))}</code></td>"
+                     f"<td><code>{e(str(c.actual))}</code></td>"
+                     f"<td class='note'>{e(c.note)}</td></tr>")
+        P.append("</table>")
+
+        # 증적 (클릭 가능한 링크)
         if r.evidence:
-            parts.append("<div class='meta'>증적: " +
-                         ", ".join(f"<code>{e(p)}</code>" for p in r.evidence) + "</div>")
+            P.append("<h3>증적 (스크린샷·파일)</h3><table>"
+                     "<tr><th style='width:46px'>#</th><th>경로</th></tr>")
+            for i, p in enumerate(r.evidence, 1):
+                P.append(f"<tr><td>{i}</td><td>"
+                         f"<a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
+            P.append("</table>")
 
-    html_path = base + ".html"
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(parts))
+        # 소요시간 분해
+        if r.timings:
+            accounted = sum(t["duration_seconds"] for t in r.timings)
+            unaccounted = r.duration_seconds - accounted
+            P.append("<h3>소요 시간 분해</h3>")
+            P.append("<table><tr><th style='width:60px'>종류</th>"
+                     "<th>단계 / 대기</th><th style='width:90px'>소요</th>"
+                     "<th style='width:80px'>결과</th><th>상세</th></tr>")
+            for t in r.timings:
+                P.append(f"<tr><td>{e(t['kind'])}</td><td>{e(t['name'])}</td>"
+                         f"<td>{t['duration_seconds']:.3f}s</td>"
+                         f"<td class='{t['outcome']}'>{e(t['outcome'])}</td>"
+                         f"<td>{e(t['detail'])}</td></tr>")
+            if unaccounted > 5:
+                P.append("<tr class='hdr'><td>-</td><td>(스텝 외) 전제 준비·"
+                         "재시도 등</td>"
+                         f"<td>{unaccounted:.1f}s</td><td>-</td>"
+                         f"<td>스텝 합계 {accounted:.1f}s / TC 전체 "
+                         f"{r.duration_seconds:.1f}s</td></tr>")
+            P.append("</table>")
 
-    txt_path = write_txt(results, base + ".txt")
-
-    return {"csv": csv_path, "json": json_path, "html": html_path, "txt": txt_path}
+    if siblings:
+        P.append("<h2>같은 실행의 다른 산출물</h2><table>")
+        for k, p in siblings.items():
+            P.append(f"<tr><th style='width:80px'>{e(k)}</th>"
+                     f"<td><a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
+        P.append("</table>")
+    P.append("</div>")
+    return "\n".join(P)

@@ -11,7 +11,6 @@ r"""검사·영상 데이터 흐름 TC의 판정부 (pre/post DB 스냅샷 대�
   TC_Basic_WorkFlow_12  Study Reject 및 Restore
   TC_Basic_WorkFlow_13  계정 추가·수정 및 로그인
   TC_Basic_WorkFlow_14  Setting Export 및 Import
-  TC_Basic_WorkFlow_16  Kiosk 및 System Launcher
 
 **이 모듈은 `run.py`에 연결돼 있지 않다.** pre/post 스냅샷을 만드는 UI 드라이버가
 아직 없어서, 판정 함수만 준비된 상태다. WF_04는 `tests/workflow04.py`가 실제 UI로

@@ -55,10 +55,14 @@ def workflow_06(ctx):
                   actual={"landmarks": flows.known_screen(ui)})
             return r
 
+        # `SCPUseType=0`(설정 행)만 본다 — 전송 작업 사본 행도 `Use=1` 이라 그것을
+        # 집으면 엉뚱한 행의 `SendDoseSR` 을 판정한다
+        # (`core/dicom_settings.STORAGE_SCP_USE_TYPE` 주석의 실측 근거 참고).
         storage = ctx.db.one(
             "CONFIGURATION",
-            "SELECT TOP 1 [Key],Name,SendDoseSR FROM DICOM_STORAGE "
-            "WHERE [Use]=1 ORDER BY [Key]") or {}
+            "SELECT TOP 1 [Key],Name,SendDoseSR,SCPUseType FROM DICOM_STORAGE "
+            "WHERE [Use]=1 AND SCPUseType=@t ORDER BY [Key]",
+            {"t": ds.STORAGE_SCP_USE_TYPE}) or {}
         r.assert_true(
             0, "[전제] Storage 설정의 Dose SR 전송 활성화",
             int(storage.get("SendDoseSR") or 0) == 1,

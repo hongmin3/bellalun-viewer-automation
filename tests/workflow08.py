@@ -107,87 +107,21 @@ def _film_from_selected_study(ui):
                      "film": film[0].rect, "pane_ratio": pane_area / film_area}
 
 
-def _norm(value):
-    # OCR 은 필름 글꼴의 0 을 O 로 자주 읽는다. 기대값도 같은 변환을 거치므로
-    # 이 치환이 판정을 느슨하게 만들지 않는다.
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower()).replace("o", "0")
+# 필름 OCR 판독·판정은 `core/print_overlay.py` 로 옮겼다(2026-08-21).
+# `TC_Basic_WorkFlow_03` Step 6 도 같은 판정을 하므로 구현을 하나로 둔다 —
+# OCR 경로가 둘이면 한쪽만 고쳐 다른 쪽이 조용히 낡는다.
+_norm = print_overlay.film_norm
 
 
 def _ocr_areas(image, path_prefix, tesseract_exe, result=None):
-    """필름/프리뷰를 **영역별로** 크롭해 OCR 하고 크롭 이미지를 증적으로 남긴다.
-
-    한 곳만 크롭하면 영역을 구분하지 못한다 — 6개가 전부 Top 에 몰려 있어도
-    통과해 버린다. 영역별로 읽어야 "Top 이외 영역에도 들어갔는지"가 증명된다.
-    """
-    import pytesseract
-
-    if tesseract_exe:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    width, height = image.size
-    texts = {}
-    for area, box in print_overlay.film_regions(width, height).items():
-        crop = image.crop(box).convert("L")
-        # 배율 하나에 의존하지 않는다 - 8배에서 `MWL` 이 `MIWL` 로 읽히는 것을
-        # 실측했다. 판독본 전부를 남겨 사람이 감사할 수 있게 한다.
-        reads = {}
-        for scale in print_overlay.FILM_OCR_SCALES:
-            big = crop.resize((crop.width * scale, crop.height * scale),
-                              Image.Resampling.LANCZOS)
-            reads[f"x{scale}"] = pytesseract.image_to_string(
-                ImageOps.autocontrast(big), config="--psm 6", lang="eng").strip()
-        texts[area] = reads
-        crop_path = f"{path_prefix}_{area}.png"
-        Path(crop_path).parent.mkdir(parents=True, exist_ok=True)
-        crop.save(crop_path)
-        if result is not None:
-            result.attach(crop_path)
-    return texts
+    attach = result.attach if result is not None else None
+    return print_overlay.ocr_film_areas(image, path_prefix, tesseract_exe,
+                                        attach=attach)
 
 
-def _film_expectations(target):
-    """영역별 기대값. 환자 정보는 **DB 값에서** 만든다.
-
-    상수를 박아 두면 픽스처가 바뀌어도 통과한다. 영상 속성값(두께/압박력/HVL/AGD)은
-    영상 생성기가 넣은 값이라 필름 실측 문구를 쓰되, 값과 라벨을 함께 본다.
-
-    필름 렌더링 형태 (2026-08-19 실측)
-      Header : 라벨 없이 **값만**, 1 X 2 두 칸에 나란히
-      Top    : 라벨 없이 **값만** (`0.0 cm`, `35 N`)
-      Bottom : **`라벨: 값`** (`HVL: Not valid`)
-    """
-    pid = _norm(target["PatientID"])
-    birth = _norm(target["PatientBirthDate"])
-    return {
-        "header": {
-            "Patient ID": lambda n: pid in n,
-            "Birth Date": lambda n: birth in n,
-        },
-        "top": {
-            "Thickness": lambda n: "00cm" in n,
-            "Compression Force": lambda n: "35n" in n or "353n" in n,
-        },
-        "bottom": {
-            # 필름의 안티에일리어싱이 V 를 ¥ 로 만들어 정규화 후 "hyl" 이 된다.
-            # 값(`Not valid`)과 라벨을 함께 요구하므로 느슨해지지 않는다.
-            "HVL": lambda n: ("n0tvalid" in n and
-                              ("hvl" in n or "hyl" in n or "hl" in n)),
-            "AGD": lambda n: "n0tvalid" in n and ("agd" in n or "gd" in n),
-        },
-    }
-
-
-def _judge_areas(texts, expect):
-    """영역별 판정 결과 `{area: {label: bool}}` 와 읽은 문구를 함께 돌려준다."""
-    seen = {}
-    for area, checks in expect.items():
-        norms = [_norm(read) for read in (texts.get(area) or {}).values()]
-        seen[area] = {label: any(test(norm) for norm in norms)
-                      for label, test in checks.items()}
-    return seen
-
-
-def _all_ok(seen):
-    return all(ok for area in seen.values() for ok in area.values())
+_film_expectations = print_overlay.film_expectations
+_judge_areas = print_overlay.judge_film_areas
+_all_ok = print_overlay.film_all_ok
 
 
 def _image_similarity(path_a, path_b):

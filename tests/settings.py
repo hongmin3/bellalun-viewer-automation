@@ -5,10 +5,22 @@ r"""설정·계정·시스템 계열 TC의 판정부.
   TC_Basic_WorkFlow_10  MWL Hospital Code와 Procedure 매핑    [pre/post]
   TC_Basic_WorkFlow_13  계정 추가·수정 및 로그인               [pre/post]
   TC_Basic_WorkFlow_14  Setting Export 및 Import              [pre/post]
-  TC_Basic_WorkFlow_16  Kiosk 및 System Launcher (검증부)      [완전 자동]
 
-WF_03은 `tests/workflow03.py`가 실제 UI로 수행하므로 여기 판정부는 쓰이지 않는다.
-나머지는 pre/post 스냅샷을 만드는 UI 드라이버가 없어 `run.py`에 연결돼 있지 않다.
+**2026-08-21 현재 이 파일의 판정부는 어느 것도 실행 경로가 아니다.** 각 TC 는
+드라이버와 판정을 함께 가진 전용 모듈로 옮겨졌다. 새로 구현할 때 이 파일의 함수를
+되살리지 말고 아래 모듈을 본다.
+
+| 이 파일의 함수 | 실제 실행 경로 |
+|---|---|
+| `workflow_03_evaluate` | `tests/workflow03.py` (`run-wf03`) |
+| `workflow_10_evaluate` | `tests/workflow10.py` (`run-wf10`) — 1~7단계 전부 |
+| `workflow_13_evaluate` | `tests/workflow13.py` (`run-wf13`) |
+| `workflow_14_evaluate` | `tests/workflow14.py` (`run-wf14`) + `core/setting_transfer.py` + `core/setting_values.py` |
+| `WF_16` 판정부 | **삭제** — 사용자 지정 수동 TC라 `tests/workflow16.py`가 MANUAL 한 건만 기록한다 |
+
+남겨 둔 이유: pre/post 스냅샷만으로 판정하는 형태가 다른 TC 를 설계할 때 참고가
+되고, 지우면 다음 사람이 같은 것을 다시 만들 수 있다. **다만 `run.py` 에 연결하지
+않는다** — 두 경로가 같은 TC ID 로 판정을 내면 리포트가 이중으로 찍힌다.
 
 **2026-08-19 번호 재정렬**: 이전 체크리스트 번호를 쓰고 있었다(예: Kiosk가 `WF_18`).
 기준 문서인 `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`에 맞춰 다시 매겼다
@@ -17,7 +29,7 @@ WF_03은 `tests/workflow03.py`가 실제 UI로 수행하므로 여기 판정부�
 
 import os
 
-from core import snapshot, sysinfo
+from core import snapshot
 from core.result import TCResult, PASS, FAIL, MANUAL
 
 
@@ -194,55 +206,6 @@ def _fmt_diff(d):
     return "; ".join(f"{k}({_fmt_section(v)})" for k, v in sorted(d.items()))
 
 
-# --------------------------------------------------------------------------
-def workflow_16_verify(ctx):
-    """Kiosk / System Launcher 검증부. 재시작·로그인은 수동."""
-    r = TCResult("TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher (검증부)")
-
-    row = ctx.db.one("CONFIGURATION",
-                     "SELECT UseKiosk,ExitPermission,LastLoginID FROM SYSTEM_COMMON") or {}
-    expected_kiosk = ctx.cfg["install_option"]["expected_kiosk"]
-    r.assert_equal(2, "[Setting > System > Security] Kiosk mode 저장",
-                   expected_kiosk, row.get("UseKiosk"),
-                   note="config.json > install_option.expected_kiosk 기준. "
-                        "Use=1 / Not Use=0 매핑은 실제 화면과 대조 필요")
-
-    shell = sysinfo.registry_value(
-        r"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon", "Shell")
-    if expected_kiosk:
-        r.assert_true(3, "Kiosk 적용 시 Winlogon Shell 대체", bool(shell) and "explorer" not in (shell or "").lower(),
-                      expected="Bellalun Shell 항목", actual=shell or "(미설정)")
-    else:
-        r.assert_true(3, "Kiosk 미적용 시 Winlogon Shell 기본값",
-                      not shell or "explorer" in shell.lower(),
-                      expected="explorer.exe 또는 미설정", actual=shell or "(미설정)")
-
-    # Step 5~8. System Launcher 실행 대상 존재 확인
-    targets = {
-        "Viewer": "VIEWER.exe",
-        "System Launcher": "SystemLauncher.exe",
-        "Bellalun System Setup": "Launcher",
-    }
-    for label, rel in targets.items():
-        p = os.path.join(ctx.cfg["install_dir"], rel)
-        r.assert_true(5, f"System Launcher 실행 대상 [{label}] 존재", os.path.exists(p),
-                      expected=p, actual="존재" if os.path.exists(p) else "없음")
-
-    running = set(sysinfo.process_names())
-    r.add(8, "현재 기동 중인 Bellalun 프로세스", PASS,
-          expected="참고 정보",
-          actual=", ".join(sorted(p for p in running
-                                  if p.lower().startswith(("viewer", "systemlauncher",
-                                                           "bellalun", "pv.loader",
-                                                           "upshandler")))) or "없음")
-
-    r.manual(3, "시스템 재시작 후 Kiosk 조건 실행", "PC 재시작이 필요해 수동 수행")
-    r.manual(9, "일반 계정에서 Exit 제한", f"ExitPermission={row.get('ExitPermission')} "
-                                         "코드 의미가 문서상 확인되지 않아 화면 확인 필요")
-    r.manual(12, "Shutdown 동작", "PC 종료를 유발하므로 자동화 대상에서 제외")
-    return r
-
-
 REGISTRY = [
     {"id": "TC_Basic_WorkFlow_03", "title": "Image Overlay 및 Print Overlay 설정",
      "mode": "prepost", "evaluate": workflow_03_evaluate,
@@ -257,6 +220,4 @@ REGISTRY = [
      "mode": "prepost", "evaluate": workflow_14_evaluate,
      "pre_hint": "Setting Export 직후(기준 설정 상태)",
      "post_hint": "설정 변경 → Import → Viewer 재시작 후"},
-    {"id": "TC_Basic_WorkFlow_16", "title": "Kiosk 및 System Launcher (검증부)",
-     "mode": "single", "run": workflow_16_verify},
 ]

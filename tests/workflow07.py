@@ -52,6 +52,7 @@ from __future__ import annotations
 import os
 import time
 
+from core import dicom_settings as ds
 from core import flows, screen, uitext
 from core import send_verify as sv
 from core import viewer_processing
@@ -142,9 +143,13 @@ def run(ctx):
                   note="실제 X-ray 노출은 자동 실행하지 않습니다.")
             return r
 
+        # `SCPUseType=0`(설정 행)만 본다 — 전송 작업 사본 행도 `Use=1` 이다
+        # (`core/dicom_settings.STORAGE_SCP_USE_TYPE` 주석의 실측 근거 참고).
         storage = ctx.db.one(
             "CONFIGURATION",
-            "SELECT TOP 1 [Key],Name,SendDoseSR FROM DICOM_STORAGE WHERE [Use]=1")
+            "SELECT TOP 1 [Key],Name,SendDoseSR,SCPUseType FROM DICOM_STORAGE "
+            "WHERE [Use]=1 AND SCPUseType=@t ORDER BY [Key]",
+            {"t": ds.STORAGE_SCP_USE_TYPE})
         r.assert_true(
             0, "[전제] Storage 등록 + Dose SR 전송 활성 + Demo 모드",
             bool(storage) and int(storage.get("SendDoseSR") or 0) == 1,
@@ -291,21 +296,32 @@ def run(ctx):
                  "(core/send_verify.is_dose_sr_row).")
         if dose_q and any(int(q["State"]) != sv.QUEUE_STATE_DONE for q in dose_q):
             r.manual(
-                6, "Dose SR Queue 가 Done 이 아니다",
-                f"Dose SR 행 {[q['Key'] for q in dose_q]} 이 "
-                f"State={[q['State'] for q in dose_q]} 로 남았다. 이 환경은 Demo "
-                "가상 촬영이라 RDSR 생성 조건이 성립하지 않는다 — WF_06/WF_15 에서도 "
-                "같은 상태를 반복 확인했다. **전제 미충족이므로 제품 결함으로 보고하지 "
-                "않는다.** **해제 조건**: 실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 "
-                "뒤 재확인. **이 실행으로 말할 수 없는 것**: Emergency Auto Send 경로의 "
-                "Dose SR 전송이 정상인지 여부.")
+                6, "Dose SR Queue 상태가 Done 이다",
+                "확인 항목은 **기대 상태**를 적는다(2026-08-21 사용자 지적) — 이전에는 "
+                "'Done 이 아니다' 라고 관측 결과를 제목에 적어 확인 항목처럼 읽히지 "
+                "않았다. 판정: 이 환경은 Demo(F8) 가상 촬영이라 RDSR 생성 조건이 "
+                "성립하지 않아 **전제 미충족(MANUAL)** 이다. 제품 결함으로 보고하지 "
+                "않는다 — WF_06/WF_15 에서도 같은 상태를 반복 확인했다. "
+                f"**실측**: Dose SR 행 {[q['Key'] for q in dose_q]} 이 "
+                f"State={[q['State'] for q in dose_q]} (Done={sv.QUEUE_STATE_DONE}) "
+                "로 남았다. "
+                "**해제 조건**: 실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 "
+                "뒤 재확인. "
+                "**고도화 예정**: Dose SR 전송 자체를 검증하는 자동화는 아직 없다 — "
+                "`NEXT_TASK.md` 의 '고도화 대기 항목' 에 등록해 두었다. "
+                "**이 실행으로 말할 수 없는 것**: Emergency Auto Send 경로의 "
+                "Dose SR 전송이 정상인지 여부.",
+                expected=f"Dose SR 행 State={sv.QUEUE_STATE_DONE}",
+                actual={"dose_sr": dose_q})
         elif not dose_q:
             r.manual(
-                6, "Dose SR 이 Queue 에 등록되지 않았다",
+                6, "Dose SR 이 Queue 에 등록된다",
                 "Auto Send 로 영상은 전송됐지만 Dose SR 행이 없다. Demo 가상 촬영은 "
                 "RDSR 생성 조건을 충족하지 않는다(WF_06 과 같은 판단). "
                 "**해제 조건**: 실제 촬영 환경. "
-                "**이 실행으로 말할 수 없는 것**: RDSR 자동 전송 여부.")
+                "**고도화 예정**: Dose SR 전송 검증 자동화(NEXT_TASK.md 참고). "
+                "**이 실행으로 말할 수 없는 것**: RDSR 자동 전송 여부.",
+                expected="Dose SR 행 1건 이상", actual={"dose_sr": []})
 
         # --- Step 7: 수신 확인 --------------------------------------------
         outcome = sv.wait_received_stable(ctx, wait=90)

@@ -217,15 +217,19 @@ def search(ctx, pattern, flags=re.I, context=160, limit=20):
     return out
 
 
-def cite(ctx, pattern, **kw):
+def cite(ctx, pattern, fallback="", **kw):
     """`search` 결과를 판정 `note`에 넣을 한 줄 인용문으로 만든다.
 
-    찾지 못하면 빈 문자열. **근거가 없으면 없다고 말하는 것**이 규칙이라
-    억지로 문구를 만들지 않는다.
+    찾지 못하면 `fallback`(기본 빈 문자열). **근거가 없으면 없다고 말하는 것**이
+    규칙이라 억지로 문구를 만들지 않는다.
+
+    `fallback` 은 **사람이 문서에서 확인해 적어 둔 인용문**을 쓸 때만 준다.
+    PDF 추출이 줄바꿈·기호를 흩뜨려 정규식이 빗나가는 경우가 있어(사양서1 60절의
+    글머리표가 그렇다) 근거를 잃지 않기 위한 장치다. 추측한 문구를 넣지 않는다.
     """
     hits = search(ctx, pattern, limit=1, **kw)
     if not hits:
-        return ""
+        return fallback
     hit = hits[0]
     srs = f" {hit['srs'][0]}" if hit["srs"] else ""
     return f"근거: {hit['source']} {hit['page']}쪽{srs} — \"{hit['text'][:120]}\""

@@ -1,42 +1,422 @@
 [
-  {"tc_id": "TC_Basic_Install_01", "title": "설치 버전 및 패키지 구성 확인", "level": "FULL", "reason": "Release Note 기준값이 config에 등록되면 레지스트리·설치 파일·DB 버전을 자동 대조(tests/install.py). 승인 Release Note 미등록 시 MANUAL"},
-  {"tc_id": "TC_Basic_Install_02", "title": "Viewer 실행 전 필수 환경 확인", "level": "FULL", "reason": "VC++ 재배포, SQL Server(BELLALUN) 시작 유형·상태, 방화벽 허용 항목, DICOM NIC IPv4를 자동 점검(tests/install.py)"},
-  {"tc_id": "TC_Basic_Install_03", "title": "Windows 10 신규 설치", "level": "MANUAL", "reason": "Windows 10 신규 설치 환경이 필요하다"},
-  {"tc_id": "TC_Basic_Install_04", "title": "Windows 11 신규 설치", "level": "MANUAL", "reason": "Windows 11 신규 설치 환경이 필요하다"},
-  {"tc_id": "TC_Basic_Install_05", "title": "Windows 11 IoT Enterprise LTSC 신규 설치", "level": "MANUAL", "reason": "Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다"},
-  {"tc_id": "TC_Basic_Install_06", "title": "신규 설치 후 기본 실행 확인", "level": "MANUAL", "reason": "Detector/Gantry 실제 연결과 VIVIX-M Setup·Bellalun System Setup 실행 확인이 필요하다"},
-  {"tc_id": "TC_Basic_Install_07", "title": "설치 옵션 및 변경 적용 확인", "level": "PARTIAL", "reason": "Theme/Language/Kiosk 설정 저장은 DB로 자동 판정(tests/settings.py), 설치 중 옵션 선택은 수동"},
-  {"tc_id": "TC_Basic_Install_08", "title": "Upgrade 후 기존 데이터 유지 확인", "level": "PARTIAL", "reason": "Upgrade 후 데이터 유지를 DB로 자동 판정, Upgrade 실행 자체는 수동"},
-  {"tc_id": "TC_Basic_Install_09", "title": "Uninstall 및 데이터 유지 확인", "level": "PARTIAL", "reason": "Uninstall 후 잔존 데이터를 자동 판정, Uninstall은 파괴적 작업이라 수동"},
-  {"tc_id": "TC_Basic_WorkFlow_01", "title": "MWL 및 Local 검사 생성", "level": "FULL", "reason": "MWL 처방 준비·조회·환자정보 대조·보류와 New Patient 생성·DB 대조까지 완전자동(tests/workflow01.py, run-wf01)"},
-  {"tc_id": "TC_Basic_WorkFlow_02", "title": "공통 2D/3D 검사 촬영 및 Tool 적용", "level": "FULL", "reason": "보류 검사 재개, 2D/3D-N View Position 등록·Demo F8 촬영, InstanceType·Series·Group·UID 구조, 2D/3D Recon Tool(Window Level·Zoom·Pan·Annotation) 적용과 검사 종료 후 Examined 재조회까지 자동 검증(tests/workflow02.py, run-wf02)"},
-  {"tc_id": "TC_Basic_WorkFlow_03", "title": "Image Overlay 및 Print Overlay 설정", "level": "FULL", "reason": "Image Overlay 항목 추가(CONFIGURATION.OVERLAY_ITEM의 FieldID와 Position 대조, Dose kVp/mAs는 Bottom)와 Print Overlay 구성 저장(PRINT_OVERLAY_ITEM을 Header=2/Top=0/Bottom=1 영역별로 대조), Header 표시 위치와 Layout 설정(PRINT_OVERLAY.HeaderPosition/HeaderLayout - 사양서1 297쪽 None이면 표시되지 않음, Layout 한 칸당 한 항목), Print 설정의 Overlay 선택(DICOM_PRINT.Overlay)까지 실제 UI/DB로 자동 검증(tests/overlay_flows.py, run-wf03). Film 창 표시 확인은 WF_08이 영역별 프리뷰 OCR로 수행한다"},
-  {"tc_id": "TC_Basic_WorkFlow_04", "title": "2D 수동 DICOM Send", "level": "PARTIAL", "reason": "Examined에서 대상 검사를 열고 Send 기능으로 2D 영상을 **Selected Images**로 전송한 뒤, Queue 등록·State=Done(DICOM_STORAGE_QUEUE), 수신 객체 **정확히 1건**, 그리고 개정본 Expected 5가 요구하는 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조해 자동 판정한다(tests/send_flows.py, run-wf04). 수신 객체가 Digital Mammography X-Ray Image Storage인지 SOP Class로 확인한다. 전송 전 Transfer Syntax를 Conformance Statement 선언값으로 맞춘다. Examined 창 진입 자체는 open_test_study가 대신하므로 Step 1의 UI 경로는 부분 자동이다"},
-  {"tc_id": "TC_Basic_WorkFlow_05", "title": "3D 수동 DICOM Send", "level": "FULL", "reason": "Raw/Recon/Syn 전부를 전송 대상으로 삼아 실제 전송하고, Queue State=Done, 수신 객체, 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조해 자동 판정한다(tests/send_flows.py, run-wf05). 전송되는 3D는 Recon뿐이며 근거는 사양서1 125쪽(SRS 06-30-30 문맥) '3D 영상은 Recon 영상이 전송된다' + DICOM Conformance Statement가 For Processing(Raw)을 선언하지 않음 + 실측 일치. Raw/Syn 미수신은 결함이 아니며 received_types로 기록한다"},
-  {"tc_id": "TC_Basic_WorkFlow_06", "title": "All Images 및 Dose SR 전송", "level": "PARTIAL", "reason": "All Images 전송을 실제로 수행하고 Queue 등록·State=Done, 수신 객체를 SOP Class로 Image/RDSR 구분해 자동 판정한다(tests/send_flows.py, run-wf06). Storage 설정의 SendDoseSR 활성화를 전제로 확인하고, RDSR이 수신되면 Patient ID·Study Instance UID를 DB와 대조한다. RDSR SOP Class UID는 체크리스트 Test Data(1.2.840.10008.5.1.4.1.1.88.67) 기준. 이 환경은 Demo(F8) 가상 촬영이라 Precondition의 'RDSR 생성 조건 충족'이 성립하는지 확인되지 않아, RDSR 미수신 시 FAIL이 아니라 MANUAL로 보고한다"},
-  {"tc_id": "TC_Basic_WorkFlow_07", "title": "Emergency 검사 Auto Send", "level": "FULL", "reason": "7단계 전부 자동(tests/workflow07.py, run-wf07). Setting > DICOM > General에서 Study close option을 Auto Send(2444 콤보, 항목 None/Auto Send)로, Send urgent patient automatically를 Yes(2446)로 설정하고 CONFIGURATION.DICOM_COMMON.StudyCloseOption/UrgentAutoSend로 대조 -> Patient 화면 Emergency(1100)로 검사 시작(Patient ID를 제품이 자동 생성하므로 STUDY 차집합으로 대상을 찾는다) -> View Position 등록 후 Demo(F8) 가상 촬영 -> 검사 종료 -> **Send를 누르지 않았는데도** Queue에 등록되고 State=Done, 수신 객체의 SOP Instance UID까지 대조. 실제 X-ray는 노출하지 않는다(viewer.demo_mode 게이트). 2026-08-20 실측 PASS 9 / FAIL 0 / MANUAL 1(Dose SR은 Demo 촬영에서 생성 조건 미충족 — WF_06/WF_15와 같은 판단). Auto Send 설정은 finally에서 원복한다 — 켜 둔 채 끝나면 뒤따르는 TC가 검사를 닫을 때마다 자동 전송이 일어나 Queue 판정이 오염된다"},
-  {"tc_id": "TC_Basic_WorkFlow_08", "title": "2D/3D Film Print", "level": "FULL", "reason": "Film 창 Layout 1x1 구성, 실제 DICOM Print 실행, Print SCP가 수신한 Film의 Overlay 실제값을 Header/Top/Bottom 영역별로 크롭해 OCR하고 raster 일치까지 자동 검증(tests/workflow03.py, run-wf08). Header 밴드 높이는 사양서1 296쪽 '전체 필름 높이의 3% x Layout 행수'로 계산하며, 환자 ID/생년월일 기대값은 DB에서 가져온다"},
-  {"tc_id": "TC_Basic_WorkFlow_09", "title": "Normal 및 Anonymous Export", "level": "FULL", "reason": "Normal/Anonymous를 서로 다른 경로로 2회 실제 Export 하고, 생성된 DICOM 파일을 파싱해 Normal은 원본 환자정보 유지, Anonymous는 Patient ID·Name이 Unknown인지 대조한다(tests/export_flows.py, run-wf09). 익명화 기대값 근거는 사양서1 134쪽 'Anonymous 체크 시, Patient ID 및 Patient Name은 Unknown으로 표시'이며, 폴더 구조는 132쪽 규칙(Unknown_Unknown\\Anonymous_[StudyKey])으로 참고 판정한다. 두 결과의 객체 수 일치까지 확인한다(2026-08-19 PASS 12/12 실측)"},
-  {"tc_id": "TC_Basic_WorkFlow_10", "title": "MWL Hospital Code와 Procedure 매핑", "level": "PARTIAL", "reason": "1~4단계 자동(tests/workflow10.py, run-wf10). Setting > Procedure > Hospital Code(215)에서 코드 HC 추가 -> 행의 톱니바퀴로 View Position 대화상자를 열어 Procedure 탭(2086)에서 Routine Mammography 매핑 -> Setting > DICOM > MWL에서 SCP를 선택하고 Hospital Code Mapping 콤보(2453)에서 (0032,1064) Requested Procedure Code Sequence 지정 -> core/mwl.py로 MWL 서버에 그 태그에 HC를 담은 처방 등록. HOSPITAL_CODE.Code/MappingKey와 DICOM_MWL.CodeMappingTag를 DB로 대조한다. 2026-08-20 실측 PASS 5 / FAIL 0 / MANUAL 1. 5~7단계(MWL 조회·처방 선택·Examine 진입 후 Procedure Step 반영 확인)는 WF_01의 MWL 조회 절차를 재사용하면 되지만 Expected 6/7의 판정 기준(화면 OCR vs DB) 확정이 필요해 MANUAL이다. 개정본 Precondition/Step/Expected/Test Data를 사용자 지시로 보완했다(코드 HC, SCP 선택 단계 명시, 태그 지정으로 문구 정정 — TC ID는 유지)"},
-  {"tc_id": "TC_Basic_WorkFlow_11", "title": "Image Reject 및 Restore", "level": "FULL", "reason": "6단계 전부 자동(tests/workflow11.py, run-wf11). Examined에서 검사를 View(2182)로 열고 Procedure 패널 썸네일에서 대상을 선택한 뒤 1168(Reject Image) -> 사유 팝업(701~707)에서 문구를 OCR로 읽어 선택 -> 썸네일의 되돌리기 화살표(별도 컨트롤이 아니라 rect에서 계산) -> Restore 확인 팝업 좌 Yes(501). 판정은 tests/dataflow.py의 workflow_11_mid_evaluate/workflow_11_evaluate를 재사용해 pre/mid/post DB 스냅샷을 대조하고(그 모듈은 그전까지 run.py에 연결돼 있지 않아 한 번도 실행된 적이 없었다), 고른 사유가 INSTANCE_GROUP.RejectType/RejectReason에 그대로 기록되는지 값으로 확인한다(REJECT_REASON.Type 대응: Artifacts=1 ... Others=0). 2026-08-20 실측 PASS 11 / FAIL 0"},
-  {"tc_id": "TC_Basic_WorkFlow_12", "title": "Study Reject 및 Restore", "level": "FULL", "reason": "5단계 전부 자동(tests/workflow12.py, run-wf12). Examined에서 검사를 선택하고 2186(Reject Study) -> 사유 팝업(701~707, Image Reject와 같은 팝업) -> 데이터 소스를 Rejected(1187)로 바꿔 Reject 목록 확인 -> 같은 2186이 'Restore Study'로 토글되어 원복 -> All로 돌려 재조회. 판정은 tests/dataflow.py의 workflow_12_mid_evaluate/workflow_12_evaluate를 재사용하고, STUDY.StudyStatus 3->5 와 RejectType/RejectReason(REJECT_REASON.Type 대응)을 값으로 대조한다. 2026-08-20 실측 PASS 11 / FAIL 0. 개정본 Precondition/Test Data를 사용자 지시로 수정했다 — 원문의 DATA_FLOW_LOCAL_01은 이 환경에서 영상이 0건이고 Expected 5가 영상 표시를 요구하므로 촬영 완료·Close된 검사로 바꿨다(TC ID는 유지)"},
-  {"tc_id": "TC_Basic_WorkFlow_13", "title": "계정 추가·수정 및 로그인", "level": "FULL", "reason": "6단계 전부 자동. Setting > System > Account에서 계정 추가(New Account 모달 2288~2292, Group은 콤보 항목을 OCR로 읽어 선택) / 권한 그룹 설정 / 계정 정보 수정을 ACCOUNT 테이블로 대조하고, 시험 계정으로 재로그인한 뒤 **사양서1 78~80쪽 계정 그룹별 사용 가능 메뉴 표(SRS 01-30-20)의 56개 항목 전부**를 실측 가시성과 대조한다(tests/workflow13.py, run-wf13). 2026-08-20 실측 56/56 일치 — User는 Software Info./Account/CS/Image Tool/Hospital Code만 보이고 나머지 49개는 아예 표시되지 않는다(사양의 O/X가 비활성이 아니라 미표시임을 확정). ACCOUNT.Group 매핑 Service=3/Admin=2/User=1도 실측. 로그인 계정을 바꾸므로 finally에서 원래 계정으로 cold_start 복구한 뒤 시험 계정을 지운다"},
-  {"tc_id": "TC_Basic_WorkFlow_14", "title": "Setting Export 및 Import", "level": "MANUAL", "reason": "Setting Export/Import 미구현. tests/dataflow.py에 설정 전수 비교 로직이 있다"},
-  {"tc_id": "TC_Basic_WorkFlow_15", "title": "Pre-send Preview 표시 및 전송", "level": "PARTIAL", "reason": "2026-08-20 사용자 지시로 개정본 TC를 수정했다(이전: Send Preview 위치 적용 — 수신 DICOM의 어떤 값으로 표시 위치 일치를 판정할지 확정할 수 없어 막혀 있었다. 원본은 Baseline/Checklist_개정본_20260820_WF15수정전.xlsx). Examined 툴바 2196(Pre-send Preview) -> 범위 선택(All Images=502) -> Preview 창에서 영상 패널(203) 개수와 Overlay를 OCR로 확인하고, Send(1148) 후 Queue State=Done과 수신 객체의 식별 Tag까지 자동 판정(tests/workflow15.py, run-wf15). 실측 PASS 6 / MANUAL 4. MANUAL은 (1) View/Examine 화면과의 대조 미구현, (2) 3D-N 패널의 환자 ID를 OCR이 W를 Y로 읽어 값 대조 실패(생년월일은 정확히 읽혀 Overlay 표시 자체는 확인), (3) 3D-N의 선량 Overlay가 -- 표기이고 작고 흐려 미판독, (4) Dose SR이 Demo 촬영 전제 미충족으로 State=3 — 각각 해제 조건과 이 실행으로 말할 수 없는 것을 note에 적었다"},
-  {"tc_id": "TC_Basic_WorkFlow_16", "title": "Kiosk 및 System Launcher", "level": "MANUAL", "reason": "Kiosk 및 System Launcher 미구현. tests/dataflow.py에 Kiosk 설정 판정 로직이 있으나 재부팅·종료 동작은 자동 판정 대상이 아니다"},
-  {"tc_id": "TC_XIPL_compatibility_01", "title": "Viewer와 XIPL 표시값 비교", "level": "FULL", "reason": "XIPL 비최대화 초기 표시 상태에서 동일 영상의 Histogram·W1/W2를 창 상대 OCR로 비교하고 적용 PIM 표시를 WPF UI Automation으로 검증(run-xipl-01)"},
-  {"tc_id": "TC_XIPL_compatibility_02", "title": "2D Image Processing", "level": "FULL", "reason": "Default Parameter 4종 확인, 파라미터 추가 후 Refresh 목록 갱신, 5개 항목 변경·Preview·Apply와 재진입 값·Viewer 처리 로그 교차 검증(run-xipl-02)"},
-  {"tc_id": "TC_XIPL_compatibility_03", "title": "3D Post Reconstruction", "level": "FULL", "reason": "Post Reconstruction 팝업의 영상 타입·Default Parameter 확인, 파라미터 갱신, Recon/Syn 10개 값 변경·Preview·Apply 검증(run-xipl-03). Apply 후 기본값 복귀는 GPU 무관 FAIL이며 정확히 No GPUS일 때 결과 생성만 SKIP"},
-  {"tc_id": "TC_XIPL_compatibility_04", "title": "Preset별 2D Default Parameter 적용", "level": "FULL", "reason": "Default Parameter 변경, Preset 2개 신규 추가와 XIPL 파라미터 자동 매핑 확인, 파라미터 파일 변경, 두 Preset 촬영 후 각 영상에 지정 파라미터가 기본 선택되어 표시되는지까지 자동 검증(run-xipl-04). 시험 Preset과 잔여 빈 검사를 UI로 자동 정리해 반복 실행 가능"},
-  {"tc_id": "TC_XIPL_compatibility_05", "title": "Q.C Default Image Process Parameter", "level": "FULL", "reason": "Q.C Setting/Setting(3D)의 Default Image Process Parameter 목록 확인, 항목 변경 저장(QC_COMMON 대조), ACR Phantom 2D/3D-N Demo 촬영과 적용 로그·임계값 판정까지 자동 검증(run-xipl-05). 시험 파라미터는 제품 기본값 복사로 자동 생성"},
-  {"tc_id": "TC_XIPL_compatibility_06", "title": "XIPL Parameter 저장 후 Viewer 적용", "level": "FULL", "reason": "XIPL Studio에서 세부설정 변경·저장 후 Viewer Image Processing 재선택·Apply와 재진입 표시값·Viewer 처리 로그를 교차 검증(run-xipl-06)"},
-  {"tc_id": "TC_Basic_QC_01", "title": "ACR Phantom 2D Q.C", "level": "MANUAL", "reason": "실물 ACR Phantom 2D 촬영이 필요하다"},
-  {"tc_id": "TC_Basic_QC_02", "title": "ACR Phantom 3D Q.C", "level": "MANUAL", "reason": "실물 ACR Phantom 3D 촬영이 필요하다"},
-  {"tc_id": "TC_Basic_Performance_01", "title": "2D 영상 획득시간", "level": "MANUAL", "reason": "실제 2D 촬영 입력 시점과 허용 기준이 필요하다"},
-  {"tc_id": "TC_Basic_Performance_02", "title": "3D-N 영상 획득시간", "level": "MANUAL", "reason": "실제 3D-N 촬영과 허용 기준이 필요하다"},
-  {"tc_id": "TC_Basic_Performance_03", "title": "3D-W 영상 획득시간", "level": "MANUAL", "reason": "실제 3D-W 촬영과 허용 기준이 필요하다"},
-  {"tc_id": "AUTOMATION_ENVIRONMENT_RESET", "title": "회귀 테스트 전 기준 상태 복원", "level": "SUPPORT", "reason": "개정본 TC가 아니다. 회귀 시작 상태를 만든다 - DB 4종을 기준 스냅샷으로 복원하고 제품 서비스를 재기동하며 XIPL 시험 파라미터를 재생성한다"},
-  {"tc_id": "DICOM_Server_Setup", "title": "MWL/Storage/Print 서버 자동 등록 및 연결", "level": "SUPPORT", "reason": "개정본 TC가 아니다. WF_04/06/08의 선행조건인 DICOM 서버 등록과 C-ECHO 연결을 자동 수행한다"},
-  {"tc_id": "AUTOMATION_3D_ACQUISITION_3DN", "title": "3D-Narrow 촬영 등록 및 획득", "level": "SUPPORT", "reason": "개정본 TC가 아니다(이전 체크리스트의 TC_System_compatibility_03에 해당). 3D-Narrow Preset 등록과 Demo F8 촬영, INSTANCE_GROUP.Type=1·ExposureMode=1을 자동 판정한다(tests/system_compat.py, run-sys3d). 장비 LCD 표시와 2430 패들·회전 각도(-7.5~7.5도)는 실물 System이 필요해 MANUAL"},
-  {"tc_id": "AUTOMATION_3D_ACQUISITION_3DW", "title": "3D-Wide 촬영 등록 및 획득", "level": "SUPPORT", "reason": "개정본 TC가 아니다(이전 체크리스트의 TC_System_compatibility_04에 해당). 3D-Wide Preset 등록과 Demo F8 촬영, INSTANCE_GROUP.Type=1·ExposureMode=2을 자동 판정한다(tests/system_compat.py, run-sys3d). 장비 LCD 표시와 2430 패들·회전 각도(-15~15도)는 실물 System이 필요해 MANUAL"}
+  {
+    "tc_id": "TC_Basic_Install_01",
+    "title": "설치 버전 및 패키지 구성 확인",
+    "level": "FULL",
+    "reason": "Release Note 기준값이 config에 등록되면 레지스트리·설치 파일·DB 버전을 자동 대조(tests/install.py). 승인 Release Note 미등록 시 MANUAL",
+    "coverage": {
+      "category": "판정 기준·문서 정보 미확정",
+      "gap": "설치 버전·파일 버전·DB 버전을 읽는 코드는 완성돼 있으나 대조할 **기대값**이 없다. 승인된 Release Note 가 등록되기 전에는 임시 baseline 으로 일치/불일치를 판정하지 않는다(근거 없는 PASS 금지).",
+      "unblock": "검증 대상 Release Note(Module Version / Package 구성)를 `config.json > release_note` 에 등록하면 즉시 자동 판정된다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_02",
+    "title": "Viewer 실행 전 필수 환경 확인",
+    "level": "FULL",
+    "reason": "VC++ 재배포, SQL Server(BELLALUN) 시작 유형·실행 상태·인스턴스 접속, 방화벽 허용 항목을 자동 판정한다(tests/install.py). DICOM 전용 네트워크 어댑터는 검증 환경서가 별칭을 지정하지 않는 환경에서는 **확인 대상이 아니므로 SKIP** 으로 기록한다(2026-08-21 사용자 확정 — MANUAL 로 올리지 않는다). OS/PC 정보는 개별 확인 항목이 아니라 리포트 상단 '실행 환경' 표에 실측값으로 싣는다.",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "VC++ 재배포 / SQL Server(BELLALUN) 시작 유형·상태·접속 / 방화벽 허용 규칙을 모두 자동 판정한다. DICOM 전용 네트워크 어댑터는 이 PC 의 검증 환경서가 별칭을 지정하지 않아 **확인 대상이 아니므로 SKIP** 이다(MANUAL 이 아니다).",
+      "unblock": "DICOM 전용 어댑터를 쓰는 환경이면 `config.json > prerequisites.dicom_nic_alias` 에 별칭을 넣으면 그 항목까지 자동 판정된다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_03",
+    "title": "Windows 10 신규 설치",
+    "level": "MANUAL",
+    "reason": "Windows 10 신규 설치 환경이 필요하다",
+    "coverage": {
+      "category": "OS 신규 설치 환경 필요",
+      "gap": "Windows 10 을 새로 설치한 상태에서의 설치·기동 확인이라 현재 PC 에서 재현할 수 없다.",
+      "unblock": "Windows 10 신규 설치 시험 PC 확보."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_04",
+    "title": "Windows 11 신규 설치",
+    "level": "MANUAL",
+    "reason": "Windows 11 신규 설치 환경이 필요하다",
+    "coverage": {
+      "category": "OS 신규 설치 환경 필요",
+      "gap": "Windows 11 신규 설치 환경이 필요하다.",
+      "unblock": "Windows 11 신규 설치 시험 PC 확보."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_05",
+    "title": "Windows 11 IoT Enterprise LTSC 신규 설치",
+    "level": "MANUAL",
+    "reason": "Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다",
+    "coverage": {
+      "category": "OS 신규 설치 환경 필요",
+      "gap": "Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다.",
+      "unblock": "해당 OS 신규 설치 시험 PC 확보."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_06",
+    "title": "신규 설치 후 기본 실행 확인",
+    "level": "MANUAL",
+    "reason": "Detector/Gantry 실제 연결과 VIVIX-M Setup·Bellalun System Setup 실행 확인이 필요하다",
+    "coverage": {
+      "category": "실물 장비·촬영 환경 필요",
+      "gap": "Detector/Gantry 실제 연결 확인과 VIVIX-M Setup / Bellalun System Setup 실행이 필요하다. 두 프로그램은 `Program Files` 전수 탐색으로 **이 PC 에 없음**을 확인했다(엔지니어 전용).",
+      "unblock": "실물 장비가 연결되고 엔지니어 셋업 프로그램이 설치된 PC."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_07",
+    "title": "설치 옵션 및 변경 적용 확인",
+    "level": "PARTIAL",
+    "reason": "Theme/Language/Kiosk 설정 저장은 DB로 자동 판정(tests/install.py), 설치 중 옵션 선택은 수동",
+    "coverage": {
+      "category": "파괴적 작업(설치·재부팅·종료)",
+      "gap": "저장된 Theme/Language/Kiosk 값은 DB 로 자동 판정한다. **설치 실행 중의 옵션 선택**은 제품을 재설치하는 파괴적 작업이라 자동화 대상이 아니다.",
+      "unblock": "설치 실행 자체는 수동으로 수행한 뒤 이 자동 판정부를 돌린다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_08",
+    "title": "Upgrade 후 기존 데이터 유지 확인",
+    "level": "PARTIAL",
+    "reason": "Upgrade 후 데이터 유지를 DB로 자동 판정, Upgrade 실행 자체는 수동",
+    "coverage": {
+      "category": "파괴적 작업(설치·재부팅·종료)",
+      "gap": "Upgrade 후 데이터 유지는 DB 로 자동 판정한다. **Upgrade 실행**은 파괴적 작업이다.",
+      "unblock": "Upgrade 를 수동 수행한 뒤 이 자동 판정부를 돌린다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Install_09",
+    "title": "Uninstall 및 데이터 유지 확인",
+    "level": "PARTIAL",
+    "reason": "Uninstall 후 잔존 데이터를 자동 판정, Uninstall은 파괴적 작업이라 수동",
+    "coverage": {
+      "category": "파괴적 작업(설치·재부팅·종료)",
+      "gap": "Uninstall 후 잔존 데이터는 DB/파일로 자동 판정한다. **Uninstall 실행**은 파괴적 작업이다.",
+      "unblock": "Uninstall 을 수동 수행한 뒤 이 자동 판정부를 돌린다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_01",
+    "title": "MWL 및 Local 검사 생성",
+    "level": "FULL",
+    "reason": "MWL 처방 준비·조회·환자정보 대조·보류와 New Patient 생성·DB 대조까지 완전자동(tests/workflow01.py, run-wf01)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_02",
+    "title": "공통 2D/3D 검사 촬영 및 Tool 적용",
+    "level": "FULL",
+    "reason": "보류 검사 재개, 2D/3D-N View Position 등록·Demo F8 촬영, InstanceType·Series·Group·UID 구조, 2D/3D Recon Tool(Window Level·Zoom·Pan·Annotation) 적용과 검사 종료 후 Examined 재조회까지 자동 검증(tests/workflow02.py, run-wf02)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_03",
+    "title": "Image Overlay 및 Print Overlay 설정",
+    "level": "FULL",
+    "reason": "Image Overlay 항목 추가(CONFIGURATION.OVERLAY_ITEM 의 FieldID 와 Position 대조), Print Overlay 를 Header/Top/Bottom 세 영역에 등록(PRINT_OVERLAY_ITEM 의 FieldID·Position + Header 표시 위치/Layout), Print 설정에 Overlay 적용(DICOM_PRINT.Overlay), Examined 에서 대상 검사 열기까지 자동 판정한다(tests/workflow03.py, run-wf03). **2026-08-21 에 Step 5·6 을 자동화했다** — Step 5 는 Examine 화면 영상 패널(203)의 Overlay 를 크롭·OCR 해 Step 1 에서 추가한 항목(Dose kVp / Dose mAs)의 라벨이 실제로 찍히는지 확인하고, Step 6 은 Film 창을 열어 Header/Top/Bottom 영역별로 Print Overlay 표시를 OCR 로 대조한다(core/image_overlay.py / core/print_overlay.py 공용). Demo(F8) 가상 촬영에서는 선량 **값**이 `--` 로 찍히므로 값이 아니라 **항목(라벨)이 표시되는가**로 판정한다 — 개정본 Expected 5 가 요구하는 것이 '설정한 Image Overlay 항목이 표시된다' 이기 때문이다.",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "2026-08-21 에 Step 5(2D 영상의 Image Overlay 표시)와 Step 6(Film 창의 Print Overlay 표시)을 자동화해 전 단계 자동 판정이 됐다.",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_04",
+    "title": "2D 수동 DICOM Send",
+    "level": "PARTIAL",
+    "reason": "Examined에서 대상 검사를 열고 Send 기능으로 2D 영상을 **Selected Images**로 전송한 뒤, Queue 등록·State=Done(DICOM_STORAGE_QUEUE), 수신 객체 **정확히 1건**, 그리고 개정본 Expected 5가 요구하는 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조해 자동 판정한다(tests/send_flows.py, run-wf04). 수신 객체가 Digital Mammography X-Ray Image Storage인지 SOP Class로 확인한다. 전송 전 Transfer Syntax를 Conformance Statement 선언값으로 맞춘다. Examined 창 진입 자체는 open_test_study가 대신하므로 Step 1의 UI 경로는 부분 자동이다",
+    "coverage": {
+      "category": "부분 자동 — 남은 항목 있음",
+      "gap": "전송·Queue·수신·식별 Tag 대조는 전부 자동이다. Step 1 의 Examined 창 진입만 공용 흐름(`viewer_processing.open_test_study`)이 대신하므로 그 UI 경로 자체는 이 TC 가 직접 밟지 않는다.",
+      "unblock": "Examined 목록에서 카드를 직접 골라 여는 경로를 이 TC 에 추가하면 FULL 이 된다."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_05",
+    "title": "3D 수동 DICOM Send",
+    "level": "FULL",
+    "reason": "Raw/Recon/Syn 전부를 전송 대상으로 삼아 실제 전송하고, Queue State=Done, 수신 객체, 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조해 자동 판정한다(tests/send_flows.py, run-wf05). 전송되는 3D는 Recon뿐이며 근거는 사양서1 125쪽(SRS 06-30-30 문맥) '3D 영상은 Recon 영상이 전송된다' + DICOM Conformance Statement가 For Processing(Raw)을 선언하지 않음 + 실측 일치. Raw/Syn 미수신은 결함이 아니며 received_types로 기록한다",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_06",
+    "title": "All Images 및 Dose SR 전송",
+    "level": "PARTIAL",
+    "reason": "All Images 전송을 실제로 수행하고 Queue 등록·State=Done, 수신 객체를 SOP Class로 Image/RDSR 구분해 자동 판정한다(tests/send_flows.py, run-wf06). Storage 설정의 SendDoseSR 활성화를 전제로 확인하고, RDSR이 수신되면 Patient ID·Study Instance UID를 DB와 대조한다. RDSR SOP Class UID는 체크리스트 Test Data(1.2.840.10008.5.1.4.1.1.88.67) 기준. 이 환경은 Demo(F8) 가상 촬영이라 Precondition의 'RDSR 생성 조건 충족'이 성립하는지 확인되지 않아, RDSR 미수신 시 FAIL이 아니라 MANUAL로 보고한다",
+    "coverage": {
+      "category": "실물 장비·촬영 환경 필요",
+      "gap": "All Images 전송·Queue·수신 객체 SOP Class 구분은 전부 자동이다. 남은 것은 **RDSR(Dose SR)** 뿐이다 — 이 PC 는 실제 X-ray 대신 Demo(F8) 가상 촬영을 쓰므로 개정본 Precondition('RDSR 생성 조건 충족')이 성립하지 않는다. 제품 결함이 아니라 전제 미충족이라 MANUAL 로 보고한다.",
+      "unblock": "실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 뒤 재확인."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_07",
+    "title": "Emergency 검사 Auto Send",
+    "level": "FULL",
+    "reason": "7단계 전부 자동(tests/workflow07.py, run-wf07). Setting > DICOM > General에서 Study close option을 Auto Send(2444 콤보, 항목 None/Auto Send)로, Send urgent patient automatically를 Yes(2446)로 설정하고 CONFIGURATION.DICOM_COMMON.StudyCloseOption/UrgentAutoSend로 대조 -> Patient 화면 Emergency(1100)로 검사 시작(Patient ID를 제품이 자동 생성하므로 STUDY 차집합으로 대상을 찾는다) -> View Position 등록 후 Demo(F8) 가상 촬영 -> 검사 종료 -> **Send를 누르지 않았는데도** Queue에 등록되고 State=Done, 수신 객체의 SOP Instance UID까지 대조. 실제 X-ray는 노출하지 않는다(viewer.demo_mode 게이트). 2026-08-20 실측 PASS 9 / FAIL 0 / MANUAL 1(Dose SR은 Demo 촬영에서 생성 조건 미충족 — WF_06/WF_15와 같은 판단). Auto Send 설정은 finally에서 원복한다 — 켜 둔 채 끝나면 뒤따르는 TC가 검사를 닫을 때마다 자동 전송이 일어나 Queue 판정이 오염된다",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "7단계 전부 자동이다. Dose SR Queue 항목만 Demo 가상 촬영이라 전제 미충족으로 MANUAL 로 남는다(제품 결함 아님).",
+      "unblock": "실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 뒤 재확인."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_08",
+    "title": "2D/3D Film Print",
+    "level": "FULL",
+    "reason": "Film 창 Layout 1x1 구성, 실제 DICOM Print 실행, Print SCP가 수신한 Film의 Overlay 실제값을 Header/Top/Bottom 영역별로 크롭해 OCR하고 raster 일치까지 자동 검증(tests/workflow03.py, run-wf08). Header 밴드 높이는 사양서1 296쪽 '전체 필름 높이의 3% x Layout 행수'로 계산하며, 환자 ID/생년월일 기대값은 DB에서 가져온다",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_09",
+    "title": "Normal 및 Anonymous Export",
+    "level": "FULL",
+    "reason": "Normal/Anonymous를 서로 다른 경로로 2회 실제 Export 하고, 생성된 DICOM 파일을 파싱해 Normal은 원본 환자정보 유지, Anonymous는 Patient ID·Name이 Unknown인지 대조한다(tests/export_flows.py, run-wf09). 익명화 기대값 근거는 사양서1 134쪽 'Anonymous 체크 시, Patient ID 및 Patient Name은 Unknown으로 표시'이며, 폴더 구조는 132쪽 규칙(Unknown_Unknown\\Anonymous_[StudyKey])으로 참고 판정한다. 두 결과의 객체 수 일치까지 확인한다(2026-08-19 PASS 12/12 실측)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_10",
+    "title": "MWL Hospital Code와 Procedure 매핑",
+    "level": "FULL",
+    "reason": "1~7단계 전부 자동(tests/workflow10.py, run-wf10). Setting > Procedure > Hospital Code(215)에서 코드 HC 추가 -> 행의 톱니바퀴로 View Position 대화상자를 열어 Procedure 탭(2086)에서 Routine Mammography 매핑 -> Setting > DICOM > MWL 에서 SCP 를 선택하고 Hospital Code Mapping 콤보(2453)에서 (0032,1064) Requested Procedure Code Sequence 지정 -> core/mwl.py 로 MWL 서버에 그 태그에 HC 를 담은 처방 등록 -> Patient List 에서 MWL 조회 -> 처방 선택 -> Examine 진입. 5~7단계 판정 기준을 2026-08-21 에 확정했다(그전에는 화면 OCR 인지 DB 인지 미결이라 MANUAL): Expected 6 은 STUDY.HospitalCode 와 STUDY.ProcedureKey 로, Expected 7 은 Examine 의 Step 수를 PROCEDURE_ITEMS 행 수와 대조하고 상단 Ready 배너로 첫 Step/Preset 선택을 확인한다. 이 판정이 자기충족이 아닌 근거: WF_01 이 Procedure 가 없는 MWL 처방에서 Step 수 0 을 확인하는 대조군이다. 개정본 Precondition/Step/Expected/Test Data 를 사용자 지시로 보완했다(코드 HC, SCP 선택 단계 명시, 태그 지정으로 문구 정정 — TC ID 는 유지)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_11",
+    "title": "Image Reject 및 Restore",
+    "level": "FULL",
+    "reason": "6단계 전부 자동(tests/workflow11.py, run-wf11). Examined에서 검사를 View(2182)로 열고 Procedure 패널 썸네일에서 대상을 선택한 뒤 1168(Reject Image) -> 사유 팝업(701~707)에서 문구를 OCR로 읽어 선택 -> 썸네일의 되돌리기 화살표(별도 컨트롤이 아니라 rect에서 계산) -> Restore 확인 팝업 좌 Yes(501). 판정은 tests/dataflow.py의 workflow_11_mid_evaluate/workflow_11_evaluate를 재사용해 pre/mid/post DB 스냅샷을 대조하고(그 모듈은 그전까지 run.py에 연결돼 있지 않아 한 번도 실행된 적이 없었다), 고른 사유가 INSTANCE_GROUP.RejectType/RejectReason에 그대로 기록되는지 값으로 확인한다(REJECT_REASON.Type 대응: Artifacts=1 ... Others=0). 2026-08-20 실측 PASS 11 / FAIL 0",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_12",
+    "title": "Study Reject 및 Restore",
+    "level": "FULL",
+    "reason": "5단계 전부 자동(tests/workflow12.py, run-wf12). Examined에서 검사를 선택하고 2186(Reject Study) -> 사유 팝업(701~707, Image Reject와 같은 팝업) -> 데이터 소스를 Rejected(1187)로 바꿔 Reject 목록 확인 -> 같은 2186이 'Restore Study'로 토글되어 원복 -> All로 돌려 재조회. 판정은 tests/dataflow.py의 workflow_12_mid_evaluate/workflow_12_evaluate를 재사용하고, STUDY.StudyStatus 3->5 와 RejectType/RejectReason(REJECT_REASON.Type 대응)을 값으로 대조한다. 2026-08-20 실측 PASS 11 / FAIL 0. 개정본 Precondition/Test Data를 사용자 지시로 수정했다 — 원문의 DATA_FLOW_LOCAL_01은 이 환경에서 영상이 0건이고 Expected 5가 영상 표시를 요구하므로 촬영 완료·Close된 검사로 바꿨다(TC ID는 유지)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_13",
+    "title": "계정 추가·수정 및 로그인",
+    "level": "FULL",
+    "reason": "6단계 전부 자동. Setting > System > Account에서 계정 추가(New Account 모달 2288~2292, Group은 콤보 항목을 OCR로 읽어 선택) / 권한 그룹 설정 / 계정 정보 수정을 ACCOUNT 테이블로 대조하고, 시험 계정으로 재로그인한 뒤 **사양서1 78~80쪽 계정 그룹별 사용 가능 메뉴 표(SRS 01-30-20)의 56개 항목 전부**를 실측 가시성과 대조한다(tests/workflow13.py, run-wf13). 2026-08-20 실측 56/56 일치 — User는 Software Info./Account/CS/Image Tool/Hospital Code만 보이고 나머지 49개는 아예 표시되지 않는다(사양의 O/X가 비활성이 아니라 미표시임을 확정). ACCOUNT.Group 매핑 Service=3/Admin=2/User=1도 실측. 로그인 계정을 바꾸므로 finally에서 원래 계정으로 cold_start 복구한 뒤 시험 계정을 지운다",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_14",
+    "title": "Setting Export 및 Import",
+    "level": "FULL",
+    "reason": "1~7단계 전부 자동(tests/workflow14.py, core/setting_transfer.py, core/setting_values.py, run-wf14). Setting > System > My Settings 의 Export(2293)로 .vms 를 저장하고, 사양서1 '60. Setting Export/Import' 개발 사양이 요구하는 구성(CONFIGURATION/ACCOUNT/PROCEDURE .bak + Config/ExternalInput.xml + PARAMETER/*.pim + RECON_PARAMETER/*.xtp)을 zip 내부로 대조한다 — 파일이 생겼다는 것만으로 통과시키지 않는다. Import(2294)는 제품 자체 모달이고 File Path(2075) + 옵션 체크박스 System(2076)/Account(2077)/Procedure(2078) + Import(2074)/Close(1102)로 구성된다(사양의 '사용자가 선택한 설정 값만 가져온다'와 일치). Step 3 의 변경 항목은 Theme 대신 같은 화면·같은 테이블의 StorageWarning 을 쓴다 — Theme 는 Viewer 전체 색을 바꿔 복원 실패 시 픽셀/OCR 판정을 쓰는 다른 TC 가 연쇄로 무너진다(체크리스트가 'Theme 또는 검증 대상 비파괴 설정 1개'를 허용한다). Step 7 은 설정 테이블 전수 대조(snapshot.config_identical)를 주 판정으로, Setting 56개 페이지의 컨트롤 값 항목 단위 대조를 보강으로 쓴다. 사내 선행 도구(Setting 화면 캡처-비교 프로그램)와 같은 목적이지만 **이미지 비교가 아니다** — 그 도구가 회고에 적은 두 오탐(텍스트 커서 캡처 / 탭 로딩 지연)은 픽셀을 값의 대리물로 쓴 데서 나오므로, 컨트롤 ID 로 이동해 WM_GETTEXT 로 값을 직접 읽어 원인을 없앴다(Calibration 불필요)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_15",
+    "title": "Pre-send Preview 표시 및 전송",
+    "level": "PARTIAL",
+    "reason": "2026-08-20 사용자 지시로 개정본 TC 를 수정했다(이전: Send Preview 위치 적용 — 수신 DICOM 의 어떤 값으로 표시 위치 일치를 판정할지 확정할 수 없어 막혀 있었다. 원본은 Baseline/Checklist_개정본_20260820_WF15수정전.xlsx). Examined 툴바 2196(Pre-send Preview) -> 범위 선택(All Images=502) -> Preview 창에서 영상 패널(203) 개수와 Overlay 를 OCR 로 확인 -> Send(1148) 후 Queue State=Done 과 수신 객체의 식별 Tag 까지 자동 판정(tests/workflow15.py, run-wf15). 2026-08-21 보강: (1) Step 4 를 구현했다 — 같은 검사를 View(2182)로 열어 **같은 패널 컨트롤(203)** 을 같은 방식으로 읽고 항목 관찰 결과를 대조한다(픽셀 비교가 아니다. 두 화면은 창 크기·Layout 이 달라 픽셀이 같을 수 없고 Expected 4 가 요구하는 것은 '동일한 Step 구성과 Overlay' 다). (2) Overlay OCR 전처리를 강화했다 — 검은 배경/흰 글자는 Tesseract 학습 방향과 반대라 W 가 Y 로 읽혔던 것이므로 명암 반전 + 임계값 이진화(150·110) + NEAREST 확대 x psm 6·7 을 모두 시도하고 크롭 원본도 저장한다(core/uitext.read_overlay_text). 남은 MANUAL 은 Dose SR 뿐이다 — 이 환경은 Demo(F8) 가상 촬영이라 RDSR 생성 조건이 성립하지 않아 State=3 으로 남는다. 전제 미충족이므로 제품 결함으로 보고하지 않는다",
+    "coverage": {
+      "category": "부분 자동 — 남은 항목 있음",
+      "gap": "Pre-send Preview 표시·Overlay OCR·View 화면 대조·Send·Queue·수신 식별 Tag 는 전부 자동이다. 남은 것은 **Dose SR** 과, 3D-N 패널처럼 선량 값이 `--` 로 찍혀 OCR 로 값을 대조할 수 없는 패널이다.",
+      "unblock": "실제 촬영 환경(선량 값이 들어오는 3D 영상)에서 재확인."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_WorkFlow_16",
+    "title": "Kiosk 및 System Launcher",
+    "level": "MANUAL",
+    "reason": "**사용자 지정 수동 TC (2026-08-21).** 제품을 조작하는 자동화 코드를 구현하지 않는다. 회귀에는 체크리스트 누락 방지를 위한 MANUAL 판정 한 건만 기록한다. 개정본 Step 이 시스템 재시작(Step 3)과 PC 종료(Step 12)를 요구해 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는 재시작 후 Kiosk 조건에서만 나타난다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않다(Program Files 전수 탐색으로 확인). 따라서 **사용자가 수동으로 동작 확인**한다.",
+    "coverage": {
+      "category": "사용자 지정 수동",
+      "gap": "**사용자가 이 TC 전체를 수동 수행으로 지정했다(2026-08-21).** 자동화 코드를 만들지 않고 실행하지도 않는다. 개정본 Step 자체가 시스템 재시작(Step 3)·PC 종료(Step 12)·재시작 후에만 나타나는 System Launcher(Step 4~9)를 요구해 자동화 세션이 함께 죽는다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 이 PC 에 설치되어 있지 않다.",
+      "unblock": "사용자가 수동으로 수행한다. 자동화 재시도 대상이 아니다."
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_01",
+    "title": "Viewer와 XIPL 표시값 비교",
+    "level": "FULL",
+    "reason": "XIPL 비최대화 초기 표시 상태에서 동일 영상의 Histogram·W1/W2를 창 상대 OCR로 비교하고 적용 PIM 표시를 WPF UI Automation으로 검증(run-xipl-01)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_02",
+    "title": "2D Image Processing",
+    "level": "FULL",
+    "reason": "Default Parameter 4종 확인, 파라미터 추가 후 Refresh 목록 갱신, 5개 항목 변경·Preview·Apply와 재진입 값·Viewer 처리 로그 교차 검증(run-xipl-02)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_03",
+    "title": "3D Post Reconstruction",
+    "level": "FULL",
+    "reason": "Post Reconstruction 팝업의 영상 타입·Default Parameter 확인, 파라미터 갱신, Recon/Syn 10개 값 변경·Preview·Apply 검증(run-xipl-03). Apply 후 기본값 복귀는 GPU 무관 FAIL이며 정확히 No GPUS일 때 결과 생성만 SKIP",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "전 단계 자동이다. Step 9 는 **제품 결함을 잡아낸 FAIL** 이고 그것이 정상 결과다(Apply 후 재진입 시 3D Post Reconstruction 값이 기본값으로 복귀). Step 10 은 GPU 미탑재 환경에서 SKIP 된다.",
+      "unblock": "Step 10 은 GPU 가 탑재된 PC 에서 확인. Step 9 는 제품 수정 후 재확인."
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_04",
+    "title": "Preset별 2D Default Parameter 적용",
+    "level": "FULL",
+    "reason": "Default Parameter 변경, Preset 2개 신규 추가와 XIPL 파라미터 자동 매핑 확인, 파라미터 파일 변경, 두 Preset 촬영 후 각 영상에 지정 파라미터가 기본 선택되어 표시되는지까지 자동 검증(run-xipl-04). 시험 Preset과 잔여 빈 검사를 UI로 자동 정리해 반복 실행 가능",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_05",
+    "title": "Q.C Default Image Process Parameter",
+    "level": "FULL",
+    "reason": "Q.C Setting/Setting(3D)의 Default Image Process Parameter 목록 확인, 항목 변경 저장(QC_COMMON 대조), ACR Phantom 2D/3D-N Demo 촬영과 적용 로그·임계값 판정까지 자동 검증(run-xipl-05). 시험 파라미터는 제품 기본값 복사로 자동 생성",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_XIPL_compatibility_06",
+    "title": "XIPL Parameter 저장 후 Viewer 적용",
+    "level": "FULL",
+    "reason": "XIPL Studio에서 세부설정 변경·저장 후 Viewer Image Processing 재선택·Apply와 재진입 표시값·Viewer 처리 로그를 교차 검증(run-xipl-06)",
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
+    }
+  },
+  {
+    "tc_id": "TC_Basic_QC_01",
+    "title": "ACR Phantom 2D Q.C",
+    "level": "MANUAL",
+    "reason": "실물 ACR Phantom 2D 촬영이 필요하다",
+    "coverage": {
+      "category": "실물 장비·촬영 환경 필요",
+      "gap": "실물 ACR Phantom 을 실제 X-ray 로 2D 촬영해야 한다.",
+      "unblock": "ACR Phantom + 실제 촬영 환경."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_QC_02",
+    "title": "ACR Phantom 3D Q.C",
+    "level": "MANUAL",
+    "reason": "실물 ACR Phantom 3D 촬영이 필요하다",
+    "coverage": {
+      "category": "실물 장비·촬영 환경 필요",
+      "gap": "실물 ACR Phantom 을 실제 X-ray 로 3D 촬영해야 한다.",
+      "unblock": "ACR Phantom + 실제 촬영 환경."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Performance_01",
+    "title": "2D 영상 획득시간",
+    "level": "MANUAL",
+    "reason": "실제 2D 촬영 입력 시점과 허용 기준이 필요하다",
+    "coverage": {
+      "category": "판정 기준·문서 정보 미확정",
+      "gap": "**체크리스트 Test Data 자체가 '허용 기준: 추가 사양 확인 필요'** 라고 적고 있어 판정 기준이 없다. 그리고 실제 X-ray 스위치 입력 시점을 측정해야 한다.",
+      "unblock": "시험계획서/사양서에서 획득시간 허용 기준을 확정하고 실제 촬영 환경을 확보."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Performance_02",
+    "title": "3D-N 영상 획득시간",
+    "level": "MANUAL",
+    "reason": "실제 3D-N 촬영과 허용 기준이 필요하다",
+    "coverage": {
+      "category": "판정 기준·문서 정보 미확정",
+      "gap": "허용 기준 미확정 + 실제 3D-N 촬영 필요(Performance_01 과 같은 사유).",
+      "unblock": "허용 기준 확정 + 실제 촬영 환경."
+    }
+  },
+  {
+    "tc_id": "TC_Basic_Performance_03",
+    "title": "3D-W 영상 획득시간",
+    "level": "MANUAL",
+    "reason": "실제 3D-W 촬영과 허용 기준이 필요하다",
+    "coverage": {
+      "category": "판정 기준·문서 정보 미확정",
+      "gap": "허용 기준 미확정 + 실제 3D-W 촬영 필요(Performance_01 과 같은 사유).",
+      "unblock": "허용 기준 확정 + 실제 촬영 환경."
+    }
+  },
+  {
+    "tc_id": "AUTOMATION_ENVIRONMENT_RESET",
+    "title": "회귀 테스트 전 기준 상태 복원",
+    "level": "SUPPORT",
+    "reason": "개정본 TC가 아니다. 회귀 시작 상태를 만든다 - DB 4종을 기준 스냅샷으로 복원하고 제품 서비스를 재기동하며 XIPL 시험 파라미터를 재생성한다"
+  },
+  {
+    "tc_id": "DICOM_Server_Setup",
+    "title": "MWL/Storage/Print 서버 자동 등록 및 연결",
+    "level": "SUPPORT",
+    "reason": "개정본 TC가 아니다. WF_04/06/08의 선행조건인 DICOM 서버 등록과 C-ECHO 연결을 자동 수행한다"
+  },
+  {
+    "tc_id": "AUTOMATION_3D_ACQUISITION_3DN",
+    "title": "3D-Narrow 촬영 등록 및 획득",
+    "level": "SUPPORT",
+    "reason": "개정본 TC가 아니다(이전 체크리스트의 TC_System_compatibility_03에 해당). 3D-Narrow Preset 등록과 Demo F8 촬영, INSTANCE_GROUP.Type=1·ExposureMode=1을 자동 판정한다(tests/system_compat.py, run-sys3d). 장비 LCD 표시와 2430 패들·회전 각도(-7.5~7.5도)는 실물 System이 필요해 MANUAL"
+  },
+  {
+    "tc_id": "AUTOMATION_3D_ACQUISITION_3DW",
+    "title": "3D-Wide 촬영 등록 및 획득",
+    "level": "SUPPORT",
+    "reason": "개정본 TC가 아니다(이전 체크리스트의 TC_System_compatibility_04에 해당). 3D-Wide Preset 등록과 Demo F8 촬영, INSTANCE_GROUP.Type=1·ExposureMode=2을 자동 판정한다(tests/system_compat.py, run-sys3d). 장비 LCD 표시와 2430 패들·회전 각도(-15~15도)는 실물 System이 필요해 MANUAL"
+  }
 ]

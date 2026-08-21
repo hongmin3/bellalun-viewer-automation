@@ -50,41 +50,25 @@ r"""TC_Basic_WorkFlow_15 — Pre-send Preview 표시 및 전송.
 from __future__ import annotations
 
 import os
-import re
 import time
 
-from PIL import Image, ImageGrab, ImageOps
-
-from core import flows, screen
+# 크롭/OCR/PIL 사용은 `core/image_overlay.py` 로 옮겼다(2026-08-21) — 여기서
+# 다시 import 하면 쓰지 않는 이름이 남아 "이 모듈이 직접 OCR 한다"고 오해된다.
+from core import flows, image_overlay, screen
 from core import send_verify as sv
 from core import uitext
 from core.result import FAIL, MANUAL, PASS, TCResult
-from core.ui import children
 from tests.workflow02 import PATIENT_ID, _examined_search
 
-# WF_03 이 Image Overlay 로 추가한 항목. 이 두 개가 Preview 에 찍히면 "설정한
-# Overlay 가 표시된다"는 Expected 3 을 관찰로 확인한 것이 된다.
-# 값 자리에 숫자가 아니라 `--` 가 오는 영상이 있다 — 3D-N 은 선량 정보가 없어
-# `-- kVp` / `-- mAs` 로 찍힌다(2026-08-20 실측). "모든 패널에 숫자"를 요구하면
-# 정상 동작을 실패로 판정한다. 그래서 **라벨이 표시되는가**로 본다.
-# OCR 은 `kVp` 의 V 를 `¥` 로 자주 읽어서 그것도 허용한다.
-OVERLAY_MARKERS = {
-    "Dose kVp": re.compile(r"k[v¥y]p"),
-    "Dose mAs": re.compile(r"m[a4]s"),
-}
-# 패널을 여러 배율로 읽어 하나라도 맞으면 인정한다. 한 배율에 의존하면 흔들린다
-# (WF_08 에서 같은 이유로 12/8/5 배율을 쓴다).
-OVERLAY_OCR_SCALES = (6, 4, 3)
-# 환자 ID 접두사 비교 길이. `DATA_FLOW_MWL_01` 에서 OCR 이 `MWL` 을 `MYL` /
-# `M¥WL` 로 읽어도 `datafl0w` 까지는 안정적으로 읽힌다. 다른 시험 환자
-# (`DATA_XIPL_...`)와 겹치지 않는 길이다.
-PID_PREFIX = 8
-# 환자 정보 Overlay — 값은 DB 에서 가져와 대조한다(상수로 박지 않는다).
-PATIENT_MARKERS = ("Patient ID", "Birth Date")
-
-
-def _norm(value):
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower()).replace("o", "0")
+# Overlay 크롭·OCR·판정은 `core/image_overlay.py` 로 옮겼다(2026-08-21).
+# `TC_Basic_WorkFlow_03` Step 5 도 같은 판정을 하므로 구현을 하나로 둔다 —
+# OCR 경로가 둘이면 한쪽만 고쳐 다른 쪽이 조용히 낡는다. 근거와 실측 경위는
+# 그 모듈 docstring 에 있다.
+OVERLAY_MARKERS = image_overlay.OVERLAY_MARKERS
+OVERLAY_OCR_SCALES = image_overlay.OCR_SCALES
+PID_PREFIX = image_overlay.PID_PREFIX
+PATIENT_MARKERS = image_overlay.PATIENT_MARKERS
+_norm = image_overlay.norm
 
 
 def _study(ctx):
@@ -110,57 +94,16 @@ def _study(ctx):
     return row
 
 
-def _panels(ui):
-    """Preview 창의 영상 패널(203)을 왼쪽부터 돌려준다.
-
-    같은 hwnd 가 여러 번 열거될 수 있어 중복을 제거한다.
-    """
-    hits = {c.hwnd: c for c in ui.controls(max_depth=8)
-            if c.visible and c.ctrl_id == flows.PRE_SEND_PREVIEW["instance_panel"]
-            and c.rect[2] - c.rect[0] > 200 and c.rect[3] - c.rect[1] > 200}
-    return sorted(hits.values(), key=lambda c: c.rect[0])
+_panels = image_overlay.panels
 
 
 def _read_overlay(control, path, tesseract_exe):
-    """영상 패널을 캡처해 Overlay 문구를 읽는다.
-
-    Overlay 는 패널의 **위(환자정보)와 아래(선량)** 에 나뉘어 찍힌다. 한 곳만 읽으면
-    Bottom 항목을 놓친다 — Print Overlay 에서 같은 실수를 했다(README §6).
-    """
-    import pytesseract
-
-    if tesseract_exe:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    image = ImageGrab.grab(bbox=control.rect, all_screens=True)
-    image.save(path)
-    width, height = image.size
-    reads = {}
-    for tag, box in (("top", (int(width * .40), 0, width, int(height * .32))),
-                     ("bottom", (int(width * .50), int(height * .84),
-                                 width, height))):
-        crop = image.crop(box).convert("L")
-        for scale in OVERLAY_OCR_SCALES:
-            big = crop.resize((crop.width * scale, crop.height * scale),
-                              Image.Resampling.LANCZOS)
-            reads[f"{tag}_x{scale}"] = pytesseract.image_to_string(
-                ImageOps.autocontrast(big), config="--psm 6", lang="eng").strip()
-    return reads
+    return image_overlay.read_panel(control, path, tesseract_exe,
+                                    scales=OVERLAY_OCR_SCALES)
 
 
 def _overlay_hits(reads, study):
-    """읽은 Overlay 문구에서 기대 항목이 보이는지."""
-    joined = _norm(" ".join(reads.values()))
-    raw = " ".join(reads.values()).lower()
-    pid = _norm(study["PatientID"])
-    found = {label: bool(rx.search(raw.replace(" ", "")) or rx.search(raw))
-             for label, rx in OVERLAY_MARKERS.items()}
-    # OCR 은 이 글꼴에서 W 를 Y 로 자주 읽는다. 완전일치와 **접두사 일치**를 함께
-    # 본다 — 접두사는 다른 시험 환자와 겹치지 않을 만큼 길게 잡는다.
-    found["Patient ID"] = bool(pid) and (pid in joined
-                                        or pid[:PID_PREFIX] in joined)
-    found["Birth Date"] = _norm(study["PatientBirthDate"]) in joined
-    return found
+    return image_overlay.hits(reads, study)
 
 
 def _open_preview(ui, scope="all"):
@@ -283,12 +226,16 @@ def run(ctx):
         if missing_pid:
             r.manual(
                 3, f"환자 ID 를 읽지 못한 패널: {missing_pid}",
-                "이 글꼴·크기에서 `DATA_FLOW_MWL_01` 의 `W` 가 `Y` 로 읽힌다"
-                "(배율 6/4/3 모두 `DATA_FLOY_...`). 접두사를 줄여 통과시키지 않았다 — "
-                "판정을 약화시키는 것이기 때문이다. 같은 패널에서 **생년월일은 정확히 "
-                "읽혔으므로 환자 정보 Overlay 자체는 표시되고 있다.** "
-                "**해제 조건**: 흰 글자/검은 배경이므로 임계값 이진화 전처리를 붙이면 "
-                "개선될 가능성이 높다(Print Overlay 판정이 같은 방법을 쓴다). "
+                "2026-08-21 에 전처리를 강화했는데도(명암 반전 / 임계값 이진화 150·110 / "
+                "NEAREST 확대 x psm 6·7, `core/uitext.read_overlay_text`) 이 패널에서는 "
+                "읽히지 않았다. 접두사를 줄여 통과시키지 않았다 — 판정을 약화시키는 "
+                "것이기 때문이다. 같은 패널에서 **생년월일은 정확히 읽혔으므로 환자 정보 "
+                "Overlay 자체는 표시되고 있다.** 크롭 원본이 "
+                "`Evidence/Flow/15_PreSendPreview/02_preview_panelN_top.png` 로 저장돼 "
+                "있으니 **먼저 그 이미지를 눈으로 보고** 글자가 실제로 어떻게 찍혔는지 "
+                "확인한다(운영 지침: OCR 실패는 캡처를 먼저 본다). "
+                "**해제 조건**: 크롭 이미지에서 문자열이 온전하면 전처리를 더 손보고, "
+                "실제로 잘려 있거나 흐리면 Overlay 표시 자체를 제품 관점에서 확인한다. "
                 "**이 실행으로 말할 수 없는 것**: 해당 패널의 환자 ID 문자열이 원본과 "
                 "정확히 같은지 — 표시 자체는 확인했고 값 대조를 못 했다.")
 
@@ -296,10 +243,13 @@ def run(ctx):
         if missing_dose:
             r.manual(
                 3, f"선량 Overlay 를 읽지 못한 패널: {missing_dose}",
-                "3D-N 영상은 선량 정보가 없어 `-- kVp` / `-- mAs` 로 찍히고, 글자가 "
-                "작고 흐려 배율 6/4/3 어디서도 OCR 되지 않았다. "
-                "**해제 조건**: 선량이 있는 3D 영상(실제 촬영)으로 시험하거나 그 "
-                "영역만 임계값으로 이진화해 읽는 전처리를 붙인다. "
+                "3D-N 영상은 선량 정보가 없어 `-- kVp` / `-- mAs` 로 찍히고 글자가 작다. "
+                "2026-08-21 에 임계값 이진화(150·110) + NEAREST 확대 + psm 6·7 을 붙였는데도 "
+                "이 패널에서는 읽히지 않았다. 크롭 원본이 "
+                "`Evidence/Flow/15_PreSendPreview/02_preview_panelN_bottom.png` 로 "
+                "저장돼 있으니 그 이미지를 먼저 확인한다. "
+                "**해제 조건**: 선량이 있는 3D 영상(실제 촬영)으로 시험한다 — 값이 "
+                "`--` 인 상태로는 라벨만 있고 대조할 값이 없다. "
                 "**이 실행으로 말할 수 없는 것**: 3D-N 패널에 선량 Overlay 라벨이 "
                 "찍히는지 여부 — 찍히지 않는다고 판단한 것이 아니라 읽지 못했다.")
 
@@ -359,7 +309,7 @@ def run(ctx):
                  "(core/send_verify.is_dose_sr_row).")
         if dose_sr and any(int(q["State"]) != sv.QUEUE_STATE_DONE for q in dose_sr):
             r.manual(
-                6, "Dose SR 전송이 Done 이 아니다",
+                6, "Dose SR Queue 상태가 Done 이다",
                 f"Dose SR 행 {[q['Key'] for q in dose_sr]} 이 "
                 f"State={[q['State'] for q in dose_sr]} 로 남았다. 이 환경은 "
                 "Demo(F8) 가상 촬영이라 RDSR 생성 조건이 성립하지 않는다 — 여러 "
@@ -386,17 +336,95 @@ def run(ctx):
                  "아니라 전송 대상과 대조해야 한다 — 아래 note 참고.")
 
         # --- Step 4: View 화면과 대조 ---------------------------------------
+        # 2026-08-21 구현. 그전에는 "View 화면 패널을 크롭·OCR 하는 헬퍼가 없다"는
+        # 이유로 MANUAL 이었다. Preview 창의 패널과 **같은 컨트롤 ID(203)** 를 View
+        # 화면도 쓰기 때문에 `_panels()` 를 그대로 재사용할 수 있다(실측 확인).
         close = uitext.visible(ui, flows.PRE_SEND_PREVIEW["close"])
         if close:
             ui.click(close[0], settle=3.0)
-        r.manual(
-            4, "View/Examine 화면과 동일한 Step 구성·Overlay 비교",
-            "Preview 팝업의 Overlay 는 Step 3 에서 실측했다(위 ocr 참고). "
-            "같은 검사를 View 로 열어 자동 대조하는 것은 아직 붙이지 않았다 — "
-            "해제 조건: View 화면의 영상 패널을 같은 방식으로 크롭·OCR 하는 헬퍼가 "
-            "필요하다(tests/workflow02.py 의 Tool 검증이 쓰는 패널 좌표를 재사용할 "
-            "수 있다). **이 실행으로는 '두 화면이 같다'를 말할 수 없다** — Preview 에 "
-            "Overlay 가 찍힌다는 것까지만 확인했다.")
+
+        view_hits, view_reads, view_panels = {}, {}, []
+        view_opened = False
+        try:
+            rows = _examined_search(ui, PATIENT_ID)
+            if not rows:
+                raise RuntimeError(f"Examined 목록이 비어 있습니다: {PATIENT_ID}")
+            ui.click(rows[0], settle=1.2)
+            view_btn = uitext.visible(ui, flows.EXAMINED_VIEW_BUTTON)
+            if not view_btn:
+                raise RuntimeError(
+                    f"Examined 의 View 버튼({flows.EXAMINED_VIEW_BUTTON})을 "
+                    "찾지 못했습니다.")
+            ui.click(view_btn[0], settle=8.0)
+            view_opened = True
+            view_panels = _panels(ui)
+            for index, panel in enumerate(view_panels, 1):
+                path = os.path.join(evidence, f"04_view_panel{index}.png")
+                reads = _read_overlay(panel, path, tess)
+                view_reads[f"panel{index}"] = reads
+                view_hits[f"panel{index}"] = _overlay_hits(reads, study)
+                r.attach(path)
+        except Exception as exc:                       # noqa: BLE001
+            r.manual(
+                4, "View 화면과 동일한 Step 구성·Overlay 비교",
+                f"View 화면을 열지 못해 대조하지 못했다({type(exc).__name__}: {exc}). "
+                "**해제 조건**: Examined 조회와 View 버튼(2182) 경로를 확인한다. "
+                "**이 실행으로 말할 수 없는 것**: 두 화면의 Overlay 가 같은지.")
+        else:
+            # 같은 항목이 **양쪽 모두에서** 관찰되는지로 판정한다. 픽셀 비교가 아니라
+            # 항목 관찰 비교다 — 두 화면은 창 크기·Layout 이 달라 픽셀이 같을 수 없고,
+            # Expected 4 가 요구하는 것은 "동일한 Step 구성과 Overlay" 이기 때문이다.
+            labels = list(OVERLAY_MARKERS) + list(PATIENT_MARKERS)
+            preview_any = {lab: any(v.get(lab) for v in preview_hits.values())
+                           for lab in labels}
+            view_any = {lab: any(v.get(lab) for v in view_hits.values())
+                        for lab in labels}
+            same_labels = [lab for lab in labels
+                           if preview_any[lab] == view_any[lab]]
+            diff_labels = [lab for lab in labels
+                           if preview_any[lab] != view_any[lab]]
+            r.assert_true(
+                4, "View 화면에 Preview 와 동일한 Overlay 항목 표시",
+                bool(view_panels) and not diff_labels,
+                expected={"Overlay 항목 관찰 결과": labels},
+                actual={"일치 항목": same_labels,
+                        "불일치 항목": diff_labels,
+                        "preview": preview_any, "view": view_any},
+                note="Expected 4. **픽셀 비교가 아니라 항목 관찰 비교**다 — 두 화면은 "
+                     "창 크기와 Layout 이 달라 픽셀이 같을 수 없고, Expected 4 가 "
+                     "요구하는 것은 '동일한 Step 구성과 Overlay' 다. Preview 창과 "
+                     "View 화면이 같은 패널 컨트롤(203)을 쓰므로 같은 크롭·OCR "
+                     "경로로 읽었다. 읽지 못한 항목이 양쪽 모두 없으면 '둘 다 안 "
+                     "읽혔다'로 일치 처리되므로, 항목별 관찰 결과를 actual 에 그대로 "
+                     "남겨 사람이 확인할 수 있게 한다.")
+            # 패널 수는 **판정하지 않고 관측만 기록한다.** View 화면은 3D 영상 종류
+            # 전환 버튼(2122 Raw / 2123 Recon / 2124 Syn)이 있어 한 번에 보여주는
+            # 구성이 Preview(전송 대상)와 설계상 다를 수 있다. 그 차이가 정상인지
+            # 문서로 확인되지 않았으므로 다르다는 것만으로 FAIL 하지 않는다 —
+            # 확인되지 않은 가정으로 FAIL 을 만들지 않는다는 원칙이다.
+            same_count = len(view_panels) == len(panels)
+            r.add(4, "Preview / View 의 영상 패널 수",
+                  PASS if same_count else MANUAL,
+                  expected=f"참고 정보 (Preview {len(panels)}개)",
+                  actual={"preview": len(panels), "view": len(view_panels)},
+                  note="" if same_count else
+                       "두 화면의 패널 수가 다르다. View 화면은 3D 영상 종류 전환"
+                       "(2122 Raw / 2123 Recon / 2124 Syn)이 있어 한 번에 보여주는 "
+                       "구성이 Preview(전송 대상)와 설계상 다를 수 있고, 그것이 "
+                       "정상인지는 문서로 확인되지 않았다. **해제 조건**: 사양에서 "
+                       "View 화면의 동시 표시 범위를 확인하거나, 종류 전환 버튼으로 "
+                       "Preview 와 같은 범위를 맞춘 뒤 비교한다. "
+                       "**이 실행으로 말할 수 없는 것**: 이 차이가 결함인지 여부.")
+        finally:
+            if view_opened:
+                try:
+                    vclose = uitext.visible(ui, flows.VIEW_CLOSE)
+                    if vclose:
+                        ui.click(vclose[0], settle=3.0)
+                    if ui.dialog():
+                        ui.dismiss_dialog(timeout=3)
+                except Exception:                      # noqa: BLE001
+                    pass
     except Exception as exc:
         r.add(0, "TC_Basic_WorkFlow_15 실행", FAIL, actual=str(exc))
     return r

@@ -1,6 +1,135 @@
 # 다음 작업 인수인계
 
+## 고도화 대기 항목 (사용자 지시로 등록 — 2026-08-21)
+
+여기 적힌 것은 **아직 자동화하지 않았고, 다음 회차에 손댈 후보**다. 리포트의 판정
+`note` 가 이 절을 참조하므로 항목을 지우지 말고 상태만 갱신한다.
+
+| # | 항목 | 현재 상태 | 무엇을 해야 하는가 | 막힌 지점 |
+|---|---|---|---|---|
+| 1 | **Dose SR(RDSR) 전송 검증** | `WF_06` Step 3~5 / `WF_07` Step 6 / `WF_15` Step 6 이 MANUAL. Queue 행은 잡지만 `State=3` 에서 멈춘 것만 관측한다 | RDSR 이 실제로 생성·전송·수신되는 경로를 판정한다. 수신 객체의 SOP Class(`1.2.840.10008.5.1.4.1.1.88.67`)와 Patient ID / Study Instance UID 를 원본과 대조하는 코드는 이미 있다(`core/send_verify.py`) — **생성 조건**만 없다 | 이 PC 는 실제 X-ray 대신 Demo(F8) 가상 촬영을 쓰므로 RDSR 이 만들어지지 않는다. 여러 실행에서 `State=3` 을 반복 확인했다. **제품 결함이 아니라 전제 미충족**이다 |
+
+### 1번 항목의 진행 방법 (조사할 것)
+
+1. Demo(F8) 촬영에서 RDSR 생성 조건을 충족시킬 수 있는지 확인한다 — 사양서/Service
+   Manual 에서 "RDSR 생성 조건"을 먼저 찾는다. **화면 동작으로 역산하지 않는다.**
+2. 조건이 실제 노출값(선량)을 요구하면 자동화 대상이 아니다. 그 결론을
+   `automation_scope.json` 의 해당 TC `coverage.gap` 에 근거와 함께 적는다.
+3. 조건이 설정(예: Storage `SendDoseSR`, Study close option)만이라면 그 설정을
+   맞춘 뒤 Queue 행이 `State=7` 이 되는지 확인하고, 되면 MANUAL 을 자동 판정으로
+   올린다.
+4. 어느 경우든 **판정을 약화시켜 통과시키지 않는다.** 조건이 성립하지 않으면
+   MANUAL 로 남기고 해제 조건을 적는다.
+
+---
+
 ## 다음 우선순위
+
+### 최신 (2026-08-21 후반) — WF_03 완결, WF_16 수동 전환, Storage 중복 해소, 리포트 개편
+
+**전체 회귀 실측(19차, 2026-08-21 16:40)**: TC 26건 = PASS 20 / FAIL 1 /
+MANUAL 5 / SKIP 0, 검증 251개 = PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2,
+111.3분. FAIL은 기존 `TC_XIPL_compatibility_03` Step 9 제품 결함 한 건뿐이다.
+
+**자동화 범위**: 개정본 36건 = **FULL 20 / PARTIAL 6 / MANUAL 10** (+ 보조 4,
+그중 3D 촬영 2건은 회귀 제외). `python run.py list` 또는
+`python tools_report_numbers.py` 로 확인한다.
+
+| 항목 | 이전 | 이후 |
+|---|---|---|
+| `WF_03` Step 5·6 | MANUAL | **자동** — 영상 패널 Overlay OCR / Film 창 영역별 Overlay OCR |
+| `WF_16` | PARTIAL(Kiosk 일부 자동) | **MANUAL — 사용자 지정 수동**. 제품 조작 없이 MANUAL 판정 행만 기록 |
+| `Install_02` Step 4 (DICOM NIC) | MANUAL | **SKIP** (확인 대상 없음). TC 판정은 PASS |
+| `Install_02` OS 정보 | MANUAL 확인 항목 | **삭제** → 리포트 상단 '실행 환경' 표로 이동 |
+| "Storage 활성 행 중복" | WF04 뒤 Key 복제 → WF05/06/15 전제 FAIL | **해소 — 판정 쿼리 결함이었다.** `DICOM_STORAGE` 는 설정 행과 **전송 작업 사본 행**을 함께 담고 `SCPUseType` 으로 구분한다(`0`=설정). 사본도 `Use=1` 이라 Send 한 번마다 오판정했다. 쿼리를 `SCPUseType=0` 으로 좁혔다 |
+| `AUTOMATION_3D_ACQUISITION_3DN/_3DW` | 회귀 포함 | **회귀 제외** (`run-sys3d` 단독) |
+| 리포트 | 기대값/실제값 열 폭 가변 | **고정 27%/27% 동일 폭**, 판정 열 74px→46px |
+| 리포트 | — | **자동화 커버리지 총괄** 섹션 신규 (36 TC 전수 분류) |
+| 리포트 | MANUAL/SKIP Step 단위 나열 | **TC 단위 한 행**으로 묶음 |
+
+새로 추가한 모듈·도구
+
+| 파일 | 용도 |
+|---|---|
+| `core/image_overlay.py` | 영상 위 Image Overlay 크롭·OCR·항목 판정. `WF_03` Step 5 와 `WF_15` 가 공용 |
+| `core/print_overlay.py` (추가 함수) | `film_norm` / `ocr_film_areas` / `film_expectations` / `judge_film_areas` / `film_all_ok` — `WF_03` Step 6 과 `WF_08` 이 공용 |
+| `core/dicom_settings.py` (추가 함수) | `STORAGE_SCP_USE_TYPE` / `active_storage_rows` / `storage_job_copies` / `repair_storage_use` — 설정 행과 전송 작업 사본 행을 구분하고, 설정 행이 여럿이면 UI 로 복구 |
+| `core/flows.py` (추가) | `FILM` 컨트롤 맵 / `film_window` / `close_film` — Film 창을 **버튼 문구 OCR 로 확인한 뒤** 닫는다 |
+| `core/uitext.py` (추가) | `button_reads` / `button_label` / `pick_button` — 버튼 문구를 반전·이진화 × psm 11/8/7/6 으로 읽어 **후보가 하나일 때만** 누른다 |
+| `core/sysinfo.pc_info()` | PC/OS 실측 정보 한 번에 수집 (리포트 환경 표) |
+| `tools_report_numbers.py` | 문서에 적을 수치를 리포트 JSON·저장소에서 실측 |
+
+이번에 붙인 것
+
+| TC | 이전 | 이후 | 요점 |
+|---|---|---|---|
+| `WF_14` Setting Export/Import | MANUAL(미구현) | **FULL** | `run-wf14`. `.vms` 를 zip 으로 열어 사양서1 60절 개발 사양 구성 대조 + 설정 테이블 전수 복원 대조 + Setting 56개 페이지 컨트롤 값 항목 단위 대조 |
+| `WF_16` Kiosk 및 System Launcher | PARTIAL(Kiosk 일부 자동) | **MANUAL — 사용자 지정 수동** | `run-wf16`은 제품 UI를 조작하지 않고 MANUAL 한 건만 기록. Kiosk 자동화 코드 삭제 |
+| `WF_10` Step 5~7 | MANUAL | **자동** | MWL 조회 -> 처방 선택 -> Examine. 판정 기준 확정(아래) |
+| `WF_15` Step 4 | MANUAL | **자동** | View 화면과 항목 관찰 대조. Overlay OCR 전처리 강화 |
+
+#### 실측으로 확정한 컨트롤 (2026-08-21)
+
+| 화면 | 확정한 것 |
+|---|---|
+| **`CONFIGURATION.DICOM_STORAGE.SCPUseType`** | 이 테이블은 **설정 행과 전송 작업 사본 행을 함께 담는다.** `0` = `Setting > DICOM > Storage` 에 보이는 설정 행. 제품이 전송을 큐에 넣을 때 그 시점 설정을 사본으로 복제하고 `DATA.DICOM_STORAGE_QUEUE.StorageKey` 가 사본, `OriginalStorageKey` 가 원본을 가리킨다(실측: `StorageKey=18` / `OriginalStorageKey=17`). **사본도 `Use=1`** 이라 `WHERE [Use]=1` 만으로 "활성 SCP 가 하나"를 판정하면 Send 한 번마다 오판정한다. Storage Group / Storage Commitment / Query·Retrieve / MPPS 목록은 전부 0행이므로 사본은 어느 설정 화면에도 없다. 열거값 전체는 문서로 확인하지 않았다 — `0` 의 의미만 확정했다 |
+| **Film 창** (WF_03 Step 6 / WF_08) | 필름 raster 는 `158`(`CWndFilmManager`). Layout `1141` 1x1 / `1142` 1x2 / `1143` 2x2 / `1144` 2x1. **`1149` Print** (OCR `Print`) / **`1105` Close** (OCR `Close`) — Pre-send Preview 창의 Close 와 같은 ID다. Film 창 자식에는 닫기 버튼이 없다(`166`/`167`/`162`/`203`/`201`만) — Close 는 다이얼로그 하단 우측의 별도 `TextButton` 이다 |
+| **Film 종료 확인 대화상자** | Close 를 누르면 `#32770` 팝업 `"Are you sure you want to close?"` 이 뜬다. **`Yes`=501 / `No`=500** — Print 범위 선택(`Selected`=501 / `Cancel`=500)과 **같은 ID** 이므로 ID 로 고르면 정반대를 누를 수 있다. 문구를 OCR 로 읽어 고른다 |
+| **버튼 문구 OCR 전처리** | 이 제품의 확인 대화상자는 **분홍 배경+흰 글자**(Yes)와 **흰 배경+분홍 글자**(No)를 나란히 쓴다. `autocontrast` 하나로는 Yes 가 `ee`, No 가 `(me)` 로 읽혀 구분되지 않는다. `auto psm7` → `Yes y`, `bin150 psm11` → `No` 로 읽힌다. 그래서 `uitext.button_reads` 가 반전·임계값 이진화 × psm 11/8/7/6 을 모두 시도하고, `uitext.pick_button` 이 **후보가 하나일 때만** 누른다 |
+| My Settings > Export(2293) | **Windows 표준 저장 대화상자**(`#32770` "다른 이름으로 저장"). 파일 이름 Edit `1148`(cls=Edit) / 저장 `1` / 취소 `2` / 파일 형식 콤보 `1136`=`vms file (*.vms)`. 저장 완료 후 버튼 하나(`500`) 팝업 |
+| My Settings > Import(2294) | **제품 자체 모달**(표준 열기 대화상자가 아니다). `2075` File Path Edit / `2073` `...` 찾아보기 / `2076` System / `2077` Account / `2078` Procedure 체크박스 / `2074` Import / `1102` Close / `-4` 닫기(x). **기본값은 System 만 체크** |
+| `.vms` 내부 | zip 18항목: `CONFIGURATION.bak` `ACCOUNT.bak` `PROCEDURE.bak` `Config/ExternalInput.xml` `PARAMETER/*.pim` `PARAMETER_QC/*.pim` `RECON_PARAMETER/*.xtp` `Version.txt`(=`1.0.12.105`). 사양서1 개발 사양과 일치(사양 본문은 `PARAMETER` 로만 적었는데 제품은 용도별로 더 세분화한다) |
+| Setting > System > General | Theme 콤보 `2227` / Monitor 콤보 `2228` / Storage Warning 슬라이더 `2230`(자식 `1`=◀ `2`=▶) + Edit `2232` / Critical 슬라이더 `2231` + Edit `2233` / Update `2226` |
+| Setting > System > Security | Strong pwd `2234` Use / `2235` Not use / Auto logoff `2236` Use / `2237` Not use + 분 Edit `2240` / **Exit 권한 콤보 `2241`** / **KIOSK `2238` Use / `2239` Not use** / System date/time `2242` |
+| Setting 콘텐츠 패널 | 페이지 레일 오른쪽의 `#32770` 중 가장 큰 것(실측 rect `382,85 ~ 1840,905`). 절대좌표를 박지 않고 이걸로 캡처 영역을 잡는다 |
+
+#### 실측으로 확정한 제품 동작
+
+- **Import 는 재시작 때 적용된다.** Import 직후 팝업: `Please restart to apply the
+  change. If you don't restart, the setting change may be ignored.` 재시작 전에는 DB
+  값이 그대로고, 재시작 후에 Export 시점 값으로 돌아온다(`StorageWarning` 12 -> 13 ->
+  재시작 후 12). 사양서1 60절과 일치.
+- **Kiosk 는 저장 시점에 레지스트리를 바꾸지 않는다.** `UseKiosk=1` 이 되어도
+  `Winlogon\Shell` 은 `explorer.exe` 그대로이고 팝업만 뜬다:
+  `You need to restart PC to apply KIOSK setting.` 사양서1 "PC를 재시작해야 적용된다"
+  와 일치. **저장 시점의 레지스트리 쓰기 여부는 문서에 없어 기대값을 단정하지 않고
+  관측만 기록한다.**
+- **`ExitPermission=3` <-> 화면 `Allow only Service`** (실측된 짝 하나뿐). 나머지 코드
+  매핑은 값을 바꿔 봐야 확정되므로 추측하지 않는다.
+- **커스텀 컨트롤은 `BM_GETCHECK`/`BM_GETSTATE` 에 응답하지 않는다** — 라디오 8개 전부
+  `0`. 화면 상태는 픽셀, 저장된 상태는 DB.
+- **VIVIX-M Setup / Bellalun System Setup 이 이 PC 에 설치되어 있지 않다.**
+  `Program Files` 전수 탐색으로 확인. `Install_06` 과 `WF_16` Step 5/6 이 MANUAL 인
+  진짜 이유다.
+
+#### WF_10 Step 5~7 판정 기준 (미결이었던 것을 확정)
+
+- Expected 6 -> `STUDY.HospitalCode` (MWL 태그의 코드가 검사에 기록됐는가) +
+  `STUDY.ProcedureKey` (그 코드가 **매핑된 Procedure 로 해석됐는가**). 화면 OCR 보다
+  직접적이다.
+- Expected 7 -> Examine 의 Step 수를 `PROCEDURE_ITEMS(ProcedureKey=1)` 행 수와 대조
+  (Routine Mammography = **4행**) + 상단 Ready 배너로 첫 Step/Preset 선택 확인.
+- **자기충족이 아닌 근거**: `WF_01` 이 Procedure 없는 MWL 처방에서 Step 수 **0** 을
+  확인하는 대조군이다.
+
+#### 감사에서 고친 것 (자세한 표는 `..\인수인계_2026-08-21.md` 3-5절)
+
+절대좌표 클릭 1건, 하드코딩 경로 죽은 코드 1건, `UnboundLocalError` 를 낸 미사용
+import 1건, 활성 Storage SCP 중복 미확인 1건, 식별 컬럼 없는 테이블의 diff 오작동
+1건, 진행 카운터가 설정 비교에 섞인 것 1건, 1px 배치 흔들림 오탐 1건, 페이지 판독
+성능 1건, `specs.cite` 근거 유실 1건.
+
+#### 다음 후보
+
+1. `Install_02` MANUAL 2건 — 지원 OS Build 목록과 DICOM 어댑터 별칭을 사용자에게
+   받으면 자동 판정 가능(`config.json > prerequisites`).
+2. `Install_01` — 검증 대상 Release Note 를 받으면 FULL 가능.
+3. `WF_16` Step 9 후반 — Exit 권한을 `Allow only Service` 로 둔 상태에서 User 그룹
+   계정으로 로그인해 Exit 버튼 부재를 확인하는 것. WF_13 이 만드는 계정을 재사용할 수
+   있지만 로그인 계정을 바꾸는 위험을 회귀 안에서 어떻게 다룰지 결정이 필요하다.
+4. `flows.close_examine(wait=8)` 의 고정 대기를 상태 신호로 바꾸는 것(현재 유일하게
+   남은 상태 신호 없는 고정 대기).
+
 
 ### 0. [완료] 개정본 체크리스트로 TC 번호 전면 재정렬 (2026-08-19)
 
@@ -22,7 +151,7 @@
 | WF_11 / WF_12 | Image / Study Reject 및 Restore | WF_12 / WF_13 | `tests/dataflow.py`(판정부) |
 | WF_13 | 계정 추가·수정 및 로그인 | WF_14 | `tests/settings.py`(판정부) |
 | WF_14 | Setting Export 및 Import | WF_15 | `tests/settings.py`(판정부) |
-| WF_16 | Kiosk 및 System Launcher | WF_18 | `tests/settings.py`(판정부) |
+| WF_16 | Kiosk 및 System Launcher | WF_18 | `tests/workflow16.py`(수동 판정만 기록) |
 
 **적용한 것**
 
@@ -36,6 +165,11 @@
 - `core/checklist.py`가 개정본(`개정 TC` 시트)에 결과를 기록한다.
 - WF_03 모듈(현 `tests/workflow03.py`)을 개정본 WF_03의 6단계 구조로 재작성했다. Send 판정은 WF_04가,
   Film 표시 확인은 WF_08이 하므로 중복을 제거하고 참조로 바꿨다.
+  > **2026-08-21 정정**: 이 판단은 뒤에 바뀌었다. 개정본 WF_03 Step 6 은 **Film
+  > 창의 표시**를 확인하는 것이고 WF_08 이 보는 것은 **실제 Print 출력물**이라
+  > 대상이 다르다. 그래서 WF_03 이 Film 창을 직접 열어 영역별 Overlay 를 OCR 로
+  > 대조한다(중복 아님). 판독 코드는 `core/print_overlay.py` 에 두어 WF_08 과
+  > 공용한다. 이 절 아래 내용은 2026-08-19 시점의 기록으로 남겨 둔다.
 
 **개정본에 없어 빠진 항목**: 이전 scope의 `WF_17`, `WF_18`,
 `TC_System_compatibility_03/04`. 개정본 WorkFlow는 16까지이고

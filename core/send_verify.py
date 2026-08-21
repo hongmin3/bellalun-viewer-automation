@@ -132,7 +132,61 @@ def ensure_transfer_syntax(ctx, ui, r):
     Examine 화면의 영상 선택이 풀려 Send 버튼이 비활성이 되고, 전송 범위
     대화상자가 아예 뜨지 않는다(2026-08-18 회귀에서 Step 2/5가 이렇게 실패했다).
     """
-    outcome = ds.ensure_storage_transfer_syntax(ctx, ui)
+    # **설정된 활성 Storage SCP 가 하나인지 먼저 확인한다.** 이 저장소의 Send 판정은
+    # "수신 객체가 정확히 N건"을 쓰는데, 활성 Storage 가 둘 이상이면 같은 영상이
+    # 여러 SCP 로 나가 그 판정이 조용히 틀린다.
+    #
+    # 이 항목은 시험 대상이 아니라 **전제(setup)** 다. 이전 구현은 어긋난 상태를
+    # FAIL 로 드러내기만 해서, 활성 행이 둘로 보이는 순간 WF05/WF06/WF15 가 전제
+    # 단계에서 멈추고 정작 검증해야 할 전송 판정을 하나도 수행하지 못했다.
+    # 그래서 **맞춰 놓고 그것을 확인**하되, 무엇을 복구했는지 actual/note 에 남겨
+    # 감사할 수 있게 한다. **복구가 실패하면 그대로 FAIL 이다.**
+    #
+    # 복구도 조회도 `core/db.py` 의 조회 전용 원칙을 지킨다 — 상태 변경은
+    # `ds.repair_storage_use` 가 Setting 화면의 Use 체크박스 클릭으로만 한다.
+    #
+    # 대상 이름은 `config.json > dicom.servers_to_register` 의 Storage 항목이다
+    # (`dicom.storage_scp` 에는 Bunny 실행 정보만 있고 서버 등록 이름은 없다).
+    target_name = next(
+        (str(x.get("name")) for x in
+         (ctx.cfg.get("dicom") or {}).get("servers_to_register", [])
+         if x.get("kind") == "Storage"), "")
+
+    active = ds.active_storage_rows(ctx.db)
+    repair = None
+    if len(active) != 1:
+        repair = ds.repair_storage_use(ctx, ui, target_name)
+        active = ds.active_storage_rows(ctx.db)
+    job_copies = ds.storage_job_copies(ctx.db)
+    r.add(1, "[전제] 활성 Storage SCP 가 하나",
+          PASS if len(active) == 1 else FAIL,
+          expected=(f"DICOM_STORAGE 에서 Use=1 AND "
+                    f"SCPUseType={ds.STORAGE_SCP_USE_TYPE} 인 행 1개"),
+          actual={"count": len(active), "rows": [dict(x) for x in active],
+                  "job_copies": [dict(x) for x in job_copies],
+                  "repair": repair},
+          note="Use=1 인 **설정된** Storage SCP 가 둘 이상이면 같은 영상이 여러 SCP "
+               "로 전송되어 '수신 객체가 정확히 N건' 판정이 틀린다. 그래서 전송 전에 "
+               "이 전제를 확인한다.\n"
+               "**`SCPUseType` 을 걸러야 한다 (2026-08-21 실측).** 제품은 전송을 "
+               "큐에 넣을 때 그 시점의 Storage 설정을 **작업용 사본 행**으로 복제하고"
+               "(`SCPUseType=1`) 원본을 `DICOM_STORAGE_QUEUE.OriginalStorageKey` 로 "
+               "가리킨다. 사본도 `Use=1` 이라 예전 쿼리는 Send 한 번마다 '활성 SCP 가 "
+               "하나 늘었다'고 오판정했다 — 실제로 `WF_05`/`WF_06`/`WF_15` 가 이 "
+               "때문에 전제에서 멈췄다. `Setting > DICOM > Storage` 목록은 "
+               "`SCPUseType=0` 행만 보여 주고, Storage Group / Storage Commitment / "
+               "Query·Retrieve / MPPS 목록은 비어 있다(전부 실측). **제품 결함이 "
+               "아니고 자동화 상태 누수도 아니다.** 사본은 actual.job_copies 에 "
+               "관측으로 남긴다.\n"
+               "설정 행이 그래도 여럿이면 UI(Storage 페이지의 Use 체크박스)로 하나만 "
+               "남기고 DB 로 다시 확인한다 — 복구 내용은 actual.repair 에 남고, "
+               "복구까지 실패하면 FAIL 이다(DB 쓰기는 하지 않는다). "
+               + ("**이번 실행에서 복구했다.** " if repair else "")
+               + "수동 해결: `python run.py reset-environment` 후 "
+                 "`setup-dicom` 1회.")
+
+    tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
+    outcome = ds.ensure_storage_transfer_syntax(ctx, ui, tesseract_exe=tess)
     r.add(1, "Storage 서버 등록 및 Transfer Syntax 확인",
           PASS if outcome["ok"] else FAIL,
           expected=f"TransferSyntax={ds.TRANSFER_SYNTAX_IMPLICIT} (Implicit VR LE)",
@@ -141,8 +195,11 @@ def ensure_transfer_syntax(ctx, ui, r):
                "Table이 네트워크 Storage SCU에 선언한 값. 제품 기본값인 JPEG 2000 "
                "Lossless(1.2.840.10008.1.2.4.90)는 conformant SCP가 Presentation "
                "Context를 거절해 전송이 실패한다(Bunny 로그 실측). "
-               "CONFIGURATION.DICOM_STORAGE로 대조.")
-    return outcome["ok"]
+               "CONFIGURATION.DICOM_STORAGE로 대조. 2026-08-21부터 `setup-dicom`이 "
+               "서버 등록 Update와 같은 시점에 이 값을 확정하므로, 회귀에서는 이 "
+               "항목이 UI를 건드리지 않고 통과하는 것이 정상이다(changed=False).")
+    # 전송이 시작되면 작업 사본 행이 늘어나므로 **여기서도 설정 행만** 센다.
+    return outcome["ok"] and len(ds.active_storage_rows(ctx.db)) == 1
 
 
 QUEUE_STATE_DONE = 7          # DICOM_STORAGE_QUEUE.State (2026-08-18 실측)

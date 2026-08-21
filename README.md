@@ -3,8 +3,8 @@
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
-사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 30~40분에 끝나고 근거까지
-남기는** 자동화로 만들었습니다.
+사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 수행하고 근거까지 남기는**
+자동화로 만들었습니다. 최신 전수 회귀는 111.3분이 걸렸습니다.
 
 ```bash
 python run.py run-regression
@@ -18,13 +18,14 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python 약 **16,500줄**, 모듈 49개(core 27 / tests 22), 커밋 65개 |
-| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 18 / 부분자동 7 / 수동 11 (+ 자동화 보조 4) |
-| 최신 전체 회귀 | **21개 TC 중 PASS 13 / FAIL 2 / MANUAL 6** (2026-08-19 20:18, 57분) |
-| 그 안의 검증 항목 | **176개 체크 중 PASS 163 / FAIL 2 / MANUAL 10 / SKIP 1** |
-| 그 FAIL 2건 | 제품 결함 1건(자동화가 잡아낸 정상 결과) + **제가 만든 버그 1건** — 숨기지 않고 §6에 적었습니다 |
+| 규모 | Python **19,702줄**(core 10,980 / tests 8,130 / `run.py` 592), 모듈 56개(core 31 / tests 24 / `run.py`) — 2026-08-21 `python tools_report_numbers.py Reports/Result_20260821_164016.json` 실측 |
+| 시험 범위 | 개정본 체크리스트 **36개 TC** 전수 등록 — 완전자동 20 / 부분자동 6 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
+| 최신 전체 회귀 | 2026-08-21 16:40 — TC 26건 : PASS 20 / FAIL 1 / MANUAL 5 / SKIP 0 (111.3분) |
+| 그 안의 검증 항목 | 검증 251개 : PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2 |
+| 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** (§4 참고) |
-| 자체 정적 검사 | `tools_check_module_attrs.py` — 모듈 속성 오염과 없는 이름 참조를 훑습니다(§6에서 실제로 잡힌 버그) |
+| 자체 정적 검사 | `tools_check_module_attrs.py` — 모듈 속성 오염과 없는 이름 참조를 훑습니다(§6에서 실제로 잡힌 버그) / `tools_check_regression_names.py` — 회귀 블록이 쓰는 이름이 그 블록 안에서 묶였는지 |
+| 수치 실측 도구 | `tools_report_numbers.py` — 문서에 적을 코드 규모·자동화 등급 건수·회귀 판정·소요 시간을 리포트 JSON 과 저장소에서 다시 계산해 출력합니다 |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -34,9 +35,11 @@ python run.py run-regression
 DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
   → Viewer 실행·로그인 → DICOM 서버 3종 등록 + C-ECHO 연결 확인
   → MWL 처방 조회·검사 생성 → 2D/3D 촬영(Demo) → Tool 적용 검증
+  → Image/Print Overlay 설정 + 영상·Film 창 표시 OCR 대조
+  → 2D/3D/All Images/Emergency DICOM Send + 수신 객체 식별 Tag 대조
   → DICOM Print 실제 출력 + 출력물 웹 프리뷰 OCR 대조
+  → Export(Normal/Anonymous), Reject·Restore, 계정·권한, Setting Export/Import
   → XIPL 연동 6종(영상처리 파라미터 왕복 검증)
-  → 3D-Narrow / 3D-Wide 촬영 검증
   → 리포트 4종(HTML·CSV·JSON·TXT) + 체크리스트 xlsx 결과 기록
 ```
 
@@ -67,7 +70,7 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 |---|---|---|
 | `tests/workflow01.py` | `WF_01` | MWL 조회 + Local 검사 생성 |
 | `tests/workflow02.py` | `WF_02` | 2D/3D 촬영 + Tool 적용 |
-| `tests/workflow03.py` | `WF_03` | Image Overlay(Bottom) / Print Overlay(Header·Top·Bottom) 설정 |
+| `tests/workflow03.py` | `WF_03` | Image Overlay(Bottom) / Print Overlay(Header·Top·Bottom) 설정 + 영상·Film 창 표시 확인 |
 | `tests/workflow04.py` | `WF_04` | 2D 수동 DICOM Send |
 | `tests/workflow05.py` | `WF_05` | 3D 수동 DICOM Send |
 | `tests/workflow06.py` | `WF_06` | All Images 및 Dose SR 전송 |
@@ -77,21 +80,24 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 | `tests/workflow10.py` | `WF_10` | MWL Hospital Code와 Procedure 매핑 |
 | `tests/workflow11.py` | `WF_11` | Image Reject 및 Restore |
 | `tests/workflow12.py` | `WF_12` | Study Reject 및 Restore |
+| `tests/workflow13.py` | `WF_13` | 계정 추가·수정 및 로그인 (권한 표 56개 항목 대조) |
+| `tests/workflow14.py` | `WF_14` | Setting Export 및 Import (.vms 구성 + 설정 전수 복원 대조) |
 | `tests/workflow15.py` | `WF_15` | Pre-send Preview 표시 및 전송 |
-| `tests/workflow13.py` | `WF_13` | 계정 추가·수정 (1~3단계) |
+| `tests/workflow16.py` | `WF_16` | **사용자 지정 수동** — 제품을 조작하는 자동화 코드 없이 MANUAL 판정만 기록 |
 | `tests/xipl_flows.py` | `XIPL_01~06` | XIPL 연동 6종 (한 흐름을 공유하므로 묶음) |
 | `tests/install.py` | `Install_01/02/07/08/09` | 설치·환경 점검 |
-| `tests/system_compat.py` | `System_compatibility_03/04` | 3D-Narrow / 3D-Wide 촬영 |
+| `tests/system_compat.py` | (보조) `AUTOMATION_3D_ACQUISITION_3DN/_3DW` | 3D-Narrow / 3D-Wide 촬영. 개정본 TC 가 아니며 **회귀에서 제외**(`run-sys3d` 단독) |
 
 이 정리 전에는 **`tests/workflow03.py` 가 `WF_08`(Film Print)을 담고 있었습니다.**
 이름이 정면으로 오해를 부르는 상태였고, `send_flows.py` 한 파일에 `WF_04`/`05`/`06`
 세 TC가 섞여 있었습니다. 옮기면서 TC가 아니라 인프라에 해당하는 부분(Queue·수신
 객체·식별 Tag 대조)은 `core/send_verify.py` 로 내렸습니다.
 
-**아직 연결되지 않은 모듈**: `tests/dataflow.py`, `tests/settings.py` 는 pre/post DB
-스냅샷을 받아 판정하는 함수 모음인데 **어디에서도 import되지 않습니다.** UI 드라이버가
-없어 한 번도 실행된 적이 없습니다(`core/checklist.py` 가 8일간 출력을 못 냈던 것과 같은
-종류의 문제 — §6). `WF_11`/`WF_12` 구현 시 이 판정 로직을 재사용할 계획입니다.
+**미연결 모듈 정리 경과**: `tests/dataflow.py` 는 `WF_11`/`WF_12` 구현 때 판정부로
+연결했습니다. `WF_14` 는 2026-08-21 에 `tests/workflow14.py` 로 드라이버와 판정을
+함께 구현했습니다. `WF_16` 은 이후 사용자 지시로 전체 수동으로 바뀌어
+`tests/workflow16.py` 에 MANUAL 판정만 남겼습니다. `tests/settings.py` 의 과거
+pre/post 판정부는 실제 실행 경로가 아닙니다.
 
 ```
 run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권한) · 리포트 생성
@@ -101,6 +107,7 @@ run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권�
 └── core/                  재사용 계층 (제품 조작 · 증거 수집)
     ├── ui.py              Win32 컨트롤 열거 · 물리 입력 · 화면 캡처
     ├── uitext.py          커스텀 렌더 컨트롤의 화면 텍스트 OCR · 문구로 항목 선택
+    ├── image_overlay.py   영상 위 Image Overlay 크롭·OCR·항목 판정 (WF_03 / WF_15 공용)
     ├── flows.py           화면 전환 시나리오 (로그인·Setting·검사) + 컨트롤 맵
     ├── viewer_processing.py  영상처리 파라미터 UI + OCR 판독
     ├── viewer_tools.py    Tool(W/L·Zoom·Pan·Annotation) 적용 검증
@@ -109,6 +116,9 @@ run.py                     CLI 진입점 · 환경 게이트(해상도/DPI/권�
     ├── send_verify.py     DICOM Send 공용 판정 (Queue·수신 객체·식별 Tag)
     ├── export_manager.py  Export Manager 제어 (별도 프로세스)
     ├── specs.py           사양서 PDF 검색 (SRS 번호 인용)
+    ├── setting_transfer.py Setting Export/Import 구동 (.vms 구성 검사)
+    ├── setting_values.py  Setting 56개 페이지의 컨트롤 값 판독 · 항목 단위 대조
+    ├── tc_modules.py      TC ID -> 구현 파일 지도 (리포트가 코드 위치를 보여준다)
     ├── snapshot.py        DB 전 구간 스냅샷 · 섹션 diff
     ├── db.py              DB 조회 (**조회 전용 — 아래 설계 원칙 참고**)
     ├── dbreset.py         기준 스냅샷 백업/복원
@@ -240,7 +250,9 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 | `run.py run-wf11` | WF_11 Image Reject 및 Restore |
 | `run.py run-wf12` | WF_12 Study Reject 및 Restore |
 | `run.py run-wf13` | WF_13 계정 추가·수정 및 로그인 (권한 표 56개 항목 대조) |
+| `run.py run-wf14` | WF_14 Setting Export 및 Import (.vms 구성 + 설정 전수 복원) |
 | `run.py run-wf15` | WF_15 Pre-send Preview 표시 및 전송 |
+| `run.py run-wf16` | WF_16 사용자 지정 수동 판정 기록 (제품 UI 조작 없음) |
 | `run.py run-xipl` | XIPL 연동 6종 (`-01`~`-06`로 개별 실행) |
 | `run.py run-sys3d` | 보조: 3D-Narrow / 3D-Wide 촬영 검증 |
 | `run.py list` | 개정본 36개 TC의 자동화 수준과 사유 |
@@ -251,10 +263,50 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
 
 | 위치 | 내용 |
 |---|---|
-| `Reports/Result_<시각>.html` | 사람이 읽는 판정 리포트 (색상 구분) |
+| `Reports/Result_<시각>.html` | **상세 리포트** — 아래 구성 |
 | `Reports/Result_<시각>.json` | 기계 판독용 전체 판정·근거 |
+| `Reports/Result_<시각>.csv` | 스프레드시트로 열어 볼 판정 표 |
+| `Reports/Result_<시각>.txt` | 터미널에서 바로 읽는 요약 |
+| `Reports/Checklist_Result_<시각>.xlsx` | 원본 TC 행 옆에 판정 열을 덧붙인 사본(원본은 수정하지 않음) |
 | `Evidence/` | 단계별 화면 캡처 (실패 시 원인 추적용) |
-| 체크리스트 xlsx | 원본 TC 행 옆에 판정 열을 덧붙인 사본 |
+
+HTML 리포트에 들어가는 것 (2026-08-21 확장)
+
+- **요약 대시보드** — TC/검증 항목 집계 타일, PASS/FAIL/MANUAL/SKIP 비율 막대,
+  실행 구간과 총 소요 시간
+- **실행 환경 및 버전** — 수행 일시·호스트·실행 계정·**PC 제조사/모델·CPU(코어/
+  스레드)·메모리·GPU·BIOS·OS Caption/Version/Build/Arch·OS 설치일·최근 부팅**·
+  Python·해상도/DPI·관리자 권한·Viewer 파일 버전·Tesseract 버전·data_dir·
+  SQL Server·기준 체크리스트 경로. 존재하는 경로는 **클릭하면 열린다**
+  (Viewer 제품 로그와 증적 폴더 포함).
+  PC/OS 정보를 **여기에** 싣는 이유: 지원 OS Build 기준이 문서상 확정되지 않아
+  `Install_02` 의 확인 항목으로 두면 그 TC 가 영구히 MANUAL 로 남는데, 정작 필요한
+  것은 "어떤 PC 에서 돌렸는가" 라는 기록이기 때문입니다(`core/sysinfo.pc_info`).
+- **자동화 커버리지 총괄** — 기준 체크리스트 **36 TC 전부**를 분류해, 자동화하지
+  못한 것의 **정확한 지점과 해제 조건**을 함께 싣습니다. 분류는
+  자동 판정 / 부분 자동 / 미구현(구현 가능) / 실물 장비·촬영 환경 필요 /
+  OS 신규 설치 환경 필요 / 파괴적 작업 / 판정 기준·문서 정보 미확정 /
+  사용자 지정 수동. 사유는 리포트가 만들지 않고 `automation_scope.json` 의 각 TC
+  `coverage` 항목에서 읽습니다 — 근거 없는 설명을 생성하지 않기 위해서입니다.
+- **실패 항목 원인** — 앞선 FAIL 부터 읽도록 위에 모아 둔다(회귀의 연쇄 실패를
+  제품 결함으로 오독하지 않기 위해)
+- **수동 확인 / 미수행 사유와 해제 조건** — MANUAL/SKIP 을 **TC 단위로 한 행**씩
+  모아 "무엇이 있으면 자동 판정할 수 있는가"를 적습니다(같은 사유가 여러 Step 에
+  반복되면 접습니다). Step 단위로 펼치면 행이 수십 개가 되어 "어느 TC 가 왜 막혔나"가
+  묻혔습니다.
+- TC 별로: **기준 문서 원문**(Precondition / Step Description / Expected Result /
+  Test Data)과 자동화 범위 사유, **자동화 코드 위치**, 시작·종료 시각과 소요 시간,
+  단계별 기대값/실제값/판정 근거, 증적 파일 링크, **소요 시간 분해**(스텝별 + 스텝
+  외 전제 준비 시간)
+
+**단계별 판정 표의 열 폭**은 `table-layout:fixed` + `colgroup` 으로 고정해
+**기대값과 실제값을 정확히 같은 폭**(각 27%)으로 만들고 판정 열을 46px 로 줄였습니다.
+브라우저가 내용 길이로 폭을 재조정하면 긴 `actual` 이 기대값 열을 잡아먹어 두 값을
+나란히 대조할 수 없기 때문입니다(1500px 폭 실측: 기대값 388px = 실제값 388px).
+
+`python tools_report_numbers.py` 는 리포트 JSON 과 저장소에서 **문서에 적을 수치를
+실측**해 출력합니다(코드 규모, 자동화 등급 건수, 커버리지 분류, TC/검증 판정, 소요
+시간, FAIL 목록). 문서의 숫자를 손으로 옮겨 적다 낡는 것을 막기 위한 도구입니다.
 
 리포트에는 판정만이 아니라 **무엇과 무엇을 대조했는지**가 함께 남습니다.
 
@@ -265,6 +317,107 @@ python run.py run-regression      # 전체 회귀 (기준 복원부터 리포트
   applied_log: {'parameter': 'TEST_XIPL_SAVED_M.pim', ...}
   note: Apply 후 Image Processing에 재진입하여 UI 표시값을 다시 읽어 비교
 ```
+
+---
+
+### 5.4 TC 를 새로 추가하는 법
+
+이 저장소는 **파일명이 담당 TC 를 드러내는** 규칙을 씁니다(§3.1). 새 TC 를 붙일 때
+순서는 다음과 같습니다.
+
+1. **기준 문서에서 원문을 읽습니다.**
+   `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`)에서 그 TC 행의
+   Precondition / Step Description / Expected Result / Test Data 를 **그대로** 확인합니다.
+   **TC ID 만 보고 Step 을 추측하면 안 됩니다** — `지식` 폴더의 다른 체크리스트는
+   같은 ID 에 다른 내용이 붙어 있습니다(§6 참고).
+2. **매뉴얼·사양서에서 기대 동작의 근거를 찾습니다.**
+   `core/specs.py` 로 사양서 PDF 를 검색하면 쪽 번호와 SRS ID 가 함께 나옵니다.
+   화면에서 보이는 동작으로 합격 기준을 역산하면 **결함을 정상으로 인증합니다.**
+3. **`tests/workflowNN.py`** 를 만듭니다(`NN` = 체크리스트 TC 번호). 파일 최상단
+   docstring 에 체크리스트 원문을 **변경 없이** 옮겨 적고, 판정 근거와 실측한 컨트롤
+   ID 를 함께 적습니다.
+4. **`run(ctx) -> TCResult`** 를 구현합니다. 각 Expected 한 줄이 하나의 Check 입니다.
+
+   ```python
+   r = TCResult("TC_Basic_WorkFlow_NN", "제목")
+   r.assert_equal(3, "확인 항목", expected, actual, note="근거: 사양서1 60쪽 SRS ...")
+   r.attach(screenshot_path)          # 증적
+   r.manual(5, "항목", "사유 + **해제 조건** + **이 실행으로 말할 수 없는 것**")
+   ```
+
+   - **단순 클릭 성공을 PASS 로 쓰지 않습니다.** DB / 로그 / 수신 파일 / UI 재진입 중
+     최소 하나로 교차 확인합니다.
+   - **조작 후 확인 없는 코드를 넣지 않습니다.** 클릭을 보냈으면 의도한 상태가 됐는지
+     확인하는 코드를 같이 넣습니다. 없으면 단독 실행은 통과하고 회귀에서만 깨집니다.
+   - **`finally` 에서 상태를 되돌립니다.** 되돌리지 못하면 그 사실을 판정으로 남깁니다.
+5. **`core/tc_modules.py`** 에 TC ID → 파일 목록을 등록합니다(리포트가 코드 위치를
+   보여주는 근거).
+6. **`automation_scope.json`** 에 등급(FULL/PARTIAL/MANUAL)과 **사유**를 적습니다.
+   등급은 **실측으로 확인된 뒤에만** 올립니다.
+7. **`run.py`** 에 `run-wfNN` 서브커맨드를 추가하고, 회귀에 포함할 것이면
+   **회귀 블록 안에서** import 합니다(다른 분기의 import 는
+   `UnboundLocalError` 를 만듭니다 — §6).
+8. **검사를 돌립니다.**
+
+   ```bash
+   python -m py_compile tests/workflowNN.py
+   python tools_check_module_attrs.py        # 모듈 속성 오염·없는 이름 참조
+   python tools_check_regression_names.py    # 회귀 블록 이름 결속 (긴 실행 전 필수)
+   ```
+9. **회귀 시작 상태에서 검증합니다.** `ensure_*` 계열 헬퍼는 조건이 이미 충족되면
+   건너뛰므로, 단독 실행 통과가 그 분기 검증을 뜻하지 않습니다.
+
+   ```bash
+   python run.py reset-environment    # 기준 스냅샷 복원
+   python run.py run-wfNN
+   ```
+10. **문서를 갱신합니다** — 이 README(§3.1 맵핑표, §5.2 명령표, §9 등급 목록),
+    `NEXT_TASK.md`, `..\지식\[자동화 구현 현황] ...md`.
+
+### 5.5 문제 해결
+
+| 증상 | 먼저 볼 것 |
+|---|---|
+| **클릭이 조용히 안 먹는다** (캡처는 되는데 창이 반응 없음) | **관리자 권한**. `python -c "import sys;sys.path.insert(0,'.');from core import sysinfo;print(sysinfo.is_elevated())"` 가 `False` 면 Windows UIPI 가 입력을 막고 있습니다. 코드보다 권한을 먼저 확인하십시오 |
+| 좌표가 어긋난다 | `python run.py portability-check` — 1920x1080 @ 100%(96 DPI) 가 아니면 시작 시점에 FAIL 시킵니다 |
+| OCR 이 "못 읽는다" | **캡처 이미지를 먼저 보십시오.** 타이밍/경합을 의심하기 전에. `Evidence/` 에 크롭 원본이 남습니다. 과거 두 번 모두 원인은 타이밍이 아니라 전처리(psm 선택, 명암 방향)였습니다 |
+| 회귀가 첫 단계에서 무너진다 | 제품 서비스가 내려가 있을 수 있습니다. `AUTOMATION_ENVIRONMENT_RESET` 판정의 `services` 값을 보십시오 |
+| 앞선 TC 실패 뒤 FAIL 이 줄줄이 | **가장 앞선 FAIL 부터** 읽으십시오. 리포트가 위에 모아 둡니다. "전제 미충족(fixture 없음 / 서버 미등록)" 문구가 보이면 제품 판정이 아닙니다 |
+| "수신 객체가 정확히 N건" 이 틀린다 | 활성 Storage SCP 가 둘 이상일 수 있습니다. 리포트의 `[전제] 활성 Storage SCP 가 하나` 판정을 보고, `reset-environment` 후 `setup-dicom` 을 1회만 실행하십시오 |
+| 검사 Preset·Hospital Code 가 남아 반복 실행이 막힌다 | `python run.py reset-environment` 로 DB 를 기준 스냅샷으로 되돌립니다 |
+| 프로세스가 남았다 | 부록의 정리 명령 |
+| `UnboundLocalError: ... run_xxx` | 같은 이름의 import 가 다른 분기에 있습니다. `python tools_check_regression_names.py` |
+| 수동 WF_16 뒤 Kiosk 가 켜진 채로 남았다 | Viewer > Setting > System > Security 에서 KIOSK mode 를 Not use 로 바꾸고 Update 합니다. 자동화는 Kiosk 설정을 조작하지 않습니다 |
+
+### 5.6 현재 제한사항
+
+- **환경 고정**: Primary 1920x1080 @ 100%(96 DPI), 관리자 권한, Windows.
+  다른 해상도/배율은 시작 시점에 거부합니다(조용히 오작동하지 않기 위해).
+- **Demo(F8) 가상 촬영 환경**: 실제 X-ray 가 아니므로 **RDSR(Dose SR)이 생성되지
+  않습니다.** `WF_06` Step 3~5, `WF_07` Step 6, `WF_15` Step 6 은 전제 미충족으로
+  MANUAL 이고, **제품 결함으로 보고하지 않습니다.**
+- **GPU 미탑재**: `XIPL_03` Step 10 은 Viewer 가 `No GPUS` 를 반환해 SKIP 됩니다.
+  GPU 와 무관하게 성립해야 하는 판정(Apply 후 파라미터 유지)은 면제하지 않습니다.
+- **실물 장비 없음**: Detector/Gantry, ACR Phantom, VIVIX-M Setup,
+  Bellalun System Setup 이 없어 `Install_03~06`, `QC_01/02` 는 수동입니다.
+- **판정 기준이 문서에 없는 것**: `Performance_01~03` 은 체크리스트 Test Data 가
+  *"허용 기준: 추가 사양 확인 필요"* 라고 명시합니다. 기준 없이 측정값만 찍어
+  PASS 라고 쓰지 않습니다.
+- **파괴적 동작 제외**: 설치/Upgrade/Uninstall 실행, 시스템 재시작, PC 종료는
+  자동화하지 않습니다(자동화 세션이 함께 죽고 무인 회귀가 중단됩니다).
+  `WF_16`(Kiosk 및 System Launcher)은 Step 이 대부분 이 부류라 2026-08-21 부터
+  **TC 전체를 수동**으로 둡니다(사용자 지정).
+- **DICOM 전용 네트워크 어댑터가 없는 환경**: `Install_02` Step 4 는 검증 환경서가
+  어댑터 별칭을 지정하지 않으면 **SKIP** 입니다(MANUAL 이 아닙니다 — 확인 대상이
+  없다는 뜻). 실제 DICOM 통신 경로는 `DICOM_Server_Setup` 의 TCP 연결·C-ECHO 판정이
+  매 회귀마다 실측으로 확인합니다.
+- **Overlay 표시 판정은 "값"이 아니라 "항목"**: Demo 촬영에서는 선량 값이
+  `-- kVp` 로 찍히므로 `WF_03` Step 5 는 **라벨 표시**로 판정합니다. 개정본
+  Expected 5 가 요구하는 것도 "설정한 Image Overlay **항목**이 표시된다" 입니다.
+  값 쪽은 환자 ID·생년월일을 DB 와 대조하는 교차 확인으로 따로 남깁니다.
+- **`core/db.py` 는 조회 전용**입니다. 정리용으로도 DB 쓰기를 열지 않습니다 —
+  모든 상태 변경은 UI 로 해서 증거 모델을 지킵니다.
+- **마우스/키보드를 점유합니다**(부록 참고).
 
 ---
 
@@ -361,6 +514,14 @@ Associate Accept
 을 두 번 부르면 `settle` 때문에 간격이 400~900ms로 벌어져 **Windows가 더블클릭으로
 인식하지 않습니다**(임계값 500ms). Hospital Code의 Code 셀이 "편집 불가"로 보였던
 것이 이 때문이었습니다.
+
+**같은 ID가 화면마다 다른 뜻인 경우도 있습니다.** 2026-08-21에 Film 창을 닫으려다
+확인했습니다 — `501`/`500`은 Print 범위 선택에서 `Selected`/`Cancel`이지만, Film
+종료 확인 대화상자에서는 **`Yes`/`No`** 입니다. ID로 골랐다면 정반대를 눌렀을
+것입니다. 그래서 `uitext.pick_button()`을 만들어 **버튼 문구를 OCR로 읽어 후보가
+하나일 때만** 누릅니다. 이 대화상자는 분홍 배경+흰 글자(Yes)와 흰 배경+분홍
+글자(No)를 나란히 써서 `autocontrast` 하나로는 `ee` / `(me)`로 읽혔고, 반전과
+임계값 이진화를 함께 시도해야 `Yes` / `No`가 읽혔습니다.
 
 ### 저장 시점을 가정해 사용자 DB를 오염시킨 일
 
@@ -494,6 +655,53 @@ New Patient 탭 컨트롤(ID 2285)을 20초 동안 찾지 못했습니다.
 보이는가"**(랜드마크·대화상자 문구·캡처)를 남긴다 — 이 한 줄이 세 번째 추측을
 막았습니다.
 
+### 선행 도구의 오탐을 원인 쪽에서 없앤 것 (`WorkFlow_14`)
+
+사내에 같은 목적의 선행 도구가 이미 있었습니다(Setting 화면 캡처-비교 프로그램).
+`pyautogui` 절대좌표에
+**Calibration**(사람이 Setting 창 좌상단/우하단과 각 탭 좌표를 지정해 json 저장)을
+붙여 각 Setting 페이지를 캡처하고, Export/Import 전후 **이미지끼리** 비교해 CSV 통계와
+`COMPOSITE_*` 차이 이미지를 남깁니다.
+
+그 도구의 문서가 **스스로 한계를 적어 두었습니다.**
+
+> "텍스트 커서가 캡처가 되면 같은 Setting 값을 가지고 있지만 Fail 로 인식"
+> "Setting 창 로딩이 늦어진 Fail composite Image"
+> "같은 PC/모니터 및 동일한 Calibration 이 수행된 이미지 데이터와 비교해야 정상 동작"
+
+세 줄 모두 **픽셀을 값의 대리물로 쓴 결과**입니다. 그래서 증상을 완화하는 대신 원인을
+없앴습니다.
+
+| | 선행 도구 | 이 저장소 (`core/setting_values.py`) |
+|---|---|---|
+| 좌표 | 절대좌표 + 사람이 하는 Calibration | **컨트롤 ID**(Setting 9그룹 56페이지 실측 맵). 캡처 영역도 콘텐츠 패널 컨트롤의 rect 에서 계산 |
+| 대기 | 고정 대기 | 보이는 컨트롤 수가 연속 2회 같아질 때까지 |
+| 비교 대상 | 페이지 스크린샷 | **컨트롤별 값** — `Edit`/콤보는 `WM_GETTEXT`, 라디오/체크박스는 패널 1회 캡처의 픽셀 |
+| 텍스트 커서 오탐 | 발생 | 값을 읽으므로 **원리적으로 발생하지 않음** |
+| 결정적 근거 | 없음(이미지가 유일) | **DB 설정 테이블 전수 대조**(`snapshot.config_identical`, 38개 섹션) |
+
+값을 직접 읽을 수 있는지 먼저 실측으로 확인했습니다. 커스텀 MFC 컨트롤이라
+`BM_GETCHECK`/`BM_GETSTATE` 는 **라디오 8개 전부 0** 을 돌려주지만, `WM_GETTEXT` 는
+`Edit` 을 정확히(`2240` → `'10'`), 콤보를 앞 8자로 **결정적으로**(`2241` →
+`'Allow on'`, `2227` → `'Pure Whi'`) 돌려줍니다. 비교에는 그것으로 충분합니다.
+
+첫 실행에서 FAIL 2건이 나왔고 **둘 다 제품이 아니라 자동화 결함**이었습니다.
+
+1. `REGISTRATION_COMMON.LastAccNum`(마지막 발급 Accession Number, 진행 카운터)이
+   설정 전수 대조에 섞여 있었습니다. 게다가 이 테이블은 `Key` 컬럼이 없어
+   `snapshot._key_of` 가 행 전체를 JSON 으로 키를 만들었고, 그래서 **필드 하나가
+   바뀌어도 "1행 삭제 + 1행 추가"** 로 보여 `VOLATILE_FIELDS` 예외가 적용되지
+   않았습니다. 식별 컬럼이 없으면 행 순서로 짝짓도록 고치고 카운터를 제외했습니다.
+2. `patient.general` 의 컨트롤 `2303` 이 회차 사이에 x 595 → **594**(1px) 움직여
+   "한쪽에만 있음" 두 건으로 잡혔습니다. 같은 컨트롤 ID + 8px 이내 최근접으로
+   짝짓게 하고, **허용 오차를 넘는 이동은 그대로 보고**합니다.
+
+그리고 사양이 요구한 동작이 실제로 관측됐습니다. Import 직후 제품이
+**"Please restart to apply the change. If you don't restart, the setting change may
+be ignored."** 를 띄우고, 재시작 전까지 값이 그대로 유지되다가 재시작 후에
+Export 시점 값으로 돌아왔습니다(`StorageWarning` 12 → 13 → 재시작 후 12).
+사양서1 60절의 *"Import 한 설정은 Viewer를 재시작해야 적용된다"* 와 일치합니다.
+
 ### 사양서를 코드에서 인용할 수 있게 만든 것
 
 체크리스트가 스스로 미확정을 표시한 항목이 있었습니다 — `WorkFlow_05`의 Test Data에
@@ -591,6 +799,104 @@ DICOM Conformance Statement가 For Processing(Raw)을 선언하지 않는 것과
 
 특히 마지막 사례는 **자동화가 "통과한 것처럼 보이던" 위험**이었습니다. 잘못된 파일도
 콤보 목록에 표시되어 선택됐기 때문에, 매뉴얼 원문과 파일 헤더를 실측해 바로잡았습니다.
+
+### 첫 진단이 틀렸고, 측정이 그것을 잡아낸 것 (2026-08-21)
+
+이 저장소에서 **가장 값진 종류의 사례**입니다. 그럴듯한 원인을 찾아 고쳤는데도
+증상이 남아 있었고, 그 사실이 진짜 원인을 가리켰습니다.
+
+**증상**: 전체 회귀에서 `WorkFlow_04`(2D Send) 이후 `CONFIGURATION.DICOM_STORAGE` 에
+같은 서버(`BUNNY_TEST`)가 새 `Key` 로 늘어나고 둘 다 `Use=1` 이 됐습니다
+(Key 17 → 18 → 20). "활성 Storage SCP 가 하나" 전제가 FAIL 해
+`WorkFlow_05/06` 이 전제에서 멈추고 `WorkFlow_15` 는 아예 중단됐습니다.
+
+**첫 진단 — 그럴듯했지만 틀렸습니다.** Transfer Syntax 콤보 항목을 고르는 코드가
+팝업 rect 기준 **절대 좌표** `(가운데, top + 17)` 을 누르고 있었습니다. 빗나가면
+팝업 뒤의 `+`(2431) 추가 버튼을 눌러 새 서버 행이 만들어질 수 있는 구조이고,
+`AGENTS.md` 5절을 정면으로 어긴 한 줄이었으니 원인으로 지목하기 딱 좋았습니다.
+그 코드를 OCR 문구 선택으로 바꾸고, `setup-dicom` 단계에서 Transfer Syntax 를 미리
+확정하게 해서 뒤따르는 TC 가 Setting 을 열지 않도록 만들었습니다.
+
+**그런데 연쇄를 다시 돌리니 `WorkFlow_04` 는 Setting 을 아예 열지 않았는데도
+(`changed=False`) Key 18 이 또 생겼습니다.** 추정이 틀렸다는 증거입니다.
+
+**측정으로 확정한 진짜 원인** — 세 가지 독립 근거
+
+| # | 확인한 것 | 결과 |
+|---|---|---|
+| 1 | 두 행의 **전체 컬럼** 비교 | `SCPUseType` 만 다르다 (Key 17=`0`, Key 18=`1`). 나머지 18개 컬럼은 동일 |
+| 2 | `DATA.DICOM_STORAGE_QUEUE` 의 전송 작업 행 | `OriginalStorageKey=17` / `StorageKey=18` — 제품이 전송을 큐에 넣을 때 **그 시점의 Storage 설정을 작업용 사본 행으로 복제**하고 원본을 가리킨다 |
+| 3 | Setting 각 페이지 목록 | `Storage` 는 `SCPUseType=0` 행 1개만 표시. `Storage Group` / `Storage Commitment` / `Query·Retrieve` / `MPPS` 는 전부 0행 — 사본은 **어느 설정 화면에도 없다** |
+
+즉 **제품 결함도 아니고 자동화 상태 누수도 아니었습니다.** 사용자가 나중에 서버
+설정을 바꿔도 진행 중인 전송 작업이 자기 설정을 유지하도록 제품이 사본을 남기는
+정상 동작입니다. 결함은 그 사본까지 "설정된 활성 Storage SCP" 로 세던
+**판정 쿼리**였습니다 — `WHERE [Use]=1` 만 걸고 `SCPUseType` 을 보지 않은 것.
+
+**진짜 원인을 가리킨 것은 자동 복구가 스스로 멈춘 메시지였습니다.**
+
+```
+UI 목록 1행과 DB 2행이 달라 행을 짝지을 수 없습니다. 자동 복구를 하지 않습니다.
+```
+
+Setting 화면에는 1행뿐인데 DB 에는 2행이라는 뜻이고, 그것이 "둘은 같은 종류가
+아니다"를 말해 주었습니다. **애매하면 아무것도 하지 않게** 만들어 둔 것이 오진을
+막았습니다 — 강제로 맞추는 복구였다면 설정 행을 지웠을 것입니다.
+
+**고친 것**
+
+1. 판정 쿼리를 `SCPUseType = 0` 으로 좁혔습니다(`ds.STORAGE_SCP_USE_TYPE`).
+   `active_storage_rows` / `_stored_transfer_syntax` / `repair_storage_use` /
+   `setup-dicom` 의 두 판정 / `WorkFlow_06`·`07` 의 `SendDoseSR` 전제까지 전부.
+2. 사본 행은 **관측으로 남깁니다**(`ds.storage_job_copies` → 판정
+   `actual.job_copies`). 근거를 남기지 않으면 다음 사람이 같은 오진을 반복합니다.
+3. 설정 행이 그래도 여럿이면 **UI(Use 체크박스)로 하나만 남기고 DB 로 다시 확인**
+   합니다. `core/db.py` 의 조회 전용 원칙은 그대로입니다 — DB 에 쓰지 않습니다.
+   복구 내용은 `actual.repair` 에 남고, 복구까지 실패하면 FAIL 입니다.
+4. 첫 진단에서 고친 두 가지는 **원인과 무관하지만 유지**합니다 — 절대 좌표 제거는
+   `AGENTS.md` 5절 준수이고, `setup-dicom` 단계 확정은 위험한 UI 조작 횟수를
+   줄입니다. 다만 **그것이 중복을 고쳤다고 적지 않습니다.**
+
+**전제는 "드러내기"만으로 부족했습니다.** 이전 구현은 어긋난 상태를 FAIL 로 표시
+하는 것까지만 했고, 그 결과 세 TC 가 **정작 검증해야 할 전송 판정을 하나도 수행하지
+못했습니다.** 이 항목은 시험 대상이 아니라 전제(setup)이므로 "맞춰 놓고 그것을
+확인"하는 것이 맞습니다. 복구 실패는 여전히 FAIL 입니다.
+
+**규칙으로 승격한 것**: 판정 쿼리를 쓸 때 **그 테이블에 다른 용도의 행이 섞여 있는지
+먼저 확인합니다.** 전체 컬럼을 뽑아 비교하면 구분 컬럼이 드러납니다. 그리고 열거값
+전체를 문서로 확인하지 못했으면 **확인한 것만 적습니다** — 여기서는 `0` 의 의미만
+세 근거로 확정했고 `1` 은 큐 행의 참조 관계로 관찰한 것이라고 주석에 명시했습니다.
+
+### 새 Step 을 붙이고 **다음 TC** 를 깨뜨린 것 (2026-08-21)
+
+`WorkFlow_03` Step 6 을 자동화하면서 Film 창을 열고 Overlay 를 OCR 한 뒤
+**창을 닫지 않고** TC 를 끝냈습니다. 근거는 "다음 TC 가 `cold_start(force_restart=
+True)` 로 Viewer 를 다시 띄우므로 남은 창은 사라진다" 였고, `WorkFlow_08` 도 실제로
+Film 창을 열어 둔 채 끝냅니다.
+
+**그 전제가 `WorkFlow_04` 에는 성립하지 않았습니다.** `WorkFlow_04` 는
+`flows.cold_start(ctx.cfg, ctx.db)` — **`force_restart` 없이** 기존 Viewer 를
+재사용합니다. 그래서 `ensure_patient_screen` 이 실패하고
+(`landmarks=['status_bar','examine']`) 전제 단계에서 FAIL 했습니다.
+**단독 실행에서는 드러나지 않고 연쇄에서만 깨지는 형태**입니다(§3.2의 4번 원칙).
+
+고친 방법은 "닫기 버튼을 눌러 본다"가 아니라 **실측**이었습니다.
+
+1. Film 창(`158 CWndFilmManager`)의 **자식에는 닫기 버튼이 없었습니다**
+   (`166`/`167`/`162`/`203`/`201`만). 전체 화면을 캡처해 보고서야 Close 가
+   다이얼로그 하단 우측의 별도 `TextButton` 이라는 것을 알았습니다.
+2. 후보 두 개를 OCR 로 읽어 확정했습니다 — `1149`=`Print`, `1105`=`Close`.
+   **ID 만 믿고 눌렀다면 실제 출력을 보낼 수 있었습니다.**
+3. Close 를 누르면 확인 대화상자 `"Are you sure you want to close?"` 가 뜨고
+   `Yes`=501 / `No`=500 입니다. 이 ID 는 **Print 범위 선택의
+   `Selected`=501 / `Cancel`=500 과 같습니다** — 위치나 ID 로 골랐다면 정반대를
+   누를 수 있었습니다.
+4. 그 Yes/No 는 분홍 배경+흰 글자와 흰 배경+분홍 글자여서 `autocontrast` 하나로는
+   `ee` / `(me)` 로 읽혔습니다. 반전·임계값 이진화 × psm 11/8/7/6 을 모두 시도해
+   `Yes` / `No` 를 읽고, **후보가 하나일 때만** 누릅니다
+   (`uitext.button_reads` / `uitext.pick_button`).
+5. 마지막으로 정리 결과를 **판정으로** 남깁니다 — "Film 창 종료 후 Patient 화면
+   복귀". 조작하고 확인하지 않으면 같은 실수가 반복됩니다.
 
 ### 가장 값진 사례: FAIL 10건의 원인이 1개였던 회귀
 
@@ -712,6 +1018,18 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
   때문입니다.
 - **설정 파일 분리** — 계정·서버 주소는 `config.json`(Git 제외), 저장소에는
   `config.example.json` 템플릿만 둡니다.
+- **하드코딩 경로 제거(2026-08-21 점검)** — 호출되지 않는데 기본값에
+  `D:\BellalunData\Image` 가 박혀 있던 함수 두 개를 지웠습니다. 인자 없이 부르면
+  이 PC(`C:` 드라이브)에서 조용히 빈 결과를 돌려줬을 코드입니다. 필요해지면
+  `run.py::_resolve_data_dir` 가 해석한 `ctx.cfg["data_dir"]` 을 넘겨 다시 만듭니다.
+- **절대 데스크톱 좌표 제거(2026-08-21 점검)** — Q.C 캔버스 포커스 클릭 한 곳에
+  `(760, 550)` 이 남아 있었습니다. 창 rect 에서 비율로 계산하도록 바꿨습니다.
+  이제 저장소에 절대 데스크톱 좌표 클릭은 없습니다.
+- **누적 상태에 대한 전제 확인(2026-08-21 점검)** — 단독 실행을 반복하면
+  `DICOM_STORAGE` 에 같은 SCP 가 여러 행 쌓여 **모두 `Use=1`** 이 될 수 있습니다
+  (실측 3행). 그러면 같은 영상이 여러 SCP 로 나가 "수신 객체가 정확히 N건" 판정이
+  조용히 틀립니다. 이제 Send 계열 TC 가 **활성 SCP 가 하나인지 먼저 판정**하고,
+  아니면 복구 명령과 함께 FAIL 로 드러냅니다.
 
 ---
 
@@ -733,7 +1051,10 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 | 12차 | 08-19 13:50 | 18 | 11 / 1 / 6 | 152 | 140 / 1 / 10 / 1 | 저장 확인 팝업 처리, WF_06 신규 |
 | 13·14차 | 08-19 14:39·14:59 | 20 | 3 / 13 / 4 | 49 | 30 / 14 / 5 / 0 | **제가 넣은 로그인 가드가 정상 실행을 막음**(§6) |
 | 15차 | 08-19 16:00 | 20 | 13 / 1 / 6 | 172 | 160 / 1 / 10 / 1 | 가드 재설계, WF_05·WF_09 신규 |
-| **16차** | 08-19 20:18 | **21** | **13 / 2 / 6** | **176** | **163 / 2 / 10 / 1** | 파일명↔TC 맵핑, WF_13 신규. FAIL 2 = 제품 결함 1 + **제가 넣은 버그 1** |
+| 16차 | 08-19 20:18 | 21 | 13 / 2 / 6 | 176 | 163 / 2 / 10 / 1 | 파일명↔TC 맵핑, WF_13 신규. FAIL 2 = 제품 결함 1 + **제가 넣은 버그 1** |
+| 17차 | 08-20 16:12 | 26 | 16 / 1 / 9 | 233 | 215 / 1 / 16 / 1 | WF_07/10/11/12/15 신규, 회귀를 개정본 TC 행 순서로 재배열. 80.1분. FAIL 1 = 제품 결함뿐 |
+| 18차 | 08-21 13:04 | 28 | 17 / 4 / 7 | 254 | 232 / 5 / 16 / 1 | WF_14/WF_16 신규. 94.2분. FAIL 4 중 3건은 **Storage 활성 행 중복**(자동화 결함, §6) — WF_13 로그인 전환 결함은 이 회차에서 해소 |
+| 19차 | 08-21 16:40 | 26 | 20 / 1 / 5 | 251 | 241 / 1 / 7 / 2 | Storage 설정 행/작업 사본 구분 수정, WF_03 Overlay 자동화, WF_16 전체 수동 전환. 111.3분. FAIL 1 = 기존 XIPL_03 Step 9 제품 결함 |
 
 체크 수가 회차마다 다른 이유: 앞선 TC가 실패하면 뒤 TC가 전제 미충족으로 조기
 중단되어 수행되는 체크 자체가 줄어듭니다(7차 45개, 13·14차 49개). **체크 수가
@@ -744,6 +1065,12 @@ QA PC마다 환경이 달라 자동화가 깨지는 일이 잦습니다. 이 프
 > (`setup-dicom → run-wf01 → run-wf02 → run-wf03 → run-wf08`). 호출부가 그 TC들
 > 뿐이어서 나머지는 무관합니다. 16차는 파일명 재배치가 전 모듈에 걸리므로 **전체
 > 회귀**를 돌렸습니다(57분).
+>
+> 19차 전에는 **연쇄 재현**을 먼저 했습니다. Storage 중복은 단독 실행으로는
+> 재현되지 않고 `WF_03` 이 Setting 을 쓴 뒤 `WF_04` 에서 나타났기 때문에,
+> `reset-environment → setup-dicom → run-wf01 → run-wf02 → run-wf03 → run-wf04
+> → run-wf05 → run-wf06` 을 실제로 지나간 뒤 DB 로 활성 행 수를 확인했습니다.
+> **단독 실행 통과 ≠ 그 분기 검증** 이라는 규칙(§3.2)을 그대로 적용한 것입니다.
 
 **16차의 FAIL 2건 중 1건은 제가 만든 버그입니다.** 숨기지 않고 적습니다.
 
@@ -777,24 +1104,57 @@ sv.received = sv.received(ctx) or []  # 치환 결과 — 모듈 함수를 리�
 13·14차의 급락은 **제 실수**입니다. 숨기지 않고 §6에 경위를 적었습니다 — 재현할 수
 없는 상황에 '중단' 로직을 넣은 것이 원인이었습니다.
 
-### 완전 자동 (18건)
+### 완전 자동 (20건)
 
 | TC | 내용 |
 |---|---|
 | `Install_01/02` | 설치 버전·패키지 구성, 실행 전 필수 환경 |
 | `WorkFlow_01` | MWL 및 Local 검사 생성 |
 | `WorkFlow_02` | 공통 2D/3D 검사 촬영 및 Tool 적용 |
-| `WorkFlow_03` | Image Overlay(Bottom) 및 Print Overlay(Header/Top/Bottom) 설정 |
+| `WorkFlow_03` | Image Overlay(Bottom) 및 Print Overlay(Header/Top/Bottom) 설정 — **Step 1~6 전부** |
 | `WorkFlow_05` | 3D 수동 DICOM Send (사양이 정한 Recon 수신 대조) |
-| `WorkFlow_08` | 2D/3D Film Print (Header/Top/Bottom **영역별** 출력물 OCR·raster 대조) |
 | `WorkFlow_07` | Emergency 검사 Auto Send (**Send를 누르지 않고** 전송되는 것까지) |
+| `WorkFlow_08` | 2D/3D Film Print (Header/Top/Bottom **영역별** 출력물 OCR·raster 대조) |
 | `WorkFlow_09` | Normal 및 Anonymous Export (익명화 값까지 대조) |
+| `WorkFlow_10` | MWL Hospital Code와 Procedure 매핑 (**1~7단계 전부**) |
 | `WorkFlow_11` | Image Reject 및 Restore (사유 값까지 DB 대조) |
 | `WorkFlow_12` | Study Reject 및 Restore (Rejected 필터로 목록 확인) |
 | `WorkFlow_13` | 계정 추가·수정 및 로그인 (**권한 표 56개 항목** 실측 대조) |
+| `WorkFlow_14` | Setting Export 및 Import (**.vms 구성 + 설정 전수 복원 대조**) |
 | `XIPL_compatibility_01~06` | XIPL 연동 6종 (영상처리 파라미터 왕복 검증) |
 
-### 부분 자동 (7건)
+`WorkFlow_10` 의 5~7단계는 2026-08-21 에 붙였습니다. 판정 기준을 **DB 주 판정 +
+화면 보강**으로 확정했습니다 — Expected 6 은 `STUDY.HospitalCode` 와
+`STUDY.ProcedureKey`(MWL 태그의 코드가 매핑된 Procedure 로 해석됐는가), Expected 7 은
+Examine 의 Step 수를 `PROCEDURE_ITEMS` 행 수와 대조하고 상단 Ready 배너로 첫
+Step/Preset 선택을 확인합니다. 이 판정이 **항상 참이 되는 종류가 아닌 근거**는
+`WorkFlow_01` 이 Procedure 없는 MWL 처방에서 Step 수 0 을 확인하는 대조군이라는
+점입니다.
+
+`WorkFlow_14` 는 2026-08-21 신규입니다. 자세한 설계는 §6 "선행 도구의 오탐을 원인
+쪽에서 없앤 것"을 보십시오.
+
+`WorkFlow_03` 의 Step 5·6 은 2026-08-21 에 붙여 **전 단계 자동**이 됐습니다.
+
+- **Step 5** (2D 영상의 Image Overlay 표시) — Examine 화면 영상 패널(컨트롤 203)의
+  위·아래를 크롭해 OCR 하고, Step 1 이 Bottom 에 추가한 항목의 **라벨이 실제로
+  찍히는지** 판정합니다. 개정본 Expected 5 가 요구하는 것은 "설정한 Image Overlay
+  **항목**이 표시된다" 이지 값이 맞는지가 아닙니다. 이 PC 는 Demo(F8) 가상 촬영이라
+  선량 값이 `-- kVp` / `-- mAs` 로 찍히므로(실측) **값 일치를 요구하면 정상 동작을
+  실패로 판정**합니다. 값 쪽은 환자 ID·생년월일을 DB 와 대조하는 **교차 확인** 항목으로
+  따로 남깁니다.
+- **Step 6** (Film 창의 Print Overlay 표시) — Examined 에서 Print(2188) →
+  Selected(501) 로 Film 창을 열고 Layout 1x1(1141)로 맞춘 뒤, Step 2 가 세 영역에
+  저장한 6개 항목이 **영역별로** 찍히는지 OCR 로 대조합니다. 한 곳만 읽으면 6개가
+  전부 Top 에 몰려 있어도 통과하므로 영역을 나눠 읽습니다.
+  **`WorkFlow_08` 과 중복이 아닙니다** — 여기는 Film **창의 표시**를 보고,
+  `WorkFlow_08` 은 실제 DICOM Print 를 수행해 **Print SCP 가 수신한 출력물**을 봅니다.
+
+두 판정의 크롭·OCR 코드는 `core/image_overlay.py`(WF_15 와 공용)와
+`core/print_overlay.py`(WF_08 과 공용)로 **하나만** 둡니다. 같은 판정을 두 곳에서
+따로 구현하면 한쪽만 고쳐 다른 쪽이 조용히 낡습니다.
+
+### 부분 자동 (6건)
 
 `Install_07/08/09` — 설정·데이터 유지는 DB로 자동 판정하고, 설치·업그레이드·제거
 실행 자체는 파괴적이라 수동입니다.
@@ -804,6 +1164,8 @@ Selected Images로 전송 → Queue `State=Done` 확인 → 수신 객체 **정�
 **식별 태그 4개**(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조 →
 수신 객체가 Digital Mammography X-Ray Image Storage인지 SOP Class로 확인.
 전송 전 Transfer Syntax를 Conformance Statement 선언값으로 맞춥니다(§6).
+Examined 창 진입 자체는 `open_test_study` 가 대신하므로 Step 1 의 UI 경로만
+부분 자동입니다.
 
 `WorkFlow_06`(All Images 및 Dose SR 전송) — All Images 전송과 Queue/수신 판정은
 자동입니다. Queue의 Image/DSR 구분은 `ClassUID`로 하고, RDSR SOP Class UID는
@@ -812,47 +1174,52 @@ Selected Images로 전송 → Queue `State=Done` 확인 → 수신 객체 **정�
 Demo(F8) 가상 촬영이라 그 조건 성립이 확인되지 않았습니다. 전제 미충족을 제품
 결함처럼 보고하지 않습니다.
 
-`WorkFlow_13`(계정 추가·수정 및 로그인) — **1~3단계는 자동**입니다. Setting >
-System > Account 에서 계정을 추가하고(New Account 모달), 권한 그룹을 고르고, 계정
-정보를 수정한 뒤 `ACCOUNT` 테이블로 대조합니다. `ACCOUNT.Group` 매핑
-**Service=3 / Admin=2 / User=1** 은 실제로 만들어 DB로 확인한 값입니다.
+`WorkFlow_15`(Pre-send Preview) — Preview 창의 영상 패널 개수·Overlay 판독,
+같은 검사를 View 로 열어 항목 관찰 대조(Step 4), Send 후 Queue `State=Done` 과
+수신 객체 식별 Tag 대조까지 자동입니다. 남은 MANUAL 은 **Dose SR 뿐**이고 이유는
+`WorkFlow_06` 과 같습니다(Demo 촬영 전제 미충족).
 
-4~6단계(로그오프 → 시험 계정 로그인 → 권한별 메뉴 접근)는 **의도적으로 수동**입니다.
-로그인 계정을 바꾸면 회귀의 뒤따르는 TC가 제한 권한으로 실행되고, 중간에 실패하면
-로그인 상태를 복구할 수 없습니다. 이 저장소는 그런 연쇄 실패를 이미 세 번 겪었고
-(회귀 7·13·14차) 매번 원인 추적에 오래 걸렸습니다. 권한 코드별 기능 범위 표도
-매뉴얼에 없어 6단계의 기대값을 확정할 수 없습니다.
+### 수동 (10건)
 
-### 수동 (11건)
+실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 파괴적 작업, 또는
+**체크리스트 자체가 허용 기준을 확정하지 않은 것**이 이유입니다.
+**임의로 자동 PASS를 만들지 않는 것이 이 프로젝트의 원칙입니다.**
 
-실물 장비(Detector/Gantry/ACR Phantom), 신규 OS 설치, 사양 미확정, 또는 **UI
-드라이버 미구현**이 이유입니다. **임의로 자동 PASS를 만들지 않는 것이 이
-프로젝트의 원칙입니다.**
-
-미구현 중 다음은 기존 구조를 재사용할 수 있어 우선순위가 높습니다.
-
-이번에 **미구현 TC의 진입점을 실측**해 뒀습니다(2026-08-19). 아이콘 모양으로
-추정하지 않고 캡처의 화면 라벨과 rect를 대조해 확정했습니다 — 이 저장소는 예전에
-`2184`를 Send로 추정했다가 실제로는 `Import Study`였던 적이 있습니다.
-
-| TC | 실측한 진입점 | 남은 것 |
+| TC | 막힌 지점 | 해제 조건 |
 |---|---|---|
-| `WorkFlow_07` Emergency Auto Send | Patient 화면 Emergency = `1100`(사이렌 아이콘) / Setting > DICOM > General `2444` "Study close option on Examine mode" · `2446` "Send urgent patient automatically" Yes | 촬영은 `WF_02` 재사용, Queue·수신 판정은 `core/send_verify.py` 재사용 가능. Emergency 검사가 매 실행 새로 생겨 데이터가 쌓이는 문제를 어떻게 다룰지 결정 필요 |
-| `WorkFlow_11/12` Reject 및 Restore | Setting > Study > Reject/Retake = 페이지 `211`, 옵션 `2421`~`2428`. **전제조건이 이미 충족**돼 있음을 확인(Use reject reason ✓, Always display rejected images ✓, Reason 5건) | **Reject 실행 버튼을 아직 못 찾았습니다.** Examined 툴바 14개에는 없고, 검사를 연 화면에서 찾아야 합니다. 판정은 `tests/dataflow.py`의 DB 델타 로직을 재사용 |
-| `WorkFlow_14` Setting Export/Import | Setting > System > My Settings = 페이지 `193`, `2293` Export / `2294` Import | 파일 대화상자 처리와 Viewer 재시작 후 복원 확인 |
-| `WorkFlow_10` MWL Hospital Code 매핑 | Setting > Procedure > Hospital Code = 페이지 `215` | RIS/MWL 서버에 Hospital Code가 포함된 처방을 등록하는 방법 확인 필요 |
-| `WorkFlow_15` Send Preview 위치 적용 | Setting > DICOM > Storage = 페이지 `219` | 수신 영상의 표시 위치를 Preview와 대조하는 기준 확정 필요 |
+| `Install_03/04/05` | Windows 10 / 11 / 11 IoT LTSC **신규 설치 환경** | 별도 시험 PC |
+| `Install_06` | Detector/Gantry 실제 연결, VIVIX-M Setup·Bellalun System Setup 실행 | 실물 장비가 연결된 시험 PC |
+| `QC_01/02` | 실물 **ACR Phantom** 2D/3D 촬영 | 팬텀 + 실제 X-ray |
+| `Performance_01/02/03` | X-ray 스위치 입력 시점 측정 + **체크리스트 Test Data 가 "허용 기준: 추가 사양 확인 필요"** 라고 명시 | 팬텀 + 실제 X-ray + 시험계획서의 허용 기준 |
+| `WorkFlow_16` | **사용자가 전체 수동으로 지정**(2026-08-21). 제품 동작은 자동화하지 않고 회귀에는 MANUAL 판정 행만 기록합니다 | 없음 — 자동화 재시도 대상이 아닙니다 |
 
-### 자동화 보조 (4건)
+Performance 3건은 장비만 있으면 되는 것이 아닙니다. **판정 기준 자체가 문서에
+없습니다** — 기준 없이 측정값만 찍어 PASS 라고 쓰지 않습니다.
+
+`WorkFlow_16`(Kiosk 및 System Launcher)은 2026-08-21 에 **사용자 지시로 전체 수동**이
+됐습니다. 개정본 Step 자체가 자동화와 맞지 않습니다 — Step 3 은 시스템 재시작,
+Step 12 는 PC 종료여서 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는
+재시작 후 Kiosk 조건에서만 나타나며, Step 5/6 의 VIVIX-M Setup / Bellalun System
+Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않습니다.
+게다가 Kiosk 를 켠 채 재부팅되면 Windows 바탕화면이 뜨지 않아 복구가 어렵습니다.
+
+사용자 지시인 "자동화 코드도 만들지 말고 수행하지 마라"를 그대로 반영해,
+`tests/workflow16.py` 에는 제품을 조작하는 Kiosk UI 자동화 코드를 두지 않습니다.
+`run.py` 의 단독 실행과 전체 회귀 모두 MANUAL 판정 한 건만 기록합니다.
+
+### 자동화 보조 (4건 — 그중 2건은 회귀에서 제외)
 
 개정본 TC가 아니지만 자동화가 수행하는 항목입니다. 체크리스트 결과 xlsx에는
 '자동화 추가 항목'으로 덧붙습니다.
 
 - `AUTOMATION_ENVIRONMENT_RESET` — DB 기준 스냅샷 복원, 제품 서비스 재기동,
-  XIPL 시험 파라미터 재생성
-- `DICOM_Server_Setup` — MWL/Storage/Print 등록과 C-ECHO 연결
+  XIPL 시험 파라미터 재생성 **(회귀에 포함)**
+- `DICOM_Server_Setup` — MWL/Storage/Print 등록과 C-ECHO 연결 **(회귀에 포함)**
 - `AUTOMATION_3D_ACQUISITION_3DN` / `_3DW` — 3D-N/3D-W Preset 등록과 Demo 촬영,
-  `INSTANCE_GROUP.ExposureMode` 판정
+  `INSTANCE_GROUP.ExposureMode` 판정. **2026-08-21 부터 회귀에서 제외**했습니다
+  (사용자 지시) — 개정본 TC 가 아니고 종합 판정이 장비 MANUAL 로 끝나 상세 결과에
+  실을 내용이 없습니다. 3D 픽스처는 `WorkFlow_02` 가 이미 만듭니다. 필요할 때
+  `python run.py run-sys3d` 로 단독 실행합니다.
 
 ---
 

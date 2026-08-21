@@ -134,6 +134,18 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
 5. Win32 컨트롤 ID, 화면에 보이는 텍스트, OCR, **창 기준 상대 좌표**를 쓴다.
    이식 가능한 선택자가 있는 상황에서 절대 데스크톱 좌표를 쓰지 않는다.
 
+   Storage 의 Transfer Syntax 콤보 항목을 팝업 rect 기준 `(가운데, top+17)` 로
+   누르던 코드가 있었다. 항목 높이와 여백을 가정한 좌표다.
+   `uitext.pick_combo_by_text` 로 항목 문구를 OCR 로 읽어 실제 컨트롤을 누르도록
+   고쳤다. (같은 파일의 Dose SR 콤보는 이미 컨트롤을 찾아 누르는 방식이었다.)
+
+   **컨트롤 ID 도 그것만 믿지 않는다 — 같은 ID 가 화면마다 다른 뜻이다.**
+   `501`/`500` 은 Print 범위 선택에서 `Selected`/`Cancel` 인데 Film 종료 확인
+   대화상자에서는 `Yes`/`No` 다. `1105` 는 Pre-send Preview 와 Film 창 모두
+   `Close` 지만 그 옆 `1149` 는 **`Print`** 다. **누르기 전에 문구를 읽는다** —
+   `uitext.button_label` / `uitext.pick_button` 은 후보가 하나일 때만 누르고
+   애매하면 아무것도 누르지 않는다.
+
 6. **모든 판정은 무엇을 실제로 비교했는지 기록한다** — 기대값/실제값, 그리고
    사용한 근거(로그·DB·파일·UI 재진입)를 밝힌 `note`. 리포트만으로 판정을 감사할
    수 있어야 한다. **로그 문구 하나로 성공을 단정하지 않는다** — 가능하면 DB·파일·

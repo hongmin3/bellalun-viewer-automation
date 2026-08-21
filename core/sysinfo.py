@@ -115,3 +115,35 @@ def os_info():
                     "Select-Object Caption,Version,BuildNumber,OSArchitecture | "
                     "ConvertTo-Json -Compress")
     return rows[0] if rows else {}
+
+def pc_info():
+    """리포트 상단에 실을 **PC 실측 정보**.
+
+    2026-08-21 사용자 요청: OS 정보를 `TC_Basic_Install_02` 의 확인 항목으로 두지
+    않고(지원 OS Build 기준이 문서상 확정되지 않아 영구 MANUAL 이 된다) 리포트
+    상단의 실행 환경 표에 실측값으로 싣는다.
+
+    한 번의 PowerShell 호출로 모아 온다 — 항목마다 따로 부르면 회귀 시작마다
+    수 초가 더 든다.
+    """
+    rows = _ps_json(
+        "$os=Get-CimInstance Win32_OperatingSystem;"
+        "$cs=Get-CimInstance Win32_ComputerSystem;"
+        "$cpu=@(Get-CimInstance Win32_Processor)[0];"
+        "$bios=Get-CimInstance Win32_BIOS;"
+        "$gpu=@(Get-CimInstance Win32_VideoController | "
+        "  Select-Object -ExpandProperty Name) -join '; ';"
+        "[pscustomobject]@{"
+        " os_caption=$os.Caption; os_version=$os.Version;"
+        " os_build=$os.BuildNumber; os_arch=$os.OSArchitecture;"
+        " os_install=($os.InstallDate).ToString('yyyy-MM-dd');"
+        " os_locale=$os.OSLanguage;"
+        " last_boot=($os.LastBootUpTime).ToString('yyyy-MM-dd HH:mm:ss');"
+        " host=$cs.Name; domain=$cs.Domain; user=$cs.UserName;"
+        " manufacturer=$cs.Manufacturer; model=$cs.Model;"
+        " ram_gb=[math]::Round($cs.TotalPhysicalMemory/1GB,1);"
+        " cpu=$cpu.Name; cpu_cores=$cpu.NumberOfCores;"
+        " cpu_threads=$cpu.NumberOfLogicalProcessors;"
+        " bios=$bios.SMBIOSBIOSVersion; gpu=$gpu"
+        "} | ConvertTo-Json -Compress")
+    return rows[0] if rows else {}

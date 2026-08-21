@@ -149,6 +149,169 @@ def _ensure_storage_options(ui):
     return changed, states
 
 
+def _ensure_storage_transfer_syntax_control(ui, tesseract_exe=None):
+    """현재 선택된 Storage 행의 Transfer Syntax를 Implicit VR LE로 맞춘다.
+
+    서버 등록 단계에서 다른 Storage 옵션과 **같은 Update**로 저장한다. 그러면
+    뒤따르는 Send TC 들은 이 값이 이미 맞아 Setting 화면을 아예 열지 않는다
+    (`ensure_storage_transfer_syntax` 가 조기 반환) — 위험한 UI 조작 횟수를 줄인다.
+
+    **항목은 문구를 OCR로 읽어 고른다.** 2026-08-21까지는 팝업 rect에서
+    `(가운데, top+17)` 좌표를 눌러 "첫 항목"을 골랐다. 항목 높이와 팝업 여백을
+    가정한 절대 좌표라 AGENTS.md 5절 위반이고, 빗나가면 팝업 뒤의 컨트롤을 누를 수
+    있다. 그래서 `uitext.pick_combo_by_text` 로 바꿔 **실제 항목 컨트롤**을 누른다.
+    원하는 문구가 없으면 아무것도 누르지 않고 실패한다.
+
+    (참고: 이 좌표 클릭이 `DICOM_STORAGE` 중복 행의 원인이라고 한때 판단했지만
+    **틀렸다.** 실제 원인은 제품이 전송 작업마다 만드는 사본 행이었고 —
+    `STORAGE_SCP_USE_TYPE` 주석 참고 — 여기 변경은 그와 무관한 별개의 개선이다.)
+
+    반환: 값을 바꿨으면 True, 이미 선언값이면 False.
+    """
+    from core import uitext
+
+    combo = [c for c in ui.by_id(STORAGE_TRANSFER_SYNTAX) if c.visible]
+    if not combo:
+        raise RuntimeError(
+            f"Transfer Syntax 콤보({STORAGE_TRANSFER_SYNTAX})를 찾지 못했습니다.")
+    current = uitext.norm(ui.combo_value(combo[0]))
+    if current and current == uitext.norm(TRANSFER_SYNTAX_LABEL):
+        return False
+    uitext.pick_combo_by_text(
+        ui, STORAGE_TRANSFER_SYNTAX, TRANSFER_SYNTAX_LABEL,
+        tesseract_exe=tesseract_exe, what="Storage Transfer Syntax",
+        settle=.8)
+    return True
+
+
+def active_storage_rows(db):
+    """**설정된** 활성 Storage 행(Key 순).
+
+    `SCPUseType=0` 만 센다 — 전송 작업 사본 행(`SCPUseType=1`)은 설정 항목이 아니다
+    (`STORAGE_SCP_USE_TYPE` 주석의 실측 근거 참고).
+    """
+    return db.query(
+        "CONFIGURATION",
+        "SELECT [Key],Name,AETitle,IP,Port,[Use],TransferSyntax,SCPUseType "
+        "FROM DICOM_STORAGE WHERE [Use]=1 AND SCPUseType=@t ORDER BY [Key]",
+        {"t": STORAGE_SCP_USE_TYPE})
+
+
+def storage_job_copies(db):
+    """전송 작업 사본 행(`SCPUseType<>0`). **판정 대상이 아니라 관측용**이다.
+
+    전제 판정의 `actual` 에 함께 실어 "왜 DB 에 같은 이름이 여러 행인가"를 리포트만
+    보고 알 수 있게 한다. 근거를 남기지 않으면 다음 사람이 다시 상태 누수로 오진한다.
+    """
+    return db.query(
+        "CONFIGURATION",
+        "SELECT [Key],Name,[Use],SCPUseType FROM DICOM_STORAGE "
+        "WHERE SCPUseType<>@t ORDER BY [Key]", {"t": STORAGE_SCP_USE_TYPE})
+
+
+def _close_setting_window(ui):
+    """Setting 창을 닫는다(`tests/workflow08.py::_close_setting` 과 같은 선택자).
+
+    복구 경로에서만 쓴다. `ensure_storage_transfer_syntax` 의 정상 경로는
+    호출부가 곧바로 `cold_start(force_restart=True)` 로 Viewer 를 다시 띄우므로
+    남은 창이 문제가 되지 않지만, `WF_15` 처럼 같은 세션에서 곧바로 Examined 를
+    여는 TC 는 열린 Setting 창 때문에 메인 메뉴를 못 찾을 수 있다.
+    """
+    try:
+        closes = [c for c in ui.by_id(4) if c.visible
+                  and c.rect[2] - c.rect[0] <= 60 and c.rect[3] - c.rect[1] <= 60]
+        if closes:
+            ui.click(min(closes, key=lambda c: c.rect[1]), settle=3)
+            return True
+    except Exception:                                          # noqa: BLE001
+        pass
+    return False
+
+
+def repair_storage_use(ctx, ui, target_name, timeout=10):
+    """활성 Storage가 여럿이면 **UI로** 하나만 남긴다.
+
+    왜 필요한가: 이 저장소의 Send 판정은 "수신 객체가 정확히 N건"을 쓴다.
+    `Use=1`인 Storage가 둘 이상이면 같은 영상이 여러 SCP로 나가 그 판정이 조용히
+    틀린다. 그래서 전제 판정이 먼저 그것을 드러내는데, 드러내는 것만으로는 회귀가
+    그 지점부터 진행되지 않는다. 여기서 **상태를 복구한 뒤 다시 확인**한다.
+
+    왜 이름이 아니라 **행 순서**로 맞추는가: `_sync_use`는 `{Name: Use}` 사전을
+    쓰므로 같은 이름이 여러 행이면 서로를 구분하지 못한다(2026-08-21 확인 —
+    그래서 `setup-dicom`이 중복을 정리하지 못했다). UI 목록 순서와 `Key` 순서가
+    같다는 것에 의존하되, **결과를 DB로 다시 확인**하고 못 맞추면 실패로 남긴다.
+
+    `core/db.py`는 조회 전용이다 — 상태 변경은 전부 UI 클릭으로 한다.
+
+    반환: {"needed": bool, "ok": bool, "before": [...], "after": [...],
+           "clicked": [행 index...], "error": str|None}
+    """
+    before = active_storage_rows(ctx.db)
+    out = {"needed": len(before) > 1, "ok": len(before) == 1,
+           "before": [dict(x) for x in before], "after": [dict(x) for x in before],
+           "clicked": [], "error": None}
+    if len(before) <= 1:
+        return out
+
+    try:
+        flows.open_dicom_setting(ui, "storage", wait=3)
+    except Exception as exc:                                   # noqa: BLE001
+        out["error"] = f"Storage 설정 화면을 열지 못했습니다: {exc}"
+        return out
+
+    # UI 목록과 짝지을 대상은 **설정 행만**이다. 전송 작업 사본(`SCPUseType<>0`)은
+    # 어느 설정 화면에도 나오지 않으므로 포함하면 행 수가 어긋난다.
+    all_rows = ctx.db.query(
+        "CONFIGURATION",
+        "SELECT [Key],Name,[Use] FROM DICOM_STORAGE WHERE SCPUseType=@t "
+        "ORDER BY [Key]", {"t": STORAGE_SCP_USE_TYPE})
+    items = _server_items(ui)
+    if len(items) != len(all_rows):
+        out["error"] = (f"UI 목록 {len(items)}행과 DB {len(all_rows)}행이 달라 "
+                        "행을 짝지을 수 없습니다. 자동 복구를 하지 않습니다.")
+        return out
+
+    # 남길 행: 대상 이름과 같은 행 중 **Key 가 가장 작은 것**. 판정에서 쓰는
+    # `_stored_transfer_syntax` 가 `ORDER BY [Key]` 의 첫 행을 보기 때문이다.
+    keep = next((i for i, row in enumerate(all_rows)
+                 if str(row.get("Name")) == str(target_name)), None)
+    if keep is None:
+        out["error"] = f"대상 Storage {target_name!r} 행이 DB 에 없습니다."
+        return out
+
+    for index, (item, row) in enumerate(zip(items, all_rows)):
+        want = 1 if index == keep else 0
+        if int(row.get("Use") or 0) == want:
+            continue
+        checkbox = children(item.hwnd, 1)
+        if not checkbox:
+            out["error"] = f"{index}번째 행의 Use 체크박스를 찾지 못했습니다."
+            return out
+        ui.click(checkbox[0], settle=.4)
+        out["clicked"].append({"index": index, "key": row.get("Key"),
+                               "from": int(row.get("Use") or 0), "to": want})
+    if not out["clicked"]:
+        out["error"] = ("활성 행이 둘 이상인데 되돌릴 체크박스를 찾지 못했습니다"
+                        "(UI 목록과 DB 상태 불일치).")
+        return out
+
+    _update(ui)
+    end = time.time() + timeout
+    while True:
+        after = active_storage_rows(ctx.db)
+        out["after"] = [dict(x) for x in after]
+        if len(after) == 1 and str(after[0].get("Name")) == str(target_name):
+            out["ok"] = True
+            break
+        if time.time() >= end:
+            out["error"] = ("Use 정리 후에도 활성 Storage 가 "
+                            f"{len(after)}행입니다.")
+            break
+        time.sleep(1)
+    out["setting_closed"] = _close_setting_window(ui)
+    return out
+
+
 def _sync_use(ui, db, kind, target_name):
     table = {"MWL": "DICOM_MWL", "Storage": "DICOM_STORAGE", "Print": "DICOM_PRINT"}[kind]
     rows = db.query("CONFIGURATION", f"SELECT Name,[Use] FROM {table}")
@@ -219,7 +382,7 @@ def _saved_rows(db, kind, spec):
             "FROM DICOM_PRINT p LEFT JOIN DICOM_PRINT_DICOM d "
             "ON d.PrintKey=p.[Key] WHERE p.Name=@name", params)
     table = {"MWL": "DICOM_MWL", "Storage": "DICOM_STORAGE"}[kind]
-    extra = (",BurnAnno,BurnLabel,BurnInfo,ApplyPreviewPosition,SendDoseSR"
+    extra = (",BurnAnno,BurnLabel,BurnInfo,ApplyPreviewPosition,SendDoseSR,TransferSyntax"
              if kind == "Storage" else "")
     return db.query(
         "CONFIGURATION",
@@ -256,24 +419,65 @@ def _exact_saved(rows, spec):
 # **반드시 검사를 열기 전(Patient 화면)에 호출한다.**
 STORAGE_TRANSFER_SYNTAX = 2459
 TRANSFER_SYNTAX_IMPLICIT = 0
+#: 화면 항목 문구. Service Manual "Setting > DICOM > Storage > Option" 표가
+#  선택지를 `Implicit VR Little Endian` / `Explicit VR Little Endian` /
+#  `JPEG2000 Lossless` 세 개로 정한다. 순서(인덱스)로 고르지 않고 이 문구를
+#  OCR 로 읽어 고른다 — 콤보 순서와 DB 값이 일치한다고 가정하지 않는다는
+#  이 저장소의 규칙(AGENTS.md 3절)이다.
+TRANSFER_SYNTAX_LABEL = "Implicit VR Little Endian"
+
+
+# --- `DICOM_STORAGE.SCPUseType` -------------------------------------------
+#
+# **이 컬럼을 걸러야 한다.** 2026-08-21 에 확정한 실측이다.
+#
+# 증상: 전체 회귀에서 `WF_04`(2D Send) 뒤 `DICOM_STORAGE` 에 같은 서버
+# (`BUNNY_TEST`)가 새 Key 로 늘어나고 둘 다 `Use=1` 이 됐다. "활성 Storage SCP 가
+# 하나" 전제가 FAIL 해 `WF_05`/`WF_06`/`WF_15` 가 전제에서 멈췄다.
+#
+# 처음에는 자동화의 상태 누수로 판단했지만 **아니었다.** 세 가지를 실측했다.
+#
+#   1. `DATA.DICOM_STORAGE_QUEUE` 의 전송 작업 행이
+#      `OriginalStorageKey=17`(SCPUseType=0) / `StorageKey=18`(SCPUseType=1) 이다.
+#      즉 제품이 전송을 큐에 넣을 때 **그 시점의 Storage 설정을 작업용 사본 행으로
+#      복제**하고, 원본을 `OriginalStorageKey` 로 가리킨다. 사용자가 나중에 서버
+#      설정을 바꿔도 진행 중인 작업이 자기 설정을 유지하게 하는 구조다.
+#   2. `Setting > DICOM > Storage` 의 SCP List 는 **`SCPUseType=0` 행만** 보여 준다
+#      (DB 2행 / UI 1행. 자동 복구가 "UI 목록 1행과 DB 2행이 달라 짝지을 수 없다"고
+#      스스로 멈춘 것이 이 사실을 드러냈다).
+#   3. `Storage Group` / `Storage Commitment` / `Query/Retrieve` / `MPPS` 페이지의
+#      목록은 모두 비어 있다 — 그 사본 행은 어느 설정 화면에도 속하지 않는다.
+#
+# 따라서 **제품 결함이 아니고 자동화 상태 누수도 아니다.** 판정 쿼리가 작업용 사본을
+# 설정 항목으로 세던 것이 결함이었다. 여기서 `SCPUseType=0` 으로 좁힌다.
+#
+# `SCPUseType` 전체 열거값은 문서로 확인하지 않았다. **0 = 설정된 Storage SCP** 만
+# 위 세 근거로 확정했고, 1 이 "전송 작업 사본"이라는 것은 큐 행의 참조 관계로
+# 관찰한 것이다. 다른 값의 의미는 단정하지 않는다.
+STORAGE_SCP_USE_TYPE = 0
 
 
 def _stored_transfer_syntax(ctx):
     return ctx.db.one(
         "CONFIGURATION",
-        "SELECT TOP 1 TransferSyntax FROM DICOM_STORAGE WHERE [Use]=1 "
-        "ORDER BY [Key]") or {}
+        "SELECT TOP 1 [Key],Name,AETitle,IP,Port,TransferSyntax "
+        "FROM DICOM_STORAGE WHERE [Use]=1 AND SCPUseType=@t "
+        "ORDER BY [Key]", {"t": STORAGE_SCP_USE_TYPE}) or {}
 
 
-def ensure_storage_transfer_syntax(ctx, ui, timeout=8):
+def ensure_storage_transfer_syntax(ctx, ui, timeout=8, tesseract_exe=None):
     """Storage 서버의 Transfer Syntax를 사양이 선언한 Implicit VR LE로 맞춘다.
 
     반환: {"ok": bool, "changed": bool, "before": {...}, "after": {...},
-           "error": str|None}
-    이미 Implicit이면 UI를 건드리지 않고 `changed=False`로 돌려준다.
+           "active_before": int, "active_after": int, "error": str|None}
+    이미 Implicit이면 **UI를 전혀 건드리지 않고** `changed=False`로 돌려준다 —
+    2026-08-21부터 `setup-dicom`이 서버 등록 Update와 같은 시점에 이 값을
+    확정하므로 회귀에서는 이 경로가 거의 실행되지 않는다.
     """
     before = _stored_transfer_syntax(ctx)
+    active_before = len(active_storage_rows(ctx.db))
     out = {"ok": False, "changed": False, "before": before, "after": before,
+           "active_before": active_before, "active_after": active_before,
            "error": None}
     if int(before.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
         out["ok"] = True
@@ -284,19 +488,27 @@ def ensure_storage_transfer_syntax(ctx, ui, timeout=8):
     if not rows:
         out["error"] = "Storage SCP 목록이 비어 있습니다."
         return out
-    # Option 영역은 SCP 행을 선택해야 활성화된다(실측).
-    ui.click(rows[0], settle=1.5)
-    combo = [c for c in ui.by_id(STORAGE_TRANSFER_SYNTAX) if c.visible]
-    if not combo:
-        out["error"] = f"Transfer Syntax 콤보({STORAGE_TRANSFER_SYNTAX})를 찾지 못했습니다."
+    # Option 영역은 SCP 행을 선택해야 활성화된다(실측). 목록의 첫 행이 대상 서버라고
+    # 가정하지 않고, DB에서 확인한 활성 SCP와 이름이 같은 행을 UI 값으로 다시
+    # 확인해 고른다.
+    target_name = str(before.get("Name") or "")
+    target = next((row for row in rows if _select_name(ui, row) == target_name), None)
+    if target is None:
+        out["error"] = (f"활성 Storage SCP {target_name!r} 행을 UI 목록에서 "
+                        "찾지 못했습니다.")
         return out
-    ui.click(combo[0], settle=1.2)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    if not popups:
-        out["error"] = "Transfer Syntax 목록 팝업이 열리지 않았습니다."
+    # `_select_name` 이 이미 이 행을 클릭해 선택했다. 한 번 더 누르지 않는다 —
+    # `ui.click(row)` 는 행 **중앙**을 누르므로(AGENTS.md 3절) 이 목록에서는
+    # Use 체크박스나 다른 셀을 건드릴 수 있다.
+    try:
+        changed = _ensure_storage_transfer_syntax_control(ui, tesseract_exe)
+    except Exception as exc:                                   # noqa: BLE001
+        out["error"] = str(exc)
         return out
-    pl, pt, pr, _ = popups[0].rect
-    ui.click(((pl + pr) // 2, pt + 17), settle=1.5)   # 첫 항목 = Implicit VR LE
+    if not changed:
+        # 화면은 이미 선언값인데 DB 가 다르다 = 저장되지 않은 상태다. 그대로
+        # Update 해서 반영한다.
+        pass
     flows.setting_update(ui)
     flows.confirm_setting_dialog(ui)
     out["changed"] = True
@@ -306,12 +518,28 @@ def ensure_storage_transfer_syntax(ctx, ui, timeout=8):
         after = _stored_transfer_syntax(ctx)
         if int(after.get("TransferSyntax", -1)) == TRANSFER_SYNTAX_IMPLICIT:
             out.update(ok=True, after=after)
-            return out
+            break
         if time.time() >= end:
             out["after"] = after
             out["error"] = "저장 후에도 Implicit VR LE로 바뀌지 않았습니다."
-            return out
+            break
         time.sleep(1)
+
+    # **Update 뒤에 설정된 활성 행 수를 다시 확인한다.** 값만 맞고 활성 행이
+    # 여러 개면 뒤따르는 "수신 객체가 정확히 N건" 판정이 조용히 틀린다.
+    # (`active_storage_rows` 는 전송 작업 사본 행을 세지 않는다 —
+    #  `STORAGE_SCP_USE_TYPE` 주석 참고.)
+    repair = None
+    if len(active_storage_rows(ctx.db)) > 1:
+        repair = repair_storage_use(ctx, ui, target_name)
+        out["repair"] = repair
+        if not repair["ok"]:
+            out["ok"] = False
+            out["error"] = ((out["error"] + " / ") if out["error"] else "") + (
+                "Update 후 활성 Storage 가 여러 행이 되어 UI 로 복구를 시도했으나 "
+                f"실패했습니다: {repair.get('error')}")
+    out["active_after"] = len(active_storage_rows(ctx.db))
+    return out
 
 
 def setup_all(ctx, kinds=None):
@@ -389,6 +617,11 @@ def setup_all(ctx, kinds=None):
             if kind == "Storage":
                 option_changed, option_states = _ensure_storage_options(ui)
                 changed = changed or option_changed
+                # Transfer Syntax도 서버 등록 시 같은 Update로 확정한다. 뒤따르는
+                # WF04가 Setting 상태에 따라 같은 Storage 행을 복제하지 않게 한다.
+                tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
+                changed = (_ensure_storage_transfer_syntax_control(ui, tess)
+                           or changed)
             changed = changed or use_changed
         except Exception as exc:
             r.add(1, f"{kind} 설정 화면 준비", FAIL,
@@ -411,7 +644,13 @@ def setup_all(ctx, kinds=None):
                                 f"{spec['ip']}:{spec['port']}"), actual=rows)
         if kind != "Print":
             table = {"MWL": "DICOM_MWL", "Storage": "DICOM_STORAGE"}[kind]
-            uses = ctx.db.query("CONFIGURATION", f"SELECT Name,[Use] FROM {table} WHERE [Use]=1")
+            # Storage 는 전송 작업 사본 행(`SCPUseType<>0`)도 `Use=1` 이므로
+            # 설정 행만 센다(`STORAGE_SCP_USE_TYPE` 주석의 실측 근거 참고).
+            extra_where = (f" AND SCPUseType={STORAGE_SCP_USE_TYPE}"
+                           if kind == "Storage" else "")
+            uses = ctx.db.query(
+                "CONFIGURATION",
+                f"SELECT Name,[Use] FROM {table} WHERE [Use]=1{extra_where}")
             only_target = (len(uses) == 1 and
                            str(uses[0].get("Name")) == str(spec["name"]))
             r.assert_true(1, f"{kind} Use 단일 선택", only_target,
@@ -430,6 +669,16 @@ def setup_all(ctx, kinds=None):
                           str(option_states.get("Dose SR", "")).lower() == "send",
                           expected="Burn 3개 + Image 체크, Dose SR=Send",
                           actual={"ui": option_states, "db": saved_option})
+            active = active_storage_rows(ctx.db)
+            transfer_ok = (len(active) == 1 and
+                           int(active[0].get("TransferSyntax", -1)) ==
+                           TRANSFER_SYNTAX_IMPLICIT)
+            r.assert_true(
+                1, "Storage Transfer Syntax 단일 행 저장", transfer_ok,
+                expected="활성 Storage 1행 / Implicit VR Little Endian(0)",
+                actual=active,
+                note="DICOM Conformance Statement V1.3W1의 선언값. "
+                     "회귀 시작 단계에서 전송 옵션과 한 번에 저장한다.")
         r.assert_true(2, f"{kind} TCP 연결", net, expected=f"{spec['ip']}:{spec['port']}", actual=net)
         r.assert_true(3, f"{kind} C-ECHO", echo_ok,
                       expected="Verification 6단계 이상 및 Connected Fail 없음",

@@ -3,7 +3,9 @@
 import argparse
 import json
 import os
+import platform
 import string
+import subprocess
 import sys
 from datetime import datetime
 
@@ -46,6 +48,137 @@ class Context:
         self.reports_root = os.path.join(self.root, "Reports")
 
 
+def _report_meta(ctx, results):
+    """HTML 리포트에 실을 부가 정보를 모은다.
+
+    실패해도 리포트 생성 자체는 살린다 — 대신 **조용히 넘기지 않고** 이유를
+    출력한다(체크리스트 기록이 죽은 코드였던 2026-08-18 사례와 같은 처리).
+    """
+    meta = {"command": "python " + " ".join(sys.argv[1:])
+                       if len(sys.argv) > 1 else "python run.py"}
+    try:
+        from core import checklist, sysinfo, tc_modules
+        source = checklist.source_path(ctx)
+        meta["checklist"] = checklist.read_tc_rows(source) if source else {}
+        meta["modules"] = tc_modules.as_map()
+        try:
+            with open(os.path.join(ctx.root, "automation_scope.json"),
+                      encoding="utf-8") as f:
+                scope_rows = json.load(f)
+            meta["scope"] = {x["tc_id"]: {"level": x.get("level"),
+                                          "reason": x.get("reason")}
+                             for x in scope_rows}
+            # 리포트 앞머리의 "자동화 커버리지 총괄" 섹션 데이터.
+            # 기준 체크리스트 TC(= SUPPORT 가 아닌 항목)만 싣는다 — 자동화 보조
+            # 항목(환경 복원 / DICOM 등록 / 3D 촬영 보조)은 개정본 TC 가 아니다.
+            meta["coverage"] = [
+                {"tc_id": x["tc_id"], "title": x.get("title"),
+                 "level": x.get("level"),
+                 "category": (x.get("coverage") or {}).get("category"),
+                 "gap": (x.get("coverage") or {}).get("gap"),
+                 "unblock": (x.get("coverage") or {}).get("unblock")}
+                for x in scope_rows
+                if x.get("level") != "SUPPORT" and x.get("coverage")]
+        except Exception as exc:                       # noqa: BLE001
+            print(f"  report-meta: automation_scope.json 읽기 실패 — {exc}")
+        xipl_cfg = ctx.cfg.get("xipl") or {}
+        viewer_exe = ctx.cfg["viewer"]["exe"]
+        # PC/OS 실측 정보. 2026-08-21 사용자 요청으로 `TC_Basic_Install_02` 의
+        # "OS 정보 (참고)" MANUAL 항목을 없애고 **여기**에 싣는다. 지원 OS Build
+        # 기준이 문서상 확정되지 않아 확인 항목으로 두면 영구 MANUAL 이 되는데,
+        # 정작 필요한 것은 "어떤 PC 에서 돌렸는가" 라는 기록이기 때문이다.
+        try:
+            pc = sysinfo.pc_info()
+        except Exception as exc:                       # noqa: BLE001
+            print(f"  report-meta: PC 정보 수집 실패 — {exc}")
+            pc = {}
+        env = {
+            "수행 일시": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "호스트": pc.get("host") or platform.node(),
+            "실행 계정": pc.get("user"),
+            "PC 제조사·모델": " ".join(x for x in (pc.get("manufacturer"),
+                                                pc.get("model")) if x),
+            "CPU": (f"{pc.get('cpu')} ({pc.get('cpu_cores')}C/"
+                    f"{pc.get('cpu_threads')}T)" if pc.get("cpu") else None),
+            "메모리": f"{pc.get('ram_gb')} GB" if pc.get("ram_gb") else None,
+            "GPU": pc.get("gpu"),
+            "BIOS": pc.get("bios"),
+            "OS": (f"{pc.get('os_caption')} {pc.get('os_version')} "
+                   f"(Build {pc.get('os_build')}, {pc.get('os_arch')})"
+                   if pc.get("os_caption") else
+                   f"{platform.system()} {platform.release()} "
+                   f"(build {platform.version()})"),
+            "OS 설치일 / 최근 부팅": " / ".join(
+                x for x in (pc.get("os_install"), pc.get("last_boot")) if x),
+            "Python": platform.python_version(),
+            "Primary display": _display_summary(ctx),
+            "관리자 권한(High Integrity)": sysinfo.is_elevated(),
+            "Viewer 실행 파일": viewer_exe,
+            "Viewer 버전": _file_version(viewer_exe),
+            "data_dir": ctx.cfg.get("data_dir"),
+            "SQL Server": ctx.cfg.get("sql_server"),
+            "XIPL Studio": xipl_cfg.get("studio_exe"),
+            "XIPL Parameter": xipl_cfg.get("parameter_dir"),
+            "Tesseract": _tesseract_version(xipl_cfg.get("tesseract_exe")),
+            "기준 체크리스트": source or "(찾지 못함)",
+            "설정 파일": ctx.config_path,
+            # 제품 로그. 판정 근거로 로그를 인용한 단계(파라미터 적용 등)를
+            # 리포트만 보고 되짚을 수 있게 경로를 함께 남긴다.
+            "Viewer 로그": _viewer_log_path(ctx),
+            "증적 폴더": ctx.evidence_root,
+        }
+        meta["env"] = {k: v for k, v in env.items() if v not in (None, "")}
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  report-meta: 수집 실패 — {exc}")
+    return meta
+
+
+def _display_summary(ctx):
+    try:
+        from core.display import screen_size, system_dpi
+        w, h = screen_size()
+        return f"{w}x{h} @ {system_dpi()}DPI"
+    except Exception:                                  # noqa: BLE001
+        d = ctx.cfg.get("display") or {}
+        return f"{d.get('width')}x{d.get('height')} @ {d.get('expected_dpi')}DPI (설정값)"
+
+
+def _viewer_log_path(ctx):
+    """오늘자 Viewer 로그 경로. 없으면 None.
+
+    경로 규칙은 `tests/xipl_flows._viewer_log_mark` 와 같다
+    (`<data_dir>\\Log\\Viewer\\YYYY_MM_DD.log`).
+    """
+    path = os.path.join(ctx.cfg["data_dir"], "Log", "Viewer",
+                        datetime.now().strftime("%Y_%m_%d.log"))
+    return path if os.path.exists(path) else None
+
+
+def _file_version(path):
+    """실행 파일의 파일 버전. 못 읽으면 None (추측하지 않는다)."""
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-Item -LiteralPath '{path}').VersionInfo.FileVersion"],
+            capture_output=True, timeout=30)
+        return out.stdout.decode("utf-8", "replace").strip() or None
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def _tesseract_version(exe):
+    if not exe or not os.path.exists(exe):
+        return None
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, timeout=30)
+        first = (out.stdout or out.stderr).decode("utf-8", "replace").splitlines()
+        return f"{first[0].strip()} ({exe})" if first else exe
+    except Exception:                                  # noqa: BLE001
+        return exe
+
+
 def finish(ctx, results):
     completed = datetime.now()
     for index, result in enumerate(results):
@@ -53,7 +186,8 @@ def finish(ctx, results):
                         if index + 1 < len(results) else completed)
         result.finalize(next_started)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    paths = write_reports(results, ctx.reports_root, stamp)
+    paths = write_reports(results, ctx.reports_root, stamp,
+                          meta=_report_meta(ctx, results))
 
     # 체크리스트 xlsx에 TC별 판정을 기록한다(원본은 건드리지 않고 사본 생성).
     # 이 호출이 없어서 `core/checklist.py`가 죽은 코드였고, README가 "체크리스트
@@ -118,8 +252,13 @@ def main():
                    help="TC_Basic_WorkFlow_10 MWL Hospital Code와 Procedure 매핑")
     sub.add_parser("run-wf11",
                    help="TC_Basic_WorkFlow_11 Image Reject 및 Restore")
+    sub.add_parser("run-wf14",
+                   help="TC_Basic_WorkFlow_14 Setting Export 및 Import")
     sub.add_parser("run-wf15",
                    help="TC_Basic_WorkFlow_15 Pre-send Preview 표시 및 전송")
+    sub.add_parser("run-wf16",
+                   help="TC_Basic_WorkFlow_16 Kiosk 및 System Launcher "
+                        "(**사용자 지정 수동** — MANUAL 판정만 기록, UI 조작 없음)")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -145,14 +284,28 @@ def main():
               "  (시트: 개정 TC)")
         print("SUPPORT = 개정본 TC가 아닌 자동화 보조 항목")
         print()
-        counts = {}
+        counts, categories = {}, {}
         for item in scope:
             counts[item["level"]] = counts.get(item["level"], 0) + 1
             title = item.get("title") or ""
             print(f"[{item['level']:<7}] {item['tc_id']:<32} {title}")
             print(f"{'':>10}  {item['reason']}")
+            # 커버리지 분류·못 한 지점·해제 조건도 함께 보여 준다. 리포트의
+            # "자동화 커버리지 총괄" 섹션과 같은 데이터다(2026-08-21 추가).
+            cov = item.get("coverage") or {}
+            if cov.get("category"):
+                categories[cov["category"]] = categories.get(cov["category"], 0) + 1
+                print(f"{'':>10}  · 분류: {cov['category']}")
+                if cov.get("gap"):
+                    print(f"{'':>10}  · 못 한 지점: {cov['gap']}")
+                if cov.get("unblock"):
+                    print(f"{'':>10}  · 해제 조건: {cov['unblock']}")
         print()
         print("합계: " + " / ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+        if categories:
+            print("커버리지 분류(개정본 TC만):")
+            for name, n in sorted(categories.items(), key=lambda x: -x[1]):
+                print(f"  - {name}: {n}")
         return 0
     if args.cmd == "snapshot-baseline":
         from core.dbreset import backup_baseline
@@ -166,7 +319,11 @@ def main():
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06", "run-wf07",
-                   "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13", "run-wf15", "run-xipl",
+                   "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13",
+                   # `run-wf16` 은 2026-08-21 부터 UI 를 건드리지 않는다
+                   # (사용자 지정 수동 — MANUAL 판정만 기록). 그래서 관리자 권한·
+                   # 해상도 게이트 대상에서 뺀다.
+                   "run-wf14", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-sys3d", "run-auto",
                    "run-regression", "portability-check"}
@@ -218,9 +375,10 @@ def main():
         from tests.workflow11 import run as run_reject
         from tests.workflow12 import run as run_study_reject
         from tests.workflow13 import run as run_account
+        from tests.workflow14 import run as run_setting_transfer
         from tests.workflow15 import run as run_presend
+        from tests.workflow16 import run as run_kiosk
         from tests.xipl_flows import run_xipl
-        from tests.system_compat import run as run_system_3d
         from core.dbreset import has_baseline, restore_baseline, baseline_state
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
@@ -293,9 +451,15 @@ def main():
         results.append(run_reject(ctx))                      # 행 20  WF_11
         results.append(run_study_reject(ctx))                # 행 21  WF_12
         results.append(run_account(ctx))                     # 행 22  WF_13
+        results.append(run_setting_transfer(ctx))            # 행 23  WF_14
         results.append(run_presend(ctx))                     # 행 24  WF_15
+        results.append(run_kiosk(ctx))                       # 행 25  WF_16 (수동)
         results.extend(run_xipl(ctx))                        # 행 26~31 XIPL_01~06
-        results.extend(run_system_3d(ctx))                   # 보조: 3D-N/3D-W 촬영
+        # **`AUTOMATION_3D_ACQUISITION_3DN/_3DW` 는 회귀에서 제외한다**
+        # (2026-08-21 사용자 지시). 개정본 TC 가 아니고, 판정도 "장비 없이는
+        # 확인 불가(MANUAL)"로 끝나 상세 결과에 실을 내용이 없다. 3D 촬영
+        # 픽스처는 WF_02 가 이미 만들며, 이 보조 항목은 필요할 때
+        # `python run.py run-sys3d` 로 단독 실행한다.
         return finish(ctx, results)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
@@ -338,7 +502,12 @@ def main():
         return finish(ctx, [run_account(ctx)])
 
     if args.cmd == "run-wf10":
-        from tests.workflow07 import run as run_emergency
+        # 2026-08-21: 여기 있던 `from tests.workflow07 import run as run_emergency`
+        # 를 지웠다. 쓰이지 않는 import 였는데, 같은 이름이 회귀 블록에도 있어
+        # `main()` 전체에서 지역 이름이 되게 만들었다(자동 치환이 **첫 등장**을
+        # 바꿔 놓은 흔적). 이것이 2026-08-20 에 회귀가 41분을 돌고 나서
+        # `UnboundLocalError: cannot access local variable 'run_emergency'` 로
+        # 죽은 원인이다. `tools_check_regression_names.py` 가 재발을 검사한다.
         from tests.workflow10 import run as run_hospital_code
         return finish(ctx, [run_hospital_code(ctx)])
 
@@ -346,9 +515,17 @@ def main():
         from tests.workflow11 import run as run_reject
         return finish(ctx, [run_reject(ctx)])
 
+    if args.cmd == "run-wf14":
+        from tests.workflow14 import run as run_setting_transfer
+        return finish(ctx, [run_setting_transfer(ctx)])
+
     if args.cmd == "run-wf15":
         from tests.workflow15 import run as run_presend
         return finish(ctx, [run_presend(ctx)])
+
+    if args.cmd == "run-wf16":
+        from tests.workflow16 import run as run_kiosk
+        return finish(ctx, [run_kiosk(ctx)])
 
     if args.cmd == "run-wf07":
         from tests.workflow07 import run as run_emergency

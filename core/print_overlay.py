@@ -8,6 +8,7 @@ verifies the row text with OCR before clicking it.
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from difflib import SequenceMatcher
@@ -156,6 +157,107 @@ def film_regions(width, height, layout_label=None):
                 width, band + int(height * .10)),
         "bottom": (int(width * .5), int(height * .93), width, height),
     }
+
+
+# ---------------------------------------------------------------------------
+# Film 창 / Print 서버 프리뷰의 Overlay 실제값 판독
+#
+# 2026-08-21 에 `tests/workflow08.py` 에서 옮겨 왔다. `TC_Basic_WorkFlow_03`
+# Step 6("Film 창에 설정한 Print Overlay 표시 확인")을 자동화하면서 같은 판정을
+# 두 곳에서 따로 구현하지 않기 위해서다 — OCR 경로가 하나여야 한쪽만 고쳐 다른
+# 쪽이 조용히 낡는 일이 없다.
+#
+# **영역별로** 크롭해 읽는다. 한 곳만 크롭하면 6개가 전부 Top 에 몰려 있어도
+# 통과해 버려서 "Top 이외 영역에도 들어갔는지"가 증명되지 않는다.
+
+
+def film_norm(value):
+    """필름 OCR 비교용 정규화.
+
+    필름 글꼴의 `0` 을 `O` 로 자주 읽는다. 기대값도 같은 변환을 거치므로 이
+    치환이 판정을 느슨하게 만들지 않는다.
+    """
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower()).replace("o", "0")
+
+
+def ocr_film_areas(image, path_prefix, tesseract_exe, attach=None,
+                   layout_label=None):
+    """필름/프리뷰 이미지를 영역별로 크롭·OCR 하고 크롭을 증적으로 남긴다.
+
+    반환: `{area: {"x12": 판독문, "x8": ..., "x5": ...}}`
+    `attach` 에 `TCResult.attach` 를 넘기면 크롭 증적을 리포트에 붙인다.
+    """
+    import pytesseract
+    from PIL import Image, ImageOps
+
+    if tesseract_exe:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
+    width, height = image.size
+    texts = {}
+    for area, box in film_regions(width, height, layout_label).items():
+        crop = image.crop(box).convert("L")
+        # 배율 하나에 의존하지 않는다 — 8배에서 `MWL` 이 `MIWL` 로 읽히는 것을
+        # 실측했다. 판독본 전부를 남겨 사람이 감사할 수 있게 한다.
+        reads = {}
+        for scale in FILM_OCR_SCALES:
+            big = crop.resize((crop.width * scale, crop.height * scale),
+                              Image.Resampling.LANCZOS)
+            reads[f"x{scale}"] = pytesseract.image_to_string(
+                ImageOps.autocontrast(big), config="--psm 6", lang="eng").strip()
+        texts[area] = reads
+        crop_path = f"{path_prefix}_{area}.png"
+        os.makedirs(os.path.dirname(crop_path) or ".", exist_ok=True)
+        crop.save(crop_path)
+        if attach is not None:
+            attach(crop_path)
+    return texts
+
+
+def film_expectations(target):
+    """영역별 기대값. 환자 정보는 **DB 값에서** 만든다.
+
+    상수를 박아 두면 픽스처가 바뀌어도 통과한다. 영상 속성값(두께/압박력/HVL/AGD)은
+    영상 생성기가 넣은 값이라 필름 실측 문구를 쓰되, 값과 라벨을 함께 본다.
+
+    필름 렌더링 형태 (2026-08-19 실측)
+      Header : 라벨 없이 **값만**, 1 X 2 두 칸에 나란히
+      Top    : 라벨 없이 **값만** (`0.0 cm`, `35 N`)
+      Bottom : **`라벨: 값`** (`HVL: Not valid`)
+    """
+    pid = film_norm(target.get("PatientID"))
+    birth = film_norm(target.get("PatientBirthDate"))
+    return {
+        "header": {
+            "Patient ID": lambda n: bool(pid) and pid in n,
+            "Birth Date": lambda n: bool(birth) and birth in n,
+        },
+        "top": {
+            "Thickness": lambda n: "00cm" in n,
+            "Compression Force": lambda n: "35n" in n or "353n" in n,
+        },
+        "bottom": {
+            # 필름의 안티에일리어싱이 V 를 ¥ 로 만들어 정규화 후 "hyl" 이 된다.
+            # 값(`Not valid`)과 라벨을 함께 요구하므로 느슨해지지 않는다.
+            "HVL": lambda n: ("n0tvalid" in n and
+                              ("hvl" in n or "hyl" in n or "hl" in n)),
+            "AGD": lambda n: "n0tvalid" in n and ("agd" in n or "gd" in n),
+        },
+    }
+
+
+def judge_film_areas(texts, expect):
+    """영역별 판정 결과 `{area: {label: bool}}`."""
+    seen = {}
+    for area, checks in expect.items():
+        norms = [film_norm(read) for read in (texts.get(area) or {}).values()]
+        seen[area] = {label: any(test(n) for n in norms)
+                      for label, test in checks.items()}
+    return seen
+
+
+def film_all_ok(seen):
+    return bool(seen) and all(ok for area in seen.values()
+                              for ok in area.values())
 
 
 def items_by_position(items):

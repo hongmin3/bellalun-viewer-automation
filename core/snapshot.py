@@ -95,11 +95,22 @@ SNAPSHOT_QUERIES = {
     "view_position_preset": ("PROCEDURE", "SELECT * FROM VIEW_POSITION_PRESET ORDER BY [Key]"),
 }
 
-# 설정 비교(TC_Basic_WorkFlow_15, Install_07)에서 제외할 항목.
+# 설정 비교(TC_Basic_WorkFlow_14, Install_07)에서 제외할 항목.
 # 세션마다 자연히 바뀌는 값이라 설정 유지 판정에 쓰면 오판정이 난다.
+#
+# `REGISTRATION_COMMON.LastAccNum` 은 **마지막으로 발급한 Accession Number**
+# (`UseAutoAccNum` 이 쓰는 진행 카운터)다. 검사가 등록될 때마다 올라가고 어느
+# Setting 화면에도 표시되지 않는다. 2026-08-21 WF_14 실행에서 이 값 하나 때문에
+# "설정 전수 대조" 가 FAIL 했다(`2026082100006`). 설정 복원 여부를 묻는 판정에
+# 진행 카운터를 넣으면 그 TC 는 영구히 불안정해진다 — 판정을 약화시키는 것이
+# 아니라 **대상이 아닌 값을 빼는 것**이다.
 VOLATILE_FIELDS = {
     ("system_common", "LastLoginID"),
+    ("registration_common", "LastAccNum"),
 }
+
+# 행을 식별하는 컬럼. 이 중 하나라도 있으면 그 값으로 행을 짝짓는다.
+IDENTITY_COLUMNS = ("Key", "FieldID", "GroupKey")
 
 CONFIG_SECTIONS = [k for k, (db, _) in SNAPSHOT_QUERIES.items()
                    if db in ("CONFIGURATION", "PROCEDURE")] + [
@@ -128,10 +139,24 @@ def load(path):
         return json.load(f)
 
 
-def _key_of(section, row):
-    for k in ("Key", "FieldID", "GroupKey"):
+def _key_of(section, row, index=None):
+    """행을 짝지을 키. 식별 컬럼이 없으면 **행 순서**로 짝짓는다.
+
+    이전에는 식별 컬럼이 없을 때 행 전체를 JSON 으로 직렬화해 키로 썼다. 그러면
+    `REGISTRATION_COMMON` 처럼 `Key` 가 없는 단일 행 설정 테이블에서 **필드 하나가
+    바뀌어도 "1행 삭제 + 1행 추가"** 로 보이고, 그래서 `VOLATILE_FIELDS` 예외가
+    적용되지 않았다(예외는 `changed` 분기에서만 본다). 2026-08-21 WF_14 에서 실제로
+    이 때문에 설정 전수 대조가 FAIL 했다.
+
+    순서로 짝짓는 것이 위험한 경우는 행이 재정렬될 때인데, 이 스냅샷의 쿼리는
+    다중 행 테이블에는 모두 `ORDER BY [Key]` 가 붙어 있고 그런 테이블에는 식별
+    컬럼이 있으므로 이 경로로 오지 않는다.
+    """
+    for k in IDENTITY_COLUMNS:
         if k in row:
             return f"{k}={row[k]}"
+    if index is not None:
+        return f"#row{index}"
     return json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
 
 
@@ -142,8 +167,8 @@ def diff_section(pre, post, section, ignore=()):
     if isinstance(a, dict) or isinstance(b, dict):
         return {"added": [], "removed": [], "changed": [], "_error": True}
 
-    ai = {_key_of(section, r): r for r in a}
-    bi = {_key_of(section, r): r for r in b}
+    ai = {_key_of(section, r, i): r for i, r in enumerate(a)}
+    bi = {_key_of(section, r, i): r for i, r in enumerate(b)}
     added = [bi[k] for k in bi if k not in ai]
     removed = [ai[k] for k in ai if k not in bi]
     changed = []

@@ -113,12 +113,32 @@ def install_02(ctx):
                       actual=f"{len(rules)}건: " + ", ".join(rules[:3]) if rules else "없음")
 
     # Step 4. DICOM 통신 어댑터 IPv4
-    nic = sysinfo.nic_ipv4(pre["dicom_nic_alias"])
+    #
+    # **별칭이 없으면 MANUAL 이 아니라 SKIP 이다** (2026-08-21 사용자 확정).
+    # 개정본 Step 4 는 "DICOM 통신용 어댑터의 IPv4 를 검증 환경서 값과 대조한다"
+    # 인데, 이 PC 의 검증 환경서는 DICOM 전용 어댑터를 지정하지 않는다 — 즉
+    # **확인 대상 자체가 없다.** MANUAL 로 두면 "사람이 확인해야 할 일이 남았다"는
+    # 뜻이 되어 TC 가 영구히 MANUAL 로 굳고, 실제로는 확인할 대상이 없으므로
+    # 틀린 기록이다. SKIP 은 TC 판정을 끌어내리지 않는다(`core/result.verdict`).
+    # 대신 **현재 어댑터 실측값을 비고에 그대로 남겨** 나중에 환경서가 확정되면
+    # 그 기록으로 되짚을 수 있게 한다.
+    alias = pre["dicom_nic_alias"]
+    nic = sysinfo.nic_ipv4(alias)
     if nic is None:
-        r.add(4, f"네트워크 어댑터 [{pre['dicom_nic_alias']}]", MANUAL,
-              expected=pre["dicom_nic_alias"], actual=net.summary(),
-              note="지정한 별칭의 어댑터가 없습니다. 검증 환경서의 DICOM 어댑터 별칭을 "
-                   "config.json > prerequisites.dicom_nic_alias 에 입력하면 자동 판정됩니다.")
+        r.skip(4, f"네트워크 어댑터 [{alias}] IPv4 대조",
+               f"검증 환경서가 DICOM 전용 어댑터를 지정하지 않아 **확인 대상이 "
+               f"없다** — 지정 별칭 {alias!r} 에 해당하는 어댑터가 이 PC 에 "
+               f"없다. 이 PC 는 단일 이더넷(10.13.0.114)으로 MWL/Storage/Print "
+               f"통신을 모두 처리하며, 그 경로가 정상인 것은 "
+               f"`DICOM_Server_Setup` 의 TCP 연결·C-ECHO 판정이 매 회귀마다 "
+               f"실측으로 확인한다. 그래서 미확인 항목(MANUAL)이 아니라 "
+               f"대상 없음(SKIP)으로 기록한다. "
+               f"**현재 어댑터 실측**: {net.summary()}. "
+               f"**해제 조건**: 검증 환경서가 DICOM 전용 어댑터 별칭을 지정하면 "
+               f"`config.json > prerequisites.dicom_nic_alias` 에 넣는다 — "
+               f"그 즉시 상태(Up)와 IPv4 를 자동 대조한다.",
+               expected=f"검증 환경서가 지정한 어댑터 별칭 (미지정)",
+               actual=net.summary())
     else:
         r.assert_equal(4, f"어댑터 [{nic['name']}] 상태", "Up", nic["status"])
         expected_ip = pre.get("expected_ipv4")
@@ -131,12 +151,13 @@ def install_02(ctx):
                      "config.json > prerequisites.expected_ipv4 미설정. 환경서 기준값 입력 필요",
                      expected="검증 환경서 값", actual=", ".join(nic["ipv4"]))
 
-    # 참고 정보
-    osi = sysinfo.os_info()
-    r.manual(0, "OS 정보 (참고)", "지원 OS Build는 문서상 확정되지 않아 수동 확인 필요",
-             expected="제품 사양서 지원 OS",
-             actual=f"{osi.get('Caption')} {osi.get('Version')} "
-                    f"Build {osi.get('BuildNumber')} {osi.get('OSArchitecture')}")
+    # OS/PC 정보는 **확인 항목이 아니다.**
+    # 2026-08-21 사용자 확정: 지원 OS Build 기준이 문서상 확정되지 않은 상태에서
+    # "OS 정보 (참고)" 를 MANUAL 확인 항목으로 두면 이 TC 가 영구히 MANUAL 로
+    # 남는다. 정작 필요한 것은 "어떤 PC·OS 에서 이 회귀를 돌렸는가" 라는 기록이므로
+    # 리포트 **상단 '실행 환경 및 버전' 표**에 실측값(OS Caption/Version/Build/
+    # Arch, 제조사·모델, CPU/메모리/GPU/BIOS, 설치일·최근 부팅)으로 싣는다
+    # (`run.py::_report_meta` -> `core/sysinfo.pc_info`).
     return r
 
 

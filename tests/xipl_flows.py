@@ -108,6 +108,36 @@ def _viewer_log_since(mark):
 _LOG_LINE_TS = re.compile(r"^\[(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]")
 
 
+
+def _qc_window(ui, anchor):
+    """Q.C 테스트 창을 찾는다. anchor(창 안의 컨트롤)를 담는 최상위 창.
+
+    Q.C 창은 거의 전체화면이라 `ui.dialog()` 의 '작은 #32770' 판정에 걸리지
+    않는다. 그래서 창 목록에서 anchor 를 포함하는 것을 고른다.
+    """
+    al, at, ar, ab = anchor.rect
+    best = None
+    for w in ui.windows():
+        l, t, r, b = w.rect
+        if l <= al and t <= at and r >= ar and b >= ab:
+            area = (r - l) * (b - t)
+            if best is None or area < best[0]:
+                best = (area, w)
+    if best is None:
+        raise flows.FlowError(
+            "Q.C 테스트 창을 찾지 못했습니다(결과 콤보를 담는 창 없음).")
+    return best[1]
+
+
+def _canvas_point(window):
+    """창 기준 상대 비율로 영상 캔버스의 한 점을 계산한다.
+
+    캔버스는 창 좌측 영상 영역이다. 창 폭의 40%, 높이의 55% 지점을 쓴다 —
+    실측(1920x1080)에서 절대좌표 (760, 550) 에 해당한다.
+    """
+    l, t, r, b = window.rect
+    return (l + int((r - l) * 0.40), t + int((b - t) * 0.55))
+
 def _log_lines_from(log_text, not_before):
     """Keep only lines whose own timestamp is >= not_before.
 
@@ -1176,7 +1206,12 @@ def _qc_launch_and_expose(ctx, ui, tile_xy, tag, log_mark, click_time, log_ready
         time.sleep(.3)
     if not opened:
         raise flows.FlowError(f"{tag}: Q.C 테스트 창이 열리지 않았습니다.")
-    ui.click((760, 550), settle=.5)  # 캔버스에 포커스를 줘야 F8이 인식된다
+    # 캔버스에 포커스를 줘야 F8이 인식된다. **절대 데스크톱 좌표를 쓰지 않는다**
+    # (AGENTS.md 5절) — Fiber 결과 콤보(2738)가 속한 Q.C 창의 rect 에서 캔버스
+    # 중앙을 계산한다. 이전에는 `(760, 550)` 이 박혀 있어 창 위치나 해상도가
+    # 달라지면 엉뚱한 곳을 누를 수 있었다(2026-08-21 점검에서 발견).
+    qc_win = _qc_window(ui, opened[0])
+    ui.click(_canvas_point(qc_win), settle=.5)
     ui.key("F8", settle=1)
     end = time.time() + 30
     ready = False

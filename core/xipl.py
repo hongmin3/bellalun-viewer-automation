@@ -619,17 +619,8 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
         return stat.mean[0] / 255.0
 
 
-def latest_2d_image(data_dir=r"D:\BellalunData\Image"):
-    files = [p for p in Path(data_dir).glob("Study*/*.img") if p.is_file()]
-    if not files:
-        return None
-    return str(max(files, key=lambda p: p.stat().st_mtime))
-
-
-def existing_3d_raw(data_dir=r"D:\BellalunData\Image"):
-    preferred = Path(data_dir) / "QC" / "QC_ACR_3D_N_1_1.img"
-    if preferred.exists():
-        return str(preferred)
-    files = [p for p in Path(data_dir).rglob("*.img")
-             if p.is_file() and p.stat().st_size > 100_000_000]
-    return str(max(files, key=lambda p: p.stat().st_mtime)) if files else None
+# 2026-08-21: `latest_2d_image()` / `existing_3d_raw()` 를 지웠다. 저장소 어디서도
+# 호출하지 않는 죽은 코드였고, 기본값에 `D:\BellalunData\Image` 가 박혀 있었다.
+# 이 PC 의 data_dir 은 `C:\BellalunData` 라(PC 마다 드라이브가 다르다) 누군가
+# 인자를 빼고 호출하면 조용히 빈 결과를 돌려줬을 것이다. 필요해지면
+# `run.py::_resolve_data_dir` 가 해석한 `ctx.cfg["data_dir"]` 을 넘겨 다시 만든다.

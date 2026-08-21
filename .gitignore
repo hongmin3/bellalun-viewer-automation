@@ -22,8 +22,11 @@ __pycache__/
 # Local parameter fixtures and generated exports
 *.pim
 *.xtp
+*.eap
 *.dcm
 *.log
+# Setting Export 산출물 (WF_14 가 만드는 .vms — 설정 DB 백업이 들어 있다)
+*.vms
 
 # 임시 탐색 스크립트 (커밋 금지, _probe_setting.py만 유지)
 _probe_*.py

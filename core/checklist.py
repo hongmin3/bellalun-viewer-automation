@@ -25,7 +25,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from core.result import PASS, FAIL, MANUAL, SKIP
 
 RESULT_HEADERS = ["자동화 판정", "판정 일시", "PASS", "FAIL", "MANUAL", "SKIP",
-                  "실패 항목", "수동 확인 항목", "증적"]
+                  "실패 항목", "수동 확인 / 미수행 항목", "증적"]
 
 FILLS = {
     PASS:   PatternFill("solid", fgColor="C6EFCE"),
@@ -67,6 +67,68 @@ def source_path(ctx):
             if os.path.isfile(candidate):
                 return candidate
     return override or ""
+
+
+#: 리포트에 실을 체크리스트 원문 열. 헤더 문구 그대로 찾는다(열 위치를 박지 않는다).
+TC_TEXT_COLUMNS = {
+    "function": "Function",
+    "title": "Title",
+    "precondition": "Precondition",
+    "steps": "Step Description",
+    "expected": "Expected Result",
+    "test_data": "Test Data",
+}
+
+
+def read_tc_rows(source_xlsx, sheet_name=None):
+    """체크리스트에서 TC 원문을 읽어 `{TC ID: {precondition, steps, ...}}` 로 준다.
+
+    HTML 리포트가 "이 TC 가 무엇을 검증하는가"를 **기준 문서 원문으로** 보여주기
+    위한 것이다. 자동화가 요약한 문장이 아니라 원문을 실어야 판정 근거를 감사할
+    수 있다(AGENTS.md 0절).
+
+    열은 **헤더 문구로 찾는다** — 열 순서를 박으면 체크리스트가 개정될 때 조용히
+    엉뚱한 열을 읽는다.
+    """
+    if not source_xlsx or not os.path.isfile(source_xlsx):
+        return {}
+    wb = load_workbook(source_xlsx, data_only=True, read_only=True)
+    try:
+        ws = wb[sheet_name] if sheet_name else (
+            wb[CHECKLIST_SHEET] if CHECKLIST_SHEET in wb.sheetnames
+            else _pick_tc_sheet(wb))
+        rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
+    if not rows:
+        return {}
+
+    hdr_index = None
+    for i, row in enumerate(rows[:20]):
+        if any(str(v or "").strip() == "TC ID" for v in row):
+            hdr_index = i
+            break
+    if hdr_index is None:
+        return {}
+    header = [str(v or "").strip() for v in rows[hdr_index]]
+    try:
+        tc_col = header.index("TC ID")
+    except ValueError:
+        return {}
+    col_of = {key: (header.index(name) if name in header else None)
+              for key, name in TC_TEXT_COLUMNS.items()}
+
+    out = {}
+    for row in rows[hdr_index + 1:]:
+        tc_id = str(row[tc_col] or "").strip() if tc_col < len(row) else ""
+        if not tc_id:
+            continue
+        entry = {}
+        for key, col in col_of.items():
+            entry[key] = ("" if col is None or col >= len(row)
+                          else str(row[col] or "").strip())
+        out[tc_id] = entry
+    return out
 
 
 def _find_header_row(ws, tc_col_name="TC ID"):
@@ -181,8 +243,17 @@ def _write_row(ws, row, col_of, hits, stamp):
         for c in h.checks:
             if c.status == FAIL:
                 fails.append(f"[Step {c.step}] {c.title} — 기대={c.expected} / 실제={c.actual}")
-            elif c.status == MANUAL:
-                manuals.append(f"[Step {c.step}] {c.title}")
+            elif c.status in (MANUAL, SKIP):
+                # **사유(note)를 함께 적는다** (2026-08-21 사용자 요청 "비고도 잘
+                # 기록해 달라"). 제목만 적으면 체크리스트만 받은 사람이 "왜 수동인가 /
+                # 왜 대상이 아닌가"를 알 수 없어 리포트를 다시 열어야 했다.
+                # SKIP 은 MANUAL 과 뜻이 다르므로 접두사로 구분한다 —
+                # MANUAL = 확인해야 하는데 자동으로 못 함,
+                # SKIP   = 이 환경에서 확인 대상이 아님.
+                reason = " ".join(str(c.note or "").split())
+                manuals.append(
+                    f"[{c.status}] [Step {c.step}] {c.title}"
+                    + (f" — {reason}" if reason else ""))
         evidence.extend(h.evidence)
 
     _set(ws, row, col_of["자동화 판정"], verdict, verdict)
@@ -190,7 +261,7 @@ def _write_row(ws, row, col_of, hits, stamp):
     for k in (PASS, FAIL, MANUAL, SKIP):
         _set(ws, row, col_of[k], total[k])
 
-    for name, items in (("실패 항목", fails), ("수동 확인 항목", manuals),
+    for name, items in (("실패 항목", fails), ("수동 확인 / 미수행 항목", manuals),
                         ("증적", evidence)):
         cell = ws.cell(row, col_of[name], "\n".join(items) if items else "")
         cell.alignment = Alignment(vertical="top", wrap_text=True)

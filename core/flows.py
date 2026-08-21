@@ -409,6 +409,103 @@ PRE_SEND_PREVIEW = {
 }
 
 # ---------------------------------------------------------------------------
+# Film 창 (WF_03 Step 6 / WF_08). 2026-08-21 실측.
+#
+# 진입: Examined 에서 검사 선택 -> Print(2188) -> 범위 선택 Selected(501)
+#       -> Film 다이얼로그. 필름 raster 는 `158`(`CWndFilmManager`)이다.
+#
+# 창 안에서 확인된 것 (컨트롤 열거 + 버튼 문구 OCR)
+#   1141 1x1 / 1142 1x2 / 1143 2x2 / 1144 2x1   Layout
+#   1149 **Print**  (OCR `Print`)
+#   1105 **Close**  (OCR `Close`) — Pre-send Preview 창의 Close 와 같은 ID다
+#                                   (이 제품은 기능별로 ID 가 일관된다)
+#
+# **Film 창을 열어 둔 채 TC 를 끝내지 않는다.** 뒤따르는 TC 가
+# `cold_start(force_restart=True)` 로 시작하면 문제가 없지만, `WF_04` 처럼
+# **재기동 없이 기존 Viewer 를 재사용**하는 TC 는 `ensure_patient_screen` 이
+# 실패한다(2026-08-21 실측: 랜드마크가 `['status_bar','examine']` 로 남아 FAIL).
+FILM = {
+    "window": 158,
+    "window_text": "CWndFilmManager",
+    "layout_1x1": 1141,
+    "layout_1x2": 1142,
+    "layout_2x1": 1144,
+    "layout_2x2": 1143,
+    "print": 1149,
+    "close": 1105,
+}
+
+
+def film_window(ui):
+    """열려 있는 Film 창(`CWndFilmManager`). 없으면 None."""
+    hits = [c for c in ui.by_id(FILM["window"])
+            if c.visible and c.text == FILM["window_text"]]
+    return hits[0] if hits else None
+
+
+def close_film(ui, tesseract_exe=None, timeout=15):
+    """Film 창을 닫는다. **버튼 문구를 OCR 로 확인한 뒤에만 누른다.**
+
+    아이콘/위치 추정으로 버튼을 눌러 네 번 틀린 이력이 있다(NEXT_TASK.md:
+    2184 Import Study / 2196 Pre-send Preview / 2186 Reject Study /
+    2207 Left Implant). 같은 화면에 `Print`(1149)가 나란히 있어서, ID 만 믿고
+    누르면 **의도치 않게 실제 출력을 보낼 수 있다.** 그래서 `close` 로 읽히는
+    버튼만 누른다.
+
+    **Close 를 누르면 확인 대화상자가 뜬다** — 실측 문구
+    `"Are you sure you want to close?"` / `Yes`(501) / `No`(500).
+    ID 나 위치로 고르지 않고 **문구를 OCR 로 읽어** Yes 를 누른다. 이 제품은
+    같은 ID(501/500)를 Print 범위 선택(Selected/Cancel)에도 쓰므로 ID 만 믿으면
+    정반대를 누를 수 있다.
+
+    반환: {"was_open": bool, "closed": bool, "labels": [...],
+           "confirm": {...}|None, "error": str|None}
+    """
+    from core import uitext
+
+    out = {"was_open": False, "closed": True, "labels": [], "confirm": None,
+           "error": None}
+    if film_window(ui) is None:
+        return out
+    out["was_open"] = True
+    out["closed"] = False
+
+    picked = None
+    for c in [x for x in ui.by_id(FILM["close"]) if x.visible]:
+        label = uitext.button_label(c, tesseract_exe)
+        out["labels"].append({"rect": c.rect, "label": label})
+        if "close" in uitext.norm(label):
+            picked = c
+            break
+    if picked is None:
+        out["error"] = (f"Film 창의 Close 버튼({FILM['close']})을 문구로 확인하지 "
+                        "못해 누르지 않았습니다.")
+        return out
+    ui.click(picked, settle=2.5)
+
+    dialog = ui.dialog()
+    if dialog is not None:
+        yes, reads = uitext.pick_button(ui.dialog_buttons(dialog), "yes",
+                                       tesseract_exe)
+        out["confirm"] = {"rect": dialog.rect, "buttons": reads,
+                          "picked": "yes" if yes is not None else None}
+        if yes is None:
+            out["error"] = ("Film 종료 확인 대화상자에서 Yes 를 문구로 특정하지 "
+                            "못해 아무것도 누르지 않았습니다.")
+            return out
+        ui.click(yes, settle=2.5)
+
+    end = time.time() + timeout
+    while time.time() < end:
+        if film_window(ui) is None:
+            out["closed"] = True
+            return out
+        time.sleep(1)
+    out["error"] = "Close/Yes 를 눌렀지만 Film 창이 닫히지 않았습니다."
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Setting > Procedure > Hospital Code (WF_10 Step 1~2). 2026-08-20 실측.
 #
 # 목록 컬럼이 `Code / Procedure·View Position / Type / Description` 이라서
@@ -768,7 +865,8 @@ def select_login_id(ui, user_id, tesseract_exe=None):
     if matches(current):
         return {"already": True, "current": current}
     picked = uitext.pick_combo_by_text(
-        ui, ui.LOGIN_ID_COMBO, user_id, tesseract_exe, what="로그인 ID")
+        ui, ui.LOGIN_ID_COMBO, user_id, tesseract_exe, what="로그인 ID",
+        match="prefix")
     after = (ui.current_login_id() or "").strip()
     if not matches(after):
         raise FlowError(

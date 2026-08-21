@@ -77,6 +77,28 @@ def _rows(ui):
     return uitext.list_rows(ui, flows.SETTING_HOSPITAL_CODE["list"])
 
 
+def _wait_study(db, patient_id, after_key=0, timeout=40):
+    """MWL 처방으로 만들어진 검사 행이 나타날 때까지 기다린다.
+
+    Examine 진입은 검사 행을 만드는 비동기 동작이라 즉시 조회하면 없다. 고정
+    대기를 쓰지 않고 **행이 생길 때까지** 기다린다.
+    """
+    end = time.time() + timeout
+    row = None
+    while time.time() < end:
+        row = db.one(
+            "DATA",
+            "SELECT TOP 1 s.[Key],s.HospitalCode,s.ProcedureKey,"
+            "s.RequestedProcedureID,s.StudyInstanceUID,p.PatientID "
+            "FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
+            "WHERE p.PatientID=@pid AND s.[Key]>@k "
+            "ORDER BY s.[Key] DESC", {"pid": patient_id, "k": after_key})
+        if row:
+            return row
+        time.sleep(1)
+    return row
+
+
 def _clear_codes(ui, db, tesseract_exe=None, limit=10):
     """기존 Hospital Code 행을 지운다.
 
@@ -190,6 +212,7 @@ def run(ctx):
     evidence = os.path.join(ctx.evidence_root, "Flow", "10_HospitalCode")
     ui = None
     created_code = False
+    examine_opened = False
     try:
         station = next((x for x in ctx.cfg["dicom"]["servers_to_register"]
                         if x["kind"] == "MWL"), {})
@@ -322,20 +345,156 @@ def run(ctx):
                  "(rp_code_value)로 넣는다.")
 
         # --- Step 5~7: MWL 조회 -> 처방 선택 -> Examine --------------------
-        r.manual(
-            5, "Patient List 에서 MWL 조회 / 처방 선택 / Examine",
-            "Step 1~4 까지 자동화했다. 5~7 단계는 아직 붙이지 않았다 — "
-            "**해제 조건**: WF_01 이 이미 MWL 조회와 Examine 진입을 자동화하고 있어"
-            "(tests/workflow01.py) 그 절차를 재사용하면 된다. 다만 Expected 6 의 "
-            "'선택한 처방의 Hospital Code 와 Procedure 단계가 표시된다'와 Expected 7 의 "
-            "'첫 Step/Preset 이 선택된다'를 무엇으로 판정할지(화면 OCR 인지 DB 인지) "
-            "확정이 필요하다. "
-            "**이 실행으로 말할 수 없는 것**: 등록한 Hospital Code 가 실제로 Viewer 의 "
-            "Examine 모드에 Procedure Step 으로 반영되는지 — Step 1~4 는 설정과 처방이 "
-            "저장된 것까지만 확인했다.")
+        # 판정 기준을 2026-08-21 에 확정했다(그전에는 "화면 OCR 인지 DB 인지"가
+        # 미결이라 MANUAL 이었다). 결론: **DB 가 주 판정, 화면이 보강**이다.
+        #   Expected 6 "선택한 처방의 Hospital Code 와 Procedure 단계가 표시된다"
+        #     -> `STUDY.HospitalCode` 와 `STUDY.ProcedureKey` 가 결정적이다.
+        #        화면 OCR 로 코드 문자열을 읽는 것보다 직접적이고, Viewer 가
+        #        MWL 태그(0032,1064)의 코드를 **매핑된 Procedure 로 해석했는지**를
+        #        바로 보여 준다.
+        #   Expected 7 "매핑된 Procedure Step 이 등록되고 첫 Step/Preset 이 선택된다"
+        #     -> Step 개수는 `PROCEDURE_ITEMS` 의 그 Procedure 행 수와 대조한다
+        #        (Routine Mammography = 4행). 선택·준비 상태는 Examine 상단 배너
+        #        (`flows.examine_status`)가 Ready 인지로 본다.
+        # **이 판정이 자기충족이 아닌 근거**: `TC_Basic_WorkFlow_01` 은 Procedure 가
+        # 없는 MWL 처방으로 들어가 **Step 수 = 0** 을 확인한다. 같은 코드 경로가
+        # 매핑이 있을 때만 Step 을 만든다는 대조군이 이미 있다.
+        proc_key = int(want_proc["Key"])
+        want_steps = ctx.db.scalar(
+            "PROCEDURE",
+            "SELECT COUNT(*) FROM PROCEDURE_ITEMS WHERE ProcedureKey=@k",
+            {"k": proc_key}) or 0
+
+        # **Step 1~4 는 Setting 화면에서 끝난다.** 거기서 곧바로 Patient List 탭을
+        # 찾으면 없다(2026-08-21 실측: 랜드마크 `['status_bar','setting','examine']`
+        # 상태에서 탭 2284 를 20초 동안 못 찾고 실패). `ensure_patient_screen` 이
+        # Setting 모달을 닫고(잔여 변경 저장 확인 팝업까지 처리) Patient 화면으로
+        # 옮겨 준다.
+        if not flows.ensure_patient_screen(ui):
+            raise flows.FlowError(
+                "Setting 화면에서 Patient 화면으로 돌아가지 못했습니다: "
+                f"랜드마크={flows.known_screen(ui)}")
+        flows.open_patient_list_tab(ui)
+        flows.select_patient_source(ui, "mwl")
+        found = flows.search_patient(ui, PATIENT_ID, "patient_id")
+        d = ui.dialog()
+        if d:
+            path = os.path.join(evidence, "05_mwl_search_error.png")
+            try:
+                ui.capture_dialog(d, path)
+                r.attach(path)
+            except Exception:                          # noqa: BLE001
+                pass
+            message = ui.dialog_text(d) or "MWL 조회 오류 팝업"
+            ok = next((x for x in ui.dialog_buttons(d)
+                       if x.ctrl_id == flows.SETTING_CONFIRM_OK), None)
+            if ok:
+                ui.click(ok, settle=.5)
+            raise flows.FlowError(
+                f"MWL 조회 오류 팝업을 닫고 중단했습니다: {message}")
+        path = os.path.join(evidence, "05_mwl_list.png")
+        screen.grab(ui.main_window().rect, path=path)
+        r.attach(path)
+        r.assert_equal(
+            5, "Patient List 의 MWL 조회에 해당 처방 표시", 1, found,
+            note="Expected 5. 등록한 처방이 목록에 표시된다. 화면 행 수를 세는 것이 "
+                 "아니라 `flows.search_patient` 가 돌려주는 실제 목록 행 수로 "
+                 "판정한다.")
+        if found != 1:
+            raise flows.FlowError(
+                f"MWL 조회 결과가 {found}건이라 Step 6~7 을 수행할 수 없습니다.")
+
+        # --- Step 6 ---------------------------------------------------
+        flows.select_study_row(ui, 1)
+        before_key = ctx.db.scalar(
+            "DATA", "SELECT ISNULL(MAX([Key]),0) FROM STUDY") or 0
+        ui.click(flows._need(ui, flows.PATIENT["examine_from_list"], "Examine"),
+                 settle=1.5)
+        # 이전 실행이 남긴 같은 환자 검사가 있으면 중복 안내가 뜬다(WF_01 과 같다).
+        dup = flows.handle_select_patient_information(ui, "use_existing",
+                                                      timeout=5)
+        if not flows.wait_controls(ui, [flows.EXAMINE["edit_information"]],
+                                   timeout=15):
+            raise flows.FlowError("Examine 화면에 진입하지 못했습니다.")
+        examine_opened = True
+        study = _wait_study(ctx.db, PATIENT_ID, before_key)
+        path = os.path.join(evidence, "06_examine.png")
+        screen.grab(ui.main_window().rect, path=path)
+        r.attach(path)
+        r.assert_equal(
+            6, f"선택한 처방의 Hospital Code 가 검사에 반영({code})",
+            code, (study or {}).get("HospitalCode"),
+            note="Expected 6. Viewer 가 MWL 처방의 "
+                 f"{want_tag} Requested Procedure Code Sequence 에서 읽은 코드를 "
+                 "검사에 기록했는지 `STUDY.HospitalCode` 로 확인한다. 화면 문자열 "
+                 "OCR 보다 직접적이다(중복 검사 안내 처리: "
+                 f"{dup}).")
+        # `STUDY.ProcedureKey` 는 **판정에 쓰지 않는다.** 2026-08-21 실측에서
+        # MWL 유래 검사는 Hospital Code 가 있든 없든 `-1` 이었고(이 검사도,
+        # Hospital Code 없이 만든 `DATA_FLOW_MWL_01` 도), Local 생성 검사만 `1` 이었다.
+        # 즉 이 컬럼은 MWL 경로에서 채워지지 않으며 매핑 동작의 지표가 아니다.
+        # 처음에 이 값을 기대값으로 넣어 FAIL 이 났는데, **의미를 확인하지 않은
+        # 대리 지표**를 판정에 쓴 내 잘못이었다(운영 지침 10절). 관측만 남긴다.
+        r.add(6, "[관측] MWL 유래 검사의 STUDY.ProcedureKey", PASS,
+              expected="참고 정보 (사양에 정의된 관찰 대상이 아니다)",
+              actual={"ProcedureKey": (study or {}).get("ProcedureKey"),
+                      "RequestedProcedureID": (study or {}).get(
+                          "RequestedProcedureID"),
+                      "HOSPITAL_CODE.MappingKey": proc_key},
+              note="2026-08-21 실측: MWL 유래 검사는 Hospital Code 유무와 무관하게 "
+                   "`-1` 이고 Local 생성 검사만 `1` 이다. 이 컬럼이 무엇을 뜻하는지 "
+                   "문서로 확인되지 않았으므로 **기대값을 정하지 않고 기록만 한다.** "
+                   "매핑이 실제로 적용됐는지는 아래 Expected 7 의 Step 수 대조가 "
+                   "답한다 — 그것이 체크리스트가 요구하는 '**Procedure 단계가 "
+                   "표시된다**' 에 직접 대응한다.")
+
+        # --- Step 7 ---------------------------------------------------
+        steps = flows.step_items(ui)
+        r.assert_equal(
+            7, "Examine 모드에 매핑된 Procedure Step 등록", want_steps, len(steps),
+            note="Expected 7 이자 **Expected 6 의 'Procedure 단계가 표시된다' 근거**. "
+                 "기대값을 코드에 박지 않고 "
+                 f"`PROCEDURE_ITEMS(ProcedureKey={proc_key})` 행 수로 계산한다"
+                 f"(실측 {want_steps}행). **이 판정이 매핑 동작의 결정적 근거인 이유**: "
+                 "TC_Basic_WorkFlow_01 은 Hospital Code 가 없는 MWL 처방으로 Examine 에 "
+                 "들어가 **Step 수 0** 을 확인한다. 같은 MWL 경로가 매핑이 있을 때만 "
+                 "Step 을 만든다는 대조군이 이미 있으므로, 이 판정은 항상 참이 되는 "
+                 "종류가 아니다.")
+        status = flows.examine_status(ui)
+        r.assert_true(
+            7, "첫 Step/Preset 이 선택되어 촬영 준비 상태",
+            bool(status.get("ready")),
+            expected="Examine 상단 배너 Ready",
+            actual=status,
+            note="Expected 7. 'Preset 이 선택되었다'를 직접 읽을 수 있는 컨트롤이 "
+                 "없어(커스텀 렌더) 상단 상태 배너로 판정한다 — View Position 이 "
+                 "등록되지 않았거나 Step 이 선택되지 않으면 Ready 가 되지 않는다"
+                 "(`core/flows.examine_status`, 녹색 비율로 판독). "
+                 "**이 실행으로 말할 수 없는 것**: 선택된 Preset 의 이름 — "
+                 "준비 상태까지만 확인했다.")
     except Exception as exc:
         r.add(0, "TC_Basic_WorkFlow_10 실행", FAIL, actual=str(exc))
     finally:
+        # Examine 화면을 열어 둔 채 끝내면 다음 TC 가 Patient 화면을 못 찾는다.
+        # 이 검사는 촬영하지 않으므로 `close` 를 고르면 제품이 "This study will
+        # be deleted" 확인을 띄우고, `close_examine` 이 Yes 로 처리해 검사까지
+        # 정리된다(영상이 있으면 그 확인은 뜨지 않으므로 데이터 유실 위험 없음).
+        if examine_opened and ui is not None:
+            try:
+                closed = flows.close_examine(ui, option="close", wait=6)
+                left = _wait_study(ctx.db, PATIENT_ID, timeout=3)
+                r.add(0, "뒷정리: Examine 종료 및 시험 검사 삭제",
+                      PASS if left is None else MANUAL,
+                      expected="Examine 종료 + 시험 검사(MWL_HC_01) 삭제",
+                      actual={"close": closed,
+                              "남은 검사": left and dict(left)},
+                      note="촬영하지 않은 검사라 Close 시 제품이 삭제 확인을 띄운다. "
+                           "남아 있으면 다음 실행의 Step 5 조회가 중복 안내를 "
+                           "만나므로 정리 여부를 판정으로 남긴다.")
+            except Exception as exc:                   # noqa: BLE001
+                r.add(0, "뒷정리: Examine 종료", MANUAL,
+                      actual=f"종료 실패({type(exc).__name__}: {exc}). "
+                             "Viewer 를 재시작하면 정리된다.")
         # 시험용 Hospital Code 와 처방을 남기지 않는다.
         if created_code and ui is not None:
             try:
