@@ -22,8 +22,36 @@
       "level": "FULL",
       "module": "tests/install.py::install_02",
       "command": "run-auto",
-      "requirements": [],
-      "pending_reason": "선행조건 판정은 config.json > prerequisites 기준. 사양 문구 인용은 미확정"
+      "requirements": [
+        {
+          "doc": "Service Manual",
+          "quote": "SQL Server (BELLALUN) 서비스가 등록되었는지 확인하십시오.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Startup Type이 Automatic인지 확인하십시오.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Bellalun Viewer 설치 후 반드시 아래 절차에 따라 방화벽을 설정하십시오.",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "위와 동일한 방법으로 XIPL의 방화벽 설정도 진행하십시오.",
+          "steps": [
+            3
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_Install_03",
@@ -80,8 +108,37 @@
       "level": "FULL",
       "module": "tests/workflow01.py::run",
       "command": "run-wf01",
-      "requirements": [],
-      "pending_reason": "MWL 동작 근거는 DICOM Conformance Statement. 인용 문구 미확정"
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 93,
+          "srs": "SRS 02-20-10",
+          "quote": "사용자가 입력한 검색 조건에 따라 검사 (Local에 저장 검사 및 MWL 예약 검사)를 검색하여 표시한다.",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 96,
+          "srs": "SRS 02-20-10",
+          "quote": "MWL: DICOM Worklist 서버에서 예약된 검사 정보만 표시",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 98,
+          "srs": "SRS 02-20-10",
+          "quote": "MWL에서 읽어온 Data로 검사를 시작할 때 사람 이름 데이터",
+          "steps": [
+            2,
+            3,
+            4
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_WorkFlow_02",
@@ -137,8 +194,45 @@
       "level": "PARTIAL",
       "module": "tests/workflow04.py::run",
       "command": "run-wf04",
-      "requirements": [],
-      "pending_reason": "2D Send 근거 문구 미확정(WF_05 의 3D 전송 사양만 확정)"
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 222,
+          "srs": "SRS 03-40-50",
+          "quote": "영상을 선택 후, Send / Multi-Send / Print 버튼을 클릭하면 선택한 영상만 전송할 것인지 아니면 모",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 222,
+          "srs": "SRS 03-40-50",
+          "quote": "Reject 영상은 전송되지 않는다.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 222,
+          "srs": "SRS 03-40-50",
+          "quote": "촬영이 안된 Viewposition은 전송할 수 없다.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 125,
+          "srs": "SRS 06-30-30",
+          "quote": "Storage 연결 상태는 상태바에서 확인 가능하며 각 영상에 대한 전송 상태는 Queue 탭에서 확인 가능하",
+          "steps": [
+            3
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_WorkFlow_05",
@@ -200,8 +294,55 @@
       "level": "FULL",
       "module": "tests/workflow07.py::run",
       "command": "run-wf07",
-      "requirements": [],
-      "pending_reason": "Auto Send 근거 문구 미확정"
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 173,
+          "srs": "SRS 03-10-50",
+          "quote": "검사를 종료할 때 선택한 서버로 검사를 자동 전송할 수 있다.",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 173,
+          "srs": "SRS 03-10-50",
+          "quote": "Auto Send로 설정한 경우 검사를 닫을 때 포함된 영상들을 자동으로 선택한 서",
+          "steps": [
+            1,
+            5
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 173,
+          "srs": "SRS 03-10-50",
+          "quote": "응급 환자로 등록된 검사의 경우 Auto Send Option을 사용하더라도 자동으로 전",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 90,
+          "srs": "SRS 02-10-20",
+          "quote": "응급 검사에서 사용하는 사전 정의된 검사 정보는 다음과 같다.",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 173,
+          "srs": "SRS 03-10-50",
+          "quote": "Dose SR은 검사가 종료될 때만 전송이 된다.",
+          "steps": [
+            6,
+            7
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_WorkFlow_08",
@@ -312,8 +453,46 @@
       "level": "FULL",
       "module": "tests/workflow12.py::run",
       "command": "run-wf12",
-      "requirements": [],
-      "pending_reason": "Study Reject 근거 문구 미확정(WF_11 영상 Reject 만 확정)"
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 144,
+          "srs": "SRS 02-40-100",
+          "quote": "목록에서 선택한 검사를 Reject 하거나 Reject 상태의 검사를 복원한다.",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 144,
+          "srs": "SRS 02-40-100",
+          "quote": "현재 열려 있는 검사는 Reject 할 수 없다.",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 144,
+          "srs": "SRS 02-40-100",
+          "quote": "Reject 버튼을 눌러 Reject 사유를 선택한 후 검사를 Reject 한다.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 144,
+          "srs": "SRS 02-40-100",
+          "quote": "Reject 검사를 선택했을 경우 Restore 버튼, 일반 검사를 선택했을 경우 Reject 버튼이 표시됨",
+          "steps": [
+            3,
+            4
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_WorkFlow_13",
@@ -369,8 +548,57 @@
       "level": "PARTIAL",
       "module": "tests/workflow15.py::run",
       "command": "run-wf15",
-      "requirements": [],
-      "pending_reason": "Pre-send Preview 근거 문구 미확정"
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 284,
+          "srs": "SRS 03-50-250",
+          "quote": "PACS로 전송할 영상을 미리 확인 할 수 있다.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 284,
+          "srs": "SRS 03-50-250",
+          "quote": "등록된 Storage가 없을 경우, 경고 메시지가 표시되며 Preview 화면을 사용할 수 없다.",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 285,
+          "srs": "SRS 03-50-250",
+          "quote": "Preview 버튼을 클릭하여 Send Preview 모드로 들어가면 해당 검사에 포함된 모든 2D 영상의 경우 자동",
+          "steps": [
+            3,
+            4
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 285,
+          "srs": "SRS 03-50-250",
+          "quote": "3D 영상은 Recon 영상이 해당 화면에 추가되며 Recon 영상이 없는 경우 해당 화면에 표시되지 않는다.",
+          "steps": [
+            3,
+            4
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 285,
+          "srs": "SRS 03-50-250",
+          "quote": "Send 버튼을 누르면 Use로 설정된 Server들로 영상을 전송한다.",
+          "steps": [
+            5,
+            6,
+            7
+          ]
+        }
+      ]
     },
     {
       "tc_id": "TC_Basic_WorkFlow_16",

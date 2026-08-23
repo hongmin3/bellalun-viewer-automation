@@ -28,7 +28,7 @@ python run.py run-regression
 | 최신 전체 회귀 | 2026-08-21 16:40 — TC 26건 : PASS 20 / FAIL 1 / MANUAL 5 / SKIP 0 (111.3분)<br>그 안의 검증 251개 : PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2 |
 | 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). 의도적으로 완화하지 않습니다 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
-| 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다 |
+| 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
 | 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 14건 |
 
 ### 이 자동화가 실제로 하는 일
@@ -96,7 +96,7 @@ specs.cite(ctx, r"3D Viewposition은 촬영 모드")
 
 ```bash
 python tools_traceability.py --reverse
-# TC 37건 / 인용 있는 TC 18건 / 인용 43건
+# TC 37건 / 인용 있는 TC 24건 / 인용 68건
 # === 사양 → TC ===
 #   사양서1 SRS 03-10-110   TC_Basic_WorkFlow_02(Step 1),
 #                           TC_XIPL_compatibility_04(Step 1,6,7,8),

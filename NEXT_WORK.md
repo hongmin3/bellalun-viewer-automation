@@ -13,7 +13,7 @@
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — **TC 37건** | 2026-08-24 `TC_XIPL_compatibility_07` 추가 |
 | 자동화 범위 | 완전자동 **21** / 부분자동 6 / 수동 10 (+ 보조 4) | `python run.py list` |
 | 코드 규모 | Python 21,388줄 / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) | 2026-08-24 실측 |
-| 추적성 | TC 37건 중 18건에 사양 인용 43건 연결, 위반 0 | `python tools_traceability.py` |
+| 추적성 | TC 37건 중 **24건**에 사양 인용 **68건** 연결, 위반 0. 구현된 25개 TC 중 `Install_01`(Release Note 미확정)만 미연결 | `python tools_traceability.py` |
 | 단위 시험 | 14건 전부 통과 | `python -m unittest discover -s tests -p "test_*.py"` |
 | 정적 검사 | 모듈 속성 57개 대상 이상 없음 / 회귀 블록 이름 결속 이상 없음 | `tools_check_module_attrs.py`, `tools_check_regression_names.py` |
 | **최신 전체 회귀** | **2026-08-21 16:40 (19차)** — TC 26건: PASS 20 / FAIL 1 / MANUAL 5, 검증 251개: PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2, 111.3분 | `Reports/Result_20260821_164016.json` |
@@ -107,7 +107,7 @@ python run.py portability-check      (2026-08-24 08:25 실측)
 |---|---|---|
 | `core/imginfo.py` | 제품 `.img` 꼬리의 `<INFORMATION>` XML 판독. `read_information` / `sections` / `recon_param` / `study_image_dirs` / `instance_image_path` | 실제 제품 파일 4개(2D 1 + 3D 3)로 확인 + 단위 시험 7건 |
 | `tools_traceability.py` | `traceability.json`을 원문·저장소와 대조하고 사양↔TC 양방향 인덱스 출력 | 위조 7건 주입 → 전부 검출 확인 |
-| `traceability.json` | 사양↔TC 추적성 데이터 (쪽·SRS는 문서 검색으로 실측한 값) | 위반 0 |
+| `traceability.json` | 사양↔TC 추적성 데이터 (쪽·SRS는 문서 검색으로 실측한 값). TC 24건 / 인용 68건 | 위반 0 |
 | `tests/test_imginfo_and_waits.py` | `imginfo`와 조건 대기 단위 시험 12건 | 통과 |
 | `tools_build_detail_html.py` | `..\프로젝트 상세.html` 생성기. 표·수치를 `automation_scope.json`/`traceability.json`/`run.py`/리포트 JSON 에서 만든다 | 생성·렌더 확인 |
 | `run.py probe-preset3d` | `Setting > Procedure > Preset`의 3D 목록 컨트롤을 **조회 전용**으로 실측(TC 아님). 전후 DB 스냅샷 대조 포함 | **미실행** (권한 없음) |
@@ -192,7 +192,7 @@ Viewer auto 저장소 구현 규칙.md`가 이미 같은 역할이고, 두 곳�
 | 4 | `TC_XIPL_compatibility_04`가 `PROCEDURE_COMMON.DefaultImgProcess`를 `TEST_2D_A_M.pim`으로 **남긴 채 끝난다**(현재 DB 실측값이 그렇다). 회귀는 시작 시 스냅샷 복원으로 지워지지만 단독 실행은 오염이 남는다 | P1 — `_07`처럼 원복을 넣어야 하지만 **검증 없이 정상 동작 TC를 건드리지 않았다** |
 | 5 | `flows.demo_acquire_step(settle=14)`의 고정 대기가 `WF_01`/`WF_02`/`run-sys3d`에 그대로 남아 있다 | P1 — `_07`에 쓴 `wait_new_group` 레시피로 바꿀 수 있으나 회귀 검증이 필요 |
 | 6 | `flows.close_examine`의 no-dialog 경로에 `time.sleep(wait)`가 남아 있다 | P2 — 상태 신호 후보 확인 필요 |
-| 7 | 추적성 인용이 없는 TC 19건(`pending_reason`에 사유 기록) | P2 |
+| 7 | 추적성 인용이 없는 TC 13건 — 전부 **미구현**(OS 신규 설치·파괴적 작업·팬텀 촬영·허용 기준 미확정)이고 구현된 것 중에는 `Install_01` 하나뿐이다(`pending_reason` 기록) | P2 |
 | 8 | Dose SR(RDSR) 전송 검증 — Demo(F8)에서는 RDSR이 생성되지 않는다(전제 미충족, 제품 결함 아님) | P2 — `NEXT_TASK.md` 고도화 대기 1번 |
 | 9 | `tests/settings.py`의 과거 pre/post 판정부가 실행 경로에 없다. `core/tc_modules.py`가 `Install_07`에서 참조하므로 지우지 않았다 | P2 — 참조 확실히 정리한 뒤에만 |
 
@@ -242,9 +242,11 @@ Viewer auto 저장소 구현 규칙.md`가 이미 같은 역할이고, 두 곳�
 ### P2
 
 7. `flows.close_examine`의 no-dialog 경로 상태 신호화.
-8. 추적성 미확정 19건 중 **구현된 TC**부터 인용 확보 —
-   `WF_01`(DICOM Conformance Statement), `WF_04`(2D Send), `WF_07`(Auto Send),
-   `WF_12`(Study Reject), `WF_15`(Pre-send Preview).
+8. [완료 2026-08-24] 구현된 TC 의 인용 확보 — `Install_02`(Service Manual 방화벽·
+   SQL Server), `WF_01`(SRS 02-20-10), `WF_04`(SRS 03-40-50 / 06-30-30),
+   `WF_07`(SRS 03-10-50 / 02-10-20), `WF_12`(SRS 02-40-100),
+   `WF_15`(SRS 03-50-250) 25건 추가. 남은 것은 `Install_01` 하나 — 검증 대상
+   Release Note 를 받아야 한다.
 9. Dose SR 생성 조건 조사(`NEXT_TASK.md` 고도화 대기 1번의 절차대로).
 10. `Install_01`/`Install_02` MANUAL 해제 — 검증 대상 Release Note와 지원 OS Build
     목록·DICOM 어댑터 별칭을 사용자에게 받으면 자동 판정 가능
