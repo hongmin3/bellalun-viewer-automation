@@ -30,7 +30,11 @@ class PerformanceWaitTests(unittest.TestCase):
             html = Path(paths["html"]).read_text(encoding="utf-8")
             json_text = Path(paths["json"]).read_text(encoding="utf-8")
         self.assertIn("existing check", html)
-        self.assertIn("소요시간", html)
+        # 2026-08-24: `소요시간`(붙여쓰기)을 찾고 있었는데 HTML 은 그 전부터
+        # `소요 시간 분해`(띄어쓰기)를 쓰고 있었다. 이 저장소의 유일한 단위
+        # 시험이 그동안 실패 상태로 방치돼 있었다(아무도 돌리지 않았다).
+        # 문구를 그대로 박는 대신 **HTML 이 실제로 내는 제목**을 확인한다.
+        self.assertIn("<h3>소요 시간 분해</h3>", html)
         self.assertIn('"duration_seconds"', json_text)
         self.assertIn('"timings"', json_text)
 

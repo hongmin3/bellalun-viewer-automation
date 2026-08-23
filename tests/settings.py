@@ -68,8 +68,8 @@ def workflow_03_evaluate(ctx, pre, post):
                   actual=d["changed"] or "변경 없음")
 
     # Step 5~6. 화면 표시
-    r.manual(5, "2D 영상의 Image Overlay 표시", "화면 표시는 캡처 증적으로 확인 (OCR 보조 가능)")
-    r.manual(6, "Film 창의 Print Overlay 표시", "Film 창 표시는 캡처 증적으로 확인")
+    r.manual(5, "2D 영상의 Image Overlay 표시", "화면 표시는 캡처 증거로 확인 (OCR 보조 가능)")
+    r.manual(6, "Film 창의 Print Overlay 표시", "Film 창 표시는 캡처 증거로 확인")
     return r
 
 
@@ -117,7 +117,7 @@ def workflow_10_evaluate(ctx, pre, post):
         r.assert_true(7, "생성된 검사에 Procedure 매핑", bool(hit[0].get("ProcedureKey")),
                       expected="STUDY.ProcedureKey 설정됨",
                       actual=hit[0].get("ProcedureKey"))
-    r.manual(7, "첫 Step/Preset 선택 상태", "Examine 화면의 Step 선택 상태는 캡처 증적으로 확인")
+    r.manual(7, "첫 Step/Preset 선택 상태", "Examine 화면의 Step 선택 상태는 캡처 증거로 확인")
     return r
 
 
@@ -146,7 +146,7 @@ def workflow_13_evaluate(ctx, pre, post):
           note="" if changed else "수정 단계를 수행하지 않았거나 변경 항목이 Password인 경우 "
                                   "해시 저장 여부에 따라 감지되지 않을 수 있음")
 
-    r.manual(4, "로그오프 시 이전 사용자 정보 미표시", "로그인 화면 표시는 캡처 증적으로 확인")
+    r.manual(4, "로그오프 시 이전 사용자 정보 미표시", "로그인 화면 표시는 캡처 증거로 확인")
     r.manual(5, "시험 계정으로 로그인", "로그인 성공 여부는 화면 확인 필요")
     r.manual(6, "허용된 기능만 사용 가능", "메뉴 접근 제한은 화면 확인 필요")
 

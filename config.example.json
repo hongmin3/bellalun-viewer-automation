@@ -101,8 +101,11 @@
     "tesseract_exe": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
     "preview_2d_wait": 20,
     "apply_2d_wait": 30,
-    "preview_3d_wait": 35,
-    "apply_3d_wait": 75
+    "_wait_note": "preview_2d_wait / apply_2d_wait 와 아래 *_timeout 은 모두 **조건 기반 대기의 상한**이다. 그 시간을 무조건 기다리는 것이 아니라, Viewer 처리 완료 로그·UI 상태·DB 영상 도착을 보고 끝나면 즉시 넘어간다(tests/xipl_flows._poll_completion, core/viewer_processing.wait_new_group). 값을 줄이면 느린 PC 에서 오탐이 나므로 넉넉히 둔다.",
+    "post_recon_timeout": 120,
+    "preview_3d_timeout": 120,
+    "apply_3d_timeout": 120,
+    "acquire_3d_timeout": 240
   },
   "settings_export": {
     "exported_file": ""

@@ -366,7 +366,7 @@ def write_txt(results, path, env=None):
             if chk.note:
                 L.append(f"            비고 : {chk.note}")
         if r.evidence:
-            L.append("  [증적]")
+            L.append("  [증거]")
             for e in r.evidence:
                 L.append(f"    - {e}")
         if r.timings:
@@ -517,7 +517,7 @@ def _render_html(results, meta, siblings=None):
         for k, v in meta["env"].items():
             text = str(v)
             # 실제로 존재하는 경로는 눌러서 열 수 있게 링크로 만든다
-            # (Viewer 로그·증적 폴더를 리포트에서 바로 열기 위해서다).
+            # (Viewer 로그·증거 폴더를 리포트에서 바로 열기 위해서다).
             cell = (f"<a href='{_file_url(text)}'><code>{e(text)}</code></a>"
                     if os.path.exists(text) else f"<code>{e(text)}</code>")
             P.append(f"<tr><th style='width:230px'>{e(str(k))}</th>"
@@ -719,9 +719,9 @@ def _render_html(results, meta, siblings=None):
                      f"<td class='note'>{e(c.note)}</td></tr>")
         P.append("</table>")
 
-        # 증적 (클릭 가능한 링크)
+        # 증거 (클릭 가능한 링크)
         if r.evidence:
-            P.append("<h3>증적 (스크린샷·파일)</h3><table>"
+            P.append("<h3>증거 (스크린샷·파일)</h3><table>"
                      "<tr><th style='width:46px'>#</th><th>경로</th></tr>")
             for i, p in enumerate(r.evidence, 1):
                 P.append(f"<tr><td>{i}</td><td>"

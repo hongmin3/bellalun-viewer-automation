@@ -568,7 +568,7 @@ def setup_all(ctx, kinds=None):
               actual=" / ".join(startup_log) or f"PID {ui.pid}")
     except Exception as exc:
         # 여기서 실패하면 회귀 전체가 연쇄로 무너진다(2026-08-18: 8개 TC).
-        # 그래서 **기동 로그와 마지막 화면 증적을 반드시 남긴다.** 이전에는
+        # 그래서 **기동 로그와 마지막 화면 증거를 반드시 남긴다.** 이전에는
         # 예외 문구만 남아 어느 단계에서 멈췄는지 추적할 수 없었다.
         shot = None
         try:
@@ -586,7 +586,7 @@ def setup_all(ctx, kinds=None):
                       "screenshot": shot},
               note="안전장치가 동작하여 DICOM 좌표 클릭을 수행하지 않음. "
                    "이 단계가 실패하면 MWL 서버가 미등록으로 남아 후속 TC가 "
-                   "모두 연쇄 실패하므로, 재실행 전 이 증적을 먼저 확인할 것.")
+                   "모두 연쇄 실패하므로, 재실행 전 이 증거를 먼저 확인할 것.")
         return r
 
     if "Storage" in kinds:

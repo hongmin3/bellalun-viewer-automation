@@ -37,7 +37,7 @@ def workflow_06(ctx):
     * RDSR이 도착하지 않으면 **FAIL이 아니라 MANUAL**로 보고한다. Precondition이
       "RDSR 생성 조건을 충족"을 요구하는데 이 환경은 Demo(F8) 가상 촬영이라 그
       조건이 성립하는지 확인되지 않았다. 전제 미충족을 제품 결함처럼 보고하지
-      않는다(운영 지침 2절). 관측값은 증적으로 남긴다.
+      않는다(운영 지침 2절). 관측값은 증거로 남긴다.
     """
     r = TCResult("TC_Basic_WorkFlow_06", "All Images 및 Dose SR 전송")
     patient_id = (ctx.cfg.get("xipl") or {}).get(

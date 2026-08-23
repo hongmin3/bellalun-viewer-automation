@@ -553,7 +553,7 @@ class ViewerUi:
         """대화상자 문구. 표준 메시지 박스는 Static에서 읽는다.
 
         커스텀 팝업은 문구를 직접 그리기 때문에 컨트롤에서 읽을 수 없다.
-        그 경우 빈 문자열을 반환하므로, 호출부는 capture_dialog()로 캡처 증적을
+        그 경우 빈 문자열을 반환하므로, 호출부는 capture_dialog()로 캡처 증거를
         남겨 사람이 확인할 수 있게 해야 한다.
         """
         parts = [c.text for c in children(dlg.hwnd, 3)
@@ -561,7 +561,7 @@ class ViewerUi:
         return " / ".join(parts)
 
     def capture_dialog(self, dlg, path):
-        """대화상자 영역을 캡처해 증적으로 남긴다."""
+        """대화상자 영역을 캡처해 증거로 남긴다."""
         import os
         from PIL import ImageGrab
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

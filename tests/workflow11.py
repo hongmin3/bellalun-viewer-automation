@@ -290,7 +290,7 @@ def run(ctx):
             actual=rejected,
             note="Expected 4. 동일 Patient/Study/Image 가 Reject 목록에 표시된다. "
                  "Always display rejected images 가 켜져 있어 같은 목록에 남고 "
-                 "영상에 빨간 REJECTED 스탬프가 찍힌다(증적 캡처). Patient ID 와 "
+                 "영상에 빨간 REJECTED 스탬프가 찍힌다(증거 캡처). Patient ID 와 "
                  "Study Instance UID 를 DB 로 대조한다.")
 
         # --- Step 5: Restore --------------------------------------------

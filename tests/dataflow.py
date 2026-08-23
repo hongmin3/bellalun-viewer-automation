@@ -67,8 +67,8 @@ def workflow_01_evaluate(ctx, pre, post):
                   expected="PATIENT 또는 STUDY 신규 행",
                   actual=f"PATIENT 추가 {len(d_pat['added'])}건")
 
-    r.manual(1, "MWL 조회 결과 표시", "Patient List 화면 표시는 캡처 증적으로 확인")
-    r.manual(4, "예정된 View Position 일치", "SUSPEND_STEP/화면 표시는 캡처 증적으로 확인")
+    r.manual(1, "MWL 조회 결과 표시", "Patient List 화면 표시는 캡처 증거로 확인")
+    r.manual(4, "예정된 View Position 일치", "SUSPEND_STEP/화면 표시는 캡처 증거로 확인")
     return r
 
 

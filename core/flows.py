@@ -1033,7 +1033,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                                 "최소화한 뒤 다시 실행하십시오.")
                 raise FlowError(
                     f"로그인에 {attempts}회 실패했습니다. {detail}"
-                    f"(증적은 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.{occluded}")
+                    f"(증거는 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.{occluded}")
             say(f"로그인 재시도 예정 (원인: {msgs or '로그인 화면 유지'})")
             time.sleep(1.5)
         say("로그인 완료")
@@ -1088,7 +1088,7 @@ def _screen_context(ui):
     랜드마크만으로는 부족했다. 2026-08-19 회귀에서 `TC_XIPL_compatibility_04`가
     `랜드마크=['status_bar','examine']`로 실패했는데, 같은 상태를 직접 만들어
     재현하니 정상 동작했다. 남은 차이가 **모달 대화상자**일 가능성이 크지만
-    실패 시점 증적이 없어 확인할 수 없었다(이 저장소에서 모달이 클릭을 삼키는
+    실패 시점 증거가 없어 확인할 수 없었다(이 저장소에서 모달이 클릭을 삼키는
     문제는 반복 확인됐다 - 운영 지침 11절).
 
     그래서 실패 순간에 (1) 랜드마크, (2) 열려 있는 대화상자 문구, (3) 전체 화면
@@ -1408,7 +1408,7 @@ def handle_duplicate_patient(ui, action="fail", timeout=5):
     """동일 Patient ID 경고 팝업 처리.
 
     action:
-      'fail'         - 팝업 문구를 증적으로 남기고 예외 (기본. 의도치 않은 중복 검출)
+      'fail'         - 팝업 문구를 증거로 남기고 예외 (기본. 의도치 않은 중복 검출)
       'use_existing' - 기존 검사 정보 사용 (첫 번째 버튼)
       'report'       - 문구만 반환하고 닫지 않음
 

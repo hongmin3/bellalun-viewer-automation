@@ -121,7 +121,7 @@ def read_all(ui, evidence_dir, prefix, tesseract_exe, study=None,
              attach=None, scales=OCR_SCALES):
     """보이는 모든 패널을 읽어 `(판정, 원문, 패널목록)` 을 돌려준다.
 
-    `attach` 에 `TCResult.attach` 를 넘기면 크롭 증적을 리포트에 붙인다.
+    `attach` 에 `TCResult.attach` 를 넘기면 크롭 증거를 리포트에 붙인다.
     """
     found_panels = panels(ui)
     reads, marks = {}, {}

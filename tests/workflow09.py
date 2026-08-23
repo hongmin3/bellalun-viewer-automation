@@ -32,7 +32,7 @@ r"""TC_Basic_WorkFlow_09 - Normal 및 Anonymous Export.
     파싱해** Patient ID / Patient Name 을 읽고 원본 DB 값과 대조한다.
   * Normal 은 원본 환자정보 **유지**, Anonymous 는 **변경**이 기대값이다.
     익명화 방식(빈 값 / 고정 문자열 / 해시)은 사양에 명시돼 있지 않으므로
-    "원본과 다르다"로 판정하고 실제 값을 증적에 남긴다. 특정 문자열을 기대값으로
+    "원본과 다르다"로 판정하고 실제 값을 증거에 남긴다. 특정 문자열을 기대값으로
     박으면 제품이 방식을 바꿀 때 근거 없이 FAIL 한다.
   * Step 8의 "객체 수 일치"는 두 경로의 **DICOM 파일 수**로 대조한다.
 """
@@ -65,7 +65,7 @@ ANONYMOUS_DIR_MARKERS = ("Unknown_Unknown", "Anonymous_")
 
 
 def _export_dir(ctx, kind, patient_id):
-    """체크리스트 Test Data가 지정한 증적 경로를 만든다."""
+    """체크리스트 Test Data가 지정한 증거 경로를 만든다."""
     path = os.path.join(ctx.evidence_root, "Export", kind, patient_id)
     os.makedirs(path, exist_ok=True)
     return path

@@ -1,0 +1,726 @@
+{
+  "_about": "사양→TC / TC→사양 추적성 인덱스. TC 는 `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`) 기준이고, 요구사항은 `지식` 폴더의 사양서·매뉴얼 원문 인용이다. 쪽 번호와 SRS ID 는 손으로 적지 않고 문서 검색으로 실측한 값이다. `python tools_traceability.py` 가 이 파일의 모든 인용을 원문과 다시 대조하고 역방향(사양→TC) 인덱스를 만든다.",
+  "_baseline": {
+    "checklist": "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx",
+    "sheet": "개정 TC",
+    "documents": "..\\지식"
+  },
+  "_measured": "2026-08-24",
+  "tc": [
+    {
+      "tc_id": "TC_Basic_Install_01",
+      "title": "설치 버전 및 패키지 구성 확인",
+      "level": "FULL",
+      "module": "tests/install.py::install_01",
+      "command": "run-auto",
+      "requirements": [],
+      "pending_reason": "검증 대상 Release Note 미확정(automation_scope 참고)"
+    },
+    {
+      "tc_id": "TC_Basic_Install_02",
+      "title": "Viewer 실행 전 필수 환경 확인",
+      "level": "FULL",
+      "module": "tests/install.py::install_02",
+      "command": "run-auto",
+      "requirements": [],
+      "pending_reason": "선행조건 판정은 config.json > prerequisites 기준. 사양 문구 인용은 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_Install_03",
+      "title": "Windows 10 신규 설치",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "OS 신규 설치 환경 필요"
+    },
+    {
+      "tc_id": "TC_Basic_Install_04",
+      "title": "Windows 11 신규 설치",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "OS 신규 설치 환경 필요"
+    },
+    {
+      "tc_id": "TC_Basic_Install_05",
+      "title": "Windows 11 IoT Enterprise LTSC 신규 설치",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "OS 신규 설치 환경 필요"
+    },
+    {
+      "tc_id": "TC_Basic_Install_06",
+      "title": "신규 설치 후 기본 실행 확인",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "VIVIX-M Setup / Bellalun System Setup 미설치"
+    },
+    {
+      "tc_id": "TC_Basic_Install_07",
+      "title": "설치 옵션 및 변경 적용 확인",
+      "level": "PARTIAL",
+      "requirements": [],
+      "pending_reason": "설치 옵션 변경(파괴적)"
+    },
+    {
+      "tc_id": "TC_Basic_Install_08",
+      "title": "Upgrade 후 기존 데이터 유지 확인",
+      "level": "PARTIAL",
+      "requirements": [],
+      "pending_reason": "재설치(파괴적)"
+    },
+    {
+      "tc_id": "TC_Basic_Install_09",
+      "title": "Uninstall 및 데이터 유지 확인",
+      "level": "PARTIAL",
+      "requirements": [],
+      "pending_reason": "제거(파괴적)"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_01",
+      "title": "MWL 및 Local 검사 생성",
+      "level": "FULL",
+      "module": "tests/workflow01.py::run",
+      "command": "run-wf01",
+      "requirements": [],
+      "pending_reason": "MWL 동작 근거는 DICOM Conformance Statement. 인용 문구 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_02",
+      "title": "공통 2D/3D 검사 촬영 및 Tool 적용",
+      "level": "FULL",
+      "module": "tests/workflow02.py::run",
+      "command": "run-wf02",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 185,
+          "srs": "SRS 03-10-110",
+          "quote": "영상을 획득 후 해당 Viewposition에 설정되어 있는 parameter를 적용하여 자동으로",
+          "steps": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_03",
+      "title": "Image Overlay 및 Print Overlay 설정",
+      "level": "FULL",
+      "module": "tests/workflow03.py::run",
+      "command": "run-wf03",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 296,
+          "srs": "SRS 04-10-20",
+          "quote": "Header에는 9개까지, Top 및 Bottom에는 각각 10개까지 항목을 추가할 수 있다.",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 297,
+          "srs": "SRS 04-10-20",
+          "quote": "Header가 표시될 수 있는 위치는 다음과 같다. None으로 설정한 경우 표시되지 않는다.",
+          "steps": [
+            4,
+            5,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_04",
+      "title": "2D 수동 DICOM Send",
+      "level": "PARTIAL",
+      "module": "tests/workflow04.py::run",
+      "command": "run-wf04",
+      "requirements": [],
+      "pending_reason": "2D Send 근거 문구 미확정(WF_05 의 3D 전송 사양만 확정)"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_05",
+      "title": "3D 수동 DICOM Send",
+      "level": "FULL",
+      "module": "tests/workflow05.py::run",
+      "command": "run-wf05",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 125,
+          "srs": "SRS 02-40-50",
+          "quote": "3D 영상은 Recon 영상이 전송된다.",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 125,
+          "srs": "SRS 02-40-50",
+          "quote": "Recon 영상이 없을 경우 영상은 전송되지 않는다.",
+          "steps": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_06",
+      "title": "All Images 및 Dose SR 전송",
+      "level": "PARTIAL",
+      "module": "tests/workflow06.py::run",
+      "command": "run-wf06",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 125,
+          "srs": "SRS 06-30-30",
+          "quote": "Storage 옵션에 Send Dose SR 옵션이 활성화되어 있을 때, 아래의 경우에 Dose SR을 전송한다.",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 125,
+          "srs": "SRS 02-40-50",
+          "quote": "검사 내 전송될 수 있는 영상이 없을 경우 Dose SR은 전송되지 않는다.",
+          "steps": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_07",
+      "title": "Emergency 검사 Auto Send",
+      "level": "FULL",
+      "module": "tests/workflow07.py::run",
+      "command": "run-wf07",
+      "requirements": [],
+      "pending_reason": "Auto Send 근거 문구 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_08",
+      "title": "2D/3D Film Print",
+      "level": "FULL",
+      "module": "tests/workflow08.py::run",
+      "command": "run-wf08",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 297,
+          "srs": "SRS 04-10-20",
+          "quote": "Header Layout은 1x1에서 3x3까지 선택할 수 있다. Layout 한 칸당 한 항목씩 표시한다.",
+          "steps": [
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_09",
+      "title": "Normal 및 Anonymous Export",
+      "level": "FULL",
+      "module": "tests/workflow09.py::run",
+      "command": "run-wf09",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 132,
+          "srs": "SRS 02-40-70",
+          "quote": "일반: 선택한 경로\\[Patient ID]_[Patient Name]\\[Study Date]_[Study Time]_[Study Key]",
+          "steps": [
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 134,
+          "srs": "SRS 02-40-70",
+          "quote": "익명 처리되는 환자 정보: Patient ID, Patient Name, Accession Number",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 134,
+          "srs": "SRS 02-40-70",
+          "quote": "Anonymous 체크 시, Patient ID 및 Patient Name은 Unknown으로 표시",
+          "steps": [
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_10",
+      "title": "MWL Hospital Code와 Procedure 매핑",
+      "level": "FULL",
+      "module": "tests/workflow10.py::run",
+      "command": "run-wf10",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 108,
+          "srs": "SRS 02-30-10",
+          "quote": "Hospital Code는 외부입력(QR code)를 통해서만 입력할 수 있다.",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 97,
+          "srs": "SRS 02-20-10",
+          "quote": "MWL에서 예약된 검사를 시작할 때, 선택한 검사에 등록되지 않은 Hospital Code가 있을 경우",
+          "steps": [
+            5,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_11",
+      "title": "Image Reject 및 Restore",
+      "level": "FULL",
+      "module": "tests/workflow11.py::run",
+      "command": "run-wf11",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 193,
+          "srs": "SRS 03-30-10",
+          "quote": "촬영이 진행된 영상: Reject 상태로 변경",
+          "steps": [
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_12",
+      "title": "Study Reject 및 Restore",
+      "level": "FULL",
+      "module": "tests/workflow12.py::run",
+      "command": "run-wf12",
+      "requirements": [],
+      "pending_reason": "Study Reject 근거 문구 미확정(WF_11 영상 Reject 만 확정)"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_13",
+      "title": "계정 추가·수정 및 로그인",
+      "level": "FULL",
+      "module": "tests/workflow13.py::run",
+      "command": "run-wf13",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 77,
+          "srs": "SRS 01-30-20",
+          "quote": "로그인한 계정이 속한 권한 그룹 (Service, Admin, User)에 따라 사용할 수 있는 기능을 제한한다.",
+          "steps": [
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_14",
+      "title": "Setting Export 및 Import",
+      "level": "FULL",
+      "module": "tests/workflow14.py::run",
+      "command": "run-wf14",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 11,
+          "srs": "SRS 01-10-60",
+          "quote": "선택한 위치에 설정 정보를 .vms 확장자로 저장한다",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 12,
+          "srs": "SRS 01-10-60",
+          "quote": ".vms 파일을 현재 System에 가져와서 적용할 수 있다.",
+          "steps": [
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_15",
+      "title": "Pre-send Preview 표시 및 전송",
+      "level": "PARTIAL",
+      "module": "tests/workflow15.py::run",
+      "command": "run-wf15",
+      "requirements": [],
+      "pending_reason": "Pre-send Preview 근거 문구 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_WorkFlow_16",
+      "title": "Kiosk 및 System Launcher",
+      "level": "MANUAL",
+      "module": "tests/workflow16.py::run",
+      "command": "run-wf16",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 26,
+          "srs": "SRS 01-10-130",
+          "quote": "Exit menu 사용 권한을 설정할 수 있다.  (Setting > System > Security)",
+          "steps": [
+            7,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_01",
+      "title": "Viewer와 XIPL 표시값 비교",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_01",
+      "command": "run-xipl-01",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 240,
+          "srs": "SRS 03-50-20",
+          "quote": "Histogram은 Setting > Display > Overlay에서 표시 여부를 설정할 수 있다.",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 240,
+          "srs": "SRS 03-50-20",
+          "quote": "Histogram을 통해 W1 및 W2 값이 변경되는 것을 확인할 수 있다.",
+          "steps": [
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_02",
+      "title": "2D Image Processing",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_02",
+      "command": "run-xipl-02",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 263,
+          "srs": "SRS 03-50-160",
+          "quote": "Preset을 선택하여 미리 정의되어 있는 Parameter로 영상처리를 변경/적용할 수 있다",
+          "steps": [
+            2,
+            7
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_03",
+      "title": "3D Post Reconstruction",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_03",
+      "command": "run-xipl-03",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 275,
+          "srs": "SRS 03-50-230",
+          "quote": "선택한 Viewposition이 3D 타입이고, 해당 영상에 3D-Raw가 있을 때에만 진행 가능하다",
+          "steps": [
+            2,
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 277,
+          "srs": "SRS 03-50-230",
+          "quote": "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다",
+          "steps": [
+            7,
+            8,
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_04",
+      "title": "Preset별 2D Default Parameter 적용",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_04",
+      "command": "run-xipl-04",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 185,
+          "srs": "SRS 03-10-110",
+          "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있지 않은 경우 기본 영상 처리 파",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 195,
+          "srs": "SRS 03-30-20",
+          "quote": "각 Preset 별로 영상 처리 파라미터를 설정할 수 있다",
+          "steps": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 185,
+          "srs": "SRS 03-10-110",
+          "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설",
+          "steps": [
+            6,
+            7,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_05",
+      "title": "Q.C Default Image Process Parameter",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_05",
+      "command": "run-xipl-05",
+      "requirements": [
+        {
+          "doc": "사양서2",
+          "page": 127,
+          "srs": "SRS 07-30-30",
+          "quote": "3D용Q.C의경우 Recon Parameter (eap 파일)가두가지로나뉜다.",
+          "steps": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_06",
+      "title": "XIPL Parameter 저장 후 Viewer 적용",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_06",
+      "command": "run-xipl-06",
+      "requirements": [
+        {
+          "doc": "Service Manual",
+          "quote": "XIPL.STUDIO에서 사용자가 직접 영상 처리 파라미터 값을 변경할 수 있습니다.",
+          "steps": [
+            2,
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 263,
+          "srs": "SRS 03-50-160",
+          "quote": "Preset을 선택하여 미리 정의되어 있는 Parameter로 영상처리를 변경/적용할 수 있다",
+          "steps": [
+            5,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_XIPL_compatibility_07",
+      "title": "촬영 모드별 3D Default Recon Parameter 적용",
+      "level": "FULL",
+      "module": "tests/xipl_flows.py::compatibility_07",
+      "command": "run-xipl-07",
+      "requirements": [
+        {
+          "doc": "사양서1",
+          "page": 186,
+          "srs": "SRS 03-10-110",
+          "quote": "기본 영상 처리 파라미터는 Setting > Procedure > General 에서 설정할 수 있다",
+          "steps": [
+            1
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 186,
+          "srs": "SRS 03-10-110",
+          "quote": "3D Viewposition은 촬영 모드 (Narrow / Wide)에 따라 각각 Reconstruction",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Reconstruction parameter for 3D-N: 3D Narrow 촬영 View Position에 적용되는 Recon 파라미터",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Reconstruction parameter for 3D-W: 3D Wide 촬영 View Position에 적용되는 Recon 파라미터",
+          "steps": [
+            1,
+            2
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 196,
+          "srs": "SRS 03-30-20",
+          "quote": "설정 가능한 3D Viewposition CC, MLO, LM, SIO, ML, LMO, ISO, XCCL,  XCCM, AT, TAN",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 196,
+          "srs": "SRS 03-30-20",
+          "quote": "FB 및 CV는 촬영 불가",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Preset은 2D / 3D-N / 3D-W 각각 총 40개씩 등록할 수 있습니다.",
+          "steps": [
+            3
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 186,
+          "srs": "SRS 03-10-110",
+          "quote": "2D License의 경우 3D-N / 3D-W Preset 설정 항목이 표시되지 않는다",
+          "steps": [
+            5,
+            6
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 185,
+          "srs": "SRS 03-10-110",
+          "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설",
+          "steps": [
+            5,
+            6,
+            7,
+            8
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 277,
+          "srs": "SRS 03-50-230",
+          "quote": "영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다",
+          "steps": [
+            7
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 277,
+          "srs": "SRS 03-50-230",
+          "quote": "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다",
+          "steps": [
+            8
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 278,
+          "srs": "SRS 03-50-230",
+          "quote": "Post Reconstruction  XTP",
+          "steps": [
+            8
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Tomo 촬영을 지원하지 않는 시스템이 연결되어 있거나 2D 전용 License가 등록되어 있을 경우, Reconstruction Parameter를 설정하는 항목은 표시되지 않습니다.",
+          "steps": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "doc": "Service Manual",
+          "quote": "Preset에 새로 추가하는 View Position이나 영상 처리 파라미터 및 Recon 파라미터가 등록되어 있지 않은 View Position을 촬영할 때, Default로 설정한 파라미터를 적용합니다.",
+          "steps": [
+            9
+          ]
+        }
+      ]
+    },
+    {
+      "tc_id": "TC_Basic_QC_01",
+      "title": "ACR Phantom 2D Q.C",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "미구현(Q.C 팬텀 촬영 환경 필요)"
+    },
+    {
+      "tc_id": "TC_Basic_QC_02",
+      "title": "ACR Phantom 3D Q.C",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "미구현(Q.C 팬텀 촬영 환경 필요)"
+    },
+    {
+      "tc_id": "TC_Basic_Performance_01",
+      "title": "2D 영상 획득시간",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "허용 기준 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_Performance_02",
+      "title": "3D-N 영상 획득시간",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "허용 기준 미확정"
+    },
+    {
+      "tc_id": "TC_Basic_Performance_03",
+      "title": "3D-W 영상 획득시간",
+      "level": "MANUAL",
+      "requirements": [],
+      "pending_reason": "허용 기준 미확정"
+    }
+  ]
+}

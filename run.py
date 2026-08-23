@@ -125,7 +125,7 @@ def _report_meta(ctx, results):
             # 제품 로그. 판정 근거로 로그를 인용한 단계(파라미터 적용 등)를
             # 리포트만 보고 되짚을 수 있게 경로를 함께 남긴다.
             "Viewer 로그": _viewer_log_path(ctx),
-            "증적 폴더": ctx.evidence_root,
+            "증거 폴더": ctx.evidence_root,
         }
         meta["env"] = {k: v for k, v in env.items() if v not in (None, "")}
     except Exception as exc:                           # noqa: BLE001
@@ -220,6 +220,81 @@ def finish(ctx, results):
     return 1 if any(r.verdict == "FAIL" for r in results) else 0
 
 
+def _probe_preset3d(ctx):
+    r"""`Setting > Procedure > Preset` 의 컨트롤을 **조회 전용**으로 실측한다.
+
+    TC 가 아니다. 리포트를 쓰지 않고 화면에 목록만 출력한다.
+
+    ## 왜 필요한가
+
+    2D Preset 목록·추가·삭제 컨트롤만 실측돼 있다(`flows.PRESET_2D_LIST` = 2554 /
+    `PRESET_2D_ADD` = 2548 / `PRESET_2D_DELETE` = 2549). **3D-N / 3D-W 목록의
+    ID 는 아직 실측되지 않았다.** 그래서 `TC_XIPL_compatibility_07` 은 3D Preset
+    행을 편집하지 않고 `Setting > Procedure > General` 의 모드별 Default 만
+    조작한다(`automation_scope.json` 의 `coverage.gap` 참고).
+
+    번호가 이어질 것이라고 **추측하지 않는다**(AGENTS.md 3·5절). 이 명령으로
+    한 번 실측해 두면 다음 회차에 "새 3D Preset 을 추가하면 그 시점 Default
+    파라미터를 물려받는가"(Service Manual) 까지 자동 판정할 수 있다.
+
+    ## 안전
+
+    누르는 것은 이미 검증된 레일 컨트롤(`open_procedure_setting`)뿐이고 목록·
+    버튼은 **읽기만 한다.** Update 를 누르지 않으므로 설정이 바뀌지 않는다.
+    다만 Hospital Code 화면처럼 "누르지 않아도 즉시 저장되는" 화면이 있었으므로
+    (AGENTS.md 3절) 전후로 `PROCEDURE_COMMON` 과 `VIEW_POSITION_PRESET` 행 수를
+    찍어 대조해 출력한다.
+    """
+    from core import flows, setting_values
+    from core.ui import ViewerUi
+
+    def snapshot():
+        return {
+            "PROCEDURE_COMMON": ctx.db.one(
+                "PROCEDURE", "SELECT DefaultImgProcess,DefaultReconNarrow,"
+                             "DefaultReconWide FROM PROCEDURE_COMMON"),
+            "VIEW_POSITION_PRESET": {
+                int(row["Type"]): int(row["n"]) for row in ctx.db.query(
+                    "PROCEDURE", "SELECT Type,COUNT(*) AS n "
+                                 "FROM VIEW_POSITION_PRESET GROUP BY Type")},
+        }
+
+    before = snapshot()
+    cfg = ctx.cfg["viewer"]
+    ui = ViewerUi()
+    ui.ensure_ready(cfg["exe"], cfg["login"]["id"], cfg["login"]["password"])
+    flows.ensure_patient_screen(ui)
+    rail = flows.open_procedure_setting(ui, "preset")
+    controls = ui.controls(max_depth=8)
+    pane = setting_values.content_pane(ui, rail, controls=controls)
+    print(f"콘텐츠 패널 rect = {pane}")
+    print(f"{'ctrl_id':>8}  {'class':<28} {'rect(패널 상대)':<28} text")
+    rows = []
+    for c in controls:
+        if not c.visible:
+            continue
+        left, top, right, bottom = c.rect
+        if left < pane[0] or top < pane[1] or right > pane[2] or bottom > pane[3]:
+            continue
+        if right - left < 8 or bottom - top < 8:
+            continue
+        rows.append((top, left, c))
+    for _, _, c in sorted(rows):
+        left, top, right, bottom = c.rect
+        rel = (left - pane[0], top - pane[1], right - pane[0], bottom - pane[1])
+        print(f"{c.ctrl_id:>8}  {c.cls:<28} {str(rel):<28} {c.text!r}")
+    shot = os.path.join(ctx.evidence_root, "Probe", "preset3d_page.png")
+    os.makedirs(os.path.dirname(shot), exist_ok=True)
+    from core import screen
+    screen.grab(pane, path=shot)
+    print(f"화면 캡처: {shot}")
+    after = snapshot()
+    print(f"DB 전: {before}")
+    print(f"DB 후: {after}")
+    print("DB 변화 없음" if before == after else "*** DB 가 바뀌었다 — 확인 필요 ***")
+    return 0
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -266,10 +341,15 @@ def main():
     sub.add_parser("run-xipl-04", help="Preset별 2D Default Parameter TC04만 실행")
     sub.add_parser("run-xipl-05", help="Q.C Default Image Process Parameter TC05만 실행")
     sub.add_parser("run-xipl-06", help="XIPL Parameter 저장 후 Viewer 적용 TC06만 실행")
+    sub.add_parser("run-xipl-07",
+                   help="촬영 모드별 3D Default Recon Parameter TC07만 실행")
     sub.add_parser("run-sys3d", help="System 연동 3D-Narrow/3D-Wide 촬영 TC03/04 실행")
     sub.add_parser("run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
     sub.add_parser("run-auto", help="비파괴 정적 점검 + DICOM + UI Demo 흐름")
     sub.add_parser("portability-check", help="해상도/DPI/필수 경로 이식성 사전 점검")
+    sub.add_parser("probe-preset3d",
+                   help="Setting > Procedure > Preset 의 3D-N/3D-W 목록 컨트롤을 "
+                        "조회 전용으로 실측(TC 아님. 판정하지 않고 목록만 출력)")
     sub.add_parser("snapshot-baseline", help="현재 4개 DB를 회귀 테스트 기준 스냅샷(.bak)으로 저장")
     sub.add_parser("reset-environment", help="기준 스냅샷(.bak)으로 4개 DB만 복원(단독 실행)")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
@@ -325,8 +405,8 @@ def main():
                    # 해상도 게이트 대상에서 뺀다.
                    "run-wf14", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
-                   "run-xipl-06", "run-sys3d", "run-auto",
-                   "run-regression", "portability-check"}
+                   "run-xipl-06", "run-xipl-07", "run-sys3d", "run-auto",
+                   "run-regression", "portability-check", "probe-preset3d"}
     if args.cmd in ui_commands:
         from core.display import normalize
         from core.result import TCResult, PASS, FAIL
@@ -359,6 +439,8 @@ def main():
             return finish(ctx, [env])
         if env.verdict == "FAIL":
             return finish(ctx, [env])
+    if args.cmd == "probe-preset3d":
+        return _probe_preset3d(ctx)
     if args.cmd == "run-regression":
         # 개정본 TC 행 순서대로 적는다(읽는 사람이 실행 순서를 그대로 본다).
         from tests.install import install_01, install_02
@@ -570,6 +652,9 @@ def main():
     elif args.cmd == "run-xipl-05":
         from tests.xipl_flows import compatibility_05
         results.append(compatibility_05(ctx))
+    elif args.cmd == "run-xipl-07":
+        from tests.xipl_flows import compatibility_07
+        results.append(compatibility_07(ctx))
     elif args.cmd == "run-xipl-06":
         from tests.xipl_flows import _prepare, compatibility_06
         try:

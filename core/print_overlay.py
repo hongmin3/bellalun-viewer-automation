@@ -182,10 +182,10 @@ def film_norm(value):
 
 def ocr_film_areas(image, path_prefix, tesseract_exe, attach=None,
                    layout_label=None):
-    """필름/프리뷰 이미지를 영역별로 크롭·OCR 하고 크롭을 증적으로 남긴다.
+    """필름/프리뷰 이미지를 영역별로 크롭·OCR 하고 크롭을 증거로 남긴다.
 
     반환: `{area: {"x12": 판독문, "x8": ..., "x5": ...}}`
-    `attach` 에 `TCResult.attach` 를 넘기면 크롭 증적을 리포트에 붙인다.
+    `attach` 에 `TCResult.attach` 를 넘기면 크롭 증거를 리포트에 붙인다.
     """
     import pytesseract
     from PIL import Image, ImageOps

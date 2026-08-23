@@ -23,6 +23,117 @@
 
 ---
 
+## 2026-08-24 회차 — `TC_XIPL_compatibility_07` 추가와 실측 기록
+
+> 다음 작업과 우선순위는 **`NEXT_WORK.md`** 에 있다. 이 절은 이번 회차에 **실측으로
+> 확정한 것**을 누적 기록으로 남긴다.
+
+### 실측으로 확정한 DB 구조 (3D 파라미터)
+
+| 대상 | 확정한 것 |
+|---|---|
+| `PROCEDURE.PROCEDURE_COMMON` | 컬럼 4개 — `DefaultImgProcess`(2D `.pim`) / `DefaultReconNarrow`(3D-N `.xtp`) / `DefaultReconWide`(3D-W `.xtp`) / `TargetExposureIndex`. **모드별로 나뉜다는 사양(SRS 03-10-110)이 스키마에 그대로 있다.** 관측값 `DBT_Standard_Default.xtp` / `DBT_Standard_Default.xtp` |
+| `PROCEDURE.VIEW_POSITION_PRESET.Type` | `0`=2D / `1`=3D-N / `2`=3D-W. 행 수 실측 2D 28(+시험 4) / 3D-N 22 / 3D-W 22 |
+| 3D Preset 의 Positioning | Type 1·2 모두 `PositioningKey` `{1,2,3,4,5,6,7,8,9,11,13}` = `CC, MLO, LM, LMO, ML, SIO, ISO, XCCL, XCCM, TAN, AT` **11종**. 사양서1 196쪽 SRS 03-30-20 의 11종과 **정확히 일치**하고 `FB`(10)·`CV`(12)·`SPECIMEN`(14)은 없다(*"FB 및 CV는 촬영 불가"*). Step 3 판정의 근거 — 화면 OCR 보다 강하다 |
+| `VIEW_POSITION_PRESET.XIPLParamName` | 컬럼 이름은 하나지만 **Type 에 따라 담는 것이 다르다** — 2D 행은 `.pim`, 3D 행은 `.xtp`. Service Manual 의 `XIPL Param`(2D) / `Recon Param`(3D) 열에 대응 |
+| **적용된 3D Recon 파라미터 이름** | **`DATA` 데이터베이스 어디에도 없다.** `INFORMATION_SCHEMA.COLUMNS` 로 `%Param%`/`%Xtp%`/`%Pim%`/`%Recon%`/`%Process%` 를 전수 조회해 확인했다(`EXAMINE_STATISTIC.RejectProcessing`/`RetakeProcessing` 두 개만 걸리고 무관하다). `INSTANCE_GROUP` 에도 없다 |
+
+### 실측으로 확정한 제품 파일 구조 — `.img`
+
+제품 `.img` 는 `..BELLALUN.IMG.` 매직으로 시작하는 이진 컨테이너이고, **끝부분에
+UTF-16LE 로 인코딩된 `<INFORMATION>` XML 한 덩어리**가 붙는다.
+근거 문서: 사양서1 277쪽 SRS 03-50-230 — *"Apply를 누르게 되면 해당 img 파일에 영상 조정
+파라미터 값들이 저장된다"*, 그리고 개발 사양의 `ReconParam` 항목 목록
+(`EgpName, EapName, XtpName, PostBackgroundMasking, PostContrast, ...`).
+
+루트 자식: `PATIENT_INFO` / `STUDY_INFO` / `SERIES_INFO` / `INSTANCE_GROUP_INFO` /
+`DOSE_LIST` / `DEVICE_INFO` / `INSTANCE_INFO` / `FRAME_LIST` / `ANNOTATION_INFO`.
+
+`INSTANCE_GROUP_INFO` 자식 4개 — `InstanceGroup` / `ViewPosition` / `ReconParam` /
+`RawInfo`. 실측 예(3D-N, Study48/Image81):
+
+    <InstanceGroup Key="54" ExposureType="1" ExposureMode="1" StereoType="0" .../>
+    <ViewPosition Name="CC" Type="1" Alias="" Code="R-10242" Laterality="1" .../>
+    <ReconParam EgpName="narrow_standard.egp" EapName="common_standard.eap"
+                XtpName="TEST_3D_FLOW.xtp" PostBackgroundMasking="0"
+                PostContrast="14" PostDetailEnhancement="16" PostBrightness="14"
+                PostToneType="15" S2DBackgroundMasking="0" S2DContrast="6"
+                S2DDetailEnhancement="14" S2DBrightness="6" S2DTonetype="15"/>
+
+- **2D 영상(`ViewPosition/@Type=0`)도 같은 `ReconParam` 요소를 갖지만 이름 3개가 모두
+  빈 문자열**이다(실측 Image79). 그래서 이 파일 근거는 3D 전용이다. **2D 의 `.pim`
+  이름은 img 에 없다** — `INSTANCE_INFO` 에도 없다.
+- `ExposureMode` 는 `INSTANCE_GROUP.ExposureMode` 와 같은 값이다(1=Narrow / 2=Wide,
+  `tests/system_compat.py` 가 대조 확정한 값).
+- 파일 크기 실측: 3D Raw `Image80.img` 710,001,874 바이트 / Recon `Image81.img`
+  45,839,692 / Synthetic `Image82.img` 1,543,294 / 2D `Image79.img` 28,465,124.
+  XML 길이는 8.5KB~29KB. **그래서 꼬리만 읽는다**(`core/imginfo.py`, 기본 4MB).
+- `S2DTonetype` 은 다른 항목과 달리 **`T` 가 소문자**다(제품이 그렇게 쓴다).
+  속성 이름을 손으로 짐작하지 말고 읽은 dict 를 그대로 쓴다.
+
+**아직 실측하지 않은 것**: `EgpName` 의 3D-W 값. `C:\XIPL\PARAMETER` 에
+`narrow_standard.egp` / `wide_standard.egp` 두 개만 설치돼 있어 `wide_standard.egp` 로
+추정되지만 **확인하지 않았다.** 그래서 `compatibility_07` 은 특정 파일명을 기대하지 않고
+"두 모드의 `EgpName` 이 서로 다르다"까지만 판정한다. 실행 검증 때 확인해 여기에 적을 것.
+
+### 실측하지 않아 추측하지 않은 것 — 3D Preset 목록 컨트롤
+
+`Setting > Procedure > Preset` 의 **3D-N / 3D-W 목록·추가·삭제 컨트롤 ID 는 실측되지
+않았다.** 2D 만 확정돼 있다(`flows.PRESET_2D_LIST`=2554 / `PRESET_2D_ADD`=2548 /
+`PRESET_2D_DELETE`=2549). 번호가 이어질 것이라 **추측하지 않는다**(`AGENTS.md` 3·5절).
+
+그래서 `compatibility_07` 은 3D Preset 행을 만들거나 편집하지 않고
+`Setting > Procedure > General` 의 모드별 Default 콤보(`2543`/`2544`, 이미 실측됨)만
+조작한다. 그 결과 Service Manual 의 *"Preset 에 **새로 추가하는** View Position 은
+Default 로 설정한 파라미터를 적용한다"* 경로는 아직 판정 대상이 아니다
+(`automation_scope.json` 의 `coverage.gap`).
+
+해제 방법: `python run.py probe-preset3d` — **조회 전용** 프로브다. 이미 검증된 레일
+컨트롤(`open_procedure_setting`)만 누르고 목록·버튼은 읽기만 하며, `PROCEDURE_COMMON` 과
+`VIEW_POSITION_PRESET` 행 수를 **전후로 찍어 대조**해 출력한다(2026-08-20 Hospital Code
+사고의 재발 방지 — 조회 전용이라고 생각한 프로브가 DB 를 바꿨다).
+
+### 확정한 판정 기준 — `TC_XIPL_compatibility_07`
+
+- Step 1·2: `PROCEDURE_COMMON.DefaultReconNarrow` / `DefaultReconWide` 값 대조.
+  **한쪽을 바꿔도 다른 쪽이 유지되는지**까지 본다(모드 독립이 사양의 요구다).
+  Service Manual 에 *"3D-N 타입의 AEC Level Value 값을 변경하면 자동으로 3D-W 값이
+  조정되어 변경됩니다"* 라는 항목이 있는데 그것은 **AEC 이고 Recon Parameter 가
+  아니다.** 두 축을 섞지 않는다.
+- Step 3: Preset 페이지 OCR(`3D-N`/`3D-W` 표시) + Preset 구성 전수 대조(위 11종).
+- Step 5·6: `INSTANCE_GROUP.Type=1` 과 `ExposureMode` 1↔2, `InstanceType 1/2/3` 각
+  1건, Image Instance UID 유일. **두 모드의 `ExposureMode` 가 서로 다른지**까지 본다
+  (이것이 없으면 3D-W TC 가 3D-N 촬영으로도 통과한다 — `system_compat` 과 같은 이유).
+- Step 7·8: Post Reconstruction 콤보 표시값(사양서1 277쪽 — 획득 시 xtp 자동 선택)과
+  `.img` 의 `XtpName` 을 **교차** 확인. `XtpName` 은 **그 모드의 Preset 설정값 또는 그
+  모드의 General Default 중 하나**여야 한다(사양서1 185~186쪽 SRS 03-10-110 이 정한 두
+  정상 경로). 어느 규칙이 적용됐는지도 판정 `actual` 에 기록한다 — 둘 다 정상이므로
+  하나를 기대값으로 고정하면 오판정한다.
+- Step 9: 시험 전 값으로 UI 원복 → DB 재확인. 예외로 끝나도 `finally` 가 한 번 더
+  시도하고 **결과를 반드시 판정으로 남긴다**(조용히 넘기지 않는다).
+- **SKIP 기준**: `2543`/`2544` 가 **둘 다** 안 보이면 Tomo 미지원 또는 2D 전용
+  License(Service Manual). 그때만 TC 전체 SKIP. **하나만 없으면 FAIL** — 미지원이면 두
+  항목이 함께 사라지므로 "3D 미지원"으로 설명되지 않는다. 판단은 **실제로 화면을 열어
+  확인한 그 단계에서** 한다. GPU 미탑재는 이 TC 의 SKIP 사유가 아니다.
+
+### 시험 파라미터 이름 규칙 (추가)
+
+`TEST_3D_NARROW.xtp` / `TEST_3D_WIDE.xtp`. **`TEST_3D_N` / `TEST_3D_W` 로 줄이지
+않는다** — 콤보 항목은 OCR 로 골라야 하고(`_click_general_param_combo`), 한 글자만 다른
+두 이름은 오독으로 반대쪽을 고를 수 있다. 단위 시험이 "두 이름이 3자 이상 다르다"를
+강제한다. `.pim` 의 `_M` 접미 규칙은 `.xtp` 에는 없다(기존 `TEST_3D_FLOW.xtp` 와 동일).
+
+### 이번 회차에 고친 결함
+
+1. **저장소의 유일한 단위 시험이 실패 상태로 방치돼 있었다** — HTML 리포트에서
+   `소요시간`(붙여쓰기)을 찾는데 리포트는 그 전부터 `소요 시간 분해`(띄어쓰기)를 쓰고
+   있었다. 아무도 돌리지 않았다. `AGENTS.md` 8절 사전 검사에 단위 시험을 넣었다.
+2. **아무도 읽지 않는 설정 키** — `config.example.json` 의 `preview_3d_wait` /
+   `apply_3d_wait`. 코드는 `post_recon_timeout` / `preview_3d_timeout` /
+   `apply_3d_timeout` 을 읽는다. 사용자가 3D 대기를 조정해도 **아무 일이 없었다.**
+3. **죽은 blind-sleep 헬퍼** — `viewer_processing.preview_and_apply`. 호출부 0.
+   남겨 두면 다음 사람이 다시 써서 조건 대기가 되돌아간다.
+
 ## 다음 우선순위
 
 ### 최신 (2026-08-21 후반) — WF_03 완결, WF_16 수동 전환, Storage 중복 해소, 리포트 개편
@@ -475,7 +586,7 @@ Top 값은 필름에서 **7px 높이**라 기존 배율(6배)로는 아예 읽�
 의존하면 흔들려서(8배에서 `MWL`이 `MIWL`로 읽힘) **배율 12·8·5로 읽고 하나라도
 기대값과 일치하면 통과**로 본다. 기대값은 `PatientID`/`PatientBirthDate`를 **DB에서**
 가져와 만들므로 느슨해지지 않는다 — 다른 환자의 필름은 어느 배율에서도 일치하지
-않는다. 판독본 전부와 영역별 크롭 이미지를 증적으로 남긴다.
+않는다. 판독본 전부와 영역별 크롭 이미지를 증거로 남긴다.
 
 같은 비율이 Film 창(723×904)과 Print 서버 웹 프리뷰(1280×1600) 양쪽에서 통한다.
 
@@ -1137,11 +1248,11 @@ python run.py reset-environment
 python run.py setup-dicom
 ```
 
-실제 `config.json`과 생성된 증적/리포트는 의도적으로 로컬 파일이며 Git에서
+실제 `config.json`과 생성된 증거/리포트는 의도적으로 로컬 파일이며 Git에서
 제외된다. 보존하고, 저장소 템플릿은 `config.example.json`만 사용한다.
 
 ## 마무리 규칙
 
 작업이 끝나면 이 파일을 다음 TC 기준으로 갱신하거나 제거하고, `AGENTS.md`에 따라
-검증·커밋·푸시한다. 로컬 설정과 런타임 증적은 커밋하지 않는다. 계속 적용해야 하는
+검증·커밋·푸시한다. 로컬 설정과 런타임 증거는 커밋하지 않는다. 계속 적용해야 하는
 규칙은 이 파일이 아니라 `..\지식\`의 운영 지침/구현 현황 문서에 반영한다.

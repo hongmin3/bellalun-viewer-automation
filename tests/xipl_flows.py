@@ -18,7 +18,9 @@ from core.result import FAIL, MANUAL, PASS, TCResult
 from core.ui import ViewerUi
 from core.xipl import XiplStudio
 from core import flows
+from core import imginfo
 from core import screen
+from core import specs
 from core import viewer_processing as vp
 
 
@@ -1536,6 +1538,548 @@ def compatibility_06(ctx, session):
     return r
 
 
+# =====================================================================
+#  TC_XIPL_compatibility_07 — 촬영 모드별 3D Default Recon Parameter 적용
+# =====================================================================
+#
+# ## 기준 문서 (AGENTS.md 0절)
+#
+# TC 원문: `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`
+#          `TC_XIPL_compatibility_07` (2026-08-24 추가, 9단계)
+#
+# 기대 동작의 근거
+#
+# | 문서 | 확인한 내용 |
+# |---|---|
+# | 사양서1 186쪽 **SRS 03-10-110** | "3D Viewposition은 촬영 모드 (Narrow / Wide)에 **따라 각각** Reconstruction Parameter를 설정한다.(.xtp)" / "기본 영상 처리 파라미터는 Setting > Procedure > General 에서 설정할 수 있다" / "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설정해 놓은 영상 처리 파라미터로 영상처리를 진행한다" / "2D License의 경우 Reconstruction Parameter 설정 항목이 표시되지 않는다" |
+# | 사양서1 196쪽 **SRS 03-30-20** | 설정 가능한 3D Viewposition = `CC, MLO, LM, SIO, ML, LMO, ISO, XCCL, XCCM, AT, TAN`, "FB 및 CV는 촬영 불가" |
+# | 사양서1 277쪽 **SRS 03-50-230** | "영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다" / "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다" / Post Reconstruction↔XTP 항목 매핑표 |
+# | Service Manual `Procedure 그룹 > General 메뉴` | `Reconstruction parameter for 3D-N` = "3D Narrow 촬영 View Position에 적용되는 Recon 파라미터", `for 3D-W` = Wide. "Preset에 새로 추가하는 View Position이나 영상 처리 파라미터 및 Recon 파라미터가 등록되어 있지 않은 View Position을 촬영할 때, Default로 설정한 파라미터를 적용합니다." "Tomo 촬영을 지원하지 않는 시스템이 연결되어 있거나 2D 전용 License가 등록되어 있을 경우, Reconstruction Parameter를 설정하는 항목은 표시되지 않습니다." |
+# | Service Manual `Preset 메뉴` | 목록 열 = `Name / Alias / XIPL Param(2D) / Recon Param(3D)`. "Preset은 2D / 3D-N / 3D-W 각각 총 40개씩" |
+#
+# ## `TC_XIPL_compatibility_04`(2D)와 무엇이 다른가
+#
+# `_04`는 **Preset별**로 2D 파라미터가 갈리는지 본다(Preset 2개 추가 → 각각 촬영).
+# `_07`은 **촬영 모드별**(Narrow/Wide)로 3D Recon 파라미터가 갈리는지 본다. 사양이
+# 3D에만 요구하는 축이 모드이고(`SRS 03-10-110`), 2D에는 이 축이 아예 없다. 그래서
+# 중복이 아니다 — `_04`가 못 보는 것을 본다.
+#
+# ## 판정 근거를 어디서 읽는가
+#
+# 적용된 3D Recon 파라미터 **이름은 DB에 없다.** `DATA` 데이터베이스의 컬럼을
+# 전수 조회해 확인했다(2026-08-24). 그래서 두 곳을 교차로 읽는다.
+#
+#   1. **`.img` 파일의 `<ReconParam>`** — `core/imginfo.py`. 사양서1이 저장 위치로
+#      명시한 곳이고 `XtpName`/`EgpName`이 그대로 들어 있다. 화면보다 강한 증거다.
+#   2. **Post Reconstruction 창의 Parameter 콤보** — 사양서1 277쪽이 "획득 시
+#      설정한 xtp가 자동 선택된다"고 정한 화면 표시. 파일과 대조해 둘이 어긋나면
+#      제품 결함이다.
+#
+# 촬영 모드 자체는 `INSTANCE_GROUP.Type/ExposureMode`(1=Narrow, 2=Wide,
+# `tests/system_compat.py`에서 대조 확정)로 확정한다.
+#
+# ## SKIP 기준 (AGENTS.md 7절)
+#
+# Reconstruction Parameter 설정 항목이 **화면에 없으면** Tomo 미지원 시스템이거나
+# 2D 전용 License다(Service Manual). 그때는 이 TC의 검증 대상 자체가 없으므로
+# **실제로 화면을 열어 확인한 그 단계에서** SKIP한다. 다른 이유로 콤보를 못 찾은
+# 것과 구분하기 위해 두 콤보가 **모두** 없을 때만 SKIP이고, 하나만 없으면 FAIL이다.
+#
+# GPU 미탑재는 이 TC의 SKIP 사유가 **아니다.** `_03`과 달리 여기서는
+# Reconstruction을 다시 돌리지 않고 촬영 결과만 읽는다. 촬영 자체가 GPU 없이
+# 성립하지 않으면 Step 5/6이 정직하게 FAIL해야 한다.
+
+#: 사양서1 196쪽 SRS 03-30-20 의 "설정 가능한 3D Viewposition" 11종.
+#: `PROCEDURE.VIEW_POSITION_POSITIONING.Name` 과 같은 표기다.
+SPEC_3D_VIEW_POSITIONS = ("CC", "MLO", "LM", "SIO", "ML", "LMO", "ISO",
+                          "XCCL", "XCCM", "AT", "TAN")
+#: 같은 절의 "FB 및 CV는 촬영 불가".
+SPEC_3D_EXCLUDED_POSITIONS = ("FB", "CV")
+
+#: `VIEW_POSITION_PRESET.Type` / `INSTANCE_GROUP.ExposureMode` 의 모드 값.
+#: Type 은 2026-08-24 실측(Type=1/2 각 11개 Positioning = 사양 11종과 일치),
+#: ExposureMode 는 `tests/system_compat.py` 가 대조 확정한 값이다.
+XIPL07_MODES = (
+    {"key": "3d", "label": "3D-N", "preset_type": 1, "exposure_mode": 1,
+     "combo": flows.PROCEDURE_GENERAL_PARAM_3D_N, "param": vp.PARAM_3D_NARROW,
+     "db_column": "DefaultReconNarrow",
+     "caption": "3D-N", "rotation": "-7.5~7.5도"},
+    {"key": "3d-w", "label": "3D-W", "preset_type": 2, "exposure_mode": 2,
+     "combo": flows.PROCEDURE_GENERAL_PARAM_3D_W, "param": vp.PARAM_3D_WIDE,
+     "db_column": "DefaultReconWide",
+     "caption": "3D-W", "rotation": "-15~15도"},
+)
+
+XIPL07_PATIENT_ID = "DATA_XIPL_3D_01"
+XIPL07_PATIENT_NAME = "XIPL 3D PARAM TEST"
+
+
+def _procedure_defaults(ctx):
+    """`PROCEDURE.PROCEDURE_COMMON` 의 Default 파라미터 3개."""
+    row = ctx.db.one(
+        "PROCEDURE", "SELECT DefaultImgProcess,DefaultReconNarrow,"
+                     "DefaultReconWide FROM PROCEDURE_COMMON")
+    return dict(row or {})
+
+
+def _set_default_recon(ui, mode, filename):
+    """Setting > Procedure > General 에서 한 모드의 Default Recon Parameter 변경."""
+    flows.open_procedure_setting(ui, "general")
+    _click_general_param_combo(ui, mode["combo"], filename)
+    flows.setting_update(ui)
+    flows.confirm_setting_dialog(ui)
+
+
+def _recon_combos_present(ui):
+    """General 페이지에 3D-N/3D-W Recon Parameter 콤보가 보이는지."""
+    return {mode["label"]: bool([c for c in ui.by_id(mode["combo"]) if c.visible])
+            for mode in XIPL07_MODES}
+
+
+def _preset_recon_rows(ctx, preset_type):
+    """한 모드(`Type`)의 Preset 행을 Positioning 이름과 함께 돌려준다."""
+    return ctx.db.query(
+        "PROCEDURE",
+        "SELECT p.[Key],p.Type,p.Laterality,p.Alias,p.XIPLParamName,"
+        "       g.Name AS PositionName "
+        "FROM VIEW_POSITION_PRESET p "
+        "JOIN VIEW_POSITION_POSITIONING g ON g.[Key]=p.PositioningKey "
+        "WHERE p.Type=@t ORDER BY p.[Key]", {"t": int(preset_type)})
+
+
+def _preset_recon_summary(rows):
+    """Preset 행 목록을 `{위치 이름 집합, 파라미터 집합, 행 수}` 로 요약한다."""
+    return {"positions": sorted({str(r["PositionName"]) for r in rows}),
+            "parameters": sorted({str(r["XIPLParamName"] or "") for r in rows}),
+            "rows": len(rows)}
+
+
+def _preset_page_captions(ctx, ui, r):
+    """Setting > Procedure > Preset 화면에서 3D-N/3D-W 문구를 OCR 로 읽는다.
+
+    3D-N/3D-W 목록의 **컨트롤 ID 는 실측되지 않았다**(2D 목록만 2554 로 확정돼
+    있다). 그래서 목록을 조작하지 않고, 화면에 그 두 항목이 **표시되는지**만
+    문구로 확인한다. 조작이 필요 없는 이유는 판정 대상이 Setting > Procedure >
+    General 의 모드별 Default 이기 때문이다(체크리스트 Step 1~2).
+
+    반환: {"3D-N": bool, "3D-W": bool, "shot": 경로}
+    """
+    flows.open_procedure_setting(ui, "preset")
+    shot = _ev(ctx, "TC_XIPL_compatibility_07_preset_page.png")
+    vp.capture_viewer_window(ui, shot)
+    r.attach(shot)
+    found = {}
+    for mode in XIPL07_MODES:
+        try:
+            found[mode["label"]] = bool(vp.find_text_boxes(shot, mode["caption"]))
+        except Exception as exc:                       # noqa: BLE001
+            found[mode["label"]] = f"<ocr err {exc}>"
+    return {"ocr": found, "shot": shot}
+
+
+def _acquire_pre_registered_steps(ctx, ui, study_key):
+    """New Patient 가 자동 등록한 기본 2D Step 을 먼저 비운다.
+
+    `TC_XIPL_compatibility_04` 가 같은 이유로 같은 일을 한다 — New Patient 는
+    기본 4-View 템플릿을 등록하고, 그 미촬영 Step 이 남아 있으면 이후 F8 이
+    의도한 3D Step 이 아니라 그것을 채울 수 있다. 두 해석 중 어느 쪽이어도
+    안전하도록 **먼저 비운다.**
+
+    고정 대기 대신 `vp.wait_new_group` 으로 DB 에 영상이 들어오는 것을 기다린다.
+    """
+    outcome = []
+    total = len(flows.step_items(ui))
+    for index in range(1, total + 1):
+        known = set(vp.acquired_groups(ctx.db, study_key))
+        info = flows.demo_acquire_step(ui, index, settle=0)
+        if info.get("skipped"):
+            outcome.append(info)
+            continue
+        waited = vp.wait_new_group(ctx.db, study_key, known,
+                                  required_types=vp.INSTANCE_TYPES_2D,
+                                  timeout=120)
+        info["wait"] = {"waited": waited["waited"],
+                        "timed_out": waited["timed_out"]}
+        outcome.append(info)
+    return {"pre_registered_steps": total, "acquired": outcome}
+
+
+def _acquire_mode(ctx, ui, study_key, mode):
+    """한 모드의 View Position 을 등록하고 1회 Demo 촬영한다.
+
+    반환: {"step":.., "acquire":.., "group":.., "instances":.., "wait":..}
+    """
+    step = vp.add_view_position(ui, mode["key"])
+    known = set(vp.acquired_groups(ctx.db, study_key))
+    info = flows.demo_acquire_step(ui, step, settle=0)
+    if info.get("skipped"):
+        return {"step": step, "acquire": info, "group": None, "instances": [],
+                "wait": None}
+    xipl_cfg = ctx.cfg.get("xipl") or {}
+    waited = vp.wait_new_group(
+        ctx.db, study_key, known, required_types=vp.INSTANCE_TYPES_3D,
+        timeout=float(xipl_cfg.get("acquire_3d_timeout", 240)))
+    return {"step": step, "acquire": info, "group": waited["group"],
+            "instances": waited["instances"],
+            "wait": {"waited": waited["waited"],
+                     "timed_out": waited["timed_out"]}}
+
+
+def _read_applied_recon(ctx, ui, mode, study_key, acquired):
+    """한 모드 영상의 적용 Recon Parameter 를 **화면과 파일 두 곳에서** 읽는다.
+
+    화면: Post Reconstruction 창의 Parameter 콤보(사양서1 277쪽 — 획득 시 설정한
+          xtp 가 자동 선택된다).
+    파일: Reconstruction 결과 영상(`InstanceType=2`)의 `<ReconParam>`.
+    """
+    out = {"displayed": None, "file": None, "img_path": None, "shot": None,
+            "error": None}
+    try:
+        vp.select_3d_raw(ui, acquired["step"])
+        vp.open_post_reconstruction(ui)
+        combo = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible]
+        out["displayed"] = ui.combo_value(combo[0]) if combo else None
+        shot = _ev(ctx, f"TC_XIPL_compatibility_07_{mode['label']}_postrecon.png")
+        vp.capture_viewer_window(ui, shot)
+        out["shot"] = shot
+    finally:
+        try:
+            vp.cancel_window(ui)
+        except Exception:                              # noqa: BLE001
+            pass
+    recon = [row for row in acquired["instances"]
+             if int(row["InstanceType"]) == 2]
+    if recon:
+        path = imginfo.instance_image_path(ctx.cfg["data_dir"], study_key,
+                                           int(recon[0]["Key"]))
+        out["img_path"] = path
+        if path:
+            try:
+                out["file"] = imginfo.recon_param(path)
+            except imginfo.ImgInfoError as exc:
+                out["error"] = str(exc)
+        else:
+            out["error"] = "Reconstruction 영상의 .img 파일을 찾지 못했습니다."
+    else:
+        out["error"] = "InstanceType=2(Reconstruction) 영상이 없습니다."
+    return out
+
+
+def compatibility_07(ctx):
+    r = TCResult("TC_XIPL_compatibility_07",
+                 "촬영 모드별 3D Default Recon Parameter 적용")
+    needed = [mode["param"] for mode in XIPL07_MODES]
+    if not _ensure_test_parameters(ctx, r, "검증용 3D Recon Parameter 파일 준비",
+                                   needed):
+        return r
+
+    before_defaults = _procedure_defaults(ctx)
+    r.add(0, "시험 전 Default Parameter 기록", PASS,
+          expected="복원 대상 값 확보",
+          actual=before_defaults,
+          note="Step 9 에서 이 값으로 되돌린다. 3D-N/3D-W 는 각각 "
+               "PROCEDURE.PROCEDURE_COMMON.DefaultReconNarrow / DefaultReconWide.")
+
+    cfg = ctx.cfg["viewer"]
+    ui = ViewerUi()
+    restored = None
+    study_key = None
+    completed = False
+    try:
+        ui.ensure_ready(cfg["exe"], cfg["login"]["id"], cfg["login"]["password"])
+        flows.ensure_patient_screen(ui)
+
+        # --- Step 1~2: 모드별 Default Recon Parameter 변경 -----------------
+        flows.open_procedure_setting(ui, "general")
+        present = _recon_combos_present(ui)
+        general_shot = _ev(ctx, "TC_XIPL_compatibility_07_general.png")
+        vp.capture_viewer_window(ui, general_shot)
+        r.attach(general_shot)
+        if not any(present.values()):
+            # 실제로 화면을 열어 확인한 이 단계에서만 판단한다(AGENTS.md 7절).
+            r.skip(1, "3D-N/3D-W Default Recon Parameter 설정 항목",
+                   "Setting > Procedure > General 에 Reconstruction Parameter "
+                   "설정 항목이 없다. Service Manual 'Procedure 그룹 > General "
+                   "메뉴' — \"Tomo 촬영을 지원하지 않는 시스템이 연결되어 있거나 "
+                   "2D 전용 License가 등록되어 있을 경우, Reconstruction Parameter"
+                   "를 설정하는 항목은 표시되지 않습니다.\" 이 환경에는 검증 대상이 "
+                   "없으므로 TC 전체를 수행하지 않는다.",
+                   expected="3D-N/3D-W Recon Parameter 콤보 표시",
+                   actual=present)
+            return r
+        if not all(present.values()):
+            r.add(1, "3D-N/3D-W Default Recon Parameter 설정 항목", FAIL,
+                  expected="두 콤보가 함께 표시(사양서1 SRS 03-10-110 — 모드별 "
+                           "각각 설정)",
+                  actual=present,
+                  note="한쪽만 없는 것은 '3D 미지원'으로 설명되지 않는다. "
+                       "미지원이면 두 항목이 함께 사라진다(Service Manual).")
+            return r
+
+        for index, mode in enumerate(XIPL07_MODES, start=1):
+            _set_default_recon(ui, mode, mode["param"])
+            saved = _procedure_defaults(ctx)
+            if index == 1:
+                r.assert_equal(
+                    1, f"{mode['label']} Default Recon Parameter 저장",
+                    mode["param"], saved.get(mode["db_column"]),
+                    note=f"PROCEDURE.PROCEDURE_COMMON.{mode['db_column']} 조회. "
+                         + specs.cite(ctx, r"기본 영상 처리 파라미터는 Setting > "
+                                           r"Procedure > General"))
+            else:
+                other = XIPL07_MODES[0]
+                r.assert_true(
+                    2, f"{mode['label']} 저장 및 {other['label']} 설정 유지",
+                    saved.get(mode["db_column"]) == mode["param"]
+                    and saved.get(other["db_column"]) == other["param"],
+                    expected={other["db_column"]: other["param"],
+                              mode["db_column"]: mode["param"]},
+                    actual=saved,
+                    note="모드별로 **각각** 설정된다는 것이 이 TC 의 핵심이다. "
+                         + specs.cite(ctx, r"촬영 모드 \(Narrow / Wide\)에 따라 "
+                                           r"각각 Reconstruction"))
+
+        # --- Step 3: Preset 화면의 모드별 Recon Parameter 목록 -------------
+        captions = _preset_page_captions(ctx, ui, r)
+        per_mode = {}
+        for mode in XIPL07_MODES:
+            rows = _preset_recon_rows(ctx, mode["preset_type"])
+            per_mode[mode["label"]] = _preset_recon_summary(rows)
+        spec_ok = all(
+            set(per_mode[mode["label"]]["positions"]) == set(SPEC_3D_VIEW_POSITIONS)
+            for mode in XIPL07_MODES)
+        excluded_ok = all(
+            not (set(per_mode[mode["label"]]["positions"])
+                 & set(SPEC_3D_EXCLUDED_POSITIONS))
+            for mode in XIPL07_MODES)
+        listed_ok = all(captions["ocr"].get(mode["label"]) is True
+                        for mode in XIPL07_MODES)
+        r.assert_true(
+            3, "3D-N/3D-W Recon Parameter 가 모드별로 각각 표시",
+            listed_ok and spec_ok and excluded_ok,
+            expected={"화면 문구": ["3D-N", "3D-W"],
+                      "모드별 View Position": list(SPEC_3D_VIEW_POSITIONS),
+                      "촬영 불가(목록에 없어야 함)": list(SPEC_3D_EXCLUDED_POSITIONS)},
+            actual={"ocr": captions["ocr"], "preset": per_mode},
+            note="화면 표시는 Preset 페이지 OCR, 구성은 "
+                 "PROCEDURE.VIEW_POSITION_PRESET × VIEW_POSITION_POSITIONING "
+                 "전수 대조. " + specs.cite(ctx, r"설정 가능한 3D Viewposition"))
+
+        close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700
+                 and c.rect[1] < 100]
+        if close:
+            ui.click(close[0], settle=1.5)
+
+        # --- Step 4: 시험 검사 시작 ---------------------------------------
+        # 이전 실행이 검사를 열어 둔 채 끝났으면 New Patient 탭에 갈 수 없다
+        # (`_04` 와 같은 전제). 영상 없는 잔여 검사만 닫는다.
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            flows.close_examine(ui, option="close", wait=10)
+        flows.ensure_patient_screen(ui, wait=3)
+        flows.fill_new_patient(ui, XIPL07_PATIENT_ID, XIPL07_PATIENT_NAME,
+                               sex="F")
+        flows.start_examine_from_new_patient(ui, wait=6,
+                                             on_duplicate="use_existing")
+        study = ctx.db.one(
+            "DATA", "SELECT TOP 1 s.[Key] FROM STUDY s JOIN PATIENT p "
+                    "ON p.[Key]=s.PatientKey WHERE p.PatientID=@pid "
+                    "ORDER BY s.[Key] DESC", {"pid": XIPL07_PATIENT_ID})
+        study_key = int(study["Key"]) if study else None
+        r.assert_true(4, "New Patient 로 시험 검사 시작", bool(study_key),
+                      expected=f"PatientID={XIPL07_PATIENT_ID} Study 존재",
+                      actual=study)
+        if not study_key:
+            return r
+
+        prep = _acquire_pre_registered_steps(ctx, ui, study_key)
+        r.add(0, "기본 등록 Step 선행 촬영", PASS,
+              expected="3D Step 이 다음 미촬영 Step 이 되도록 기본 템플릿 비움",
+              actual=prep,
+              note="New Patient 가 자동 등록하는 기본 View 템플릿을 먼저 채운다"
+                   "(`_04` 와 같은 전제). 고정 대기 없이 DB 영상 도착을 기다린다.")
+
+        # --- Step 5~6: 모드별 3D 촬영 -------------------------------------
+        acquired = {}
+        for index, mode in enumerate(XIPL07_MODES, start=5):
+            got = _acquire_mode(ctx, ui, study_key, mode)
+            acquired[mode["label"]] = got
+            group = got["group"] or {}
+            types = sorted(int(row["InstanceType"]) for row in got["instances"])
+            uids = [str(row.get("ImageInstanceUID") or "")
+                    for row in got["instances"]]
+            mode_ok = (int(group.get("Type", -1)) == 1
+                       and int(group.get("ExposureMode", -1))
+                       == mode["exposure_mode"])
+            shot = _ev(ctx,
+                       f"TC_XIPL_compatibility_07_{mode['label']}_acquired.png")
+            vp.capture_viewer_window(ui, shot)
+            r.attach(shot)
+            title = f"{mode['label']} 영상 촬영"
+            if index == 6:
+                other = acquired[XIPL07_MODES[0]["label"]]["group"] or {}
+                distinct = (int(group.get("ExposureMode", -1))
+                            != int(other.get("ExposureMode", -2)))
+                title = f"{mode['label']} 영상 촬영 및 3D-N 과 모드 구분"
+            else:
+                distinct = True
+            r.assert_true(
+                index, title,
+                types == [1, 2, 3] and mode_ok and distinct
+                and all(uids) and len(set(uids)) == len(uids),
+                expected=(f"동일 Group 에 InstanceType 1(Raw)/2(Recon)/3(Syn) "
+                          f"각 1건, Image Instance UID 유일, "
+                          f"INSTANCE_GROUP.Type=1 및 "
+                          f"ExposureMode={mode['exposure_mode']}"
+                          f"({mode['label']})"
+                          + (", 3D-N 과 다른 ExposureMode" if index == 6 else "")),
+                actual={"acquire": got["acquire"], "wait": got["wait"],
+                        "group": group, "instances": got["instances"],
+                        "mode_ok": mode_ok, "distinct": distinct},
+                note="실제 X-ray 대신 Demo(F8) 가상 촬영(Service Manual 5.2.3). "
+                     "영상 내용은 Step 과 무관하므로 DB 구조와 ExposureMode 로만 "
+                     f"판정한다. 체크리스트 비고의 회전 범위 {mode['rotation']} 는 "
+                     "실물 장비 없이는 확인 대상이 아니다.")
+
+        # --- Step 7: 화면 표시 Recon Parameter ----------------------------
+        applied = {}
+        for mode in XIPL07_MODES:
+            applied[mode["label"]] = _read_applied_recon(
+                ctx, ui, mode, study_key, acquired[mode["label"]])
+            if applied[mode["label"]]["shot"]:
+                r.attach(applied[mode["label"]]["shot"])
+        displayed = {label: value["displayed"] for label, value in applied.items()}
+        display_ok = all(
+            isinstance(value, str) and value.strip().lower().endswith(".xtp")
+            for value in displayed.values())
+        r.assert_true(
+            7, "각 영상에 촬영 모드의 Recon Parameter 표시",
+            display_ok,
+            expected="두 영상 모두 Post Reconstruction Parameter 콤보에 .xtp 표시",
+            actual={"displayed": displayed,
+                    "exposure_mode": {label: (value["group"] or {}).get("ExposureMode")
+                                      for label, value in acquired.items()}},
+            note="사양서1 277쪽 SRS 03-50-230 — \"영상을 획득 시 설정한 xtp 파일을 "
+                 "Combo 박스에 자동으로 선택된다\". 화면이 표시하는 촬영 모드"
+                 "(narrow/wide) 문구는 컨트롤이 실측되지 않아 읽지 않고, 모드는 "
+                 "INSTANCE_GROUP.ExposureMode 로 확정한다(더 강한 근거).")
+
+        # --- Step 8: 파일에 기록된 Recon Parameter -------------------------
+        records = {label: value["file"] for label, value in applied.items()}
+        errors = {label: value["error"] for label, value in applied.items()
+                  if value["error"]}
+        xtp = {label: (record or {}).get("XtpName") for label, record in records.items()}
+        egp = {label: (record or {}).get("EgpName") for label, record in records.items()}
+        allowed = {}
+        rule = {}
+        for mode in XIPL07_MODES:
+            preset_values = {str(row["XIPLParamName"] or "") for row in
+                             _preset_recon_rows(ctx, mode["preset_type"])}
+            allowed[mode["label"]] = {"preset": sorted(preset_values),
+                                      "default": mode["param"]}
+            name = xtp.get(mode["label"])
+            if name == mode["param"]:
+                rule[mode["label"]] = "General Default 적용"
+            elif name in preset_values:
+                rule[mode["label"]] = "Preset 설정값 적용"
+            else:
+                rule[mode["label"]] = "사양에 없는 값"
+        names_ok = all(rule[mode["label"]] != "사양에 없는 값"
+                       for mode in XIPL07_MODES)
+        # `EgpName` 은 촬영 모드를 따라간다(3D-N 실측: narrow_standard.egp).
+        # Wide 쪽 값은 실측되지 않았으므로 **특정 파일명을 기대하지 않고**
+        # "두 모드가 서로 다르다"까지만 판정한다.
+        egp_values = [egp[mode["label"]] for mode in XIPL07_MODES]
+        egp_ok = all(egp_values) and len(set(egp_values)) == len(egp_values)
+        cross_ok = all(
+            _parameter_display_matches(xtp[mode["label"]] or "",
+                                       displayed.get(mode["label"]) or "")
+            for mode in XIPL07_MODES)
+        r.assert_true(
+            8, "각 영상에 촬영 모드별 Recon Parameter 기록",
+            not errors and names_ok and egp_ok and cross_ok,
+            expected={"XtpName": "모드별 Preset 설정값 또는 그 모드의 General "
+                                  "Default 중 하나(사양서1 SRS 03-10-110)",
+                      "EgpName": "모드별로 서로 다른 값",
+                      "화면-파일 일치": "Post Reconstruction 표시 = img XtpName"},
+            actual={"xtp": xtp, "egp": egp, "적용 규칙": rule,
+                    "허용값": allowed, "displayed": displayed,
+                    "img": {label: value["img_path"]
+                            for label, value in applied.items()},
+                    "recon_param": records, "errors": errors},
+            note="적용된 3D Recon 파라미터 이름은 DB 에 없다(DATA 컬럼 전수 조회, "
+                 "2026-08-24). 사양서1 SRS 03-50-230 이 저장 위치로 명시한 "
+                 ".img 의 <ReconParam> 을 core/imginfo.py 로 읽어 화면 표시와 "
+                 "교차 확인한다. 어느 규칙(Preset/Default)이 적용됐는지도 함께 "
+                 "기록한다 — 둘 다 사양이 정한 정상 경로다.")
+
+        # --- Step 9: 설정 원복 -------------------------------------------
+        flows.close_examine(ui, option="close", wait=10)
+        flows.ensure_patient_screen(ui, wait=3)
+        restored = _restore_default_recon(ui, ctx, before_defaults)
+        r.assert_true(
+            9, "3D-N/3D-W Default Recon Parameter 원복",
+            restored["ok"],
+            expected={mode["db_column"]: before_defaults.get(mode["db_column"])
+                      for mode in XIPL07_MODES},
+            actual=restored,
+            note="다음 TC 와 다음 실행이 시험 설정을 물려받지 않게 한다. "
+                 "실패하면 그 사실을 판정으로 남긴다(조용히 넘기지 않는다).")
+        completed = True
+    except Exception as exc:                           # noqa: BLE001
+        r.add(0, "TC_XIPL_compatibility_07 실행", FAIL, actual=str(exc),
+              note=_safe_screen_context(ui))
+    finally:
+        if restored is None:
+            # 본문에서 원복까지 가지 못했다. 남은 설정이 이후 3D TC 를 오염시키므로
+            # 여기서 한 번 더 시도하고 결과를 반드시 기록한다.
+            try:
+                if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+                    flows.close_examine(ui,
+                                        option="close" if completed else "suspend",
+                                        wait=8)
+                flows.ensure_patient_screen(ui, wait=3)
+                fallback = _restore_default_recon(ui, ctx, before_defaults)
+            except Exception as exc:                   # noqa: BLE001
+                fallback = {"ok": False, "error": str(exc)}
+            r.add(0, "예외 종료 후 Default Recon Parameter 원복",
+                  PASS if fallback.get("ok") else FAIL,
+                  expected={mode["db_column"]: before_defaults.get(mode["db_column"])
+                            for mode in XIPL07_MODES},
+                  actual=fallback,
+                  note="원복하지 못하면 다음 3D 촬영이 시험 파라미터를 쓰게 된다. "
+                       "회귀는 시작 시 기준 스냅샷을 복원하지만 단독 실행은 "
+                       "그렇지 않다.")
+    return r
+
+
+def _restore_default_recon(ui, ctx, before_defaults):
+    """3D-N/3D-W Default Recon Parameter 를 시험 전 값으로 UI 로 되돌린다."""
+    detail = {}
+    for mode in XIPL07_MODES:
+        original = before_defaults.get(mode["db_column"])
+        if not original:
+            detail[mode["label"]] = "원래 값이 비어 있어 복원 대상 아님"
+            continue
+        try:
+            _set_default_recon(ui, mode, original)
+            detail[mode["label"]] = f"{original} 로 복원 시도"
+        except Exception as exc:                       # noqa: BLE001
+            detail[mode["label"]] = f"복원 실패: {exc}"
+    after = _procedure_defaults(ctx)
+    ok = all(after.get(mode["db_column"]) == before_defaults.get(mode["db_column"])
+             for mode in XIPL07_MODES)
+    return {"ok": ok, "before": before_defaults, "after": after,
+            "detail": detail}
+
+
+def _safe_screen_context(ui):
+    """실패 시점 화면 컨텍스트. 수집 자체가 실패해도 판정을 가리지 않는다."""
+    try:
+        return f"실패 시점 화면: {flows._screen_context(ui)}"
+    except Exception as exc:                           # noqa: BLE001
+        return f"실패 시점 화면 수집 실패: {exc}"
+
+
 def run_xipl(ctx):
     try:
         session = _prepare(ctx)
@@ -1551,8 +2095,12 @@ def run_xipl(ctx):
             out.append(r)
         r6 = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
         r6.add(0, "Viewer 시험 데이터 준비(Procedure +, F8)", FAIL, actual=str(exc))
-        out.extend([compatibility_04(ctx), compatibility_05(ctx), r6])
+        # `_04`/`_05`/`_07` 은 공용 픽스처(`_prepare`)를 쓰지 않고 스스로 검사를
+        # 만든다. 그래서 픽스처 준비가 실패해도 그대로 수행한다.
+        out.extend([compatibility_04(ctx), compatibility_05(ctx), r6,
+                    compatibility_07(ctx)])
         return out
     return [compatibility_01(ctx, session), compatibility_02(ctx, session),
             compatibility_03(ctx, session), compatibility_04(ctx),
-            compatibility_05(ctx), compatibility_06(ctx, session)]
+            compatibility_05(ctx), compatibility_06(ctx, session),
+            compatibility_07(ctx)]

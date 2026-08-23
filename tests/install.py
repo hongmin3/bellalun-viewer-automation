@@ -189,7 +189,7 @@ def install_07_evaluate(ctx, pre, post):
         r.assert_equal(step, f"Viewer 재시작 후 {field} 유지", a.get(field), b.get(field),
                        note="재시작 전(pre) 값과 재시작 후(post) 값 비교")
 
-    r.manual(6, "Language 변경 후 재시작 필요 안내 표시", "팝업 문구는 화면 확인 필요 (증적 캡처)")
+    r.manual(6, "Language 변경 후 재시작 필요 안내 표시", "팝업 문구는 화면 확인 필요 (증거 캡처)")
     return r
 
 

@@ -214,6 +214,12 @@ PARAM_XIPL_SAVED = "TEST_XIPL_SAVED_M.pim"
 PARAM_3D_FLOW = "TEST_3D_FLOW.xtp"
 PARAM_QC_2D = "TEST_QC_2D_M.pim"
 PARAM_QC_3D = "TEST_QC_3D.eap"
+# `TC_XIPL_compatibility_07`(촬영 모드별 3D Default Recon Parameter) 전용.
+# **이름을 `TEST_3D_N` / `TEST_3D_W` 로 줄이지 않는다** — 콤보 항목은 OCR 로 골라야
+# 하고(`_click_general_param_combo`), 한 글자만 다른 두 이름은 오독으로 반대쪽을
+# 고를 수 있다. `NARROW`/`WIDE` 는 여러 글자가 달라 안전하다.
+PARAM_3D_NARROW = "TEST_3D_NARROW.xtp"
+PARAM_3D_WIDE = "TEST_3D_WIDE.xtp"
 
 # (원본 기본 파라미터, 만들 시험 파일). 원본을 그대로 복사하므로 내용은
 # 제품 기본값과 byte-for-byte 동일하다.
@@ -224,6 +230,13 @@ _PARAM_SOURCES = {
     PARAM_XIPL_SAVED: "Standard_Default_M.pim",
     PARAM_QC_2D: "Standard_Default_M.pim",
     PARAM_3D_FLOW: "DBT_Standard_Default.xtp",
+    # 3D-N / 3D-W 를 서로 다른 **파일명**으로 구분하는 것이 TC_07 의 판정
+    # 대상이다. 내용은 제품 기본 `.xtp` 와 byte-for-byte 동일해도 된다
+    # (TEST_2D_A/TEST_2D_B 가 같은 방식이다) — 사양이 요구하는 것은
+    # "촬영 모드에 따라 각각 Reconstruction Parameter 를 설정한다"이고,
+    # 그 설정이 모드별로 분리되는지를 이름으로 추적한다.
+    PARAM_3D_NARROW: "DBT_Standard_Default.xtp",
+    PARAM_3D_WIDE: "DBT_Standard_Default.xtp",
     # Q.C 3D는 `.xtp`가 아니라 `.eap`이다. 확장자만 다른 게 아니라 **포맷 자체가
     # 다르다**: `.pim`/`.xtp`는 평문 XML인데(`<?xml`), `.eap`/`.egp`는 암호화
     # 바이너리다(공통 매직 `FD 3A C7 0C 51 35 FC 24`, 2026-08-18 실측).
@@ -759,6 +772,72 @@ def expand_tools(ui, attempts=4):
     return bool(_visible(ui, POST_RECON) and _visible(ui, XIPL_TOOL))
 
 
+# --- 촬영 완료를 조건으로 기다린다 -----------------------------------------
+#
+# `flows.demo_acquire_step` 은 F8 뒤에 `settle` 초를 **무조건** 잔다(기본 14초,
+# 3D 호출부는 20초). 3D 는 Raw/Recon/Synthetic 3건이 순차로 들어와 그 시간이
+# 필요할 때도 있지만, 대부분은 더 빨리 끝나고 반대로 느린 실행에서는 20초로도
+# 부족하다. 즉 고정 대기는 **느리면서 동시에 불안정하다.**
+#
+# 그래서 `INSTANCE_GROUP` / `INSTANCE` 가 실제로 늘어나는 것을 신호로 쓴다.
+# 판정 근거(운영 지침 "상태 기반 대기")와 같은 데이터를 대기 조건으로 쓰므로
+# 추가 관측 비용이 없다.
+INSTANCE_TYPES_3D = (1, 2, 3)       # 1=Raw / 2=Reconstruction / 3=Synthetic
+INSTANCE_TYPES_2D = (0,)
+
+
+def acquired_groups(db, study_key):
+    """검사의 INSTANCE_GROUP 을 `{Key: row}` 로 돌려준다."""
+    rows = db.query(
+        "DATA", "SELECT [Key],Type,ExposureMode,StereoType,SortOrder "
+                "FROM INSTANCE_GROUP WHERE StudyKey=@study ORDER BY [Key]",
+        {"study": int(study_key)})
+    return {int(row["Key"]): row for row in rows}
+
+
+def group_instances(db, study_key, group_key):
+    return db.query(
+        "DATA", "SELECT [Key],InstanceType,SeriesKey,GroupKey,ImageInstanceUID "
+                "FROM INSTANCE WHERE StudyKey=@study AND GroupKey=@grp "
+                "ORDER BY InstanceType,[Key]",
+        {"study": int(study_key), "grp": int(group_key)})
+
+
+def wait_new_group(db, study_key, known_keys, required_types=INSTANCE_TYPES_3D,
+                   timeout=180, poll=1.5):
+    """F8 뒤에 **새 INSTANCE_GROUP 과 그 안의 영상**이 다 들어올 때까지 기다린다.
+
+    `known_keys` 는 F8 **전에** 읽어 둔 Group Key 집합이다. 그 집합에 없는
+    Group 이 생기고 `required_types` 가 모두 채워지면 즉시 반환한다.
+
+    반환: {"group": row|None, "instances": [...], "waited": 초, "timed_out": bool}
+    타임아웃이어도 예외를 던지지 않는다 — 호출부가 관측값을 그대로 판정
+    `actual` 에 실어야 "무엇이 안 들어왔는지"가 리포트에 남는다.
+    """
+    known = {int(k) for k in known_keys}
+    started = time.time()
+    end = started + timeout
+    group, instances = None, []
+    while True:
+        # `acquired_groups` 는 PowerShell 프로세스를 하나 띄우므로(약 0.5초)
+        # 한 회차에 두 번 부르지 않는다.
+        current = acquired_groups(db, study_key)
+        fresh = [key for key in current if key not in known]
+        if fresh:
+            newest = max(fresh)
+            group = current[newest]
+            instances = group_instances(db, study_key, newest)
+            have = {int(row["InstanceType"]) for row in instances}
+            if all(t in have for t in required_types):
+                break
+        if time.time() >= end:
+            return {"group": group, "instances": instances,
+                    "waited": round(time.time() - started, 1), "timed_out": True}
+        time.sleep(poll)
+    return {"group": group, "instances": instances,
+            "waited": round(time.time() - started, 1), "timed_out": False}
+
+
 def select_2d(ui, index):
     flows.select_step(ui, index)
     time.sleep(1)
@@ -1090,14 +1169,18 @@ def change_all_3d_parameters(ui):
     return changes
 
 
-def preview_and_apply(ui, preview_wait, apply_wait):
-    ui.click(_visible(ui, PREVIEW)[0], settle=1)
-    time.sleep(preview_wait)
-    if not _visible(ui, APPLY):
-        raise RuntimeError("Apply button unavailable after Preview")
-    ui.click(_visible(ui, APPLY)[0], settle=1)
-    time.sleep(apply_wait)
-    return not _visible(ui, APPLY)
+# 2026-08-24: `preview_and_apply(ui, preview_wait, apply_wait)` 를 삭제했다.
+#
+# Preview/Apply 뒤에 **무조건 자는** 함수였다(2D 20/30초, 3D 35/75초). 호출부는
+# 이미 전부 `tests/xipl_flows._poll_completion` 의 조건 기반 대기로 옮겨 갔고
+# (Viewer 로그의 처리 완료 줄 + UI 상태를 보고 끝나면 즉시 반환), 이 함수는
+# 저장소·문서·설정 어디에서도 참조되지 않았다(2026-08-24 전수 확인).
+#
+# 지운 이유는 죽은 코드라서만이 아니다. 남겨 두면 다음 사람이 "이미 있는
+# 헬퍼"로 다시 쓰게 되고, 그러면 조건 대기로 옮긴 것이 조용히 되돌아간다.
+# 같은 이유로 `config.example.json` 의 `preview_3d_wait`/`apply_3d_wait` 도
+# 코드가 실제로 읽는 `preview_3d_timeout`/`apply_3d_timeout`/`post_recon_timeout`
+# 으로 고쳤다 — 그 두 키는 아무도 읽지 않아 조정해도 아무 일이 없었다.
 
 
 def cancel_window(ui):

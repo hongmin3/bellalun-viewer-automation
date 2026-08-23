@@ -169,7 +169,7 @@ def run(ctx):
                       count == 1 and os.path.isfile(os.path.join(
                           ctx.evidence_root, "Flow", "01_Worklist",
                           "01_mwl_selected.png")),
-                      expected=f"{MWL_PID} 단일 결과와 선택 증적",
+                      expected=f"{MWL_PID} 단일 결과와 선택 증거",
                       actual={"result_count": count, "patient_id": MWL_PID})
 
         before_key = ctx.db.scalar("DATA", "SELECT ISNULL(MAX([Key]),0) FROM STUDY") or 0
