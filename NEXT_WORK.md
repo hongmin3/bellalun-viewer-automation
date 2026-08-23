@@ -109,7 +109,6 @@ python run.py portability-check      (2026-08-24 08:25 실측)
 | `tools_traceability.py` | `traceability.json`을 원문·저장소와 대조하고 사양↔TC 양방향 인덱스 출력 | 위조 7건 주입 → 전부 검출 확인 |
 | `traceability.json` | 사양↔TC 추적성 데이터 (쪽·SRS는 문서 검색으로 실측한 값). TC 24건 / 인용 68건 | 위반 0 |
 | `tests/test_imginfo_and_waits.py` | `imginfo`와 조건 대기 단위 시험 12건 | 통과 |
-| `tools_build_detail_html.py` | `..\프로젝트 상세.html` 생성기. 표·수치를 `automation_scope.json`/`traceability.json`/`run.py`/리포트 JSON 에서 만든다 | 생성·렌더 확인 |
 | `run.py probe-preset3d` | `Setting > Procedure > Preset`의 3D 목록 컨트롤을 **조회 전용**으로 실측(TC 아님). 전후 DB 스냅샷 대조 포함 | **미실행** (권한 없음) |
 
 ### 2.3 성능·독립성·증거 개선

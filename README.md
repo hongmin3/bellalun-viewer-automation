@@ -29,7 +29,7 @@ python run.py run-regression
 | 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). 의도적으로 완화하지 않습니다 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
-| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 14건 |
+| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 14건 |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -248,7 +248,7 @@ python run.py run-xipl-07                # 개별 TC (명령 전수는 상세 HT
 
 | 문서 | 무엇 |
 |---|---|
-| `..\프로젝트 상세.html` | **운영 상세** — Quick Start, 명령 전수, TC 추가 절차, 범위 전수표, 회귀 실적, 문제 해결, 제한사항, 결함·교훈 전체. 표·수치는 `tools_build_detail_html.py` 가 저장소 파일에서 **생성**한다 (HTML 을 직접 고치지 말고 생성기를 고칠 것) |
+| `..\프로젝트 상세.html` | **운영 상세** — Quick Start, 명령 전수, TC 추가 절차, 범위 전수표, 회귀 실적, 문제 해결, 제한사항, 결함·교훈 전체. **프로젝트 루트에 두고 세션마다 직접 갱신한다** — 저장소(`auto/`) 밖이라 Git 추적 대상이 아니다 |
 | `AGENTS.md` | 저장소 작업 규칙 (기준 문서 · 작업 순서 · 검증 · Git 규약) |
 | `NEXT_WORK.md` | 현재 상태, 이번 변경, 남은 문제, P0/P1/P2, 다음 세션용 프롬프트 |
 | `NEXT_TASK.md` | 누적 인수인계 기록 (실측 컨트롤 ID · 확정한 제품 동작 · 판정 기준) |
