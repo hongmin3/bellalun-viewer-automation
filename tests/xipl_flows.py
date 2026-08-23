@@ -1990,9 +1990,15 @@ def compatibility_07(ctx):
         # "두 모드가 서로 다르다"까지만 판정한다.
         egp_values = [egp[mode["label"]] for mode in XIPL07_MODES]
         egp_ok = all(egp_values) and len(set(egp_values)) == len(egp_values)
+        # `_parameter_display_matches("", "")` 는 True 다. 파일과 화면이 **둘 다
+        # 비어 있을 때** 교차 확인이 통과한 것처럼 보이면 안 되므로 값이 있는지를
+        # 먼저 본다(판정 전체는 `names_ok`/`errors` 로도 막히지만, 리포트의
+        # `cross_ok` 가 거짓 안심을 주지 않게 한다).
         cross_ok = all(
-            _parameter_display_matches(xtp[mode["label"]] or "",
-                                       displayed.get(mode["label"]) or "")
+            bool((xtp.get(mode["label"]) or "").strip())
+            and bool((displayed.get(mode["label"]) or "").strip())
+            and _parameter_display_matches(xtp[mode["label"]],
+                                           displayed[mode["label"]])
             for mode in XIPL07_MODES)
         r.assert_true(
             8, "각 영상에 촬영 모드별 Recon Parameter 기록",
