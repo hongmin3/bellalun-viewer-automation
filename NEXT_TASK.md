@@ -71,10 +71,56 @@ UTF-16LE 로 인코딩된 `<INFORMATION>` XML 한 덩어리**가 붙는다.
 - `S2DTonetype` 은 다른 항목과 달리 **`T` 가 소문자**다(제품이 그렇게 쓴다).
   속성 이름을 손으로 짐작하지 말고 읽은 dict 를 그대로 쓴다.
 
-**아직 실측하지 않은 것**: `EgpName` 의 3D-W 값. `C:\XIPL\PARAMETER` 에
-`narrow_standard.egp` / `wide_standard.egp` 두 개만 설치돼 있어 `wide_standard.egp` 로
-추정되지만 **확인하지 않았다.** 그래서 `compatibility_07` 은 특정 파일명을 기대하지 않고
-"두 모드의 `EgpName` 이 서로 다르다"까지만 판정한다. 실행 검증 때 확인해 여기에 적을 것.
+**2026-08-24 실행 검증에서 확정한 것** (관리자 권한 세션, `reset-environment` ->
+`run-xipl-07`, Step 1~9 전부 PASS)
+
+| 항목 | 3D-N (`ExposureMode=1`) | 3D-W (`ExposureMode=2`) |
+|---|---|---|
+| `ReconParam/@EgpName` | `narrow_standard.egp` | **`wide_standard.egp`** |
+| `ReconParam/@EapName` | `common_standard.eap` | `common_standard.eap` |
+| `ReconParam/@XtpName` | `DBT_Standard_Default.xtp` | `DBT_Standard_Default.xtp` |
+| `ViewPosition/@Type` | `1` | **`2`** |
+| `INSTANCE_GROUP` Key | 57 | 58 |
+
+- **`EgpName` 이 모드를 따라간다**는 것이 확정됐다. 그래도 판정은 특정 파일명을
+  기대값으로 박지 않고 "두 모드가 서로 다르다"까지만 한다 — 제품이 파일명을 바꿔도
+  모드 분리라는 사양(`SRS 03-10-110`)은 그대로 검증된다.
+- **`ViewPosition/@Type` 도 모드를 구분한다**(3D-N=1 / 3D-W=2). 그전에는 "3D 면 1" 로만
+  알고 있었다. `VIEW_POSITION_PRESET.Type` 과 같은 체계다.
+- **`XtpName` 은 두 모드 모두 Preset 설정값**(`DBT_Standard_Default.xtp`)이 들어갔다.
+  즉 `Setting > Procedure > General` 의 Default 를 바꿔도 **Preset 에 등록된 View
+  Position 에는 반영되지 않는다** — 사양서1 185~186쪽 SRS 03-10-110 과 일치한다.
+  `automation_scope.json` 에 적어 둔 coverage.gap("새로 추가하는 Preset 경로는 아직
+  판정하지 않는다")이 **실측으로 확인됐다.**
+
+### 조건 기반 촬영 대기 실측치 (2026-08-24)
+
+| 촬영 | `wait_new_group` 실측 | 이전 고정 대기 |
+|---|---|---|
+| 기본 2D 스텝 4개 | 각 **2.8~2.9초** | 14초 (`demo_acquire_step` 기본값) |
+| 3D-N (Raw/Recon/Syn) | **29.5초** | 20초 (`system_compat` 호출부) |
+| 3D-W (Raw/Recon/Syn) | **39.7초** | 20초 |
+
+**기존 고정 20초는 3D 에 오히려 부족했다.** 조건 대기는 2D 를 빠르게, 3D 를 안전하게
+만든다 — 고정 대기가 "느리면서 동시에 불안정하다"는 것이 수치로 확인됐다.
+
+### Preset 페이지 OCR 실측 (2026-08-24)
+
+`find_text_boxes` 는 OCR 의 **단어** 박스를 대조한다. 그래서 다중 단어는 못 찾는다.
+
+| 찾는 문구 | 결과 | 비고 |
+|---|---|---|
+| `3D-N` / `3D-W` | **0건** | 제목이 괄호까지 한 단어로 읽힌다 |
+| `(3D-N)` / `(3D-W)` | 각 1건 | 목록 제목 `Preset (3D-N)` / `Preset (3D-W)` |
+| `Recon Param` | **0건** | 다중 단어는 매칭되지 않는다 |
+| `Recon` | **2건** | 3D-N / 3D-W 목록의 열 이름 |
+| `XIPL` | 1건 | 2D 목록의 열 이름(대조군) |
+| `Preset` | 3건 | 목록 3개 |
+
+화면 구성도 확정됐다 — `Preset (2D)` / `Preset (3D-N)` / `Preset (3D-W)` 세 목록이
+나란히 있고 열이 `Name | Alias | XIPL Param`(2D) / `Name | Alias | Recon Param`(3D)다.
+**Service Manual `Preset 메뉴` 의 표와 일치한다.** 각 목록에 독립된 `+`/🗑 버튼이 있다
+(컨트롤 ID 는 여전히 미실측 — `probe-preset3d` 로 확정할 것).
 
 ### 실측하지 않아 추측하지 않은 것 — 3D Preset 목록 컨트롤
 

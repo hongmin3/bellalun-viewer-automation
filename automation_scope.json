@@ -344,11 +344,11 @@
     "tc_id": "TC_XIPL_compatibility_07",
     "title": "촬영 모드별 3D Default Recon Parameter 적용",
     "level": "FULL",
-    "reason": "Setting > Procedure > General 의 3D-N/3D-W Default Recon Parameter 를 각각 변경해 모드별 독립 저장을 DB 로 확인하고, Preset 의 모드별 구성을 사양서1 SRS 03-30-20 의 3D View Position 11종과 전수 대조하며, 두 모드로 각각 Demo 촬영해 INSTANCE_GROUP.ExposureMode 로 모드를 확정한 뒤 각 영상의 적용 Recon Parameter 를 Post Reconstruction 표시와 .img 의 <ReconParam> 두 곳에서 교차 판정한다. 시험 설정은 UI 로 원복한다(run-xipl-07)",
+    "reason": "Setting > Procedure > General 의 3D-N/3D-W Default Recon Parameter 를 각각 변경해 모드별 독립 저장을 DB 로 확인하고, Preset 의 모드별 구성을 사양서1 SRS 03-30-20 의 3D View Position 11종과 전수 대조하며, 두 모드로 각각 Demo 촬영해 INSTANCE_GROUP.ExposureMode 로 모드를 확정한 뒤 각 영상의 적용 Recon Parameter 를 Post Reconstruction 표시와 .img 의 <ReconParam> 두 곳에서 교차 판정한다. 시험 설정은 UI 로 원복한다(run-xipl-07). **2026-08-24 관리자 권한 세션에서 reset-environment 후 단독 실행해 Step 1~9 전부 PASS 실측**",
     "coverage": {
       "category": "자동 판정(구현 완료)",
-      "gap": "Service Manual 의 \"Preset 에 **새로 추가하는** View Position 은 Default 로 설정한 파라미터를 적용한다\" 경로는 아직 판정하지 않는다. Setting > Procedure > Preset 의 3D-N/3D-W 목록·추가·삭제 컨트롤 ID 가 실측되지 않아(2D 만 2554/2548/2549 확정) 3D Preset 행을 만들거나 편집하지 않기 때문이다. 번호가 이어질 것이라 추측하지 않는다(AGENTS.md 3·5절). 그래서 현재 판정은 '기록된 Recon Parameter 가 그 모드의 Preset 설정값 또는 General Default 중 하나이고 화면 표시와 일치한다'까지다",
-      "unblock": "`python run.py probe-preset3d` (조회 전용)로 3D-N/3D-W 목록 컨트롤을 실측한 뒤, TC_XIPL_compatibility_04 의 `_add_preset_2d_pair` / `_alias_preset_row` 와 같은 방식으로 3D Preset 추가·삭제를 붙인다"
+      "gap": "Service Manual 의 \"Preset 에 **새로 추가하는** View Position 은 Default 로 설정한 파라미터를 적용한다\" 경로는 아직 판정하지 않는다. Setting > Procedure > Preset 의 3D-N/3D-W 목록·추가·삭제 컨트롤 ID 가 실측되지 않아(2D 만 2554/2548/2549 확정) 3D Preset 행을 만들거나 편집하지 않기 때문이다. 번호가 이어질 것이라 추측하지 않는다(AGENTS.md 3·5절). **2026-08-24 실행 검증에서 이 gap 이 실재함을 확인했다** — Preset 에 등록된 LCC 를 촬영하니 img 의 XtpName 이 General Default(TEST_3D_*.xtp)가 아니라 Preset 설정값(DBT_Standard_Default.xtp)이었다(사양서1 SRS 03-10-110 대로다). 그래서 현재 판정은 '기록된 Recon Parameter 가 그 모드의 Preset 설정값 또는 General Default 중 하나이고 화면 표시와 일치한다'까지다",
+      "unblock": "`python run.py probe-preset3d` (조회 전용)로 3D-N/3D-W 목록 컨트롤을 실측한 뒤, TC_XIPL_compatibility_04 의 `_add_preset_2d_pair` / `_alias_preset_row` 와 같은 방식으로 3D Preset 추가·삭제를 붙인다. 화면 구성은 2026-08-24 캡처로 확인했다 — 목록 3개(`Preset (2D)`/`(3D-N)`/`(3D-W)`)가 나란히 있고 각각 독립된 `+`/삭제 버튼이 있다"
     }
   },
   {

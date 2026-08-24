@@ -41,13 +41,23 @@ UTF-16LE 로 인코딩된 XML 한 덩어리**가 들어 있다.
   - 2D 영상(`ViewPosition/@Type=0`)도 `ReconParam` 을 가지지만 이름 3개
     (`EgpName`/`EapName`/`XtpName`)가 **모두 빈 문자열**이다. 그래서 이 모듈은
     3D 파라미터 판정에만 쓴다. 2D 의 `.pim` 이름은 img 에 없다.
-  - `EgpName` 은 촬영 모드를 따라간다 — 3D-Narrow 는 `narrow_standard.egp`.
-    `C:\XIPL\PARAMETER` 에 `narrow_standard.egp` / `wide_standard.egp` 두 개만
-    설치돼 있다. **Wide 쪽 값은 아직 실측하지 않았다** — 그래서 기대값을
-    단정하는 곳은 없고, 판정은 "두 모드의 EgpName 이 서로 다르다"까지만 한다
-    (`tests/xipl_flows.compatibility_07`).
+  - `EgpName` 은 촬영 모드를 따라간다. **2026-08-24 에 두 모드를 실제로 촬영해
+    확정했다** — 3D-Narrow(`ExposureMode=1`) = `narrow_standard.egp`,
+    3D-Wide(`ExposureMode=2`) = `wide_standard.egp`.
+    `C:\XIPL\PARAMETER` 에 설치된 `.egp` 도 그 두 개뿐이다.
+    그래도 판정은 특정 파일명을 기대값으로 박지 않고 **"두 모드의 EgpName 이 서로
+    다르다"** 까지만 한다(`tests/xipl_flows.compatibility_07` Step 8) — 제품이
+    파일명을 바꿔도 모드 분리라는 사양(`SRS 03-10-110`)은 그대로 검증된다.
+  - **`ViewPosition/@Type` 도 촬영 모드를 구분해 기록한다** — 3D-N 은 `1`,
+    3D-W 는 `2`(2026-08-24 실측). `VIEW_POSITION_PRESET.Type` 과 같은 체계다.
+    (그전에는 "3D 면 1" 로만 알고 있었다.)
   - `ExposureMode` 는 `INSTANCE_GROUP.ExposureMode` 와 같은 값이다
     (1=Narrow / 2=Wide, `tests/system_compat.py` 에서 대조 확정).
+  - `XtpName` 은 **Preset 에 등록된 View Position 을 촬영하면 그 Preset 의 값**이
+    들어간다(실측: 두 모드 모두 `DBT_Standard_Default.xtp`). 사양서1 185~186쪽
+    SRS 03-10-110 의 "Preset 으로 등록되어 있는 경우 해당 Viewposition 에 설정해
+    놓은 파라미터로 처리한다" 와 일치한다 — `Setting > Procedure > General` 의
+    Default 를 바꿔도 Preset 등록 위치에는 반영되지 않는다.
 
 ## 읽는 방법
 
