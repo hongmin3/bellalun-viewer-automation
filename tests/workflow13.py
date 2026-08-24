@@ -509,7 +509,7 @@ def run(ctx):
                  "**보이는지 여부**로 판정하고 실측값을 그대로 남긴다. 부분 제한 항목은 "
                  "접근 가능으로 기대한다 — 표의 비고는 화면 안에서의 제한이다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_13 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_13 실행", exc)
     finally:
         # **로그인 계정을 반드시 되돌린다.** 시험 계정으로 남으면 뒤따르는 TC 가
         # 제한 권한으로 돌아 연쇄 실패한다(회귀 7·13·14차의 교훈).

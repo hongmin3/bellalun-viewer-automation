@@ -136,7 +136,7 @@ def run(ctx):
             raise flows.FlowError("Patient 화면에 진입하지 못했습니다.")
         r.add(0, "Viewer 기동 및 Patient 화면", PASS, actual=" / ".join(startup))
     except Exception as exc:
-        r.add(0, "Viewer 기동 및 Patient 화면", FAIL, actual=str(exc))
+        r.abort(0, "Viewer 기동 및 Patient 화면", exc)
         return r
 
     try:
@@ -223,7 +223,7 @@ def run(ctx):
         r.assert_equal(5, "MWL Study Instance UID 유지", uid,
                        (mwl_study or {}).get("StudyInstanceUID"))
     except Exception as exc:
-        r.add(1, "MWL UI 흐름", FAIL, actual=str(exc))
+        r.abort(1, "MWL UI 흐름", exc)
         return r
 
     try:
@@ -296,5 +296,5 @@ def run(ctx):
                       "Lock=0, INSTANCE=0"),
             actual={"db": local_final, "close": close})
     except Exception as exc:
-        r.add(6, "Local UI 흐름", FAIL, actual=str(exc))
+        r.abort(6, "Local UI 흐름", exc)
     return r

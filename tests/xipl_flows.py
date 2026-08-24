@@ -487,7 +487,7 @@ def compatibility_01(ctx, session):
             ui.activate()
         except Exception:
             pass
-        r.add(1, "Viewer XIPL 도구 자동 수행", FAIL, actual=str(exc))
+        r.abort(1, "Viewer XIPL 도구 자동 수행", exc)
     return r
 
 
@@ -582,7 +582,7 @@ def compatibility_02(ctx, session):
         vp.cancel_window(ui)
     except Exception as exc:
         vp.cancel_window(ui)
-        r.add(2, "2D Image Processing 자동 수행", FAIL, actual=str(exc))
+        r.abort(2, "2D Image Processing 자동 수행", exc)
     return r
 
 
@@ -745,33 +745,55 @@ def compatibility_03(ctx, session):
         r.attach(verify)
     except Exception as exc:
         vp.cancel_window(ui)
-        r.add(1, "3D Post Reconstruction 자동 수행", FAIL, actual=str(exc))
+        r.abort(1, "3D Post Reconstruction 자동 수행", exc)
     return r
 
 
 def _click_general_param_combo(ui, ctrl_id, filename, wait=1.0):
     """Setting > Procedure > General 콤보를 열고 filename 항목을 고른다.
 
-    **드롭다운 항목만 후보로 본다** (`min_y` = 콤보 하단). 같은 화면에 2D/3D-N/3D-W
-    콤보가 나란히 있어서, 다른 콤보가 이미 같은 파일명을 표시하고 있으면 그것을
-    누를 수 있다. 2026-08-24 실측: 3D-N 을 `DBT_Standard_Default.xtp` 로 되돌린
-    직후 3D-W 를 같은 값으로 되돌리려 하니 3D-N 콤보를 눌러 복원이 조용히
-    실패했다(DB 대조가 잡아냈다).
+    **다른 Default Parameter 콤보의 표시값을 후보에서 뺀다.** 같은 화면에
+    2D/3D-N/3D-W 콤보가 나란히 있어서, 다른 콤보가 이미 같은 파일명을 표시하고
+    있으면 드롭다운 항목 대신 그것을 누른다.
+
+    실측 경위 (둘 다 2026-08-24)
+      1. 3D-N 을 `DBT_Standard_Default.xtp` 로 되돌린 직후 3D-W 를 같은 값으로
+         되돌리려 하니 **3D-N 콤보를 눌러** 복원이 조용히 실패했다(DB 대조가
+         잡아냈다).
+      2. 그래서 "콤보 아래쪽만 본다"(`min_y`)로 막았는데 **과교정**이었다 —
+         20차 회귀에서 세 번째 콤보(2544)의 드롭다운 항목이 콤보보다 위에 그려져
+         `찾지 못했습니다` 로 실패했다.
+
+    그래서 y 로 자르지 않고 **형제 콤보의 rect 만 제외**한다. 문제에 정확히 맞는
+    제약이고 드롭다운이 어느 방향으로 열려도 동작한다.
     """
     combo = [c for c in ui.by_id(ctrl_id) if c.visible]
     if not combo:
         raise flows.FlowError(f"Default Parameter 콤보(ID {ctrl_id})를 찾지 못했습니다.")
     window = ui.main_window()
-    # 창 기준 상대 y. 드롭다운은 콤보 아래로 열린다.
-    below = combo[0].rect[3] - (window.rect[1] if window else 0)
+    origin = (window.rect[0], window.rect[1]) if window else (0, 0)
+    siblings = []
+    for other in (flows.PROCEDURE_GENERAL_PARAM_2D,
+                  flows.PROCEDURE_GENERAL_PARAM_3D_N,
+                  flows.PROCEDURE_GENERAL_PARAM_3D_W):
+        if other == ctrl_id:
+            continue
+        for control in ui.by_id(other):
+            if not control.visible:
+                continue
+            left, top, right, bottom = control.rect
+            siblings.append((left - origin[0], top - origin[1],
+                             right - origin[0], bottom - origin[1]))
     ui.click(combo[0], settle=wait)
-    if not vp.click_viewer_text(ui, filename, settle=wait, min_y=below):
+    if not vp.click_viewer_text(ui, filename, settle=wait,
+                                exclude_rects=siblings):
         cx, cy = combo[0].center
         ui.wheel((cx, cy + 60), -3, settle=.3)
-        if not vp.click_viewer_text(ui, filename, settle=wait, min_y=below):
+        if not vp.click_viewer_text(ui, filename, settle=wait,
+                                    exclude_rects=siblings):
             raise flows.FlowError(
                 f"콤보(ID {ctrl_id}) 드롭다운에서 '{filename}'을 찾지 못했습니다"
-                f"(창 기준 y>={below} 영역만 후보로 봅니다).")
+                f"(형제 콤보 표시값 제외 영역={siblings}).")
 
 
 def _select_preset_column_item(ui, x, row_index, wait=.5):
@@ -1177,7 +1199,7 @@ def compatibility_04(ctx):
                    "잔여 검사는 close_examine의 삭제 확인 처리로 정리된다. "
                    "둘 다 삭제 전후 DB 대조로 대상 외 삭제를 막는다.")
     except Exception as exc:
-        r.add(0, "TC_XIPL_compatibility_04 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_XIPL_compatibility_04 실행", exc)
     return r
 
 
@@ -1404,7 +1426,7 @@ def compatibility_05(ctx):
                       actual={"2D": applied_2d.get("parameter"),
                               "3D": applied_3d.get("parameter")})
     except Exception as exc:
-        r.add(0, "TC_XIPL_compatibility_05 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_XIPL_compatibility_05 실행", exc)
     return r
 
 
@@ -1546,7 +1568,7 @@ def compatibility_06(ctx, session):
             vp.cancel_window(ui)
         except Exception:
             pass
-        r.add(0, "TC_XIPL_compatibility_06 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_XIPL_compatibility_06 실행", exc)
     return r
 
 
@@ -2074,8 +2096,8 @@ def compatibility_07(ctx):
                  "실패하면 그 사실을 판정으로 남긴다(조용히 넘기지 않는다).")
         completed = True
     except Exception as exc:                           # noqa: BLE001
-        r.add(0, "TC_XIPL_compatibility_07 실행", FAIL, actual=str(exc),
-              note=_safe_screen_context(ui))
+        r.abort(0, "TC_XIPL_compatibility_07 실행", exc,
+                note=_safe_screen_context(ui))
     finally:
         if restored is None:
             # 본문에서 원복까지 가지 못했다. 남은 설정이 이후 3D TC 를 오염시키므로
@@ -2139,10 +2161,10 @@ def run_xipl(ctx):
             ("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction"),
         ]:
             r = TCResult(tc, title)
-            r.add(0, "Viewer 시험 데이터 준비(Procedure +, F8)", FAIL, actual=str(exc))
+            r.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
             out.append(r)
         r6 = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
-        r6.add(0, "Viewer 시험 데이터 준비(Procedure +, F8)", FAIL, actual=str(exc))
+        r6.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
         # `_04`/`_05`/`_07` 은 공용 픽스처(`_prepare`)를 쓰지 않고 스스로 검사를
         # 만든다. 그래서 픽스처 준비가 실패해도 그대로 수행한다.
         out.extend([compatibility_04(ctx), compatibility_05(ctx), r6,

@@ -473,7 +473,7 @@ def run(ctx):
                  "**이 실행으로 말할 수 없는 것**: 선택된 Preset 의 이름 — "
                  "준비 상태까지만 확인했다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_10 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_10 실행", exc)
     finally:
         # Examine 화면을 열어 둔 채 끝내면 다음 TC 가 Patient 화면을 못 찾는다.
         # 이 검사는 촬영하지 않으므로 `close` 를 고르면 제품이 "This study will

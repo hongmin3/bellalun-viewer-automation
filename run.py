@@ -4,9 +4,11 @@ import argparse
 import json
 import os
 import platform
+import re
 import string
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 from core.db import BellalunDb
@@ -179,8 +181,177 @@ def _tesseract_version(exe):
         return exe
 
 
+#: `finish()` 가 마지막으로 생성한 리포트 경로. 완료 배너가 HTML 경로를 싣는 데
+#: 쓴다(`finish()` 는 종료 코드만 돌려주므로 경로를 여기 남긴다).
+LAST_REPORT_PATHS = {}
+
+
+def guarded(fn, ctx, tc_id, title):
+    """TC 하나가 예외로 죽어도 **회귀 전체를 멈추지 않는다.**
+
+    대부분의 TC 모듈은 스스로 `try/except` 로 감싸 `TCResult.abort()` 를 남긴다.
+    그런데 감싸지 않은 진입점이 있었다 — 2026-08-24 정적 감사에서
+    `tests/install.py` 의 `install_01`/`install_02` 가 `except` 없이 설정·시스템을
+    읽는 것을 확인했다. 그 둘은 **회귀의 첫 단계**라 여기서 죽으면 나머지 25개
+    TC 가 아예 수행되지 않는다.
+
+    개별 파일을 하나씩 고치는 대신 **호출 지점에서 한 번에** 막는다. 새 TC 를
+    붙이는 사람이 `except` 를 잊어도 회귀는 계속 돈다.
+
+    반환: `TCResult` 리스트(진입 함수가 단일 객체를 주면 감싸 준다).
+    """
+    from core.result import TCResult
+    try:
+        out = fn(ctx)
+    except Exception as exc:                           # noqa: BLE001
+        import traceback
+        r = TCResult(tc_id, title)
+        r.abort(0, f"{tc_id} 진입", exc,
+                note="이 TC 의 진입 함수가 예외를 던졌다(모듈 자체 예외처리가 "
+                     "없거나 그보다 앞에서 발생). **회귀는 중단하지 않고 다음 TC "
+                     "로 넘어간다.** 남은 Step 은 미수행(FAIL)으로 채워진다.\n"
+                     + traceback.format_exc(limit=8))
+        print(f"  [guard] {tc_id} 예외로 중단 — 다음 TC 로 계속합니다: "
+              f"{type(exc).__name__}: {exc}")
+        return [r]
+    if out is None:
+        return []
+    return list(out) if isinstance(out, (list, tuple)) else [out]
+
+
+def _checklist_step_count(text):
+    """Step Description 원문에서 마지막 단계 번호."""
+    numbers = [int(n) for n in re.findall(r"^\s*(\d+)\.", text or "", re.M)]
+    return max(numbers) if numbers else 0
+
+
+def pad_aborted_steps(ctx, results):
+    """**중단된 TC 의 남은 Step 을 FAIL(미수행)로 채운다.**
+
+    2026-08-24 사용자 요청: "step 처리 중에 다른 버그가 발견되서 문제가 있을 수
+    있자나, 이후 step 은 fail 처리하고 다음 tc 를 수행해 주면 좋겠다."
+
+    예전에는 TC 가 중간에 죽으면 남은 Step 이 리포트에 **아예 나오지 않았다.**
+    그래서 "3단계까지 갔는가, 8단계까지 갔는가"를 리포트만 보고 알 수 없었다.
+
+    **`aborted` 가 True 인 TC 만** 채운다. 단순히 "FAIL 이 있다"로 판단하면
+    정상 수행한 TC 까지 오염된다 — `TC_XIPL_compatibility_03` 은 Step 3·5 를
+    별도 판정으로 내지 않으므로(다른 단계 판정에 포함) 없는 FAIL 이 생긴다.
+
+    단계 수는 **기준 체크리스트**에서 읽는다(`AGENTS.md` 0절). 자동화가 임의로
+    정하지 않는다.
+    """
+    from core import checklist
+    from core.result import FAIL
+    source = checklist.source_path(ctx)
+    rows = checklist.read_tc_rows(source) if source else {}
+    if not rows:
+        return 0
+    added = 0
+    for result in results:
+        if not getattr(result, "aborted", False):
+            continue
+        row = rows.get(result.tc_id)
+        total = _checklist_step_count((row or {}).get("steps"))
+        if not total:
+            continue
+        done = {int(c.step) for c in result.checks if c.step}
+        for step in range(1, total + 1):
+            if step in done:
+                continue
+            result.add(step, f"Step {step} 미수행", FAIL, stop=False,
+                       expected="기준 체크리스트 Step Description 의 해당 단계 수행",
+                       actual="수행하지 않음(앞선 단계에서 TC 가 중단됨)",
+                       note="**제품 결함 판정이 아니다.** 이 TC 가 앞선 단계에서 "
+                            "중단되어 수행되지 못한 단계다. 원인은 같은 TC 의 "
+                            "앞선 FAIL 을 본다.")
+            added += 1
+    if added:
+        print(f"  aborted-steps: 중단된 TC 의 미수행 Step {added}건을 "
+              f"FAIL 로 기록했습니다.")
+    return added
+
+
+def shutdown_viewer(reason="회귀 종료"):
+    """제품을 **안전하게** 종료한다. 열린 검사는 Suspend 로 보존한다.
+
+    2026-08-24 사용자 요청: "회귀가 끝나면 뷰어가 종료된 다음에 결과가 출력되도록".
+    결과 출력보다 **먼저** 부른다 — 리포트를 읽는 동안 제품이 화면을 점유하지
+    않게 한다.
+
+    0장 검사에서 `Close`(501) 는 Discard 다. 데이터를 잃지 않는 Suspend(502) 를
+    쓴다(`flows.cold_start` 와 같은 판단).
+    """
+    detail = {"reason": reason}
+    try:
+        from core import flows
+        from core.ui import ViewerUi
+        ui = ViewerUi()
+        if not ui.pid:
+            detail["state"] = "이미 종료됨"
+            return detail
+        detail["pid"] = ui.pid
+        try:
+            if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+                flows.close_examine(ui, option="suspend", wait=8)
+                detail["examine"] = "Suspend 로 보존 후 종료"
+        except Exception as exc:                       # noqa: BLE001
+            detail["examine"] = f"검사 종료 시도 실패(계속 진행): {exc}"
+        flows._kill_viewer(ui.pid)
+        time.sleep(3)
+        detail["state"] = "종료됨" if not ViewerUi().pid else "종료되지 않음"
+    except Exception as exc:                           # noqa: BLE001
+        detail["state"] = f"종료 시도 실패: {exc}"
+    return detail
+
+
+def announce_done(results, elapsed_minutes, paths):
+    """전체 회귀 완료를 터미널에 **눈에 띄게** 알린다.
+
+    2026-08-24 사용자 요청. 긴 실행을 켜 두고 다른 일을 하다가 돌아왔을 때
+    "끝났는지"를 스크롤하지 않고 알 수 있어야 한다. 콘솔 벨(`\\a`)도 함께 낸다.
+    """
+    from core.result import FAIL, MANUAL, PASS, SKIP
+    tc = {}
+    checks = {}
+    for r in results:
+        tc[r.verdict] = tc.get(r.verdict, 0) + 1
+        for c in r.checks:
+            checks[c.status] = checks.get(c.status, 0) + 1
+    order = (PASS, FAIL, MANUAL, SKIP)
+    line = " / ".join(f"{k} {tc.get(k, 0)}" for k in order)
+    sub = " / ".join(f"{k} {checks.get(k, 0)}" for k in order)
+    bar = "=" * 74
+    print()
+    print(bar)
+    print(f"  전체 회귀 완료  —  {datetime.now():%Y-%m-%d %H:%M:%S}"
+          f"  ({elapsed_minutes:.1f}분)")
+    print(bar)
+    print(f"  TC {len(results)}건   : {line}")
+    print(f"  검증 {sum(checks.values())}개 : {sub}")
+    fails = [(r.tc_id, c.step, c.title) for r in results for c in r.checks
+             if c.status == FAIL]
+    if fails:
+        print(f"  FAIL {len(fails)}건:")
+        for tc_id, step, title in fails[:12]:
+            print(f"    - {tc_id}  Step {step}  {title}")
+        if len(fails) > 12:
+            print(f"    ... 외 {len(fails) - 12}건 (리포트 참고)")
+    else:
+        print("  FAIL 없음")
+    if paths.get("html"):
+        print(f"  리포트: {paths['html']}")
+    print(bar)
+    try:
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+    except Exception:                                  # noqa: BLE001
+        pass
+
+
 def finish(ctx, results):
     completed = datetime.now()
+    pad_aborted_steps(ctx, results)
     for index, result in enumerate(results):
         next_started = (results[index + 1].started
                         if index + 1 < len(results) else completed)
@@ -188,6 +359,8 @@ def finish(ctx, results):
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     paths = write_reports(results, ctx.reports_root, stamp,
                           meta=_report_meta(ctx, results))
+    LAST_REPORT_PATHS.clear()
+    LAST_REPORT_PATHS.update(paths)
 
     # 체크리스트 xlsx에 TC별 판정을 기록한다(원본은 건드리지 않고 사본 생성).
     # 이 호출이 없어서 `core/checklist.py`가 죽은 코드였고, README가 "체크리스트
@@ -355,6 +528,13 @@ def main():
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
     args = ap.parse_args()
     ctx = Context(args.config)
+    # **FAIL 이 나면 그 TC 를 즉시 중단한다**(2026-08-24 사용자 지시). 어차피 그
+    # TC 는 사람이 직접 봐야 하므로, 남은 Step 을 계속 수행해 전체 시간을 늘리지
+    # 않는다. 남은 Step 은 `pad_aborted_steps` 가 미수행(FAIL)으로 채운다.
+    # 예전 동작(끝까지 수행)이 필요하면 config 에서 끈다.
+    from core.result import TCResult as _TCResult
+    _TCResult.stop_on_fail = bool(
+        (ctx.cfg.get("regression") or {}).get("stop_tc_on_fail", True))
     results = []
     if args.cmd == "list":
         scope_path = os.path.join(ctx.root, "automation_scope.json")
@@ -442,6 +622,9 @@ def main():
     if args.cmd == "probe-preset3d":
         return _probe_preset3d(ctx)
     if args.cmd == "run-regression":
+        regression_started = datetime.now()
+        print(f"[run-regression] 시작 {regression_started:%Y-%m-%d %H:%M:%S} — "
+              "완료되면 Viewer 를 종료하고 결과 요약을 출력합니다.")
         # 개정본 TC 행 순서대로 적는다(읽는 사람이 실행 순서를 그대로 본다).
         from tests.install import install_01, install_02
         from tests.workflow01 import run as run_workflow01
@@ -518,31 +701,52 @@ def main():
         # 설정을 바꾸는 TC 는 스스로 되돌리므로 순서를 미룰 필요가 없다 —
         #   WF_07 은 Auto Send 를, WF_13 은 로그인 계정을 finally 에서 원복한다
         #   (둘 다 실측으로 확인). 되돌리지 못하면 그 사실을 판정으로 남긴다.
-        results.extend([install_01(ctx), install_02(ctx)])   # 행 1~2
-        results.append(setup_all(ctx))                       # 보조: DICOM 서버 등록
-        results.append(run_workflow01(ctx))                  # 행 10  WF_01
-        results.append(run_workflow02(ctx))                  # 행 11  WF_02
-        results.extend(run_overlay(ctx))                     # 행 12  WF_03
-        results.extend(run_send(ctx))                        # 행 13  WF_04
-        results.extend(run_3d(ctx))                          # 행 14  WF_05
-        results.extend(run_all_images(ctx))                  # 행 15  WF_06
-        results.append(run_emergency(ctx))                   # 행 16  WF_07
-        results.append(run_film_print(ctx))                  # 행 17  WF_08
-        results.extend(run_export(ctx))                      # 행 18  WF_09
-        results.append(run_hospital_code(ctx))               # 행 19  WF_10
-        results.append(run_reject(ctx))                      # 행 20  WF_11
-        results.append(run_study_reject(ctx))                # 행 21  WF_12
-        results.append(run_account(ctx))                     # 행 22  WF_13
-        results.append(run_setting_transfer(ctx))            # 행 23  WF_14
-        results.append(run_presend(ctx))                     # 행 24  WF_15
-        results.append(run_kiosk(ctx))                       # 행 25  WF_16 (수동)
-        results.extend(run_xipl(ctx))                        # 행 26~31 XIPL_01~06
+        # **각 TC 를 `guarded()` 로 감싼다.** 진입 함수가 예외를 던져도 회귀는
+        # 멈추지 않고 다음 TC 로 넘어가며, 그 TC 의 남은 Step 은 `finish()` 가
+        # 미수행(FAIL)으로 채운다(2026-08-24 사용자 요청).
+        #
+        # 감싸지 않은 진입점이 실제로 있었다 — `install_01`/`install_02` 는
+        # `except` 가 없는데 **회귀의 첫 단계**라, 거기서 죽으면 나머지 25개 TC 가
+        # 아예 수행되지 않았다(2026-08-24 정적 감사).
+        chain = [
+            (install_01, "TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인"),
+            (install_02, "TC_Basic_Install_02", "Viewer 실행 전 필수 환경 확인"),
+            (setup_all, "DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결"),
+            (run_workflow01, "TC_Basic_WorkFlow_01", "MWL 및 Local 검사 생성"),
+            (run_workflow02, "TC_Basic_WorkFlow_02", "공통 2D/3D 검사 촬영 및 Tool 적용"),
+            (run_overlay, "TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정"),
+            (run_send, "TC_Basic_WorkFlow_04", "2D 수동 DICOM Send"),
+            (run_3d, "TC_Basic_WorkFlow_05", "3D 수동 DICOM Send"),
+            (run_all_images, "TC_Basic_WorkFlow_06", "All Images 및 Dose SR 전송"),
+            (run_emergency, "TC_Basic_WorkFlow_07", "Emergency 검사 Auto Send"),
+            (run_film_print, "TC_Basic_WorkFlow_08", "2D/3D Film Print"),
+            (run_export, "TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export"),
+            (run_hospital_code, "TC_Basic_WorkFlow_10", "MWL Hospital Code와 Procedure 매핑"),
+            (run_reject, "TC_Basic_WorkFlow_11", "Image Reject 및 Restore"),
+            (run_study_reject, "TC_Basic_WorkFlow_12", "Study Reject 및 Restore"),
+            (run_account, "TC_Basic_WorkFlow_13", "계정 추가·수정 및 로그인"),
+            (run_setting_transfer, "TC_Basic_WorkFlow_14", "Setting Export 및 Import"),
+            (run_presend, "TC_Basic_WorkFlow_15", "Pre-send Preview 표시 및 전송"),
+            (run_kiosk, "TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher"),
+            (run_xipl, "TC_XIPL_compatibility", "XIPL 연동 01~07"),
+        ]
+        for fn, tc_id, title in chain:
+            results.extend(guarded(fn, ctx, tc_id, title))
         # **`AUTOMATION_3D_ACQUISITION_3DN/_3DW` 는 회귀에서 제외한다**
         # (2026-08-21 사용자 지시). 개정본 TC 가 아니고, 판정도 "장비 없이는
         # 확인 불가(MANUAL)"로 끝나 상세 결과에 실을 내용이 없다. 3D 촬영
         # 픽스처는 WF_02 가 이미 만들며, 이 보조 항목은 필요할 때
         # `python run.py run-sys3d` 로 단독 실행한다.
-        return finish(ctx, results)
+        #
+        # **결과를 출력하기 전에 제품을 종료한다**(2026-08-24 사용자 요청).
+        # 리포트를 읽는 동안 Viewer 가 화면을 점유하지 않게 하고, 다음 실행이
+        # 깨끗한 콜드 스타트에서 시작하게 한다. 열린 검사는 Suspend 로 보존한다.
+        shutdown = shutdown_viewer("전체 회귀 종료")
+        print(f"  viewer-shutdown: {shutdown}")
+        elapsed = (datetime.now() - regression_started).total_seconds() / 60
+        code = finish(ctx, results)
+        announce_done(results, elapsed, LAST_REPORT_PATHS)
+        return code
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
     elif args.cmd == "setup-storage":

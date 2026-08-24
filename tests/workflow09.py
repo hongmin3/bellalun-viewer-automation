@@ -243,7 +243,7 @@ def workflow_09(ctx):
             note="개정본 Expected 8. 같은 검사를 두 번 내보냈으므로 파일 수가 "
                  "같아야 한다. 개인정보 처리 결과는 Step 4/7이 판정한다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_09 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_09 실행", exc)
     return r
 
 

@@ -426,5 +426,5 @@ def run(ctx):
                 except Exception:                      # noqa: BLE001
                     pass
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_15 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_15 실행", exc)
     return r

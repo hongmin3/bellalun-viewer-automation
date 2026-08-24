@@ -378,7 +378,7 @@ def run(ctx):
                                    "db": after, "close": closed})
         completed = True
     except Exception as exc:
-        result.add(0, "TC_Basic_WorkFlow_02 실행", FAIL, actual=str(exc))
+        result.abort(0, "TC_Basic_WorkFlow_02 실행", exc)
     finally:
         if ui is not None and not completed:
             try:

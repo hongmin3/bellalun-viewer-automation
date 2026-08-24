@@ -20,6 +20,21 @@ from datetime import datetime
 PASS, FAIL, MANUAL, SKIP = "PASS", "FAIL", "MANUAL", "SKIP"
 
 
+def step_label(step):
+    """리포트에 표시할 Step 표기.
+
+    `step = 0` 은 **기준 체크리스트의 Step 이 아닌 보조 판정**이라는 뜻이다
+    (시험 파라미터 준비, 시험 전 값 기록, TC 중단 기록, 정리·원복 등).
+    숫자 `0` 을 그대로 찍으면 "Step 번호가 잘못 나온 것" 처럼 보여서
+    사용자가 실제로 그렇게 읽었다(2026-08-24). 그래서 문구로 바꾼다.
+    """
+    try:
+        number = int(step)
+    except (TypeError, ValueError):
+        return str(step)
+    return "보조" if number == 0 else str(number)
+
+
 class Check:
     def __init__(self, step, title, status, expected="", actual="", note=""):
         self.step = step
@@ -36,7 +51,30 @@ class Check:
         }
 
 
+class StepFailed(RuntimeError):
+    """어떤 Step 이 FAIL 한 시점에서 **그 TC 를 중단**시키는 신호.
+
+    2026-08-24 사용자 지시: "어떤 스텝에서 fail 이 났다면 이후 step 을 수행하지
+    말고 넘어가. 어차피 그 TC 는 자동화 완료 후 내가 직접 봐야 하는 거니까 전체
+    자동화 수행할 때 시간이 길어지는 걸 방지할 수 있을 것 같아."
+
+    구현 방식: `TCResult.add()` 가 FAIL 을 기록한 직후 이 예외를 던진다. 각 TC 는
+    이미 본문을 `try/except` 로 감싸고 있으므로(`abort()` 를 부른다) **TC 코드를
+    하나도 고치지 않고** 중단이 걸린다. 그리고 `run.py::pad_aborted_steps` 가
+    남은 Step 을 미수행(FAIL)으로 채운다.
+
+    맞바꾼 것: 첫 FAIL 뒤의 판정 정보는 더 이상 수집되지 않는다. 예를 들어
+    `TC_XIPL_compatibility_03` 은 Step 9(제품 결함)에서 멈추므로 Step 10 의
+    'GPU 없음 SKIP' 기록이 사라지고 미수행으로 남는다. 시간을 아끼는 대신
+    **그 TC 는 사람이 직접 본다**는 전제다.
+    """
+
+
 class TCResult:
+    #: FAIL 이 나면 그 TC 를 즉시 중단할지. `config.json > regression.stop_tc_on_fail`
+    #: 로 끌 수 있다(`run.py` 가 세운다). 끄면 예전처럼 남은 Step 도 계속 수행한다.
+    stop_on_fail = True
+
     def __init__(self, tc_id, title):
         self.tc_id = tc_id
         self.title = title
@@ -47,9 +85,25 @@ class TCResult:
         self._step_cursor_wall = self.started
         self._step_cursor = time.perf_counter()
         self.evidence = []
+        #: 이 TC 안에서 이미 FAIL 로 중단시켰는가(중복 예외 방지).
+        self._stopped = False
+        #: TC 가 **중간에 중단**됐는가. `abort()` 가 True 로 세운다.
+        #: 이 값이 True 인 TC 는 `run.py` 가 리포트를 쓰기 전에 **남은 Step 을
+        #: FAIL(미수행)로 채운다.** 단순히 "FAIL 이 있다"로 판단하면 안 된다 —
+        #: 정상 수행하면서도 Step 을 통합해 기록하는 TC 가 있어(예: XIPL_03 은
+        #: Step 3·5 를 별도 판정으로 내지 않는다) 멀쩡한 리포트에 없는 FAIL 이
+        #: 생긴다.
+        self.aborted = False
 
     # --- 등록 헬퍼 -----------------------------------------------------
-    def add(self, step, title, status, expected="", actual="", note=""):
+    def add(self, step, title, status, expected="", actual="", note="",
+            stop=True):
+        """판정 하나를 기록한다.
+
+        `stop=False` 는 **중단 신호를 내지 않는다.** `abort()` 와 `run.py` 의
+        미수행 Step 채우기가 쓴다 — 그 둘은 이미 중단된 뒤에 부르는 것이라
+        다시 예외를 던지면 안 된다.
+        """
         now_wall = datetime.now()
         now = time.perf_counter()
         self.timings.append({
@@ -61,7 +115,13 @@ class TCResult:
         })
         self._step_cursor_wall, self._step_cursor = now_wall, now
         self.checks.append(Check(step, title, status, expected, actual, note))
-        return self.checks[-1]
+        check = self.checks[-1]
+        if (status == FAIL and stop and self.stop_on_fail
+                and not self._stopped):
+            self._stopped = True
+            raise StepFailed(f"Step {step} FAIL — 이후 Step 을 수행하지 않고 "
+                             f"이 TC 를 중단합니다: {title}")
+        return check
 
     def record_timing(self, name, started_wall, started_perf, outcome, detail="",
                       kind="wait"):
@@ -111,6 +171,25 @@ class TCResult:
     def assert_true(self, step, title, cond, expected="True", actual=None, note=""):
         return self.add(step, title, PASS if cond else FAIL,
                         expected, actual if actual is not None else cond, note)
+
+    def abort(self, step, title, exc, note=""):
+        """TC 가 **중간에 중단**됐음을 기록한다(예외 처리 자리).
+
+        `add(..., FAIL, actual=str(exc))` 와 같은 FAIL 을 남기면서 `aborted` 를
+        세운다. 그러면 `run.py` 가 리포트를 쓰기 전에 **체크리스트의 남은 Step 을
+        FAIL(미수행)로 채운다** — "이 TC 의 어느 단계까지 갔는가"가 리포트에
+        드러나야 하기 때문이다(2026-08-24 사용자 요청).
+
+        예외 타입을 함께 남긴다. `str(exc)` 만으로는 `KeyError: 'x'` 처럼
+        메시지가 비거나 모호한 경우 원인을 못 짚는다.
+        """
+        self.aborted = True
+        detail = exc if isinstance(exc, str) else f"{type(exc).__name__}: {exc}"
+        return self.add(step, title, FAIL, actual=detail, stop=False,
+                        note=note or
+                        "이 단계에서 예외가 발생해 TC 가 중단됐다. 회귀는 멈추지 "
+                        "않고 다음 TC 로 넘어간다. 남은 Step 은 '미수행(FAIL)'로 "
+                        "채워진다 — 제품 결함 판정이 아니라 수행하지 못한 것이다.")
 
     def manual(self, step, title, note, expected="", actual=""):
         return self.add(step, title, MANUAL, expected, actual, note)
@@ -335,7 +414,7 @@ def write_txt(results, path, env=None):
         L.append(f"   - {first.tc_id}: {first.title}")
         for chk in first.checks:
             if chk.status == FAIL:
-                L.append(f"     -> Step {chk.step}: {chk.title}")
+                L.append(f"     -> Step {step_label(chk.step)}: {chk.title}")
                 L.append(f"        실제: {_one_line(chk.actual)}")
                 break
         L.append(f"   - 이후 FAIL {total[FAIL] - 1}건 중 일부는 이 실패의 결과일 "
@@ -357,7 +436,8 @@ def write_txt(results, path, env=None):
         L.append(f" {r.tc_id} — {r.title}   →  {r.verdict}")
         L.append("=" * 78)
         for chk in r.checks:
-            L.append(f"  [{chk.status:^6}] Step {chk.step:<3} {chk.title}")
+            L.append(f"  [{chk.status:^6}] "
+                     f"Step {step_label(chk.step):<4} {chk.title}")
             if chk.status in (FAIL, MANUAL) or chk.expected or chk.actual:
                 if str(chk.expected):
                     L.append(f"            기대 : {chk.expected}")
@@ -392,7 +472,7 @@ def write_txt(results, path, env=None):
         L.append(f" 실패 항목 {len(fails)}건")
         L.append("=" * 78)
         for r, c in fails:
-            L.append(f"  {r.tc_id} / Step {c.step} / {c.title}")
+            L.append(f"  {r.tc_id} / Step {step_label(c.step)} / {c.title}")
             L.append(f"     기대={c.expected}")
             L.append(f"     실제={c.actual}")
     else:
@@ -596,7 +676,8 @@ def _render_html(results, meta, siblings=None):
                  "<th>기대값</th><th>실제값</th><th>판정 근거 / 비고</th></tr>")
         for r, c in fails:
             P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
-                     f"<td>{e(str(c.step))}</td><td>{e(c.title)}</td>"
+                     f"<td>{e(step_label(c.step))}</td>"
+                     f"<td>{e(c.title)}</td>"
                      f"<td><code>{e(str(c.expected))}</code></td>"
                      f"<td><code>{e(str(c.actual))}</code></td>"
                      f"<td class='note'>{e(c.note)}</td></tr>")
@@ -625,7 +706,8 @@ def _render_html(results, meta, siblings=None):
         for r, items in holds:
             labels = "<br>".join(
                 f"<span class='s {c.status}'>[{c.status}]</span> "
-                f"Step {e(str(c.step))} {e(c.title)}" for c in items)
+                f"Step {e(step_label(c.step))} {e(c.title)}"
+                for c in items)
             # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
             # 중복을 접어 **서로 다른 사유만** 남긴다.
             reasons, seen = [], set()
@@ -712,7 +794,8 @@ def _render_html(results, meta, siblings=None):
                  "<th>판정</th><th>기대값</th><th>실제값</th>"
                  "<th>판정 근거 / 비고</th></tr>")
         for c in r.checks:
-            P.append(f"<tr><td>{e(str(c.step))}</td><td>{e(c.title)}</td>"
+            P.append(f"<tr><td>{e(step_label(c.step))}</td>"
+                     f"<td>{e(c.title)}</td>"
                      f"<td class='s {c.status}'>{c.status}</td>"
                      f"<td><code>{e(str(c.expected))}</code></td>"
                      f"<td><code>{e(str(c.actual))}</code></td>"

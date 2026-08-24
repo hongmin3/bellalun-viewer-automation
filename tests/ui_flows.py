@@ -29,7 +29,7 @@ def _ensure_viewer(ctx, r, step=0):
               expected="기동 → 팝업 정리 → 로그인 → DB attach",
               actual=" / ".join(log))
     except Exception as exc:
-        r.add(step, "Viewer 기동 및 로그인 (cold start)", FAIL, actual=str(exc))
+        r.abort(step, "Viewer 기동 및 로그인 (cold start)", exc)
         return None, None
 
     guard = watchdog.DialogGuard(ui, evidence_dir=ev)
@@ -137,8 +137,8 @@ def workflow_01_local(ctx):
     try:
         dup = flows.start_examine_from_new_patient(ui, wait=10, on_duplicate="fail")
     except flows.FlowError as exc:
-        r.add(8, "Examine 진입", FAIL, actual=str(exc),
-              note="동일 Patient ID 경고. 고유 ID 생성 로직 확인 필요")
+        r.abort(8, "Examine 진입", exc,
+                note="동일 Patient ID 경고. 고유 ID 생성 로직 확인 필요")
         return r, None
     if dup:
         r.add(8, "동일 Patient ID 경고 미발생", MANUAL, actual=str(dup))

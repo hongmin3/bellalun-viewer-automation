@@ -279,5 +279,5 @@ def run(ctx):
                     "film_ocr": film_texts, "web_ocr": web_texts,
                     "web_areas": web_values, "image": similarity})
     except Exception as exc:
-        result.add(0, "TC_Basic_WorkFlow_08 실행", FAIL, actual=str(exc))
+        result.abort(0, "TC_Basic_WorkFlow_08 실행", exc)
     return result

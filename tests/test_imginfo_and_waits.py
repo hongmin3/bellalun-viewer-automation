@@ -14,6 +14,7 @@ UI 도, 제품도, 관리자 권한도 필요 없다. `TC_XIPL_compatibility_07`
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from core import imginfo
 from core import viewer_processing as vp
@@ -212,3 +213,109 @@ class TestParameterNamingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StopOnFailTests(unittest.TestCase):
+    """FAIL 이 나면 그 TC 를 즉시 중단하는 정책 (2026-08-24 사용자 지시).
+
+    "어떤 스텝에서 fail 이 났다면 이후 step 을 수행하지 말고 넘어가. 어차피 그
+    TC 는 자동화 완료 후 내가 직접 봐야 하는 거니까 전체 자동화 수행할 때 시간이
+    길어지는 걸 방지할 수 있을 것 같아."
+    """
+
+    def _policy(self, enabled):
+        """정책을 이 시험 동안만 바꾼다(끝나면 자동 복원).
+
+        `TCResult.stop_on_fail = ...` 을 직접 쓰지 않는다 —
+        `tools_check_module_attrs.py` 가 클래스 속성 대입을 결함 신호로 본다.
+        """
+        from core.result import TCResult
+        patcher = mock.patch.object(TCResult, "stop_on_fail", enabled)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_fail_raises_and_later_steps_do_not_run(self):
+        from core.result import FAIL, PASS, StepFailed, TCResult
+        self._policy(True)
+        r = TCResult("TC_TEST", "stop on fail")
+        ran = []
+        try:
+            r.assert_true(1, "첫 단계", True)
+            ran.append(1)
+            r.assert_true(2, "두 번째 단계", False)   # 여기서 중단
+            ran.append(2)
+            r.assert_true(3, "세 번째 단계", True)
+            ran.append(3)
+        except StepFailed as exc:
+            self.assertIn("Step 2", str(exc))
+        self.assertEqual([1], ran, "FAIL 이후 코드가 계속 실행됐다")
+        self.assertEqual([PASS, FAIL], [c.status for c in r.checks])
+
+    def test_disabled_policy_keeps_running(self):
+        from core.result import TCResult
+        self._policy(False)
+        r = TCResult("TC_TEST", "legacy")
+        r.assert_true(1, "a", True)
+        r.assert_true(2, "b", False)
+        r.assert_true(3, "c", True)      # 예전 동작: 계속 수행
+        self.assertEqual(3, len(r.checks))
+
+    def test_abort_records_fail_without_raising(self):
+        """`abort()` 는 이미 중단된 뒤에 부르므로 다시 예외를 던지면 안 된다."""
+        from core.result import FAIL, TCResult
+        self._policy(True)
+        r = TCResult("TC_TEST", "abort")
+        r.abort(0, "TC 진입", RuntimeError("boom"))     # 예외를 던지지 않아야 한다
+        self.assertTrue(r.aborted)
+        self.assertEqual(FAIL, r.checks[-1].status)
+        self.assertIn("RuntimeError: boom", str(r.checks[-1].actual))
+
+    def test_only_first_fail_raises(self):
+        """중단 신호는 한 번만. `finally` 안에서 FAIL 을 더 기록해도 죽지 않는다."""
+        from core.result import StepFailed, TCResult
+        self._policy(True)
+        r = TCResult("TC_TEST", "once")
+        with self.assertRaises(StepFailed):
+            r.assert_true(1, "a", False)
+        r.assert_true(2, "정리 중 기록", False)          # 두 번째는 조용히 기록만
+        self.assertEqual(2, len(r.checks))
+
+    def test_padding_does_not_raise(self):
+        """`run.py::pad_aborted_steps` 가 쓰는 `stop=False` 경로."""
+        from core.result import FAIL, TCResult
+        self._policy(True)
+        r = TCResult("TC_TEST", "padding")
+        for step in (3, 4, 5):
+            r.add(step, f"Step {step} 미수행", FAIL, stop=False,
+                  actual="수행하지 않음")
+        self.assertEqual(3, len(r.checks))
+
+
+class ExcludeRectsTests(unittest.TestCase):
+    """`click_viewer_text(exclude_rects=)` 후보 제외 로직.
+
+    20차 회귀에서 `min_y`(콤보 아래만 본다)가 **과교정**으로 드러났다 — 세 번째
+    콤보의 드롭다운 항목이 콤보보다 위에 그려져 후보가 0개가 됐다. 그래서 y 로
+    자르지 않고 형제 콤보 rect 만 제외한다. 그 판정식을 여기서 고정한다.
+    """
+
+    @staticmethod
+    def _filter(boxes, exclude):
+        def outside(box):
+            cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+            return not any(l <= cx <= r and t <= cy <= b
+                           for l, t, r, b in exclude)
+        return [b for b in boxes if outside(b)]
+
+    def test_sibling_combo_value_is_excluded_but_item_above_survives(self):
+        combo_3dn = (900, 200, 1200, 240)      # 이미 같은 값을 표시 중인 형제 콤보
+        item_above = (900, 150, 300, 20, 90.0)  # 콤보보다 **위**에 열린 드롭다운 항목
+        inside = (1000, 210, 120, 18, 95.0)     # 형제 콤보 안의 표시값
+        kept = self._filter([item_above, inside], [combo_3dn])
+        self.assertEqual([item_above], kept)
+
+    def test_min_y_would_have_dropped_the_real_item(self):
+        """과교정 재현 — y 하한을 쓰면 실제 항목이 사라진다."""
+        item_above = (900, 150, 300, 20, 90.0)
+        min_y = 240                                   # 콤보 하단
+        self.assertEqual([], [b for b in [item_above] if b[1] >= min_y])

@@ -132,7 +132,7 @@ def workflow_05(ctx):
                  "Raw/Syn 미수신은 결함이 아니다. 제품이 바뀌면 received_types로 "
                  "드러난다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_05 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_05 실행", exc)
     return r
 
 

@@ -419,7 +419,7 @@ def workflow_03(ctx):
                      "같은 ID(501/500)를 쓰는 Yes/No 를 ID 로 고르면 정반대를 누를 "
                      "수 있다(core/flows.close_film).")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_03 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_03 실행", exc)
     return r
 
 

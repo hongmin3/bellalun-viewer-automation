@@ -180,22 +180,34 @@ def find_text_boxes(image_path, wanted, scale=2):
 
 
 def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
-                      min_y=None):
+                      min_y=None, exclude_rects=None):
     """Screenshot the Viewer window, OCR-find *wanted*, and click its center.
 
     Returns True/False. Used for dynamically-named tiles/rows (e.g. a
     freshly-added Preset alias) whose position is not stable enough to
     hardcode a control ID or pixel offset for.
 
-    `min_y` 는 **창 기준 상대 y 하한**이다. 같은 문구가 화면에 여러 번 보일 때
-    엉뚱한 것을 누르지 않도록 검색 영역을 아래쪽으로 제한한다.
+    같은 문구가 화면에 여러 번 보일 때 엉뚱한 것을 누르지 않도록 후보를 좁힌다.
 
-    이 인자가 왜 필요한가 (2026-08-24 실측): `Setting > Procedure > General` 에서
-    3D-N Default 를 `DBT_Standard_Default.xtp` 로 되돌린 **직후** 3D-W 를 같은
-    값으로 되돌리려 하면, 이미 복원된 3D-N 콤보가 그 문구를 표시하고 있어
-    드롭다운 항목이 아니라 **그 콤보를 눌렀다.** 그래서 3D-W 복원이 조용히
-    실패했다(판정은 DB 대조로 잡아냈다). 드롭다운은 콤보 아래에 열리므로
-    `min_y` 를 콤보 하단으로 주면 그 충돌이 사라진다.
+      `exclude_rects` — **창 기준 상대** `(l, t, r, b)` 목록. 그 안에 중심이 들어가는
+                        박스는 후보에서 뺀다. **이쪽을 우선 쓴다.**
+      `min_y`         — 창 기준 상대 y 하한. 드롭다운이 항상 아래로 열린다고
+                        확신할 때만 쓴다.
+
+    이 인자들이 왜 필요한가 (2026-08-24 실측 2회)
+
+      1. `Setting > Procedure > General` 에서 3D-N Default 를
+         `DBT_Standard_Default.xtp` 로 되돌린 **직후** 3D-W 를 같은 값으로
+         되돌리려 하면, 이미 복원된 3D-N 콤보가 그 문구를 표시하고 있어 드롭다운
+         항목이 아니라 **그 콤보를 눌렀다.** 3D-W 복원이 조용히 실패했다
+         (판정은 DB 대조로 잡아냈다).
+      2. 그래서 `min_y`(콤보 하단)로 막았는데 **과교정**이었다 — 20차 회귀에서
+         `콤보(ID 2544) 드롭다운에서 'DBT_Standard_Default.xtp'을 찾지 못했습니다`
+         로 실패했다. 세 번째 콤보의 드롭다운은 **아래로만 열리지 않는다**(항목이
+         콤보 위쪽에 그려질 수 있다).
+
+    결론: "아래쪽만 본다"가 아니라 **"다른 콤보의 표시값을 뺀다"** 가 문제에
+    정확히 맞는 제약이다. 그래서 `exclude_rects` 를 쓴다.
     """
     win = ui.main_window()
     if not win:
@@ -206,6 +218,12 @@ def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
     boxes = find_text_boxes(tmp, wanted, scale=scale)
     if min_y is not None:
         boxes = [b for b in boxes if b[1] >= min_y]
+    if exclude_rects:
+        def outside(box):
+            cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+            return not any(l <= cx <= r and t <= cy <= b
+                           for l, t, r, b in exclude_rects)
+        boxes = [b for b in boxes if outside(b)]
     if not boxes:
         return False
     x, y, w, h, _ = max(boxes, key=lambda b: b[4])

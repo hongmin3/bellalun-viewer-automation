@@ -330,7 +330,7 @@ def run(ctx):
             r.add(6, check.title, check.status,
                   expected=check.expected, actual=check.actual, note=check.note)
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_11 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_11 실행", exc)
     finally:
         # Reject 한 상태로 끝나면 뒤따르는 TC 가 오염된다. 원복을 시도하고,
         # 못 하면 리포트에 분명히 남긴다(회귀는 DB 기준 복원으로 시작한다).

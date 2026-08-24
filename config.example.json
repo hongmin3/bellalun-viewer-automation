@@ -114,5 +114,9 @@
     "account_id": "TEST_USER_FLOW",
     "hospital_code": "HC_FLOW_01",
     "procedure_name": "PROC_FLOW_01"
+  },
+  "regression": {
+    "_comment": "stop_tc_on_fail=true 면 어떤 Step 이 FAIL 하는 순간 그 TC 를 중단하고 다음 TC 로 넘어간다(2026-08-24 사용자 지시 — 어차피 그 TC 는 사람이 직접 보므로 남은 Step 을 수행해 전체 시간을 늘리지 않는다). 남은 Step 은 리포트에 '미수행(FAIL)'로 채워진다. false 로 두면 예전처럼 끝까지 수행한다.",
+    "stop_tc_on_fail": true
   }
 }

@@ -341,7 +341,7 @@ def run(ctx):
                  "SOP Instance UID 로 대조한다. RDSR 은 위 MANUAL 참고 — Demo 촬영에서 "
                  "생성 조건이 성립하지 않는다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_07 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_07 실행", exc)
     finally:
         # **Auto Send 를 반드시 되돌린다.** 켜 둔 채 끝나면 뒤따르는 TC 가 검사를
         # 닫을 때마다 자동 전송이 일어나 Queue 판정이 오염된다.

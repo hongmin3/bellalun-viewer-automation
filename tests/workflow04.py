@@ -80,7 +80,7 @@ def workflow_04(ctx):
                      "Context Table의 Digital Mammography X-ray Image Storage - "
                      "For Presentation. 2D 영상임을 SOP Class로 확인한다.")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_04 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_04 실행", exc)
     return r
 
 

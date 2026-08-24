@@ -281,7 +281,7 @@ def run(ctx):
             r.add(5, check.title, check.status,
                   expected=check.expected, actual=check.actual, note=check.note)
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_12 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_12 실행", exc)
     finally:
         # Reject 상태로 끝나면 뒤따르는 TC 가 오염된다(기본 목록에서 검사가 빠진다).
         if rejected_here and ui is not None:

@@ -241,7 +241,7 @@ def run_mode(ctx, mode):
                  "Step과 무관하므로 DB 구조/ExposureMode로만 판정한다.")
         completed = True
     except Exception as exc:
-        r.add(0, f"{spec['tc']} 실행", FAIL, actual=str(exc))
+        r.abort(0, f"{spec['tc']} 실행", exc)
     finally:
         if ui is not None:
             try:

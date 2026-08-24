@@ -169,7 +169,7 @@ def workflow_06(ctx):
                      expected="RDSR의 식별 Tag가 원본 검사와 일치",
                      actual="RDSR 미수신")
     except Exception as exc:
-        r.add(0, "TC_Basic_WorkFlow_06 실행", FAIL, actual=str(exc))
+        r.abort(0, "TC_Basic_WorkFlow_06 실행", exc)
     return r
 
 

@@ -11,9 +11,16 @@
   분기라 이 분기에서는 unbound 다.
 
 검사 방법
-  `if args.cmd == "run-regression":` 블록의 소스를 잘라서, 그 안에서 호출되는
+  `if args.cmd == "run-regression":` 블록의 소스를 잘라서, 그 안에서 **쓰이는**
   `run_*` / `install_*` / `setup_*` 이름이 **같은 블록 안의 import 나 대입**으로
   묶여 있는지 본다.
+
+  2026-08-24 주의: 예전에는 `name(` 형태의 **호출**만 셌다. 그런데 회귀 사슬을
+  `chain = [(install_01, ...), ...]` 처럼 **함수 참조 목록**으로 바꾸자 세는 이름이
+  0개가 되어 **검사가 조용히 아무것도 하지 않게** 됐다. 참조도 바인딩이 필요하므로
+  (unbound 면 똑같이 `UnboundLocalError`) 지금은 호출과 참조를 함께 본다.
+  세는 이름이 0개면 그 자체를 실패로 본다 — 검사가 무력화된 것을 침묵으로 넘기지
+  않기 위해서다.
 
 실행: python tools_check_regression_names.py
 """
@@ -61,11 +68,24 @@ bound |= {a.asname or a.name.split(".")[0]
 bound |= {a.asname or a.name
           for n in tree.body if isinstance(n, ast.ImportFrom) for a in n.names}
 
-called = set(re.findall(r"\b((?:run|install|setup)_\w+)\s*\(", block))
-missing = sorted(called - bound)
+# 호출(`name(`)과 **참조**(`name,` / `(name,` / `[name`)를 함께 본다.
+# 참조만 해도 바인딩이 없으면 UnboundLocalError 다.
+PATTERN = r"\b((?:run|install|setup)_\w+)\b"
+# **import 줄을 먼저 걷어낸다.** 회귀 블록은 쓰는 이름을 그 블록 안에서
+# import 하므로, import 문에 나온 이름을 그냥 빼면 남는 게 없어진다
+# (2026-08-24 실수). 검사하려는 것은 'import 가 아닌 곳에서 쓰이는 이름' 이다.
+IMPORT_LINE = r"\s*(?:from\s+\S+\s+)?import\s"
+body = "\n".join(line for line in block.split("\n")
+                 if not re.match(IMPORT_LINE, line))
+used = set(re.findall(PATTERN, body))
+missing = sorted(used - bound)
 
 print(f"회귀 블록: run.py {start + 1}~{end}행")
-print(f"호출하는 이름 {len(called)}개 / 블록 안에서 묶인 이름 {len(bound)}개")
+print(f"쓰는 이름 {len(used)}개 / 블록 안에서 묶인 이름 {len(bound)}개")
+if not used:
+    print("\n*** 쓰는 이름이 0개다 — 검사가 아무것도 확인하지 못하고 있다. ***")
+    print("회귀 블록 추출 규칙이나 이름 패턴이 코드와 어긋났는지 확인하십시오.")
+    sys.exit(1)
 if missing:
     print("\n블록 안에서 import/대입되지 않은 이름:")
     for name in missing:
