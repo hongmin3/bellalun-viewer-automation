@@ -544,6 +544,18 @@ def ensure_storage_transfer_syntax(ctx, ui, timeout=8, tesseract_exe=None):
 
 def setup_all(ctx, kinds=None):
     r = TCResult("DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결")
+    # **이 함수는 첫 FAIL 에서 멈추지 않는다.** 아래 루프는 MWL/Storage/Print 를
+    # 차례로 등록하며 실패해도 다음 종류로 넘어가도록 설계돼 있다 — 어느 서버가
+    # 안 되는지 전부 보여 주는 것이 진단에 필요하기 때문이다.
+    #
+    # 2026-08-24 21차 회귀에서 전역 중단 정책(`TCResult.stop_on_fail`)이 이 루프를
+    # 첫 실패에서 끊어 **DICOM 서버가 하나도 등록되지 않았고**, 그 뒤 19개 TC 가
+    # 연쇄 실패했다(80분 낭비). 정책은 "TC 하나의 남은 Step 을 건너뛴다"는 뜻이지
+    # "전제 준비를 반만 하고 만다"는 뜻이 아니다.
+    #
+    # 대신 **회귀는 이 결과가 FAIL 이면 즉시 중단한다**(`run.py` 의 전제 게이트).
+    # 서버가 등록되지 않으면 이후 시험에 의미가 없다(2026-08-25 사용자 지시).
+    r.stop_on_fail = False
     kinds = set(kinds or ("MWL", "Storage", "Print"))
 
     # DICOM setup is the first UI phase of run-auto.  Never assume that the

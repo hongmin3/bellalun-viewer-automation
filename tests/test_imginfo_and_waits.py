@@ -319,3 +319,70 @@ class ExcludeRectsTests(unittest.TestCase):
         item_above = (900, 150, 300, 20, 90.0)
         min_y = 240                                   # 콤보 하단
         self.assertEqual([], [b for b in [item_above] if b[1] >= min_y])
+
+
+class PreconditionGateTests(unittest.TestCase):
+    """전제(환경 복원·DICOM 등록)가 실패하면 회귀를 즉시 중단한다.
+
+    2026-08-25 사용자 지시: "전제 준비부터 뻑나면 그냥 바로 전체 회귀를 종료해주라.
+    서버들이 정상적으로 등록이 안되면 테스트의 의미가 없어."
+
+    21차 회귀가 그 낭비를 실측으로 보여 줬다 — `DICOM_Server_Setup` 실패 뒤에도
+    80분을 더 돌며 19개 TC 를 연쇄 FAIL 로 채웠다.
+    """
+
+    PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
+
+    @staticmethod
+    def _result(tc_id, status):
+        from core.result import PASS, TCResult
+        r = TCResult(tc_id, tc_id)
+        r.stop_on_fail = False          # 전제는 첫 실패에서 멈추지 않는다
+        r.add(1, "확인", status)
+        return r
+
+    def _chain_stops_at(self, statuses):
+        """`run.py` 회귀 사슬의 게이트 판정과 같은 로직."""
+        ran = []
+        for tc_id, status in statuses:
+            ran.append(tc_id)
+            r = self._result(tc_id, status)
+            if tc_id in self.PRECONDITIONS and r.verdict == "FAIL":
+                return ran, r
+        return ran, None
+
+    def test_setup_failure_stops_the_chain_immediately(self):
+        from core.result import FAIL, PASS
+        ran, broken = self._chain_stops_at([
+            ("AUTOMATION_ENVIRONMENT_RESET", PASS),
+            ("DICOM_Server_Setup", FAIL),
+            ("TC_Basic_WorkFlow_01", PASS),
+        ])
+        self.assertIsNotNone(broken)
+        self.assertEqual("DICOM_Server_Setup", broken.tc_id)
+        self.assertNotIn("TC_Basic_WorkFlow_01", ran,
+                         "전제가 깨졌는데 본 시험이 계속 수행됐다")
+
+    def test_normal_tc_failure_does_not_stop_the_chain(self):
+        from core.result import FAIL, PASS
+        ran, broken = self._chain_stops_at([
+            ("AUTOMATION_ENVIRONMENT_RESET", PASS),
+            ("DICOM_Server_Setup", PASS),
+            ("TC_Basic_WorkFlow_01", FAIL),
+            ("TC_Basic_WorkFlow_02", PASS),
+        ])
+        self.assertIsNone(broken)
+        self.assertIn("TC_Basic_WorkFlow_02", ran,
+                      "일반 TC 실패는 회귀를 멈추면 안 된다")
+
+    def test_setup_records_every_kind_before_the_gate(self):
+        """`setup_all` 은 첫 실패에서 멈추지 않고 세 종류를 다 보고해야 한다."""
+        from core.result import FAIL, PASS, TCResult
+        r = TCResult("DICOM_Server_Setup", "setup")
+        r.stop_on_fail = False
+        for kind, status in (("MWL", FAIL), ("Storage", PASS), ("Print", PASS)):
+            r.add(1, f"{kind} 설정 화면 준비", status)
+        self.assertEqual(3, len(r.checks),
+                         "전제 준비가 첫 실패에서 끊기면 어느 서버가 문제인지 "
+                         "알 수 없다")
+        self.assertEqual("FAIL", r.verdict)

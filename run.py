@@ -648,6 +648,10 @@ def main():
         from core.result import TCResult, PASS, FAIL
         from core import viewer_processing as vp
         reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")
+        # 전제 준비는 첫 실패에서 멈추지 않는다 — DB 복원·서비스 기동·시험 파라미터
+        # 재생성 중 **무엇이 안 됐는지 전부** 보여 줘야 진단이 된다. 대신 아래
+        # 전제 게이트가 회귀 자체를 중단시킨다.
+        reset.stop_on_fail = False
         if has_baseline(ctx):
             try:
                 outcome = restore_baseline(ctx)
@@ -730,8 +734,49 @@ def main():
             (run_kiosk, "TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher"),
             (run_xipl, "TC_XIPL_compatibility", "XIPL 연동 01~07"),
         ]
+        # **전제 게이트** (2026-08-25 사용자 지시)
+        #   "전제 준비부터 뻑나면 그냥 바로 전체 회귀를 종료해주라. 서버들이
+        #    정상적으로 등록이 안되면 테스트의 의미가 없어."
+        #
+        # 21차 회귀가 정확히 그 낭비를 보여 줬다 — `DICOM_Server_Setup` 이 실패한
+        # 뒤에도 80분을 더 돌며 19개 TC 를 연쇄 FAIL 로 채웠다. 전제가 깨지면
+        # 이후 판정은 제품에 대해 아무것도 말해 주지 않는다.
+        PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
+        aborted_precondition = None
         for fn, tc_id, title in chain:
-            results.extend(guarded(fn, ctx, tc_id, title))
+            produced = guarded(fn, ctx, tc_id, title)
+            results.extend(produced)
+            if tc_id in PRECONDITIONS:
+                broken = [x for x in produced if x.verdict == "FAIL"]
+                if broken:
+                    aborted_precondition = broken[0]
+                    break
+        if aborted_precondition is None:
+            # 환경 복원 결과도 전제다(사슬보다 앞에서 만들어진다).
+            if any(x.tc_id == "AUTOMATION_ENVIRONMENT_RESET"
+                   and x.verdict == "FAIL" for x in results):
+                aborted_precondition = next(
+                    x for x in results
+                    if x.tc_id == "AUTOMATION_ENVIRONMENT_RESET")
+        if aborted_precondition is not None:
+            fails = [f"Step {c.step} {c.title}: {c.actual}"
+                     for c in aborted_precondition.checks if c.status == "FAIL"]
+            print()
+            print("!" * 74)
+            print(f"  전제 준비 실패 — 전체 회귀를 중단합니다: "
+                  f"{aborted_precondition.tc_id}")
+            for line in fails[:6]:
+                print(f"    - {str(line)[:160]}")
+            print("  서버/환경이 준비되지 않으면 이후 판정은 제품에 대해 아무것도 "
+                  "말해 주지 않습니다.")
+            print("  조치 후 다시 실행하십시오: python run.py run-regression")
+            print("!" * 74)
+            shutdown = shutdown_viewer("전제 준비 실패로 회귀 중단")
+            print(f"  viewer-shutdown: {shutdown}")
+            elapsed = (datetime.now() - regression_started).total_seconds() / 60
+            code = finish(ctx, results)
+            announce_done(results, elapsed, LAST_REPORT_PATHS)
+            return code or 1
         # **`AUTOMATION_3D_ACQUISITION_3DN/_3DW` 는 회귀에서 제외한다**
         # (2026-08-21 사용자 지시). 개정본 TC 가 아니고, 판정도 "장비 없이는
         # 확인 불가(MANUAL)"로 끝나 상세 결과에 실을 내용이 없다. 3D 촬영

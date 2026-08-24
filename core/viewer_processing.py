@@ -180,7 +180,7 @@ def find_text_boxes(image_path, wanted, scale=2):
 
 
 def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
-                      min_y=None, exclude_rects=None):
+                      min_y=None, exclude_rects=None, candidate=0):
     """Screenshot the Viewer window, OCR-find *wanted*, and click its center.
 
     Returns True/False. Used for dynamically-named tiles/rows (e.g. a
@@ -206,8 +206,16 @@ def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
          로 실패했다. 세 번째 콤보의 드롭다운은 **아래로만 열리지 않는다**(항목이
          콤보 위쪽에 그려질 수 있다).
 
-    결론: "아래쪽만 본다"가 아니라 **"다른 콤보의 표시값을 뺀다"** 가 문제에
-    정확히 맞는 제약이다. 그래서 `exclude_rects` 를 쓴다.
+      3. 그래서 `exclude_rects`(형제 콤보 rect 제외)로 바꿨는데 **그것도 틀렸다** —
+         21차 회귀에서 이번에는 3D-N 원복이 실패했다. 3D-N 드롭다운은 아래로
+         열리며 **3D-W 콤보를 덮는다.** 형제 콤보 rect 를 빼면 그 위에 그려진
+         진짜 항목까지 지워진다.
+
+    **결론: 좌표로 후보를 고르려는 시도는 세 번 다 틀렸다.** 드롭다운이 어디에
+    어떻게 그려지는지 가정할 수 없다. 그래서 호출부가 **누른 뒤 결과를 확인하고
+    틀리면 `candidate` 를 올려 다음 후보로 재시도**한다
+    (`tests/xipl_flows._click_general_param_combo`). `min_y`/`exclude_rects` 는
+    남겨 두지만 **가정이 확실할 때만** 쓴다.
     """
     win = ui.main_window()
     if not win:
@@ -226,7 +234,14 @@ def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
         boxes = [b for b in boxes if outside(b)]
     if not boxes:
         return False
-    x, y, w, h, _ = max(boxes, key=lambda b: b[4])
+    # `candidate` 는 **후보가 여러 개일 때 몇 번째를 누를지**다. 같은 문구가 여러
+    # 곳에 보이는 화면에서, 한 번 눌러 보고 틀리면 다음 후보로 재시도하기 위한
+    # 것이다(호출부가 결과를 확인한 뒤 올려 준다). 좌표를 가정하지 않고
+    # **신뢰도 높은 순서**로 시도한다.
+    ordered = sorted(boxes, key=lambda b: b[4], reverse=True)
+    if candidate >= len(ordered):
+        return False
+    x, y, w, h, _ = ordered[candidate]
     ui.click((win.rect[0] + x + w / 2, win.rect[1] + y + h / 2), settle=settle)
     return True
 

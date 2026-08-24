@@ -749,51 +749,68 @@ def compatibility_03(ctx, session):
     return r
 
 
-def _click_general_param_combo(ui, ctrl_id, filename, wait=1.0):
+def _general_combo_shows(ui, ctrl_id, filename):
+    """콤보가 지금 `filename` 을 표시하고 있는가.
+
+    커스텀 콤보의 `WM_GETTEXT` 는 값을 **앞 8자로 잘라서** 돌려준다(실측:
+    `2227` -> `Pure Whi`). 잘려도 결정적이므로 **접두사**로 본다.
+
+    읽을 수 없는 환경(빈 문자열)에서는 `None` 을 돌려준다 — 그때는 확인을
+    건너뛰고 DB 대조에 맡긴다. 없는 근거로 실패시키지 않는다.
+    """
+    hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+    if not hits:
+        return None
+    shown = (ui.get_text(hits[0]) or "").strip()
+    if not shown or shown in ("StaticText", "TextButton", "ItemWnd"):
+        return None
+    key = shown.upper().rstrip(".")
+    return len(key) >= 4 and filename.upper().startswith(key)
+
+
+def _click_general_param_combo(ui, ctrl_id, filename, wait=1.0, attempts=4):
     """Setting > Procedure > General 콤보를 열고 filename 항목을 고른다.
 
-    **다른 Default Parameter 콤보의 표시값을 후보에서 뺀다.** 같은 화면에
-    2D/3D-N/3D-W 콤보가 나란히 있어서, 다른 콤보가 이미 같은 파일명을 표시하고
-    있으면 드롭다운 항목 대신 그것을 누른다.
+    **좌표로 후보를 고르려던 시도는 세 번 다 틀렸다** — 같은 화면에 2D/3D-N/3D-W
+    콤보가 나란히 있고, 다른 콤보가 이미 같은 파일명을 표시하고 있으면 그것을
+    누를 수 있기 때문이다.
 
-    실측 경위 (둘 다 2026-08-24)
-      1. 3D-N 을 `DBT_Standard_Default.xtp` 로 되돌린 직후 3D-W 를 같은 값으로
-         되돌리려 하니 **3D-N 콤보를 눌러** 복원이 조용히 실패했다(DB 대조가
-         잡아냈다).
-      2. 그래서 "콤보 아래쪽만 본다"(`min_y`)로 막았는데 **과교정**이었다 —
-         20차 회귀에서 세 번째 콤보(2544)의 드롭다운 항목이 콤보보다 위에 그려져
-         `찾지 못했습니다` 로 실패했다.
+      1. 제약 없음 -> 3D-W 복원이 **3D-N 콤보**를 눌러 조용히 실패(20차 회귀)
+      2. `min_y`(콤보 아래만) -> 세 번째 콤보의 드롭다운은 위로도 열려 **후보 0개**
+      3. `exclude_rects`(형제 콤보 제외) -> 3D-N 드롭다운이 3D-W 콤보를 **덮어서**
+         진짜 항목까지 지워짐(21차 회귀)
 
-    그래서 y 로 자르지 않고 **형제 콤보의 rect 만 제외**한다. 문제에 정확히 맞는
-    제약이고 드롭다운이 어느 방향으로 열려도 동작한다.
+    그래서 좌표를 가정하지 않는다. **누른 뒤 콤보 표시값으로 확인하고, 틀리면
+    다음 후보로 다시 누른다.** 표시값을 읽을 수 없으면 확인을 건너뛰고 호출부의
+    DB 대조에 맡긴다(`_set_default_recon`).
     """
     combo = [c for c in ui.by_id(ctrl_id) if c.visible]
     if not combo:
         raise flows.FlowError(f"Default Parameter 콤보(ID {ctrl_id})를 찾지 못했습니다.")
-    window = ui.main_window()
-    origin = (window.rect[0], window.rect[1]) if window else (0, 0)
-    siblings = []
-    for other in (flows.PROCEDURE_GENERAL_PARAM_2D,
-                  flows.PROCEDURE_GENERAL_PARAM_3D_N,
-                  flows.PROCEDURE_GENERAL_PARAM_3D_W):
-        if other == ctrl_id:
-            continue
-        for control in ui.by_id(other):
-            if not control.visible:
-                continue
-            left, top, right, bottom = control.rect
-            siblings.append((left - origin[0], top - origin[1],
-                             right - origin[0], bottom - origin[1]))
-    ui.click(combo[0], settle=wait)
-    if not vp.click_viewer_text(ui, filename, settle=wait,
-                                exclude_rects=siblings):
-        cx, cy = combo[0].center
-        ui.wheel((cx, cy + 60), -3, settle=.3)
-        if not vp.click_viewer_text(ui, filename, settle=wait,
-                                    exclude_rects=siblings):
-            raise flows.FlowError(
-                f"콤보(ID {ctrl_id}) 드롭다운에서 '{filename}'을 찾지 못했습니다"
-                f"(형제 콤보 표시값 제외 영역={siblings}).")
+    tried = []
+    for candidate in range(attempts):
+        opened = [c for c in ui.by_id(ctrl_id) if c.visible]
+        if not opened:
+            break
+        ui.click(opened[0], settle=wait)
+        picked = vp.click_viewer_text(ui, filename, settle=wait,
+                                      candidate=candidate)
+        if not picked and candidate == 0:
+            # 목록이 길어 대상이 화면 밖일 수 있다.
+            cx, cy = opened[0].center
+            ui.wheel((cx, cy + 60), -3, settle=.3)
+            picked = vp.click_viewer_text(ui, filename, settle=wait)
+        if not picked:
+            tried.append({"candidate": candidate, "result": "후보 없음"})
+            break
+        shows = _general_combo_shows(ui, ctrl_id, filename)
+        tried.append({"candidate": candidate, "shows": shows})
+        if shows is not False:      # True(일치) 또는 None(읽을 수 없음)
+            return {"attempts": candidate + 1, "verified": shows, "tried": tried}
+        # 다른 것을 눌렀다. 다음 후보로 다시 시도한다.
+        time.sleep(.4)
+    raise flows.FlowError(
+        f"콤보(ID {ctrl_id})에서 '{filename}'을 고르지 못했습니다. 시도={tried}")
 
 
 def _select_preset_column_item(ui, x, row_index, wait=.5):
@@ -1656,12 +1673,34 @@ def _procedure_defaults(ctx):
     return dict(row or {})
 
 
-def _set_default_recon(ui, mode, filename):
-    """Setting > Procedure > General 에서 한 모드의 Default Recon Parameter 변경."""
-    flows.open_procedure_setting(ui, "general")
-    _click_general_param_combo(ui, mode["combo"], filename)
-    flows.setting_update(ui)
-    flows.confirm_setting_dialog(ui)
+def _set_default_recon(ui, mode, filename, ctx=None, attempts=3):
+    """Setting > Procedure > General 에서 한 모드의 Default Recon Parameter 변경.
+
+    `ctx` 를 주면 **저장 후 DB 로 확인하고 어긋나면 다시 시도**한다. 화면 조작이
+    조용히 빗나가는 것을 마지막에 잡는 결정적 사후 확인이다 —
+    `PROCEDURE.PROCEDURE_COMMON` 은 추측이 개입하지 않는 근거다.
+
+    2026-08-24/25 에 이 자리에서 두 번 조용히 실패했다(콤보 후보를 좌표로 고르려던
+    시도). 이제 `_click_general_param_combo` 가 표시값으로 한 번, 여기서 DB 로 한 번
+    확인한다.
+    """
+    detail = []
+    for attempt in range(1, attempts + 1):
+        flows.open_procedure_setting(ui, "general")
+        picked = _click_general_param_combo(ui, mode["combo"], filename)
+        flows.setting_update(ui)
+        flows.confirm_setting_dialog(ui)
+        if ctx is None:
+            return {"attempts": attempt, "picked": picked, "verified": None}
+        saved = _procedure_defaults(ctx).get(mode["db_column"])
+        detail.append({"attempt": attempt, "picked": picked, "db": saved})
+        if saved == filename:
+            return {"attempts": attempt, "picked": picked, "verified": True,
+                    "detail": detail}
+        time.sleep(.5)
+    raise flows.FlowError(
+        f"{mode['label']} Default Recon Parameter 를 {filename!r} 로 저장하지 "
+        f"못했습니다(DB {mode['db_column']} 가 따라오지 않음). 시도={detail}")
 
 
 def _recon_combos_present(ui):
@@ -1878,7 +1917,7 @@ def compatibility_07(ctx):
             return r
 
         for index, mode in enumerate(XIPL07_MODES, start=1):
-            _set_default_recon(ui, mode, mode["param"])
+            _set_default_recon(ui, mode, mode["param"], ctx=ctx)
             saved = _procedure_defaults(ctx)
             if index == 1:
                 r.assert_equal(
@@ -2131,7 +2170,7 @@ def _restore_default_recon(ui, ctx, before_defaults):
             detail[mode["label"]] = "원래 값이 비어 있어 복원 대상 아님"
             continue
         try:
-            _set_default_recon(ui, mode, original)
+            _set_default_recon(ui, mode, original, ctx=ctx)
             detail[mode["label"]] = f"{original} 로 복원 시도"
         except Exception as exc:                       # noqa: BLE001
             detail[mode["label"]] = f"복원 실패: {exc}"
