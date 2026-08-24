@@ -639,7 +639,9 @@ class ViewerUi:
 
         # 비밀번호는 실제 키 입력으로 넣는다. WM_SETTEXT는 앱이 입력으로
         # 인지하지 못해 조용히 실패하는 경우가 있다(1.0.12에서 실제 발생).
-        self.type_text(pw[0], password)
+        # 물리 키 입력은 반대로 **유실될 수 있어서** 넣은 뒤 길이를 대조한다
+        # (`fill_password` 주석 참고 — 2026-08-24 에 전부 유실된 실측 사례).
+        self.last_password_fill = self.fill_password(pw[0], password)
         self.click(btn[0], settle=1.2)
 
         # 전환 중 컨트롤이 잠깐 사라질 수 있으므로 연속 2회 확인으로 확정한다.
@@ -655,22 +657,153 @@ class ViewerUi:
             time.sleep(0.7)
         return False
 
+    def wait_screen_ready(self, timeout=180, poll=1.0, sweep=True):
+        """기동 후 **화면이 실제로 올라올 때까지** 기다린다.
+
+        `launch()` 의 고정 대기(기본 15초)만으로는 부족하다. 2026-08-24 실측:
+        `reset-environment` 직후 Viewer 가 꺼진 상태에서 `run-xipl-07` 을 단독
+        실행했더니, 로그인 화면은 떴지만 아직 입력을 받지 못해 **비밀번호 문자가
+        전부 유실**됐다(PW 필드 길이 0). `flows.cold_start` 는 같은 이유로 이미
+        `startup_timeout` 만큼 화면을 기다리는데 이 헬퍼에는 그것이 없었다.
+
+        **기다리는 동안 팝업을 계속 걷어낸다**(`sweep`). 기동 직후 뜨는
+        `Running in demo mode.` 모달이 로그인 화면을 가리기 때문에, 한 번만 닫고
+        기다리면 그 사이에 뜬 팝업에 막혀 그대로 시간 초과된다(2026-08-24 실측:
+        180초를 다 쓰고 실패했다). `cold_start` 도 대기 루프 안에서 매 회
+        `DialogGuard.sweep` 을 부른다.
+
+        반환: `"login"`(로그인 화면) / `"loaded"`(이미 로그인된 화면) / `""`(시간 초과)
+        """
+        end = time.time() + timeout
+        while time.time() < end:
+            if sweep and self.dialog():
+                self.dismiss_dialog(timeout=2)
+            if self.at_login_screen():
+                return "login"
+            window = self.main_window()
+            if window and len(self.controls(window, max_depth=3)) >= 5:
+                return "loaded"
+            time.sleep(poll)
+        return ""
+
+    #: 비밀번호 타이핑 재시도 횟수. `flows.cold_start` 의 `login_attempts` 와 같은
+    #: 이유다 — 포커스가 잡히기 전 물리 키 입력은 유실될 수 있다.
+    PW_TYPE_ATTEMPTS = 3
+
+    def fill_password(self, control, password):
+        """비밀번호를 넣고 **실제로 들어갔는지 길이로 확인**한다.
+
+        `type_text` 는 물리 키 입력이라 조용히 유실될 수 있다(위 주석의 실측 사례).
+        로그인 화면의 PW 필드는 표준 `Edit`(`2002`)이라 `WM_GETTEXT` 로 **길이를
+        읽을 수 있다**(2026-08-24 확인). 그래서 넣은 뒤 글자 수를 대조하고 어긋나면
+        다시 타이핑한다 — 조작 후 확인을 붙이는 규칙(`AGENTS.md` 3절)의 적용이다.
+
+        **값은 절대 읽어서 로그로 남기지 않는다. 길이만 본다.**
+
+        길이를 읽을 수 없는 환경(빈 문자열만 돌려주는 빌드)에서도 진행을 막지
+        않는다. 최종 성공 판정은 `login()` 의 "로그인 화면을 벗어났는가" 가 한다.
+        """
+        want = len(password)
+        got = -1
+        for attempt in range(1, self.PW_TYPE_ATTEMPTS + 1):
+            self.activate()
+            self.type_text(control, password)
+            got = len(self.get_text(control) or "")
+            if got == want:
+                return {"attempts": attempt, "chars": got, "verified": True}
+            time.sleep(1.0)
+        return {"attempts": self.PW_TYPE_ATTEMPTS, "chars": got,
+                "expected": want, "verified": False}
+
+    def sweep_dialogs(self, rounds=4, timeout=6):
+        """떠 있는 안내 팝업을 **없어질 때까지** 닫는다(상한 있음).
+
+        `dismiss_dialog` 을 한 번만 부르면 **연달아 뜨는 팝업**을 놓친다.
+        `flows.cold_start` 는 같은 이유로 `watchdog.DialogGuard.sweep` 을 여러
+        시점에 부른다. 이 헬퍼는 그 최소판이다.
+
+        반환: 닫은 팝업 문구 목록(없으면 빈 목록).
+        """
+        closed = []
+        wait = timeout
+        for _ in range(rounds):
+            message = self.dismiss_dialog(timeout=wait)
+            if not message:
+                break
+            closed.append(message)
+            wait = 2                # 첫 팝업 뒤에는 짧게만 더 확인한다
+        return closed
+
     def ensure_ready(self, exe_path=None, user_id=None, password=None,
-                     dismiss_demo=True):
-        """Viewer 기동 → Demo 안내 팝업 닫기 → 로그인까지 한 번에 처리한다."""
+                     dismiss_demo=True, startup_timeout=180):
+        """Viewer 기동 → Demo 안내 팝업 닫기 → 로그인까지 한 번에 처리한다.
+
+        **로그인하지 못하면 예외를 던진다.** 예전에는 실패를 `notes` 에만 적고
+        그냥 반환했는데, 아무도 그 note 를 읽지 않아 호출부가 로그인 화면에서
+        계속 진행했다. 그러면 15초 뒤 `open_main_menu` 가
+        `"메인 메뉴 버튼(2015)을 찾지 못했습니다"` 로 죽어 **원인과 무관한
+        메시지**가 남는다(2026-08-24 실측). 실패는 실패한 자리에서 드러낸다.
+        """
         notes = []
+        launched = False
         if not self.pid and exe_path:
             self.launch(exe_path)
             notes.append("Viewer 실행")
+            launched = True
         if not self.pid:
             raise RuntimeError("Viewer가 실행되어 있지 않습니다.")
+        # **순서가 중요하다.** 기동 팝업을 먼저 걷어내야 로그인 화면이 보인다.
+        # 화면을 먼저 기다리면 `Running in demo mode.` 모달에 가려 시간 초과된다.
         if dismiss_demo:
-            msg = self.dismiss_dialog(timeout=8)
-            if msg:
-                notes.append(f"팝업 닫음: {msg}")
+            closed = self.sweep_dialogs(timeout=8)
+            if closed:
+                notes.append("로그인 전 팝업 닫음: " + "; ".join(closed))
+        if launched:
+            state = self.wait_screen_ready(timeout=startup_timeout)
+            notes.append(f"화면 준비: {state or '시간 초과'}")
+            if not state:
+                raise RuntimeError(
+                    f"Viewer가 {startup_timeout}초 안에 로그인/준비 화면을 "
+                    "표시하지 않았습니다. 기동 실패를 로그인 완료로 간주하지 않고 "
+                    "안전하게 중단합니다.")
         if user_id and password:
             ok = self.login(user_id, password)
-            notes.append("로그인 성공" if ok else "로그인 실패")
+            if not ok:
+                # `core/ui.py` 는 모듈 최상단에 `os`/`PIL` 을 두지 않는다
+                # (`capture_dialog` 과 같은 지역 import 방식을 따른다).
+                import os
+                from PIL import ImageGrab
+                shot = os.path.join("Evidence", "ui", "login_not_completed.png")
+                try:
+                    window = self.main_window()
+                    box = window.rect if window else None
+                    os.makedirs(os.path.dirname(shot) or ".", exist_ok=True)
+                    ImageGrab.grab(bbox=box, all_screens=True).save(shot)
+                    notes.append(f"실패 화면 캡처: {shot}")
+                except Exception:                          # noqa: BLE001
+                    shot = ""
+                raise RuntimeError(
+                    f"로그인이 완료되지 않았습니다(ID={user_id!r}). 로그인 화면을 "
+                    f"벗어나지 못했습니다. {'캡처: ' + shot if shot else ''} "
+                    f"진행 기록={notes}")
+            notes.append("로그인 성공")
+            # **로그인 직후에도 팝업을 걷어낸다.** Demo 모드 안내
+            # (`Running in demo mode.`)는 로그인 *뒤에* 뜬다(2026-08-24 실측).
+            # 예전에는 로그인 전에만 한 번 닫았기 때문에 이 모달이 그대로 남아
+            # 이후 모든 클릭을 삼켰고, 15초 뒤 `open_main_menu` 가 "메인 메뉴
+            # 버튼(2015)을 찾지 못했습니다" 로 죽었다 — 원인과 무관한 메시지였다.
+            if dismiss_demo:
+                closed = self.sweep_dialogs(timeout=8)
+                if closed:
+                    notes.append("로그인 후 팝업 닫음: " + "; ".join(closed))
+            # 팝업을 걷어낸 뒤 **실제로 Viewer 화면이 올라왔는지** 확인한다.
+            # 여기서 드러내지 않으면 다음 조작이 엉뚱한 메시지로 죽는다.
+            state = self.wait_screen_ready(timeout=60)
+            notes.append(f"로그인 후 화면: {state or '시간 초과'}")
+            if state != "loaded":
+                raise RuntimeError(
+                    "로그인 후 Viewer 화면이 올라오지 않았습니다"
+                    f"(상태={state or '시간 초과'}). 진행 기록={notes}")
         return notes
 
     # --- Demo 가상 촬영 -------------------------------------------------

@@ -179,12 +179,23 @@ def find_text_boxes(image_path, wanted, scale=2):
     return []
 
 
-def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None):
+def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None,
+                      min_y=None):
     """Screenshot the Viewer window, OCR-find *wanted*, and click its center.
 
     Returns True/False. Used for dynamically-named tiles/rows (e.g. a
     freshly-added Preset alias) whose position is not stable enough to
     hardcode a control ID or pixel offset for.
+
+    `min_y` 는 **창 기준 상대 y 하한**이다. 같은 문구가 화면에 여러 번 보일 때
+    엉뚱한 것을 누르지 않도록 검색 영역을 아래쪽으로 제한한다.
+
+    이 인자가 왜 필요한가 (2026-08-24 실측): `Setting > Procedure > General` 에서
+    3D-N Default 를 `DBT_Standard_Default.xtp` 로 되돌린 **직후** 3D-W 를 같은
+    값으로 되돌리려 하면, 이미 복원된 3D-N 콤보가 그 문구를 표시하고 있어
+    드롭다운 항목이 아니라 **그 콤보를 눌렀다.** 그래서 3D-W 복원이 조용히
+    실패했다(판정은 DB 대조로 잡아냈다). 드롭다운은 콤보 아래에 열리므로
+    `min_y` 를 콤보 하단으로 주면 그 충돌이 사라진다.
     """
     win = ui.main_window()
     if not win:
@@ -193,6 +204,8 @@ def click_viewer_text(ui, wanted, settle=1.0, scale=2, evidence_path=None):
         os.environ.get("TEMP", "."), "bellalun_click_text_probe.png")
     capture_viewer_window(ui, tmp)
     boxes = find_text_boxes(tmp, wanted, scale=scale)
+    if min_y is not None:
+        boxes = [b for b in boxes if b[1] >= min_y]
     if not boxes:
         return False
     x, y, w, h, _ = max(boxes, key=lambda b: b[4])
@@ -587,10 +600,28 @@ def add_view_position(ui, mode):
            and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
     if not add:
         raise RuntimeError("Procedure add button (1171) not found")
-    ui.click(add[0], settle=1)
-    dlg = ui.wait_dialog(timeout=6)
+    # `+` 클릭이 삼켜지는 경우가 있어 **다이얼로그가 열렸는지 확인하고 재시도**한다.
+    #
+    # 2026-08-24 실측: Demo 촬영 직후(고정 대기 없이 DB 도착만 기다린 뒤) `+` 를
+    # 누르니 툴팁("Add View Position")만 뜨고 다이얼로그가 열리지 않았다. 캡처를
+    # 보니 마우스는 버튼 위에 있었다 — 즉 좌표는 맞고 **클릭이 삼켜졌다.** 제품이
+    # 촬영 후처리를 끝내는 중이었다. DB 행 도착은 "다음 UI 조작을 받을 준비"까지
+    # 보장하지 않는다. 앞에 눌린 것이 없는지 확인하고(모달 정리) 상한을 두어
+    # 다시 누른다.
+    dlg = None
+    attempts = 3
+    for attempt in range(1, attempts + 1):
+        if ui.dialog():
+            ui.dismiss_dialog(timeout=2)
+        ui.click(add[0], settle=1)
+        dlg = ui.wait_dialog(timeout=6)
+        if dlg:
+            break
+        time.sleep(1.5)
     if not dlg:
-        raise RuntimeError("View Position dialog did not open")
+        raise RuntimeError(
+            f"View Position dialog did not open after {attempts} attempts "
+            f"(button 1171 rect={add[0].rect})")
     l, t, r, b = dlg.rect
     width, height = r - l, b - t
     if width < 500 or height < 450:

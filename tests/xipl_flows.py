@@ -750,16 +750,28 @@ def compatibility_03(ctx, session):
 
 
 def _click_general_param_combo(ui, ctrl_id, filename, wait=1.0):
-    """Setting > Procedure > General 콤보를 열고 filename 항목을 고른다."""
+    """Setting > Procedure > General 콤보를 열고 filename 항목을 고른다.
+
+    **드롭다운 항목만 후보로 본다** (`min_y` = 콤보 하단). 같은 화면에 2D/3D-N/3D-W
+    콤보가 나란히 있어서, 다른 콤보가 이미 같은 파일명을 표시하고 있으면 그것을
+    누를 수 있다. 2026-08-24 실측: 3D-N 을 `DBT_Standard_Default.xtp` 로 되돌린
+    직후 3D-W 를 같은 값으로 되돌리려 하니 3D-N 콤보를 눌러 복원이 조용히
+    실패했다(DB 대조가 잡아냈다).
+    """
     combo = [c for c in ui.by_id(ctrl_id) if c.visible]
     if not combo:
         raise flows.FlowError(f"Default Parameter 콤보(ID {ctrl_id})를 찾지 못했습니다.")
+    window = ui.main_window()
+    # 창 기준 상대 y. 드롭다운은 콤보 아래로 열린다.
+    below = combo[0].rect[3] - (window.rect[1] if window else 0)
     ui.click(combo[0], settle=wait)
-    if not vp.click_viewer_text(ui, filename, settle=wait):
+    if not vp.click_viewer_text(ui, filename, settle=wait, min_y=below):
         cx, cy = combo[0].center
         ui.wheel((cx, cy + 60), -3, settle=.3)
-        if not vp.click_viewer_text(ui, filename, settle=wait):
-            raise flows.FlowError(f"콤보 목록에서 '{filename}'을 찾지 못했습니다.")
+        if not vp.click_viewer_text(ui, filename, settle=wait, min_y=below):
+            raise flows.FlowError(
+                f"콤보(ID {ctrl_id}) 드롭다운에서 '{filename}'을 찾지 못했습니다"
+                f"(창 기준 y>={below} 영역만 후보로 봅니다).")
 
 
 def _select_preset_column_item(ui, x, row_index, wait=.5):
@@ -1654,27 +1666,54 @@ def _preset_recon_summary(rows):
             "rows": len(rows)}
 
 
+#: Preset 페이지에서 **실제로 읽히는 단어**와 최소 등장 횟수 (2026-08-24 실측).
+#:
+#: 화면 구성은 `Preset (2D)` / `Preset (3D-N)` / `Preset (3D-W)` 세 목록이고,
+#: 열 이름이 2D 는 `XIPL Param`, 3D 는 `Recon Param` 이다 — Service Manual
+#: `Preset 메뉴` 의 표(`Name / Alias / XIPL Param(2D) / Recon Param(3D)`)와 일치한다.
+#:
+#: **다중 단어로는 찾을 수 없다.** `find_text_boxes` 는 OCR 의 *단어* 박스를
+#: 대조하므로 `"Recon Param"` 은 0건이다. 그리고 `"3D-N"` 도 0건이다 — 제목이
+#: 괄호까지 한 단어로 읽혀 `"(3D-N)"` 이어야 한다. 처음에 `"3D-N"` 으로 찾다가
+#: Step 3 이 FAIL 했고, 캡처로 실제 판독을 확인해 고쳤다(추측하지 않았다).
+XIPL07_PRESET_PAGE_WORDS = {
+    "(3D-N)": 1,      # Preset (3D-N) 목록 제목
+    "(3D-W)": 1,      # Preset (3D-W) 목록 제목
+    "Recon": 2,       # 3D 목록 두 개의 `Recon Param` 열 이름
+    "XIPL": 1,        # 2D 목록의 `XIPL Param` 열 이름 (대조군)
+}
+
+
+def _preset_page_words(shot):
+    """Preset 페이지 캡처에서 위 단어들의 등장 횟수를 읽는다."""
+    counts = {}
+    for word in XIPL07_PRESET_PAGE_WORDS:
+        try:
+            counts[word] = len(vp.find_text_boxes(shot, word))
+        except Exception as exc:                       # noqa: BLE001
+            counts[word] = f"<ocr err {exc}>"
+    return counts
+
+
 def _preset_page_captions(ctx, ui, r):
-    """Setting > Procedure > Preset 화면에서 3D-N/3D-W 문구를 OCR 로 읽는다.
+    """Setting > Procedure > Preset 화면이 모드별 목록을 표시하는지 OCR 로 읽는다.
 
     3D-N/3D-W 목록의 **컨트롤 ID 는 실측되지 않았다**(2D 목록만 2554 로 확정돼
-    있다). 그래서 목록을 조작하지 않고, 화면에 그 두 항목이 **표시되는지**만
-    문구로 확인한다. 조작이 필요 없는 이유는 판정 대상이 Setting > Procedure >
-    General 의 모드별 Default 이기 때문이다(체크리스트 Step 1~2).
+    있다). 그래서 목록을 조작하지 않고, 화면에 그 두 항목과 **문서에 적힌 열
+    이름**이 표시되는지만 확인한다. 조작이 필요 없는 이유는 판정 대상이
+    Setting > Procedure > General 의 모드별 Default 이기 때문이다(체크리스트 Step 1~2).
 
-    반환: {"3D-N": bool, "3D-W": bool, "shot": 경로}
+    반환: {"ocr": {단어: 횟수}, "ok": bool, "shot": 경로}
     """
     flows.open_procedure_setting(ui, "preset")
     shot = _ev(ctx, "TC_XIPL_compatibility_07_preset_page.png")
     vp.capture_viewer_window(ui, shot)
     r.attach(shot)
-    found = {}
-    for mode in XIPL07_MODES:
-        try:
-            found[mode["label"]] = bool(vp.find_text_boxes(shot, mode["caption"]))
-        except Exception as exc:                       # noqa: BLE001
-            found[mode["label"]] = f"<ocr err {exc}>"
-    return {"ocr": found, "shot": shot}
+    counts = _preset_page_words(shot)
+    ok = all(isinstance(counts.get(word), int)
+             and counts[word] >= need
+             for word, need in XIPL07_PRESET_PAGE_WORDS.items())
+    return {"ocr": counts, "ok": ok, "shot": shot}
 
 
 def _acquire_pre_registered_steps(ctx, ui, study_key):
@@ -1852,16 +1891,19 @@ def compatibility_07(ctx):
             not (set(per_mode[mode["label"]]["positions"])
                  & set(SPEC_3D_EXCLUDED_POSITIONS))
             for mode in XIPL07_MODES)
-        listed_ok = all(captions["ocr"].get(mode["label"]) is True
-                        for mode in XIPL07_MODES)
+        listed_ok = bool(captions["ok"])
         r.assert_true(
             3, "3D-N/3D-W Recon Parameter 가 모드별로 각각 표시",
             listed_ok and spec_ok and excluded_ok,
-            expected={"화면 문구": ["3D-N", "3D-W"],
+            expected={"화면 단어(최소 횟수)": dict(XIPL07_PRESET_PAGE_WORDS),
                       "모드별 View Position": list(SPEC_3D_VIEW_POSITIONS),
                       "촬영 불가(목록에 없어야 함)": list(SPEC_3D_EXCLUDED_POSITIONS)},
             actual={"ocr": captions["ocr"], "preset": per_mode},
-            note="화면 표시는 Preset 페이지 OCR, 구성은 "
+            note="화면 표시는 Preset 페이지 OCR 로 확인한다 — 목록 제목 "
+                 "`Preset (3D-N)`/`Preset (3D-W)` 과 열 이름 `Recon Param` 2개, "
+                 "대조군으로 2D 의 `XIPL Param` 1개. 열 이름은 Service Manual "
+                 "`Preset 메뉴` 의 표(`Name / Alias / XIPL Param(2D) / "
+                 "Recon Param(3D)`)와 같다. 구성은 "
                  "PROCEDURE.VIEW_POSITION_PRESET × VIEW_POSITION_POSITIONING "
                  "전수 대조. " + specs.cite(ctx, r"설정 가능한 3D Viewposition"))
 
