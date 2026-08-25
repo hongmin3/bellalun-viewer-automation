@@ -1,5 +1,32 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
+## 0. 온보딩 요약 — 5분 안에 전체 그림
+
+| 무엇 | 한 줄 |
+|---|---|
+| **목적** | 의료영상 진단 SW(디지털 유방촬영 Viewer)의 QA 체크리스트를 **실제 UI로 자동 수행하고 Pass/Fail 을 스스로 판정**한다. 사람이 하루씩 돌리던 회귀를 명령 한 줄로 돌리고 판정 근거까지 남긴다 |
+| **기준 문서** | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`. **여기에 없는 TC 는 이 저장소의 시험 대상이 아니다** — 지식 폴더의 다른 체크리스트는 번호 매핑이 다르다 |
+| **자동화 범위** | 개정본 **37 TC** = 완전자동 **21** / 부분자동 6 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
+| **실행 1줄** | `python run.py run-regression` — 그 전에 `python run.py portability-check` 로 **`관리자 권한` 이 True** 인지 먼저 본다(False 면 UI 자동화가 전부 막힌다) |
+| **필수 조건** | 관리자 권한(High Integrity) · 1920×1080 @100%(96 DPI) · Tesseract-OCR · SQL Server 인스턴스 · XIPL Studio |
+
+**문서 읽는 순서** — 신규 세션·신규 인원 공통.
+
+1. **이 README** (5분) — 무엇을 왜 어떻게 검증하는가.
+2. **`AGENTS.md`** — 저장소 작업 규칙. 기준 문서·작업 순서·긴 실행 전 사전 검사·Git 규약.
+3. **`NEXT_WORK.md`** — **지금 상태와 다음에 할 일.** 최신 회귀 결과, 남은 FAIL, P0/P1/P2,
+   사용자 판단이 필요한 항목.
+4. **`..\지식\[자동화 운영 지침] ...md`** — 영구 구현 규칙과 사고 이력. 상단의
+   **"증상 → 원인 → 조치" 빠른 색인**부터 본다.
+5. **`NEXT_TASK.md`** — 누적 인수인계(실측 컨트롤 ID, 확정한 제품 동작). 통독하지 말고
+   **필요할 때 검색**한다.
+6. 운영 상세(Quick Start, 명령 전수, TC 추가 절차, 문제 해결)는 `..\프로젝트 상세.html`.
+
+> 1~3 만 읽으면 "무엇을 하는 저장소이고 지금 무엇이 문제인가"까지 파악된다.
+> 4~5 는 코드를 실제로 고칠 때 연다.
+
+---
+
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
@@ -23,13 +50,13 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **22,307줄** / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) — 2026-08-25 실측 |
+| 규모 | Python **24,971줄** / 모듈 73개 (core 34 · tests 28 · `run.py` · 도구 10) — 2026-08-25 재실측 |
 | 시험 범위 | 개정본 체크리스트 **37개 TC** 전수 등록 — 완전자동 **21** / 부분자동 6 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 최신 전체 회귀 | 2026-08-25 08:19~10:04 — TC 27건 : PASS 19 / FAIL 3 / MANUAL 5 / SKIP 0 (104.6분)<br>그 안의 검증 267개 : PASS 248 / FAIL 11 / MANUAL 7 / SKIP 1 |
 | 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀, 완화하지 않습니다) / `WF_13` Step 4 로그인 ID 콤보 선택 불안정 / `XIPL_05` Step 4 Q.C 채점 결과 (자세한 것은 `NEXT_WORK.md`) |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
-| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 28건 |
+| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_check_docs_sync.py`(운영 HTML 갱신 누락) / `tools_report_numbers.py`(문서 수치 실측) / `tools_prune_docs.py`(문서 수명·읽기 비용) / 단위 시험 64건 |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -230,7 +257,14 @@ python run.py portability-check          # 해상도·DPI·권한·필수 경로
 python run.py list                       # 개정본 37개 TC + 보조 4개의 자동화 수준
 python run.py run-regression             # 전체 회귀 (기준 복원부터 리포트까지)
 python run.py run-xipl-07                # 개별 TC (명령 전수는 상세 HTML §6)
+python tools_run_regression.py           # 외부 감시가 붙은 전체 회귀(권장, run_all.cmd가 사용)
+check_automation_status.cmd 7            # 마지막 완료 전체 회귀가 7일 넘었는지 알림
 ```
+
+`tools_run_regression.py`는 회귀 Python 바깥에서 기다리므로 Python 자체가 죽어
+리포트를 못 남긴 경우도 감지합니다. TC 수행 중 Viewer가 사라지면 WER 덤프를 확인해
+실제 크래시와 원인 불명 종료를 구분하고, 다음 TC를 위해 재기동합니다. 완료·비정상
+종료는 Windows 알림 영역에도 표시됩니다.
 
 **필수 조건** — 충족하지 않으면 자동화가 시작 시점에 명확히 FAIL시킵니다.
 
@@ -254,5 +288,6 @@ python run.py run-xipl-07                # 개별 TC (명령 전수는 상세 HT
 | `NEXT_TASK.md` | 누적 인수인계 기록 (실측 컨트롤 ID · 확정한 제품 동작 · 판정 기준) |
 | `automation_scope.json` | TC별 자동화 등급·사유·커버리지 분류·**못 한 지점과 해제 조건** |
 | `traceability.json` | 사양↔TC 추적성 데이터 (`tools_traceability.py`가 검사) |
+| `Archive/` | **끝난 기록.** `tools_prune_docs.py` 가 내려 둔 원문 — 새 세션은 읽지 않아도 되고, 과거 경위를 되짚을 때만 검색한다 |
 | `PORTABILITY_AUDIT.md` | 다른 QA PC 이식 점검 기록 |
 | `..\지식\` | 판정 근거 원본 — 사양서1/2, Operation/Service Manual, DICOM Conformance Statement, 영구 지침 3종 |

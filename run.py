@@ -347,6 +347,62 @@ def announce_done(results, elapsed_minutes, paths):
         sys.stdout.flush()
     except Exception:                                  # noqa: BLE001
         pass
+    if os.environ.get("BELLALUN_EXTERNAL_GUARD") != "1":
+        try:
+            from core import automation_health
+            automation_health.notify_windows(
+                "Bellalun 전체 회귀 완료",
+                f"TC {len(results)}건 · {line} · {elapsed_minutes:.1f}분",
+                "warning" if tc.get(FAIL, 0) else "info")
+        except Exception as exc:                       # noqa: BLE001
+            # 알림은 보조 장치다. 리포트 생성과 회귀 판정을 절대 가리지 않는다.
+            print(f"  windows-notification: 표시 실패 — {exc}")
+
+
+def recover_viewer_after_termination(ctx, tc_id, produced, started):
+    """TC 중 Viewer가 사라졌으면 원인을 기록하고 다음 TC용으로 재기동한다.
+
+    WER 덤프가 있으면 실제 크래시로, 없으면 원인 불명 종료로 구분한다. 단순히
+    PID가 없다는 이유만으로 제품 크래시라고 단정하지 않는다.
+    """
+    if not produced:
+        return None
+    # 이 TC들은 정상적으로 끝났다면 다음 TC가 재사용할 Viewer가 살아 있어야 한다.
+    expected = (tc_id.startswith("TC_Basic_WorkFlow_")
+                and tc_id != "TC_Basic_WorkFlow_16") or (
+                    tc_id == "TC_XIPL_compatibility")
+    if not expected:
+        return None
+    from core.ui import ViewerUi
+    if ViewerUi().pid:
+        return None
+    from core import automation_health, flows
+    from core.result import FAIL, PASS
+    info = automation_health.process_exit_message("VIEWER", started)
+    target = produced[0]
+    target.cleanup(
+        0, "회귀 중 Viewer 비정상 종료 감지", FAIL,
+        expected="TC 수행 중 Viewer 프로세스 유지",
+        actual=info,
+        note=("WER 덤프로 실제 크래시를 확인했다."
+              if info["kind"] == "crash" else
+              "프로세스 소멸은 확인했지만 새 WER 덤프가 없어 크래시로 단정하지 "
+              "않는다. 어느 경우든 이 TC 이후의 화면 판정은 신뢰할 수 없어 "
+              "FAIL로 남기고 다음 TC를 위해 재기동한다."))
+    try:
+        ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+        ready = flows.ensure_patient_screen(ui)
+        target.cleanup(
+            0, "Viewer 종료 후 다음 TC용 자동 복구", PASS if ready else FAIL,
+            expected="재기동·로그인 후 Patient 화면", actual=startup)
+    except Exception as exc:                           # noqa: BLE001
+        target.cleanup(
+            0, "Viewer 종료 후 다음 TC용 자동 복구", FAIL,
+            expected="재기동·로그인 후 Patient 화면",
+            actual=f"{type(exc).__name__}: {exc}")
+    automation_health.notify_windows(
+        "Bellalun Viewer 종료 감지", f"{tc_id}: {info['message']}", "error", 12)
+    return info
 
 
 def finish(ctx, results):
@@ -592,6 +648,11 @@ def main():
         from core.result import TCResult, PASS, FAIL
         display = normalize(ctx.cfg)
         env = TCResult("AUTOMATION_ENVIRONMENT", "UI 자동화 실행 환경")
+        # 환경 점검은 첫 FAIL에서 멈추면 안 된다. 권한·해상도·DPI·필수 경로 중
+        # **무엇을 고쳐야 하는지 전부** 보여 주는 진단 명령이다. 전역
+        # stop_tc_on_fail=True를 그대로 받으면 관리자 권한 False 한 건에서
+        # StepFailed가 밖으로 새 리포트조차 남지 않았다(2026-08-25 실측).
+        env.stop_on_fail = False
         env.add(0, "Primary display 1920x1080",
                 PASS if display["actual"] == (1920, 1080) else FAIL,
                 expected="1920x1080", actual=display)
@@ -744,8 +805,11 @@ def main():
         PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
         aborted_precondition = None
         for fn, tc_id, title in chain:
+            tc_started = time.time()
             produced = guarded(fn, ctx, tc_id, title)
             results.extend(produced)
+            recover_viewer_after_termination(
+                ctx, tc_id, produced, tc_started)
             if tc_id in PRECONDITIONS:
                 broken = [x for x in produced if x.verdict == "FAIL"]
                 if broken:
