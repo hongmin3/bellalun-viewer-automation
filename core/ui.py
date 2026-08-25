@@ -730,6 +730,25 @@ class ViewerUi:
         return {"attempts": self.PW_TYPE_ATTEMPTS, "chars": got,
                 "expected": want, "verified": False}
 
+    def sweep_dialogs(self, rounds=4, timeout=6):
+        """떠 있는 안내 팝업을 **없어질 때까지** 닫는다(상한 있음).
+
+        `dismiss_dialog` 을 한 번만 부르면 **연달아 뜨는 팝업**을 놓친다.
+        `flows.cold_start` 는 같은 이유로 `watchdog.DialogGuard.sweep` 을 여러
+        시점에 부른다. 이 헬퍼는 그 최소판이다.
+
+        반환: 닫은 팝업 문구 목록(없으면 빈 목록).
+        """
+        closed = []
+        wait = timeout
+        for _ in range(rounds):
+            message = self.dismiss_dialog(timeout=wait)
+            if not message:
+                break
+            closed.append(message)
+            wait = 2                # 첫 팝업 뒤에는 짧게만 확인한다
+        return closed
+
     def ensure_ready(self, exe_path=None, user_id=None, password=None,
                      dismiss_demo=True, startup_timeout=180, login_attempts=3):
         """Viewer 기동 → Demo 안내 팝업 닫기 → 로그인까지 한 번에 처리한다.

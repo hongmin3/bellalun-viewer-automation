@@ -207,10 +207,17 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
    ```bash
    python -m py_compile <바꾼 파일>
    python tools_check_module_attrs.py
+   python tools_check_self_attrs.py
    python tools_check_regression_names.py
    python tools_traceability.py
    python -m unittest discover -s tests -p "test_*.py"
    ```
+
+   `tools_check_self_attrs.py` 는 2026-08-25 에 만들었다. `core/ui.py` 의 한 메서드를
+   다시 쓰면서 **그 아래 있던 `sweep_dialogs` 를 통째로 지웠는데**, 위 검사가 전부
+   통과하고 **UI 를 실제로 띄웠을 때 처음 드러났다**(`AttributeError`). 기존 검사는
+   `mod.attr` 만 보고 `self.<이름>` 은 보지 않는다. **구간을 통째로 교체하는 편집을
+   하면 같은 일이 또 난다.**
 
 9. **작업을 마칠 때는 문서를 정리해 코드와 함께 올린다.** 순서는 아래와 같다.
    1. `README.md`는 **포트폴리오용으로 간결하게** 유지한다 — 자동화가 무엇을 어떻게
