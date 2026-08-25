@@ -691,51 +691,47 @@ class ViewerUi:
     PW_TYPE_ATTEMPTS = 3
 
     def fill_password(self, control, password):
-        """비밀번호를 넣고 **실제로 들어갔는지 길이로 확인**한다.
+        """비밀번호를 넣고, **읽을 수 있을 때만** 들어갔는지 확인한다.
 
-        `type_text` 는 물리 키 입력이라 조용히 유실될 수 있다(위 주석의 실측 사례).
-        로그인 화면의 PW 필드는 표준 `Edit`(`2002`)이라 `WM_GETTEXT` 로 **길이를
-        읽을 수 있다**(2026-08-24 확인). 그래서 넣은 뒤 글자 수를 대조하고 어긋나면
-        다시 타이핑한다 — 조작 후 확인을 붙이는 규칙(`AGENTS.md` 3절)의 적용이다.
+        `type_text` 는 물리 키 입력이라 조용히 유실될 수 있다(2026-08-24 실측:
+        콜드 스타트에서 전부 유실됐다). 그래서 넣은 뒤 글자 수를 대조한다.
+
+        **다만 읽을 수 없으면 다시 치지 않는다.** 로그인 화면의 PW 필드는 표준
+        `Edit`(`2002`)이지만 password 스타일이라 다른 프로세스의 `WM_GETTEXT` 에는
+        **빈 문자열**을 돌려준다. 처음에는 그것을 "유실"로 보고 상한까지 다시 쳤고,
+        그래서 **로그인할 때마다 비밀번호를 3번 입력**했다(2026-08-25 사용자 관찰).
+        확인할 수 없는 것을 실패로 단정하면 느려지기만 하고 얻는 것이 없다.
+
+        판정 순서
+          1. 읽은 길이 == 비밀번호 길이  -> 확인됨(`verified=True`)
+          2. 읽은 길이 == 0             -> **확인 불가**(`verified=None`). 다시 치지
+                                          않는다. 최종 판정은 `login()` 의
+                                          "로그인 화면을 벗어났는가" 가 한다.
+          3. 읽히는데 길이가 다르다      -> 실제 유실이다. 그때만 다시 친다.
 
         **값은 절대 읽어서 로그로 남기지 않는다. 길이만 본다.**
-
-        길이를 읽을 수 없는 환경(빈 문자열만 돌려주는 빌드)에서도 진행을 막지
-        않는다. 최종 성공 판정은 `login()` 의 "로그인 화면을 벗어났는가" 가 한다.
         """
         want = len(password)
-        got = -1
-        for attempt in range(1, self.PW_TYPE_ATTEMPTS + 1):
-            self.activate()
+        self.activate()
+        self.type_text(control, password)
+        got = len(self.get_text(control) or "")
+        if got == want:
+            return {"attempts": 1, "chars": got, "verified": True}
+        if got == 0:
+            return {"attempts": 1, "chars": 0, "verified": None,
+                    "detail": "PW 필드를 읽을 수 없어 확인하지 않음"
+                              "(password 스타일 Edit). 로그인 성공 여부로 판정한다."}
+        for attempt in range(2, self.PW_TYPE_ATTEMPTS + 1):
+            time.sleep(0.6)
             self.type_text(control, password)
             got = len(self.get_text(control) or "")
             if got == want:
                 return {"attempts": attempt, "chars": got, "verified": True}
-            time.sleep(1.0)
         return {"attempts": self.PW_TYPE_ATTEMPTS, "chars": got,
                 "expected": want, "verified": False}
 
-    def sweep_dialogs(self, rounds=4, timeout=6):
-        """떠 있는 안내 팝업을 **없어질 때까지** 닫는다(상한 있음).
-
-        `dismiss_dialog` 을 한 번만 부르면 **연달아 뜨는 팝업**을 놓친다.
-        `flows.cold_start` 는 같은 이유로 `watchdog.DialogGuard.sweep` 을 여러
-        시점에 부른다. 이 헬퍼는 그 최소판이다.
-
-        반환: 닫은 팝업 문구 목록(없으면 빈 목록).
-        """
-        closed = []
-        wait = timeout
-        for _ in range(rounds):
-            message = self.dismiss_dialog(timeout=wait)
-            if not message:
-                break
-            closed.append(message)
-            wait = 2                # 첫 팝업 뒤에는 짧게만 더 확인한다
-        return closed
-
     def ensure_ready(self, exe_path=None, user_id=None, password=None,
-                     dismiss_demo=True, startup_timeout=180):
+                     dismiss_demo=True, startup_timeout=180, login_attempts=3):
         """Viewer 기동 → Demo 안내 팝업 닫기 → 로그인까지 한 번에 처리한다.
 
         **로그인하지 못하면 예외를 던진다.** 예전에는 실패를 `notes` 에만 적고
@@ -767,7 +763,20 @@ class ViewerUi:
                     "표시하지 않았습니다. 기동 실패를 로그인 완료로 간주하지 않고 "
                     "안전하게 중단합니다.")
         if user_id and password:
-            ok = self.login(user_id, password)
+            # **재시도는 타이핑이 아니라 로그인 단위로 한다.** PW 필드를 읽을 수
+            # 없어 타이핑 성공 여부를 확인할 수 없으므로(`fill_password` 주석),
+            # "로그인 화면을 벗어났는가" 라는 확실한 신호로 판단하고 그때만 다시
+            # 시도한다. `flows.cold_start` 의 `login_attempts` 와 같은 방식이다.
+            ok = False
+            for attempt in range(1, login_attempts + 1):
+                ok = self.login(user_id, password)
+                if ok:
+                    if attempt > 1:
+                        notes.append(f"로그인 {attempt}회차에 성공")
+                    break
+                notes.append(f"로그인 {attempt}회차 실패 — 재시도")
+                self.sweep_dialogs(timeout=3)
+                time.sleep(1.0)
             if not ok:
                 # `core/ui.py` 는 모듈 최상단에 `os`/`PIL` 을 두지 않는다
                 # (`capture_dialog` 과 같은 지역 import 방식을 따른다).

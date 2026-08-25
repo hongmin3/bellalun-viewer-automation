@@ -386,3 +386,59 @@ class PreconditionGateTests(unittest.TestCase):
                          "전제 준비가 첫 실패에서 끊기면 어느 서버가 문제인지 "
                          "알 수 없다")
         self.assertEqual("FAIL", r.verdict)
+
+
+class PasswordFillTests(unittest.TestCase):
+    """비밀번호 입력은 **읽을 수 있을 때만** 확인하고 재시도한다.
+
+    2026-08-25 사용자 관찰: "로그인할때 비밀번호를 3번씩 입력하는데 이유가 뭐야?"
+    원인은 확인 로직이었다 — 로그인 PW 필드는 password 스타일 `Edit` 이라 다른
+    프로세스의 `WM_GETTEXT` 에 **빈 문자열**을 돌려주는데, 그것을 "유실"로 보고
+    상한(3회)까지 다시 쳤다. **확인할 수 없는 것을 실패로 단정하면 안 된다.**
+    """
+
+    class _FakeUi:
+        """`fill_password` 가 쓰는 것만 흉내낸다."""
+
+        PW_TYPE_ATTEMPTS = 3
+
+        def __init__(self, reads):
+            self.reads = list(reads)
+            self.typed = 0
+
+        def activate(self):
+            pass
+
+        def type_text(self, control, text, clear=True, settle=0.3):
+            self.typed += 1
+
+        def get_text(self, control):
+            return self.reads[min(self.typed - 1, len(self.reads) - 1)]
+
+    def _fill(self, reads, password="1234567"):
+        from core.ui import ViewerUi
+        fake = self._FakeUi(reads)
+        out = ViewerUi.fill_password(fake, object(), password)
+        return fake.typed, out
+
+    def test_unreadable_field_types_once_and_does_not_retry(self):
+        typed, out = self._fill([""])
+        self.assertEqual(1, typed, "읽을 수 없다고 다시 치면 안 된다")
+        self.assertIsNone(out["verified"], "확인 불가는 실패가 아니다")
+
+    def test_readable_and_correct_types_once(self):
+        typed, out = self._fill(["1234567"])
+        self.assertEqual(1, typed)
+        self.assertTrue(out["verified"])
+
+    def test_genuine_loss_is_retyped(self):
+        """읽히는데 길이가 다르면 **실제 유실**이다 — 그때만 다시 친다."""
+        typed, out = self._fill(["12", "1234567"])
+        self.assertEqual(2, typed)
+        self.assertTrue(out["verified"])
+
+    def test_persistent_loss_reports_failure(self):
+        typed, out = self._fill(["12"])
+        self.assertEqual(3, typed)
+        self.assertFalse(out["verified"])
+        self.assertEqual(7, out["expected"])
