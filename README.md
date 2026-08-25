@@ -4,7 +4,7 @@
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
 사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 수행하고 판정 근거까지
-남기는** 자동화로 만들었습니다. 최신 전수 회귀는 111.3분이 걸렸습니다.
+남기는** 자동화로 만들었습니다. 최신 전수 회귀는 104.6분이 걸렸습니다.
 
 ```bash
 python run.py run-regression
@@ -23,13 +23,13 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **21,388줄** / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) — 2026-08-24 실측 |
+| 규모 | Python **22,307줄** / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) — 2026-08-25 실측 |
 | 시험 범위 | 개정본 체크리스트 **37개 TC** 전수 등록 — 완전자동 **21** / 부분자동 6 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
-| 최신 전체 회귀 | 2026-08-21 16:40 — TC 26건 : PASS 20 / FAIL 1 / MANUAL 5 / SKIP 0 (111.3분)<br>그 안의 검증 251개 : PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2 |
-| 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). 의도적으로 완화하지 않습니다 |
+| 최신 전체 회귀 | 2026-08-25 08:19~10:04 — TC 27건 : PASS 19 / FAIL 3 / MANUAL 5 / SKIP 0 (104.6분)<br>그 안의 검증 267개 : PASS 248 / FAIL 11 / MANUAL 7 / SKIP 1 |
+| 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀, 완화하지 않습니다) / `WF_13` Step 4 로그인 ID 콤보 선택 불안정 / `XIPL_05` Step 4 Q.C 채점 결과 (자세한 것은 `NEXT_WORK.md`) |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
-| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 14건 |
+| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_report_numbers.py`(문서 수치 실측) / 단위 시험 28건 |
 
 ### 이 자동화가 실제로 하는 일
 

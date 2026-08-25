@@ -1,8 +1,10 @@
-# 다음 작업 (2026-08-24 기준)
+# 다음 작업 (2026-08-25 기준)
 
 > 이 문서는 **현재 상태와 다음에 할 일**만 담는다. 누적 기록(실측 컨트롤 ID, 확정한
 > 제품 동작, 과거 판정 기준)은 `NEXT_TASK.md`에, 영구 규칙은 `AGENTS.md`와
 > `..\지식\` 지침에 있다.
+>
+> **사용자 판단이 필요한 항목은 5절에 모아 두었다.**
 
 ---
 
@@ -12,250 +14,192 @@
 |---|---|---|
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — **TC 37건** | 2026-08-24 `TC_XIPL_compatibility_07` 추가 |
 | 자동화 범위 | 완전자동 **21** / 부분자동 6 / 수동 10 (+ 보조 4) | `python run.py list` |
-| 코드 규모 | Python 21,388줄 / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) | 2026-08-24 실측 |
-| 추적성 | TC 37건 중 **24건**에 사양 인용 **68건** 연결, 위반 0. 구현된 25개 TC 중 `Install_01`(Release Note 미확정)만 미연결 | `python tools_traceability.py` |
-| 단위 시험 | 14건 전부 통과 | `python -m unittest discover -s tests -p "test_*.py"` |
-| 정적 검사 | 모듈 속성 57개 대상 이상 없음 / 회귀 블록 이름 결속 이상 없음 | `tools_check_module_attrs.py`, `tools_check_regression_names.py` |
-| **최신 전체 회귀** | **2026-08-21 16:40 (19차)** — TC 26건: PASS 20 / FAIL 1 / MANUAL 5, 검증 251개: PASS 241 / FAIL 1 / MANUAL 7 / SKIP 2, 111.3분 | `Reports/Result_20260821_164016.json` |
-| 남은 제품 FAIL | `TC_XIPL_compatibility_03` Step 9 (Apply 후 3D 파라미터 기본값 복귀) | 완화하지 않는다 |
+| 코드 규모 | Python **22,307줄** / 모듈 62개 (core 32 · tests 25 · `run.py` · 도구 4) | 2026-08-25 실측 |
+| 추적성 | TC 37건 중 24건에 사양 인용 68건, 위반 0 | `python tools_traceability.py` |
+| 단위 시험 | **28건** 전부 통과 | `python -m unittest discover -s tests -p "test_*.py"` |
+| **최신 전체 회귀** | **2026-08-25 08:19~10:04 (22차)** — TC 27건: PASS 19 / FAIL 3 / MANUAL 5, 검증 267개: PASS 248 / FAIL 11 / MANUAL 7 / SKIP 1, **104.6분** | `Reports/Result_20260825_100414.json` |
 
-### 2026-08-24 회차는 전체 회귀를 실행하지 못했다
+### 22차 회귀의 FAIL 3건
 
-이 세션의 Python 프로세스가 **관리자 권한(High Integrity)이 아니다.** `VIEWER.exe`가
-`requireAdministrator`라 Medium 프로세스에서는 Windows UIPI가 입력 주입을 막고,
-`run.py`의 환경 게이트가 UI 자동화를 시작 시점에 차단한다.
+| TC | 성격 | 내용 |
+|---|---|---|
+| `TC_XIPL_compatibility_03` Step 9 | **제품 결함** (계속 보고) | Apply 후 재진입하면 3D 파라미터가 기본값으로 복귀. 사양서1 277쪽 SRS 03-50-230 위반. 완화하지 않는다 |
+| `TC_Basic_WorkFlow_13` Step 4 | **자동화 불안정** | 로그인 ID 콤보(2001)를 `TEST_USER_FLOW` 로 바꾸지 못했다(OCR 선택 실패). Step 1~3(계정 추가·권한·저장)은 PASS 였고 정리도 정상 수행됐다. 20차에서는 PASS 였다 |
+| `TC_XIPL_compatibility_05` Step 4 | **판단 필요** (5절 ①) | 파라미터 적용은 정상(`TEST_QC_3D.eap`)인데 `QC_STUDY.Result` 가 `0`(Pass 아님). 판정이 채점 결과까지 요구한다 |
 
-```
-python run.py portability-check      (2026-08-24 08:25 실측)
-  [PASS] Primary display 1920x1080
-  [PASS] Windows UI DPI 100%
-  [FAIL] 관리자 권한: False          ← 이것 때문에 UI 자동화 전부 차단
-  [PASS] 필수 경로 [Viewer] / [XIPL Studio] / [XIPL Parameter] / [Tesseract OCR]
-```
+> 검증 FAIL 11건 중 **5건은 "미수행"** 이다 — 중단된 TC 의 남은 Step 을 채운 것이라
+> 제품 결함 판정이 아니다(2.2 참고).
 
-그래서 이번 변경은 **정적 검사·단위 시험·DB/파일 기반 검증까지만** 확인했다.
-`TC_XIPL_compatibility_07`의 UI 조작 경로는 **한 번도 실행되지 않았다** —
-"구현 완료"이지 "검증 완료"가 아니다. 아래 P0가 그것이다.
+### 회귀 이력 (최근 3회)
+
+| 회차 | 일시 | TC 판정 | 검증 | 소요 | 비고 |
+|---|---|---|---|---|---|
+| 20차 | 08-24 09:45 | PASS 20 / FAIL 2 / MANUAL 5 | 263개 | 108.9분 | XIPL_07 첫 회귀 투입. FAIL 2 = 제품 결함 1 + XIPL_07 원복 1 |
+| 21차 | 08-24 11:57 | **PASS 6 / FAIL 19** | 198개 | 79.4분 | **붕괴.** DICOM 등록 실패를 중단 정책이 증폭 → 전제 게이트 도입 |
+| **22차** | **08-25 08:19** | **PASS 19 / FAIL 3 / MANUAL 5** | **267개** | **104.6분** | 회복. XIPL_07 전 단계 PASS |
 
 ---
 
-## 2. 이번 변경 (2026-08-24)
+## 2. 이번 회차에 한 일 (2026-08-24 ~ 08-25)
 
-### 2.1 신규 TC — `TC_XIPL_compatibility_07`
+### 2.1 `TC_XIPL_compatibility_07` — 신규 TC, 실행 검증 완료
 
-**개정본 `개정 TC` 시트 33행에 추가했다** (`TC_XIPL_compatibility_06` 바로 뒤).
-백업: `..\Baseline\Checklist_개정본_20260824_XIPL07추가전.xlsx`.
+개정본 33행에 추가한 **촬영 모드별 3D Default Recon Parameter 적용**(9단계).
+단독 실행과 회귀 양쪽에서 **Step 1~9 전부 PASS** 를 실측했다.
 
-- Title: **촬영 모드별 3D Default Recon Parameter 적용**, Func_01 `3D Default Parameter변경`
-- 9단계. 열 구조·문체·서식(Carlito 11 / wrap / vertical=top)·행 높이 모두 형제 행과
-  동일하게 맞췄고, 저장 후 **다른 셀이 하나도 바뀌지 않았음을 전수 대조로 확인**했다
-  (수식 0건, 병합 0건, 열 폭·헤더 동일).
+실측으로 확정한 것 (자세한 표는 `NEXT_TASK.md`)
 
-**왜 `_04`와 중복이 아닌가.** `_04`는 **Preset별**로 2D 파라미터가 갈리는지 보고,
-`_07`은 **촬영 모드별**(Narrow/Wide)로 3D Recon 파라미터가 갈리는지 본다. 사양이
-3D에만 요구하는 축이 모드이고(사양서1 186쪽 SRS 03-10-110 — *"3D Viewposition은 촬영
-모드 (Narrow / Wide)에 따라 각각 Reconstruction Parameter를 설정한다.(.xtp)"*),
-2D에는 이 축이 아예 없다.
+- `PROCEDURE_COMMON` 의 `DefaultReconNarrow` / `DefaultReconWide` — 모드별 독립 저장
+- 3D Preset 은 모드별 22행, Positioning 11종이 사양서1 196쪽과 정확히 일치(FB/CV 없음)
+- **3D-W 의 `EgpName` = `wide_standard.egp`** (3D-N 은 `narrow_standard.egp`)
+- img 의 `ViewPosition/@Type` 도 모드를 구분(3D-N=1 / 3D-W=2)
+- `XtpName` 은 두 모드 모두 **Preset 설정값** → `automation_scope.json` 의
+  coverage.gap 이 실재함이 확인됐다
 
-**사양 근거** (전부 `traceability.json`에 등록하고 원문 대조로 검증)
+### 2.2 회귀 운영 방식 변경 (사용자 지시 3건)
 
-| 문서 | 확인한 것 |
-|---|---|
-| 사양서1 186쪽 SRS 03-10-110 | 모드별 각각 Recon Parameter 설정 / 기본 파라미터는 `Setting > Procedure > General` / Preset 등록 여부에 따른 우선순위 / 2D License면 항목 미표시 |
-| 사양서1 196쪽 SRS 03-30-20 | 설정 가능한 3D Viewposition 11종(`CC, MLO, LM, SIO, ML, LMO, ISO, XCCL, XCCM, AT, TAN`), *"FB 및 CV는 촬영 불가"* |
-| 사양서1 277·278쪽 SRS 03-50-230 | *"영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다"*, *"Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다"*, Post Reconstruction↔XTP 매핑표 |
-| Service Manual `Procedure 그룹 > General` | `Reconstruction parameter for 3D-N/3D-W`의 정의, Default 적용 조건, **Tomo 미지원·2D License면 항목 미표시** |
-| Service Manual `Preset 메뉴` | 목록 열 `Name / Alias / XIPL Param(2D) / Recon Param(3D)`, `2D / 3D-N / 3D-W 각각 40개` |
+1. **어떤 Step 이 FAIL 하면 그 TC 를 즉시 중단한다.** 어차피 사람이 볼 TC 이므로 남은
+   Step 을 수행해 전체 시간을 늘리지 않는다. `config.json > regression.stop_tc_on_fail`
+   로 끌 수 있다.
+2. **중단된 TC 의 남은 Step 을 미수행(FAIL)으로 채운다.** 예전에는 리포트에 아예
+   나오지 않아 "몇 단계까지 갔는지" 알 수 없었다. 단계 수는 기준 체크리스트에서 읽는다.
+3. **전제 준비가 깨지면 회귀를 즉시 종료한다.** `AUTOMATION_ENVIRONMENT_RESET` /
+   `DICOM_Server_Setup` 이 FAIL 이면 배너를 찍고 중단한다 — 서버가 등록되지 않으면
+   이후 판정은 제품에 대해 아무것도 말해 주지 않는다. 21차가 그 낭비를 실증했다
+   (실패 후 80분을 더 돌며 19개 TC 연쇄 FAIL).
+4. **회귀가 끝나면 Viewer 를 종료한 뒤 결과를 출력하고 완료 배너를 찍는다.**
+   열린 검사는 Suspend 로 보존한다. 배너에 집계·FAIL 목록·리포트 경로를 싣고 콘솔
+   벨을 울린다.
+5. **리포트의 `Step 0` 을 `보조` 로 표기.** 0 은 기준 체크리스트 Step 이 아닌 보조
+   판정(파라미터 준비, 시험 전 값 기록, 중단 기록, 원복)이라는 뜻이다.
 
-**실측으로 확정한 것** (사양 대조에 쓴 근거)
+### 2.3 실행해서 찾아 고친 결함 (전부 실측)
 
-- `PROCEDURE.PROCEDURE_COMMON`에 `DefaultImgProcess`(2D) / `DefaultReconNarrow`(3D-N) /
-  `DefaultReconWide`(3D-W) 세 열이 있다. 모드별로 나뉜다는 사양이 스키마에 그대로 있다.
-- `VIEW_POSITION_PRESET.Type` `0`=2D / `1`=3D-N / `2`=3D-W. **Type 1·2의 Positioning이
-  각각 정확히 11종이고 사양서1 196쪽의 11종과 일치**하며 `FB`(10)·`CV`(12)는 없다.
-  이것이 Step 3의 판정 근거다(화면 OCR보다 강하다).
-- **적용된 3D Recon 파라미터 이름은 `DATA` 데이터베이스에 없다** —
-  `INFORMATION_SCHEMA.COLUMNS` 전수 조회로 확인. 그래서 `.img` 파일을 읽는다.
-- 제품 `.img`는 꼬리에 **UTF-16LE `<INFORMATION>` XML**을 담는다. 실측 예:
-  `<ReconParam EgpName="narrow_standard.egp" EapName="common_standard.eap"
-  XtpName="TEST_3D_FLOW.xtp" PostContrast="14" .../>`.
-  2D 영상은 같은 요소를 갖지만 이름 3개가 **모두 빈 문자열**이라 3D 전용 근거다.
-
-**자동화** — `tests/xipl_flows.py::compatibility_07`, 명령 `python run.py run-xipl-07`
-(`run_xipl`에 포함되어 회귀에도 자동으로 들어간다). 판정 구조:
-
-| Step | 판정 근거 |
-|---|---|
-| 1·2 | 콤보 `2543`/`2544`로 모드별 Default 변경 → `PROCEDURE_COMMON` 두 열 대조. **한쪽을 바꿔도 다른 쪽이 유지되는지**까지 본다(모드 독립) |
-| 3 | Preset 페이지 캡처 OCR로 `3D-N`/`3D-W` 표시 확인 + `VIEW_POSITION_PRESET × VIEW_POSITION_POSITIONING` 전수 대조(사양 11종 일치, FB/CV 부재) |
-| 4 | `DATA_XIPL_3D_01` 검사 생성 → `STUDY` 조회 |
-| 5·6 | 모드별 View Position 등록 + Demo(F8) → `INSTANCE_GROUP.Type=1` / `ExposureMode` 1↔2, `InstanceType 1/2/3` 각 1건, UID 유일. **두 모드의 ExposureMode가 서로 다른지**까지 본다 |
-| 7 | Post Reconstruction 콤보 표시값(사양서1 277쪽 — 획득 시 xtp 자동 선택) |
-| 8 | `.img`의 `<ReconParam>` — `XtpName`이 **그 모드의 Preset 설정값 또는 그 모드의 General Default 중 하나**인지(사양이 정한 두 정상 경로), `EgpName`이 모드별로 서로 다른지, **화면 표시와 파일 기록이 일치**하는지 |
-| 9 | 시험 전 값으로 UI 원복 → DB 재확인. 예외로 끝나도 `finally`에서 한 번 더 시도하고 **결과를 반드시 판정으로 남긴다** |
-
-**SKIP 기준** — `Setting > Procedure > General`에 Recon Parameter 콤보가 **둘 다
-없으면** Tomo 미지원 또는 2D 전용 License다(Service Manual). 그때만 TC 전체를 SKIP하고
-근거 문구를 함께 남긴다. **하나만 없으면 FAIL** — 미지원이면 두 항목이 함께 사라지므로
-"3D 미지원"으로 설명되지 않는다. 판단은 **실제로 화면을 열어 확인한 그 단계에서** 한다
-(`AGENTS.md` 7절). GPU 미탑재는 이 TC의 SKIP 사유가 **아니다** — Reconstruction을 다시
-돌리지 않고 촬영 결과만 읽으므로, 촬영이 성립하지 않으면 정직하게 FAIL해야 한다.
-
-### 2.2 신규 모듈·도구
-
-| 파일 | 용도 | 검증 |
+| # | 결함 | 어떻게 드러났나 |
 |---|---|---|
-| `core/imginfo.py` | 제품 `.img` 꼬리의 `<INFORMATION>` XML 판독. `read_information` / `sections` / `recon_param` / `study_image_dirs` / `instance_image_path` | 실제 제품 파일 4개(2D 1 + 3D 3)로 확인 + 단위 시험 7건 |
-| `tools_traceability.py` | `traceability.json`을 원문·저장소와 대조하고 사양↔TC 양방향 인덱스 출력 | 위조 7건 주입 → 전부 검출 확인 |
-| `traceability.json` | 사양↔TC 추적성 데이터 (쪽·SRS는 문서 검색으로 실측한 값). TC 24건 / 인용 68건 | 위반 0 |
-| `tests/test_imginfo_and_waits.py` | `imginfo`와 조건 대기 단위 시험 12건 | 통과 |
-| `run.py probe-preset3d` | `Setting > Procedure > Preset`의 3D 목록 컨트롤을 **조회 전용**으로 실측(TC 아님). 전후 DB 스냅샷 대조 포함 | **미실행** (권한 없음) |
+| 1 | `ensure_ready` 가 **로그인 실패를 삼켰다** | 15초 뒤 `open_main_menu` 가 엉뚱한 메시지로 죽었다. 이제 실패 지점에서 캡처하고 예외를 던진다 |
+| 2 | 기동 팝업(`Running in demo mode.`)이 **로그인 화면을 가렸다** | 화면 대기가 180초를 다 쓰고 실패. 대기 중에도 팝업을 계속 걷어낸다 |
+| 3 | Demo 안내가 **로그인 뒤에** 뜨는데 로그인 전에만 닫았다 | 모달이 이후 모든 클릭을 삼켰다. 로그인 후에도 걷어낸다 |
+| 4 | Demo 촬영 직후 `+` 클릭이 **삼켜졌다** | 툴팁만 뜨고 다이얼로그가 안 열렸다. DB 행 도착은 "UI 가 다음 조작을 받을 준비"를 보장하지 않는다. 상한 3회 재시도 |
+| 5 | Step 3 OCR 이 화면 문구와 달랐다 | `3D-N` 0건 / `(3D-N)` 1건. 캡처로 실제 판독을 확인해 고쳤다(추측하지 않았다) |
+| 6 | 콤보에서 **다른 콤보의 표시값**을 눌렀다 | 좌표로 후보를 고르려던 시도가 **세 번 다 실패**(제약 없음 → `min_y` → `exclude_rects`). 이제 누른 뒤 표시값·DB 로 확인하고 재시도한다 |
+| 7 | `install_01`/`install_02` 가 **`except` 없이** 회귀 첫 단계에 있었다 | 정적 감사로 발견. `guarded()` 로 호출 지점에서 일괄 보호 |
+| 8 | `tools_check_regression_names.py` 가 **무력화**됐다 | 회귀 사슬을 참조 목록으로 바꾸자 세는 이름이 0개가 되고 통과 메시지는 그대로 나왔다. 0개면 실패로 만들었다 |
+| 9 | 로그인 시 **비밀번호를 3번 입력**했다 | PW 필드는 password 스타일이라 `WM_GETTEXT` 가 빈 문자열을 준다. "확인 불가"를 "실패"로 단정한 것이 원인. 재시도를 로그인 단위로 옮겼다 |
+| 10 | 저장소의 유일한 단위 시험이 **실패 상태로 방치**돼 있었다 | 아무도 돌리지 않았다. 사전 검사에 넣었다 |
 
-### 2.3 성능·독립성·증거 개선
+### 2.4 추가한 것
 
-- **조건 기반 촬영 대기** — `core/viewer_processing.wait_new_group()`. F8 뒤에
-  `settle`초를 무조건 자는 대신, 새 `INSTANCE_GROUP`과 그 안의 `InstanceType`이
-  **다 들어올 때까지** DB를 polling한다. `_07`은 `settle=0` + 이 대기를 쓴다.
-  **부분 도착을 성공으로 보지 않는다**(Raw만 들어오고 Recon/Syn이 없으면 타임아웃으로
-  기록) — 단위 시험으로 고정했다.
-- **죽은 blind-sleep 함수 삭제** — `viewer_processing.preview_and_apply`는
-  Preview/Apply 뒤에 무조건 자는 함수였고(2D 20/30초, 3D 35/75초) 저장소·문서·설정
-  어디에서도 참조되지 않았다. 지운 이유는 죽은 코드라서만이 아니다 — 남겨 두면 다음
-  사람이 "이미 있는 헬퍼"로 다시 써서 조건 대기가 조용히 되돌아간다.
-- **죽은 설정 키 수정** — `config.example.json`의 `preview_3d_wait`/`apply_3d_wait`는
-  **아무도 읽지 않았다**(조정해도 아무 일이 없었다). 코드가 실제로 읽는
-  `post_recon_timeout` / `preview_3d_timeout` / `apply_3d_timeout` /
-  `acquire_3d_timeout`으로 고치고, "이 값들은 조건 대기의 **상한**"이라는 주석을 넣었다.
-- **상태 원복 강화** — `_07`은 시험 전 `PROCEDURE_COMMON` 값을 먼저 기록하고 Step 9에서
-  UI로 되돌린 뒤 DB로 확인한다. 예외로 끝나도 `finally`가 한 번 더 시도하고 그 결과를
-  판정으로 남긴다.
-- **실패 증거** — `_07`의 예외 경로가 `flows._screen_context(ui)`로 실패 시점 화면
-  랜드마크·대화상자 문구를 `note`에 싣는다. 단계마다 캡처를 `Evidence`에 붙인다.
-
-### 2.4 발견해 고친 결함
-
-1. **저장소의 유일한 단위 시험이 실패 상태로 방치돼 있었다.** HTML 리포트에서
-   `소요시간`(붙여쓰기)을 찾는데 리포트는 그 전부터 `소요 시간 분해`(띄어쓰기)를 쓰고
-   있었다. 아무도 돌리지 않았다. 문구를 그대로 박는 대신 HTML이 실제로 내는 제목을
-   확인하도록 고치고, 사전 검사 목록에 `python -m unittest discover`를 넣었다.
-2. **죽은 설정 키**(위 2.3) — 사용자가 3D 대기를 조정하려 해도 반영되지 않는 상태였다.
-
-### 2.5 용어 통일 — `증적` → `증거`
-
-`auto/`(생성물 제외)와 `지식/`의 코드·주석·문서·리포트 출력에서 **54회 치환**
-(파일 25개). 영문 식별자(`Evidence/` 폴더, `evidence_root` 변수)는 호환성 때문에
-그대로 뒀다 — 치환 대상이 한국어 단어 하나뿐이라 자동으로 보존됐다.
-
-사용자에게 보이는 문구도 바뀌었다: 리포트 HTML `<h3>증거 (스크린샷·파일)</h3>`,
-TXT `[증거]`, 체크리스트 결과 xlsx 열 헤더 `증거`, 리포트 환경 표 `증거 폴더`.
-기준 체크리스트 xlsx의 Test Data 열 20셀(`증적: Evidence\...` → `증거: Evidence\...`)도
-함께 통일했다. **실제 리포트를 생성해 `증적` 0건 / `증거` 표시를 확인했다.**
-
-**치환이 만든 조사 오류를 diff 눈으로 보고 잡았다.** `증적`은 자음으로 끝나고
-`증거`는 모음으로 끝나므로 조사가 달라진다 — `증적을/은/으로/이/과` →
-`증거를/는/로/가/와`. 일괄 치환 직후에는 `증거을`·`증거으로`가 30여 곳 생겼고,
-`git diff -U0` 을 눈으로 훑다가 발견해 파일 16개에서 고쳤다. `AGENTS.md` 8절
-"자동 치환으로 코드를 옮기면 diff 를 눈으로 본다"의 또 다른 사례다. `증거` 뒤 한 글자
-분포를 전수 집계해 잘못된 조사 0건을 확인했다(로 22 / 를 9 / 가 5 / 는 4 / 와 4 / 에 1).
-
-**재검색 결과**: `auto/` · `지식/`의 소스·문서에 `증적` 잔존 **0건**. 남은 것은
-`auto/work/reg_wf01.stdout.log` 1건뿐이고 이것은 **과거 실행이 남긴 런타임 로그**다
-(`.gitignore` 대상, 소스 아님). 프로젝트 루트의 `인수인계_2026-08-*.md`는 **날짜가
-박힌 과거 세션 기록**이라 소급 수정하지 않았다(Git 추적 대상도 아니다).
-
-### 2.6 문서
-
-| 문서 | 변경 |
+| 파일 | 용도 |
 |---|---|
-| `README.md` | **1,286줄 → 257줄**로 축약. 포트폴리오 요약(무엇을 어떻게 검증하는가)만 남기고 운영 상세는 아래 HTML로 옮겼다. 최신 회귀 **1건만** 기록 |
-| `..\프로젝트 상세.html` | **신규.** Quick Start(실제 명령·환경 요구조건·설정 절·시험 데이터·로그/증거/리포트 위치·실패 확인 순서·사전 검사) + 아키텍처 + 설계 원칙 + 기술 선택 + **명령 전수**(`run.py` 소스에서 생성) + 리포트 구성 + TC 추가 절차 + 추적성 + **자동화 범위 전수표**(`automation_scope.json`에서 생성) + 회귀 실적 + 문제 해결 + 제한사항 + 결함·교훈 전체 + 참고 문서 |
-| `automation_scope.json` | `TC_XIPL_compatibility_07` 추가(FULL) + `coverage.gap`/`unblock` |
-| `traceability.json` | 신규 |
-| `NEXT_TASK.md` | 이번 회차 절 추가 |
-| `..\지식\[자동화 구현 현황]` | TC 37건 기준으로 갱신 |
-| `AGENTS.md` | 사전 검사에 `tools_traceability.py`·단위 시험 추가, 용어 통일 |
+| `core/imginfo.py` | 제품 `.img` 꼬리의 `<INFORMATION>` XML 판독(3D Recon 파라미터). DB 에 없는 근거다 |
+| `traceability.json` + `tools_traceability.py` | 사양↔TC 양방향 추적성. 인용을 **매번 원문과 대조**한다. 위조 7건 주입 검출 확인 |
+| `core/viewer_processing.wait_new_group()` | 고정 `settle` 대신 DB 도착 조건 대기. 2D 각 2.9초(고정 14초 대비) / 3D 29.5·39.7초(**고정 20초는 오히려 부족했다**) |
+| `tests/test_imginfo_and_waits.py` | 단위 시험 26건 |
+| `run.py probe-preset3d` | 3D Preset 목록 컨트롤 실측용 조회 전용 프로브 |
+| `..\프로젝트 상세.html` | 운영 상세 문서(프로젝트 루트, 저장소 밖). **작업할 때마다 직접 갱신한다** |
 
-**`AUTOMATION_GUIDELINES.md`는 만들지 않았다.** `..\지식\[자동화 운영 지침] Bellalun
-Viewer auto 저장소 구현 규칙.md`가 이미 같은 역할이고, 두 곳에 규칙을 두면 갈라진다.
-그 문서를 갱신했다.
+### 2.5 정리
+
+- 용어 `증적` → `증거` 통일(54회). 조사 오류 30여 곳도 diff 를 눈으로 보고 고쳤다
+- 죽은 코드 `preview_and_apply` 삭제, 죽은 설정 키 `preview_3d_wait`/`apply_3d_wait` 교체
+- 프로젝트 폴더 정리 486MB → 111MB (사용자 승인)
 
 ---
 
 ## 3. 남은 문제
 
-| # | 문제 | 상태 |
+| # | 문제 | 우선순위 |
 |---|---|---|
-| 1 | **`TC_XIPL_compatibility_07`의 UI 경로가 한 번도 실행되지 않았다** | P0 — 권한 있는 세션에서 확인 필요 |
-| 2 | `Setting > Procedure > Preset`의 **3D-N/3D-W 목록·추가·삭제 컨트롤 ID 미실측** (2D만 `2554`/`2548`/`2549` 확정). 그래서 `_07`은 3D Preset 행을 만들거나 편집하지 않는다 | P1 — `run.py probe-preset3d`로 실측하면 해제 |
-| 3 | Service Manual의 *"Preset에 **새로 추가하는** View Position은 Default로 설정한 파라미터를 적용한다"* 경로를 `_07`이 판정하지 않는다 | P1 — #2가 해제되면 가능 |
-| 4 | `TC_XIPL_compatibility_04`가 `PROCEDURE_COMMON.DefaultImgProcess`를 `TEST_2D_A_M.pim`으로 **남긴 채 끝난다**(현재 DB 실측값이 그렇다). 회귀는 시작 시 스냅샷 복원으로 지워지지만 단독 실행은 오염이 남는다 | P1 — `_07`처럼 원복을 넣어야 하지만 **검증 없이 정상 동작 TC를 건드리지 않았다** |
-| 5 | `flows.demo_acquire_step(settle=14)`의 고정 대기가 `WF_01`/`WF_02`/`run-sys3d`에 그대로 남아 있다 | P1 — `_07`에 쓴 `wait_new_group` 레시피로 바꿀 수 있으나 회귀 검증이 필요 |
-| 6 | `flows.close_examine`의 no-dialog 경로에 `time.sleep(wait)`가 남아 있다 | P2 — 상태 신호 후보 확인 필요 |
-| 7 | 추적성 인용이 없는 TC 13건 — 전부 **미구현**(OS 신규 설치·파괴적 작업·팬텀 촬영·허용 기준 미확정)이고 구현된 것 중에는 `Install_01` 하나뿐이다(`pending_reason` 기록) | P2 |
-| 8 | Dose SR(RDSR) 전송 검증 — Demo(F8)에서는 RDSR이 생성되지 않는다(전제 미충족, 제품 결함 아님) | P2 — `NEXT_TASK.md` 고도화 대기 1번 |
-| 9 | `tests/settings.py`의 과거 pre/post 판정부가 실행 경로에 없다. `core/tc_modules.py`가 `Install_07`에서 참조하므로 지우지 않았다 | P2 — 참조 확실히 정리한 뒤에만 |
+| 1 | `TC_Basic_WorkFlow_13` Step 4 — 로그인 ID 콤보 OCR 선택이 불안정 | **P0** |
+| 2 | `TC_XIPL_compatibility_05` Step 4 — Q.C 채점 결과 요구가 Demo 환경에서 불안정 | **P0**(판단 필요, 5절 ①) |
+| 3 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
+| 4 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
+| 5 | `TC_XIPL_compatibility_04` 가 `DefaultImgProcess` 를 오염시킨 채 끝난다 | P1 |
+| 6 | `flows.demo_acquire_step(settle=14)` 고정 대기가 WF_01/WF_02/run-sys3d 에 남아 있다 | P1 |
+| 7 | 중단 정책 때문에 `XIPL_03` Step 10 의 "GPU 없음 SKIP" 기록이 사라졌다 | P2(맞바꾼 것) |
+| 8 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
+| 9 | Dose SR(RDSR) — Demo 촬영에서는 생성되지 않는다(전제 미충족) | P2 |
 
 ---
 
 ## 4. 우선순위
 
-### P0 — 권한 있는 세션에서 즉시
+### P0
 
-1. **`TC_XIPL_compatibility_07` 단독 실행 검증**
-   ```bash
-   python run.py portability-check          # 관리자 권한 True 확인이 먼저다
-   python run.py reset-environment          # 회귀 시작 상태
-   python run.py run-xipl-07
-   ```
-   확인할 것:
-   - Step 1·2에서 콤보 `2543`/`2544`가 **보이는지**(안 보이면 SKIP이 맞다)
-   - `TEST_3D_NARROW.xtp` / `TEST_3D_WIDE.xtp`를 **OCR이 서로 구분해 골랐는지**
-     (DB 값이 반대면 오독이다 — 판정이 잡아낸다)
-   - Step 5·6에서 F8이 **의도한 3D Step을 촬영했는지**(`ExposureMode` 1↔2로 확정)
-   - Step 8의 `EgpName`이 3D-W에서 **무엇으로 나오는지** — `wide_standard.egp`로
-     추정되지만 **실측하지 않았다.** 확인되면 `core/imginfo.py` 주석과
-     `NEXT_TASK.md`에 실측값으로 적을 것
-   - Step 9 원복 후 `DefaultReconNarrow`/`DefaultReconWide`가 `DBT_Standard_Default.xtp`
-     로 돌아왔는지
-2. **전체 회귀 1회**
-   ```bash
-   python tools_check_module_attrs.py && python tools_check_regression_names.py
-   python tools_traceability.py
-   python -m unittest discover -s tests -p "test_*.py"
-   python run.py run-regression
-   ```
-   기록할 것: TC/PASS/FAIL/SKIP/MANUAL, 소요 시간, 특이사항, Report/Log/증거 경로,
-   Cleanup 결과. **실행하지 않은 것을 성공으로 적지 않는다.**
+1. **`WF_13` 로그인 ID 콤보 선택을 견고하게.** `flows.select_login_id` 는
+   `uitext.pick_combo_by_text` 로 OCR 선택하는데 실패했다. `_click_general_param_combo`
+   에 쓴 방식과 같게 — **고른 뒤 `ui.current_login_id()` 로 확인하고 틀리면 다음
+   후보로 재시도** — 로 바꾼다. 확인 수단이 이미 있으므로(`current_login_id`)
+   추가 근거가 필요 없다.
+2. **`XIPL_05` Step 4 판정 재검토** — 5절 ①의 결정을 받은 뒤 반영한다.
 
 ### P1
 
-3. `python run.py probe-preset3d` — 3D-N/3D-W Preset 목록 컨트롤 실측. 결과를
-   `core/flows.py`에 `PRESET_3DN_*`/`PRESET_3DW_*`로 넣고 `NEXT_TASK.md`에 기록.
-4. #3 해제 후 `_07`에 **"새 3D Preset이 그 시점 Default를 물려받는가"** 판정 추가
-   (`_04`의 `_add_preset_2d_pair`/`_alias_preset_row`와 같은 방식, 정리도 UI 삭제로).
-5. `TC_XIPL_compatibility_04`에 `DefaultImgProcess` 원복 추가 — 반드시
-   `reset-environment` → `run-xipl-04` → DB 확인까지 지나간 뒤에만 커밋.
-6. `flows.demo_acquire_step`의 고정 대기를 `wait_new_group` 기반으로 전환. 호출부가
-   `WF_01`/`WF_02`/`run-sys3d`이므로 **그 세 개를 회귀 순서로 실제 지나가야** 한다.
+3. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 →
+   `core/flows.py` 상수와 `NEXT_TASK.md` 에 기록.
+4. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
+   `XIPL_07` 에 추가. 정리는 UI 삭제로 하고 삭제 전후 DB 를 대조한다.
+5. `XIPL_04` 에 `DefaultImgProcess` 원복 추가. `reset-environment` → `run-xipl-04` →
+   DB 확인까지 지나간 뒤에만 커밋.
+6. `demo_acquire_step` 의 고정 대기를 `wait_new_group` 으로 전환. 호출부가
+   WF_01/WF_02/run-sys3d 이므로 그 셋을 회귀 순서로 실제 지나가야 한다.
 
 ### P2
 
-7. `flows.close_examine`의 no-dialog 경로 상태 신호화.
-8. [완료 2026-08-24] 구현된 TC 의 인용 확보 — `Install_02`(Service Manual 방화벽·
-   SQL Server), `WF_01`(SRS 02-20-10), `WF_04`(SRS 03-40-50 / 06-30-30),
-   `WF_07`(SRS 03-10-50 / 02-10-20), `WF_12`(SRS 02-40-100),
-   `WF_15`(SRS 03-50-250) 25건 추가. 남은 것은 `Install_01` 하나 — 검증 대상
-   Release Note 를 받아야 한다.
-9. Dose SR 생성 조건 조사(`NEXT_TASK.md` 고도화 대기 1번의 절차대로).
-10. `Install_01`/`Install_02` MANUAL 해제 — 검증 대상 Release Note와 지원 OS Build
-    목록·DICOM 어댑터 별칭을 사용자에게 받으면 자동 판정 가능
-    (`config.json > release_note`, `> prerequisites`).
+7. `flows.close_examine` 의 no-dialog 경로 상태 신호화.
+8. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
+9. Dose SR 생성 조건 조사(`NEXT_TASK.md` 고도화 대기 1번).
 
 ---
 
-## 5. 다음 세션용 프롬프트
+## 5. 사용자 판단이 필요한 항목
 
-아래를 그대로 붙여 쓸 수 있다.
+### ① `TC_XIPL_compatibility_05` Step 4 — Q.C 채점 결과를 판정에 넣을 것인가
+
+**현재 판정**: `applied_3d.parameter == "TEST_QC_3D.eap"` **그리고**
+`QC_STUDY.Result == 1`(Pass).
+
+**22차 실측**: 파라미터는 정상 적용됐는데 `Result = 0` 이라 FAIL.
+20차에서는 `Result = 1` 이었다 — **회차마다 다르다.**
+
+**쟁점**: 이 TC 의 제목은 "Q.C Default Image Process Parameter" 이고 개정본
+Expected 4 는 *"3D Q.C 영상에 지정 Parameter가 적용된다"* 이다. **채점 통과(Pass)를
+요구하지 않는다.** 그런데 자동화는 `Result == 1` 까지 요구한다. Demo 가상 촬영은
+실제 팬텀이 아니므로 채점 결과가 보장되지 않는다.
+
+**선택지**
+- (A) **판정에서 `Result` 를 빼고** 파라미터 적용만 본다. 채점 결과는 `actual` 에
+  관측값으로 남긴다. → 개정본 Expected 원문에 맞고 Demo 환경에서 안정적
+- (B) 그대로 둔다. → 실제 팬텀 촬영 환경에서만 의미가 있고 Demo 에서는 계속 흔들린다
+- (C) `Result` 를 별도 확인 항목으로 분리하고 Demo 환경에서는 SKIP(사유 기록)
+
+**제 의견은 (A)** 입니다 — 개정본 Expected 가 요구하지 않는 것을 판정에 넣으면
+제품이 정상인데 FAIL 이 납니다. 다만 **판정을 약하게 만드는 변경**이라 사용자
+승인 없이 하지 않았습니다.
+
+### ② `Install_01` — 검증 대상 Release Note
+
+`config.json > release_note` 가 2026-08-10 캡처 baseline 이고 `_source` 에 "교체
+필요" 로 표시돼 있다. **실제 검증 대상 Release Note 를 주시면** `Install_01` 을
+MANUAL → 자동 판정으로 올리고 추적성도 연결할 수 있다.
+
+### ③ `Install_02` — 지원 OS Build 목록과 DICOM 어댑터 별칭
+
+`config.json > prerequisites.dicom_nic_alias` 와 지원 OS Build 기준을 주시면
+현재 SKIP 인 항목을 자동 판정으로 바꿀 수 있다.
+
+### ④ 중단 정책이 맞바꾼 것
+
+FAIL 이 나면 그 TC 를 중단하므로 **첫 FAIL 뒤의 판정 정보는 수집되지 않는다.**
+예: `XIPL_03` 은 Step 9(제품 결함)에서 멈춰 Step 10 의 "GPU 없음 SKIP" 기록이
+사라졌다. 시간을 아끼는 대신 그 TC 는 사람이 본다는 전제다. 원하시면
+`config.json > regression.stop_tc_on_fail` 을 `false` 로 두면 예전처럼 끝까지
+수행한다.
+
+---
+
+## 6. 다음 세션용 프롬프트
 
 ```text
 Bellalun Viewer QA 자동화를 아래 경로에서 이어서 진행해줘.
@@ -268,41 +212,38 @@ Git 저장소: 같은 경로의 auto
 TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의 `개정 TC` 시트만 기준으로
 삼는다(지식 폴더의 다른 체크리스트는 번호 매핑이 다르다).
 
-가장 먼저 관리자 권한을 확인해라 — `python run.py portability-check`의 "관리자 권한"이
-False면 UI 자동화가 전부 차단된다. False면 그 사실을 먼저 보고하고, UI가 필요 없는
-작업(정적 검사, 문서, 추적성)만 진행해라.
+가장 먼저 `python run.py portability-check` 의 "관리자 권한"이 True 인지 확인해라.
+False 면 UI 자동화가 전부 차단되므로 그 사실을 먼저 보고하고 UI 가 필요 없는
+작업만 진행해라.
 
-P0 (권한이 있을 때)
-1. TC_XIPL_compatibility_07을 회귀 시작 상태에서 단독 실행해 검증한다.
-   python run.py reset-environment → python run.py run-xipl-07
-   NEXT_WORK.md 4절 P0-1의 확인 목록을 그대로 따라가고, 3D-W의 EgpName 실측값을
-   기록해라. 실패하면 추측으로 완화하지 말고 실패 증거(화면 컨텍스트·캡처·로그)를
-   먼저 확인해라.
-2. 전체 회귀 1회를 돌리고 TC/PASS/FAIL/SKIP/MANUAL·소요 시간·특이사항·Report/Log/증거
-   경로·Cleanup 결과를 실제 결과만 기록한다.
+P0
+1. TC_Basic_WorkFlow_13 Step 4 의 로그인 ID 콤보 선택을 견고하게 고쳐라.
+   flows.select_login_id 가 OCR 로 고르고 확인하지 않는다. tests/xipl_flows.py 의
+   _click_general_param_combo 와 같은 방식(고른 뒤 ui.current_login_id() 로 확인,
+   틀리면 다음 후보로 재시도)으로 바꾸고 reset-environment 후 run-wf13 으로 검증해라.
+2. NEXT_WORK.md 5절 ①(XIPL_05 의 Q.C 채점 결과 판정)에 대한 사용자 답을 확인하고
+   반영해라. 답이 없으면 그대로 두고 다시 물어라.
 
 P1
-3. python run.py probe-preset3d 로 Setting > Procedure > Preset의 3D-N/3D-W 목록·추가·
-   삭제 컨트롤을 실측하고 core/flows.py 상수와 NEXT_TASK.md에 기록한다. 번호가 이어질
-   것이라 추측하지 마라.
-4. 그 위에 "새 3D Preset이 그 시점 Default Recon Parameter를 물려받는가"(Service
-   Manual 근거)를 TC_XIPL_compatibility_07에 추가한다. 정리는 UI 삭제로 하고 삭제 전후
-   DB를 대조해 대상 외 삭제를 막아라.
-5. TC_XIPL_compatibility_04에 DefaultImgProcess 원복을 추가한다. reset-environment →
-   run-xipl-04 → DB 확인까지 실제로 지나간 뒤에만 커밋해라.
-6. flows.demo_acquire_step의 고정 대기(settle=14)를 wait_new_group 기반 조건 대기로
-   바꾼다. 호출부가 WF_01/WF_02/run-sys3d이므로 그 세 개를 회귀 순서로 실제 지나가라.
+3. python run.py probe-preset3d 로 3D-N/3D-W Preset 목록 컨트롤을 실측하고
+   core/flows.py 상수와 NEXT_TASK.md 에 기록해라. 번호가 이어질 것이라 추측하지 마라.
+4. 그 위에 "새 3D Preset 이 그 시점 Default Recon Parameter 를 물려받는가"를
+   TC_XIPL_compatibility_07 에 추가해라(Service Manual 근거). 정리는 UI 삭제로 하고
+   삭제 전후 DB 를 대조해 대상 외 삭제를 막아라.
+5. TC_XIPL_compatibility_04 에 DefaultImgProcess 원복을 추가해라.
+6. flows.demo_acquire_step 의 고정 대기(settle=14)를 wait_new_group 기반으로 바꿔라.
+   호출부가 WF_01/WF_02/run-sys3d 이므로 그 셋을 회귀 순서로 실제 지나가라.
 
 검증·Git
-- 변경 모듈 py_compile, tools_check_module_attrs.py, tools_check_regression_names.py,
-  tools_traceability.py, python -m unittest discover -s tests -p "test_*.py" 를
-  긴 실행 전에 모두 돌려라.
-- 문서를 갱신해라: README.md(간결·최신 회귀 1건), ..\프로젝트 상세.html,
-  NEXT_WORK.md, NEXT_TASK.md, automation_scope.json, traceability.json,
-  지식/[자동화 구현 현황].
-- git status/diff/remote 를 검토하고 관련 파일만 commit 한 뒤 git push origin main 을
-  시도해라. Force Push와 history 재작성은 금지다. config.json, Reports/, Evidence/,
-  Log/, Cache/, Temp/, work/ 는 커밋하지 마라.
-- 테스트하지 않은 것을 성공했다고 기록하지 마라. 사용자 판단이 필요한 항목은
-  SKIP/TODO로 남기고 나머지는 계속 진행해라.
+- 긴 실행 전에 반드시: py_compile, tools_check_module_attrs.py,
+  tools_check_regression_names.py, tools_traceability.py,
+  python -m unittest discover -s tests -p "test_*.py"
+- 고친 뒤 전체 회귀를 1회 돌리고 실제 결과만 기록해라.
+- 문서를 갱신해라: README.md(간결·최신 회귀 1건), ..\프로젝트 상세.html(직접 갱신,
+  auto/ 안에 만들지 말 것), NEXT_WORK.md, NEXT_TASK.md, automation_scope.json,
+  traceability.json, 지식/[자동화 구현 현황].
+- git status/diff/remote 검토 후 관련 파일만 commit 하고 git push origin main.
+  Force Push·history 재작성 금지. config.json, Reports/, Evidence/, Log/, Cache/,
+  Temp/, work/ 는 커밋하지 마라.
+- 테스트하지 않은 것을 성공했다고 기록하지 마라.
 ```
