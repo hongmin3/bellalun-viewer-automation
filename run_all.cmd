@@ -6,8 +6,8 @@ if errorlevel 1 (
   echo [FAIL] 관리자 권한으로 실행해야 합니다.
   exit /b 2
 )
-python tools_automation_status.py --max-age-days 7
-python tools_run_regression.py
+python tools/automation_status.py --max-age-days 7
+python tools/run_regression.py
 set "BLN_EXIT=%ERRORLEVEL%"
 echo.
 echo 결과는 Reports 폴더에 HTML, CSV, JSON, TXT로 저장되었습니다.

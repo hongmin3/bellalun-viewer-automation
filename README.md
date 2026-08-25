@@ -1,32 +1,5 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
-## 0. 온보딩 요약 — 5분 안에 전체 그림
-
-| 무엇 | 한 줄 |
-|---|---|
-| **목적** | 의료영상 진단 SW(디지털 유방촬영 Viewer)의 QA 체크리스트를 **실제 UI로 자동 수행하고 Pass/Fail 을 스스로 판정**한다. 사람이 하루씩 돌리던 회귀를 명령 한 줄로 돌리고 판정 근거까지 남긴다 |
-| **기준 문서** | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`. **여기에 없는 TC 는 이 저장소의 시험 대상이 아니다** — 지식 폴더의 다른 체크리스트는 번호 매핑이 다르다 |
-| **자동화 범위** | 개정본 **37 TC** = 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
-| **실행 1줄** | `python run.py run-regression` — 그 전에 `python run.py portability-check` 로 **`관리자 권한` 이 True** 인지 먼저 본다(False 면 UI 자동화가 전부 막힌다) |
-| **필수 조건** | 관리자 권한(High Integrity) · 1920×1080 @100%(96 DPI) · Tesseract-OCR · SQL Server 인스턴스 · XIPL Studio |
-
-**문서 읽는 순서** — 신규 세션·신규 인원 공통.
-
-1. **이 README** (5분) — 무엇을 왜 어떻게 검증하는가.
-2. **`AGENTS.md`** — 저장소 작업 규칙. 기준 문서·작업 순서·긴 실행 전 사전 검사·Git 규약.
-3. **`NEXT_WORK.md`** — **지금 상태와 다음에 할 일.** 최신 회귀 결과, 남은 FAIL, P0/P1/P2,
-   사용자 판단이 필요한 항목.
-4. **`..\지식\[자동화 운영 지침] ...md`** — 영구 구현 규칙과 사고 이력. 상단의
-   **"증상 → 원인 → 조치" 빠른 색인**부터 본다.
-5. **`NEXT_TASK.md`** — 누적 인수인계(실측 컨트롤 ID, 확정한 제품 동작). 통독하지 말고
-   **필요할 때 검색**한다.
-6. 운영 상세(Quick Start, 명령 전수, TC 추가 절차, 문제 해결)는 `..\프로젝트 상세.html`.
-
-> 1~3 만 읽으면 "무엇을 하는 저장소이고 지금 무엇이 문제인가"까지 파악된다.
-> 4~5 는 코드를 실제로 고칠 때 연다.
-
----
-
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
@@ -37,26 +10,105 @@
 python run.py run-regression
 ```
 
-> **상세 운영 문서는 `..\프로젝트 상세.html`** 입니다 — Quick Start(실제 명령·환경·
-> 설정·시험 데이터·로그·증거·리포트·실패 확인 순서), 명령 전수, TC 추가 절차,
-> 자동화 범위 전수표, 회귀 실적, 문제 해결, 제한사항, 결함·교훈 전체가 거기 있습니다.
-> 이 README는 **무엇을 어떻게 검증하는가**를 요약합니다.
+---
+
+## 0. 온보딩 요약 — 5분 안에 전체 그림
+
+| 무엇 | 한 줄 |
+|---|---|
+| **목적** | 의료영상 진단 SW의 QA 체크리스트를 **실제 UI로 자동 수행하고 Pass/Fail을 스스로 판정**한다. 사람이 하루씩 돌리던 회귀를 명령 한 줄로 돌리고 판정 근거까지 남긴다 |
+| **기준 문서** | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`. **여기에 없는 TC는 이 저장소의 시험 대상이 아니다** — 지식 폴더의 다른 체크리스트는 번호 매핑이 다르다 |
+| **자동화 범위** | 개정본 **37 TC** = 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
+| **실행 1줄** | `python run.py run-regression` — 그 전에 `python run.py portability-check`로 **`관리자 권한`이 True**인지 먼저 본다(False면 UI 자동화가 전부 막힌다) |
+| **필수 조건** | 관리자 권한(High Integrity) · 1920×1080 @100%(96 DPI) · Tesseract-OCR · SQL Server 인스턴스 · XIPL Studio |
+
+**문서 읽는 순서** — 신규 세션·신규 인원 공통.
+
+1. **이 README** (5분) — 무엇을 왜 어떻게 검증하는가.
+2. **`AGENTS.md`** — 저장소 작업 규칙. 기준 문서·작업 순서·긴 실행 전 사전 검사·Git 규약.
+3. **`NEXT_WORK.md`** — **지금 상태와 다음에 할 일.** 최신 회귀 결과, 남은 FAIL,
+   P0/P1/P2, 사용자 판단이 필요한 항목.
+4. **`..\지식\[자동화 운영 지침] ...md`** — 영구 구현 규칙과 사고 이력. 상단의
+   **"증상 → 원인 → 조치" 빠른 색인**부터 본다.
+5. **`NEXT_TASK.md`** — 누적 인수인계(실측 컨트롤 ID, 확정한 제품 동작). 통독하지 말고
+   **필요할 때 검색**한다.
+
+> 1~3만 읽으면 "무엇을 하는 저장소이고 지금 무엇이 문제인가"까지 파악됩니다.
+> 4~5는 코드를 실제로 고칠 때 엽니다.
 
 ---
 
-## 1. 한눈에 보기
+## 1. 프로젝트 구조
+
+프로젝트 루트는 `...\Bellalun Viewer`이고, **Git 저장소는 그 아래 `auto/` 하나뿐**입니다.
+루트의 나머지는 저장소 밖 자산(기준 문서·근거 문서·DB 스냅샷)입니다.
+
+```
+Bellalun Viewer\
+├─ (운영 상세 문서)          ← 사내 정보가 섞여 저장소 밖에 둔다. tools/render_docs.py 가 관리
+├─ Bellalun_Viewer_기본기능_Checklist_개정본.xlsx   ← 시험 대상의 유일한 기준
+├─ Baseline\                 회귀 기준 DB 스냅샷 4종(.bak)
+├─ 지식\                     판정 근거 원본 — 사양서1/2, Operation·Service Manual,
+│                            DICOM Conformance Statement, 영구 지침 3종
+├─ ORG\                      사내 선행 자산(참고용. 자동화가 참조하지 않는다)
+└─ auto\                     ★ Git 저장소
+   ├─ run.py                 CLI · 환경 게이트 · 회귀 사슬 · 리포트 호출
+   ├─ core\                  재사용 계층 34개 모듈 (UI·OCR·DB·DICOM·리포트)
+   ├─ tests\                 TC 시나리오·판정 29개 모듈 (workflowNN.py = TC 번호)
+   ├─ tools\                 자체 검사·운영 도구 11개 + _paths.py
+   ├─ automation_scope.json  TC별 등급·사유·커버리지·해제 조건 (원본)
+   ├─ traceability.json      사양↔TC 추적성 데이터
+   ├─ config.example.json    설정 템플릿 (config.json 은 커밋하지 않는다)
+   ├─ AGENTS.md              저장소 작업 규칙
+   ├─ NEXT_WORK.md           현재 상태와 다음 할 일
+   ├─ NEXT_TASK.md           누적 인수인계 (실측 컨트롤 ID·확정한 제품 동작)
+   ├─ Archive\               끝난 기록 (tools/prune_docs.py 가 내려 둔 원문)
+   ├─ Reports\               리포트 4종 + 체크리스트 결과 xlsx   ┐
+   ├─ Evidence\              단계별 캡처·크롭 (판정 근거 이미지)  │ 전부
+   └─ work\ Temp\ Log\ Cache\  런타임 산출물                      ┘ 커밋 제외
+```
+
+**왜 프로젝트 루트와 저장소를 나누는가** — 기준 체크리스트·사양서·매뉴얼·DB 스냅샷과
+운영 상세 문서에는 제품 내부 구조와 사내 정보가 들어 있고, `auto/`는 GitHub 공개
+원격에 push하기 때문입니다. 문서 렌더러(`tools/render_docs.py`)처럼 사내 정보가 없는
+스크립트만 저장소 안에서 관리합니다 — 작업 규칙·사전 검사와 함께 리뷰되어야 하기
+때문입니다.
+
+### `tools/` — 자체 검사와 운영 도구
+
+`auto/` 바닥에 흩어져 있던 `tools_*.py` 10개를 2026-08-26에 한 폴더로 모으고 접두사를
+뗐습니다. `tools/_paths.py`가 `sys.path`와 작업 디렉터리를 저장소 루트로 맞추므로,
+어디서 실행하든 결과가 같습니다.
+
+| 도구 | 무엇을 막는가 |
+|---|---|
+| `tools/check_module_attrs.py` | 모듈 속성 오염·없는 이름 참조 (`'list' object is not callable`) |
+| `tools/check_self_attrs.py` | 구간 교체 편집이 지운 `self.` 메서드 (`AttributeError`) |
+| `tools/check_cleanup_stop.py` | `finally` 안의 FAIL이 TC 밖으로 새어 리포트를 삼키는 것 |
+| `tools/check_regression_names.py` | 다른 분기의 `import`가 만든 `UnboundLocalError` |
+| `tools/traceability.py` | 인용·쪽·SRS·모듈·명령·Step 범위를 원문과 대조 |
+| `tools/check_docs_sync.py` | 운영 문서 갱신 누락 · HTML 재생성 누락 |
+| `tools/report_numbers.py` | 문서에 적을 수치를 리포트·저장소에서 재계산 |
+| `tools/prune_docs.py` | 끝난 기록을 `Archive/`로 이관, 문서 읽기 비용 점검 |
+| `tools/run_regression.py` | 회귀 Python 바깥에서 비정상 종료 감시 (권장 진입점) |
+| `tools/automation_status.py` | 마지막 완료 전체 회귀 경과일 |
+| `tools/render_docs.py` | 프로젝트 루트의 운영 상세 문서를 md → html 로 재생성 |
+
+---
+
+## 2. 한눈에 보기
 
 | 항목 | 내용 |
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **24,038줄** / 모듈 64개 (core 34 · tests 29 · `run.py`) — 2026-08-25 재실측 |
-| 시험 범위 | 개정본 체크리스트 **37개 TC** 전수 등록 — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
+| 규모 | Python **25,508줄** / 모듈 75개 — core 13,074(34) · tests 9,974(29) · `run.py` 990 · `tools/` 1,470(11). 2026-08-26 재실측 |
+| 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 최신 전체 회귀 | 2026-08-25 20:44~22:19 — TC 27건 : PASS 20 / FAIL 2 / MANUAL 3 / BLOCKED 2 / SKIP 0 (94.1분)<br>그 안의 검증 271개 : PASS 255 / FAIL 7 / MANUAL 4 / BLOCKED 4 / SKIP 1 |
-| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). WF14의 스크롤 아래 목록 행은 부정확한 부분 스크롤을 제거하고 차기 개선 MANUAL로 명시 |
+| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). 둘 다 완화하지 않고 계속 보고합니다 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
-| 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
-| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_check_docs_sync.py`(운영 HTML 갱신 누락) / `tools_report_numbers.py`(문서 수치 실측) / `tools_prune_docs.py`(문서 수명·읽기 비용) / 단위 시험 71건 |
+| 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 68건, 위반 0 |
+| 자체 검사 | `tools/` 도구 11개 + 단위 시험 **71건** |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -76,7 +128,7 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 
 ---
 
-## 2. 왜 만들었나 — 해결한 문제
+## 3. 왜 만들었나 — 해결한 문제
 
 이 제품의 QA에는 자동화를 어렵게 만드는 조건이 겹쳐 있었습니다.
 
@@ -91,7 +143,7 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
 
 ---
 
-## 3. 어떻게 판정하는가
+## 4. 어떻게 판정하는가
 
 ### 판정 기준은 화면이 아니라 문서에서 가져온다
 
@@ -122,7 +174,7 @@ specs.cite(ctx, r"3D Viewposition은 촬영 모드")
 원문과 대조합니다.
 
 ```bash
-python tools_traceability.py --reverse
+python tools/traceability.py --reverse
 # TC 37건 / 인용 있는 TC 24건 / 인용 68건
 # === 사양 → TC ===
 #   사양서1 SRS 03-10-110   TC_Basic_WorkFlow_02(Step 1),
@@ -155,17 +207,16 @@ DB에 없는 것도 있습니다. **적용된 3D Recon 파라미터 이름은 `D
 
 ---
 
-## 4. 설계 원칙
+## 5. 설계 원칙
 
-대부분 실패를 겪고 나서 규칙으로 승격시킨 것입니다.
+대부분 실패를 겪고 나서 규칙으로 승격시킨 것입니다. 여섯 개만 옮깁니다.
 
 **① DB는 조회 전용 — 상태 변경은 반드시 UI로.** `core/db.py`에는 `SELECT`만 있고
 저장소 전체에 `INSERT`/`UPDATE`/`DELETE`가 한 줄도 없습니다. DB를 직접 고치면
-"제품 UI가 그 동작을 실제로 했다"는 판정 근거가 무너집니다. 시험 데이터 정리도
-UI 버튼으로 합니다.
+"제품 UI가 그 동작을 실제로 했다"는 판정 근거가 무너집니다.
 
 **② 클릭 성공을 PASS로 쓰지 않는다.** DB / 로그 / 생성 파일 / UI 재진입 / 화면 OCR
-중 최소 하나로 교차 확인합니다. 로그 문구 하나로 성공을 단정하지 않습니다.
+중 최소 하나로 교차 확인합니다.
 
 **③ 조작 전·후 모두 상태를 확인한다.** 클릭만 보내고 결과를 확인하지 않는 코드는
 단독 실행에서 통과하고 **회귀에서만** 깨집니다. 그런 결함 5건(메뉴 토글, 콤보 스크롤,
@@ -176,16 +227,16 @@ UI 버튼으로 합니다.
 불가한 경우는 `FAIL`이 아니라 무엇을 정리해야 하는지 알려주는 `MANUAL`로 분리합니다.
 
 **⑤ 고정 sleep 대신 상태 기반 대기.** 컨트롤 출현·팝업·로그 기록·DB 행 도착·파일
-생성 등 **실제 증거**가 나타날 때까지 상한을 두고 polling합니다. 모든 대기에 타임아웃이
-있어 무한 대기가 없습니다. 그리고 조건 대기는 **부분 도착을 성공으로 보지 않습니다** —
-3D 촬영은 Raw/Recon/Synthetic 세 건이 다 들어와야 완료입니다(단위 시험으로 고정).
+생성 등 **실제 증거**가 나타날 때까지 상한을 두고 polling합니다. 조건 대기는
+**부분 도착을 성공으로 보지 않습니다** — 3D 촬영은 Raw/Recon/Synthetic 세 건이 다
+들어와야 완료입니다(단위 시험으로 고정).
 
 **⑥ 이식 가능한 선택자만.** Win32 컨트롤 ID, 화면 텍스트, OCR, **창 기준 상대 좌표**를
 씁니다. 저장소에 절대 데스크톱 좌표 클릭은 없습니다.
 
 ---
 
-## 5. 기술 선택
+## 6. 기술 선택
 
 외부 의존성을 **4개**로 억제했습니다. 새 QA PC에서 `pip install -r requirements.txt`
 한 번으로 준비가 끝납니다.
@@ -197,12 +248,13 @@ UI 버튼으로 합니다.
 | DICOM 파싱 | pydicom | **자체 `dicomlite.py`** | 필요한 태그만 읽으면 충분 |
 | 사양서 PDF 읽기 | PyMuPDF, pdfplumber | **`pypdf`** | MIT, 순수 Python. PyMuPDF는 AGPL/상용 이중 라이선스라 의료기기 QA 저장소에 넣기 부담 |
 | 제품 `.img` 파싱 | (없음) | **자체 `imginfo.py`** | 제품 고유 컨테이너. 꼬리 XML만 읽어 700MB도 seek 한 번 |
+| md → html 문서 | markdown, mkdocs | **자체 `tools/render_docs.py`** | QA PC에 변환기를 새로 깔지 않는다 |
 
 ---
 
-## 6. 실제로 잡아낸 것
+## 7. 실제로 잡아낸 것
 
-전체 사례는 `..\프로젝트 상세.html` §14에 있습니다. 대표 네 건:
+대표 네 건입니다.
 
 **제품 결함 — `TC_XIPL_compatibility_03` Step 9.** 3D Post Reconstruction의 Apply 후
 재진입하면 값이 기본값으로 되돌아갑니다(`Not use`→`Use`, 14→10). 사양서1 277쪽
@@ -222,12 +274,12 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 
 **자동 치환이 모듈 함수를 리스트로 덮어쓴 일.** `py_compile`과 `ast` 미정의 이름 검사
 모두 통과했지만 회귀에서만 죽었습니다 — 둘 다 "존재하는 이름에 대입하는 것"은 잡지
-못합니다. 그래서 `tools_check_module_attrs.py`를 만들었습니다. **고친 뒤의 검증도 한
+못합니다. 그래서 `tools/check_module_attrs.py`를 만들었습니다. **고친 뒤의 검증도 한
 번 잘못했습니다** — 두 TC를 따로 돌리면 별도 프로세스라 오염 경로를 지나가지 않습니다.
 
 ---
 
-## 7. AI(Claude Code)를 활용한 개발 방식
+## 8. AI(Claude Code)를 활용한 개발 방식
 
 이 저장소는 AI 세션을 여러 번 이어 만들었습니다. 매 세션 같은 품질로 일하게 만드는
 장치를 코드와 문서에 심었습니다.
@@ -235,19 +287,23 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 - **`AGENTS.md`가 영구 규칙을 담습니다** — 기준 문서가 무엇인지, 작업 순서,
   검증 기준, Git 규약. 세션이 바뀌어도 처음 읽는 문서가 같습니다.
 - **실패를 규칙으로 승격시킵니다.** 같은 실수를 두 번 하지 않도록, 겪은 사고를
-  주석과 문서에 **경위까지** 적습니다(위 §6).
-- **AI 결과물을 그대로 믿지 않습니다.** 정적 검사 도구 3개와 단위 시험 14건이
-  긴 실행 전에 돌아갑니다. `py_compile`이 못 잡는 세 가지(누락 import, 다른 분기의
-  import, 모듈 속성 오염)를 각각 다른 검사가 막습니다.
+  주석과 문서에 **경위까지** 적습니다(위 §7).
+- **AI 결과물을 그대로 믿지 않습니다.** `tools/`의 정적 검사 5종과 단위 시험 71건이
+  긴 실행 전에 돌아갑니다. `py_compile`이 못 잡는 다섯 가지(누락 import, 다른 분기의
+  import, 모듈 속성 오염, 구간 교체가 지운 메서드, `finally` 안의 FAIL 누출)를
+  각각 다른 검사가 막습니다.
 - **사람이 판단해야 하는 지점은 묻고 설계합니다.** 파괴적 동작, 판정 기준이 문서에
   없는 항목, 실물 장비가 필요한 항목은 추측으로 자동화하지 않고 `MANUAL`/`SKIP`으로
   남기고 **해제 조건**을 적습니다.
-- **수치는 실측합니다.** `tools_report_numbers.py`가 문서에 적을 코드 규모·등급
+- **수치는 실측합니다.** `tools/report_numbers.py`가 문서에 적을 코드 규모·등급
   건수·회귀 판정을 리포트와 저장소에서 다시 계산합니다.
+- **문서에도 읽는 비용이 있습니다.** 끝난 기록은 지우지 않고 `tools/prune_docs.py`가
+  `Archive/`로 내립니다 — 검색하면 그대로 나오고, 줄어드는 것은 매 세션 읽어야 하는
+  분량뿐입니다.
 
 ---
 
-## 8. 실행
+## 9. 실행
 
 ```bash
 python -m pip install -r requirements.txt
@@ -256,15 +312,28 @@ python run.py portability-check          # 해상도·DPI·권한·필수 경로
 
 python run.py list                       # 개정본 37개 TC + 보조 4개의 자동화 수준
 python run.py run-regression             # 전체 회귀 (기준 복원부터 리포트까지)
-python run.py run-xipl-07                # 개별 TC (명령 전수는 상세 HTML §6)
-python tools_run_regression.py           # 외부 감시가 붙은 전체 회귀(권장, run_all.cmd가 사용)
+python run.py run-xipl-07                # 개별 TC (전수는 python run.py --help)
+python tools/run_regression.py           # 외부 감시가 붙은 전체 회귀(권장, run_all.cmd가 사용)
 check_automation_status.cmd 7            # 마지막 완료 전체 회귀가 7일 넘었는지 알림
 ```
 
-`tools_run_regression.py`는 회귀 Python 바깥에서 기다리므로 Python 자체가 죽어
+`tools/run_regression.py`는 회귀 Python 바깥에서 기다리므로 Python 자체가 죽어
 리포트를 못 남긴 경우도 감지합니다. TC 수행 중 Viewer가 사라지면 WER 덤프를 확인해
 실제 크래시와 원인 불명 종료를 구분하고, 다음 TC를 위해 재기동합니다. 완료·비정상
 종료는 Windows 알림 영역에도 표시됩니다.
+
+**긴 실행 전 사전 검사**
+
+```bash
+python -m py_compile <바꾼 파일>
+python tools/check_module_attrs.py
+python tools/check_self_attrs.py
+python tools/check_cleanup_stop.py
+python tools/check_regression_names.py
+python tools/traceability.py
+python tools/check_docs_sync.py
+python -m unittest discover -s tests -p "test_*.py"
+```
 
 **필수 조건** — 충족하지 않으면 자동화가 시작 시점에 명확히 FAIL시킵니다.
 
@@ -278,16 +347,15 @@ check_automation_status.cmd 7            # 마지막 완료 전체 회귀가 7�
 
 ---
 
-## 9. 문서
+## 10. 문서
 
 | 문서 | 무엇 |
 |---|---|
-| `..\프로젝트 상세.html` | **운영 상세** — Quick Start, 명령 전수, TC 추가 절차, 범위 전수표, 회귀 실적, 문제 해결, 제한사항, 결함·교훈 전체. **프로젝트 루트에 두고 세션마다 직접 갱신한다** — 저장소(`auto/`) 밖이라 Git 추적 대상이 아니다 |
 | `AGENTS.md` | 저장소 작업 규칙 (기준 문서 · 작업 순서 · 검증 · Git 규약) |
 | `NEXT_WORK.md` | 현재 상태, 이번 변경, 남은 문제, P0/P1/P2, 다음 세션용 프롬프트 |
 | `NEXT_TASK.md` | 누적 인수인계 기록 (실측 컨트롤 ID · 확정한 제품 동작 · 판정 기준) |
 | `automation_scope.json` | TC별 자동화 등급·사유·커버리지 분류·**못 한 지점과 해제 조건** |
-| `traceability.json` | 사양↔TC 추적성 데이터 (`tools_traceability.py`가 검사) |
-| `Archive/` | **끝난 기록.** `tools_prune_docs.py` 가 내려 둔 원문 — 새 세션은 읽지 않아도 되고, 과거 경위를 되짚을 때만 검색한다 |
+| `traceability.json` | 사양↔TC 추적성 데이터 (`tools/traceability.py`가 검사) |
+| `Archive/` | **끝난 기록.** `tools/prune_docs.py`가 내려 둔 원문 — 새 세션은 읽지 않아도 되고, 과거 경위를 되짚을 때만 검색합니다 |
 | `PORTABILITY_AUDIT.md` | 다른 QA PC 이식 점검 기록 |
 | `..\지식\` | 판정 근거 원본 — 사양서1/2, Operation/Service Manual, DICOM Conformance Statement, 영구 지침 3종 |

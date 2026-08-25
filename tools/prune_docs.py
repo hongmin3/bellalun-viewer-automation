@@ -48,6 +48,8 @@ python tools_prune_docs.py --handoff-days 14 --task-days 90
 
 from __future__ import annotations
 
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+
 import argparse
 import datetime as _dt
 import os
@@ -55,7 +57,7 @@ import re
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = _paths.REPO
 ARCHIVE_DIR = os.path.join(ROOT, "Archive")
 
 # 절 제목에 이것이 있으면 "끝난 일"로 본다.

@@ -178,7 +178,7 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
      보이지만, 실제로는 그 분기에서 unbound다. 회귀가 **41분을 돌고 나서**
      `UnboundLocalError: cannot access local variable 'run_emergency'`로 죽었다.
      자동 치환이 `from tests.workflow10 import ...`의 **첫 등장**을 바꾼 것이 원인이다.
-     그래서 `tools_check_regression_names.py`를 만들었다 — 회귀 블록이 호출하는
+     그래서 `tools/check_regression_names.py`를 만들었다 — 회귀 블록이 호출하는
      `run_*`/`install_*`/`setup_*` 이름이 **그 블록 안에서** 묶여 있는지 확인한다.
      긴 실행을 시작하기 전에 반드시 돌린다.
    - **`ast` 검사는 "존재하는 이름에 대입하는 것"을 잡지 못한다.** 2026-08-19에
@@ -190,7 +190,7 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
      **참조하는 `mod.*` 이름이 실제로 그 모듈에 있는지**를 함께 훑는다.
    - **자동 치환으로 코드를 옮기면 diff를 눈으로 본다.** 정규식은 문법을 모르므로
      지역 변수와 모듈 속성을 구분하지 못한다.
-   - **추적성도 함께 검사한다.** `tools_traceability.py` 가 `traceability.json` 의
+   - **추적성도 함께 검사한다.** `tools/traceability.py` 가 `traceability.json` 의
      모든 인용을 **원문과 다시 대조**하고(문구 존재 · 쪽 번호 · SRS ID),
      `tc_id`/`level`/구현 모듈·함수/`run.py` 명령/Step 범위까지 확인한다.
      추적성 표를 문서에 손으로 적으면 사양서가 개정될 때 **문서만 낡아 "근거가
@@ -213,16 +213,16 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
 
    ```bash
    python -m py_compile <바꾼 파일>
-   python tools_check_module_attrs.py
-   python tools_check_self_attrs.py
-   python tools_check_cleanup_stop.py
-   python tools_check_regression_names.py
-   python tools_traceability.py
-   python tools_check_docs_sync.py
+   python tools/check_module_attrs.py
+   python tools/check_self_attrs.py
+   python tools/check_cleanup_stop.py
+   python tools/check_regression_names.py
+   python tools/traceability.py
+   python tools/check_docs_sync.py
    python -m unittest discover -s tests -p "test_*.py"
    ```
 
-   `tools_check_cleanup_stop.py` 도 2026-08-25 에 만들었다. `finally` 안에서
+   `tools/check_cleanup_stop.py` 도 2026-08-25 에 만들었다. `finally` 안에서
    `r.add(..., FAIL)` 을 부르면 `stop_on_fail` 때문에 **정리 블록이 StepFailed 를
    던져 TC 밖으로 샌다** — 단독 실행은 리포트조차 못 남기고, 회귀는 "TC 가 죽었다"로
    기록해 "본 시험은 통과했고 정리만 실패했다"를 가린다. WF_14 에서 Step 1~7 을 다
@@ -230,41 +230,52 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
    정리 경로는 평소에 성공하므로 **정리가 실패하는 날에만** 드러난다 — 그래서
    `py_compile` 도 단위 시험도 잡지 못한다. 정리 기록은 `r.cleanup(...)` 을 쓴다.
 
-   `tools_check_self_attrs.py` 는 2026-08-25 에 만들었다. `core/ui.py` 의 한 메서드를
+   `tools/check_self_attrs.py` 는 2026-08-25 에 만들었다. `core/ui.py` 의 한 메서드를
    다시 쓰면서 **그 아래 있던 `sweep_dialogs` 를 통째로 지웠는데**, 위 검사가 전부
    통과하고 **UI 를 실제로 띄웠을 때 처음 드러났다**(`AttributeError`). 기존 검사는
    `mod.attr` 만 보고 `self.<이름>` 은 보지 않는다. **구간을 통째로 교체하는 편집을
    하면 같은 일이 또 난다.**
 
-   `tools_check_docs_sync.py` 는 `프로젝트 상세.html`을 자동 생성하지 않는다.
-   2026-08-24 사용자 지시대로 이 HTML은 사람이 직접 갱신한다. 대신 README·현재
-   상태·영구 지침 중 하나가 HTML보다 새로우면 경고해 수동 갱신 누락을 잡는다.
+   `tools/check_docs_sync.py` 는 **`..\프로젝트_상세.md` 가 저장소 문서보다 최신인지**와
+   **HTML 재생성을 빠뜨리지 않았는지**를 검사한다. 상세가 기본 문서이므로(9절 1항)
+   저장소 문서 중 하나라도 상세보다 새로우면 상세를 갱신하지 않고 넘어간 것이다.
 
 9. **작업을 마칠 때는 문서를 정리해 코드와 함께 올린다.** 순서는 아래와 같다.
-   1. `README.md`는 **포트폴리오용으로 간결하게** 유지한다 — 자동화가 무엇을 어떻게
+   1. **`..\프로젝트_상세.md` 를 먼저 갱신한다. 이것이 이 프로젝트의 기본 문서다**
+      (2026-08-26 사용자 확정 — *"모든지 프로젝트 상세 파일이 기본이고 리드미는
+      그것의 포트폴리오 축약형인거야"*). 운영 상세(Quick Start, 명령 전수, TC 추가
+      절차, 범위 전수표, 회귀 실적, 문제 해결, 제한사항, 결함·교훈 전체, 실측 컨트롤
+      ID)가 전부 여기 있다. 사내 정보가 섞이므로 **프로젝트 루트**에 두고 저장소
+      (`auto/`)에는 넣지 않는다.
+      그 다음 `python tools/render_docs.py` 로 `..\프로젝트_상세.html` 을 다시 만든다.
+      **HTML 을 직접 고치지 않는다** — 고쳐도 다음 렌더에서 사라진다.
+      (2026-08-24 에는 "렌더러를 두지 말고 HTML 을 직접 갱신한다"였는데, 그때의
+      이유는 "손으로 유지 중인 HTML 을 자동 변환물이 덮을 수 있다"였다. 이제 원본이
+      `.md` 하나뿐이라 그 위험이 없어져 2026-08-26 지시로 대체됐다.)
+   2. `README.md` 는 그 **포트폴리오 축약형**으로 맞춘다 — 자동화가 무엇을 어떻게
       검증하는지, 실제로 잡아낸 결함, AI를 활용한 개발 방식까지 처음 보는 사람이
       읽고 이해할 수 있게 쓰고, **최신 회귀 결과는 1건만** 적는다.
-      운영 상세(Quick Start, 명령 전수, TC 추가 절차, 범위 전수표, 회귀 실적,
-      문제 해결, 제한사항, 결함·교훈 전체)는 **프로젝트 루트의
-      `..\프로젝트 상세.html`** 에 둔다(저장소 밖이므로 Git 추적 대상이 아니다).
-      **`auto/` 안에 만들지 않는다.** 생성 스크립트를 두지 말고 **작업할 때마다
-      직접 갱신한다**(2026-08-24 사용자 지시 — 스크립트를 돌려야 갱신되는 구조를
-      원하지 않는다).
+      **README 에만 있고 상세에 없는 내용을 만들지 않는다** — 그런 내용이 생기면
+      그것은 상세의 누락이다.
+      **그러나 README 에 상세 문서의 존재·경로·목차를 적지 않는다**(2026-08-26 사용자
+      지시). README 는 GitHub 공개 원격에 올라가므로 **저장소 밖 사내 문서를 가리키는
+      참조를 남기지 않는다.** "상세를 보라"로 넘기지 말고 README 자체로 완결되게 쓴다 —
+      요약이 얕아지더라도 밖을 가리키지 않는다.
       **존재하지 않는 명령을 문서에 적지 않는다** — 표를 쓸 때는 `run.py` 의
       `sub.add_parser(...)` 를 실제로 확인하고, 수치는 `automation_scope.json` ·
       `traceability.json` · 리포트 JSON 에서 실측해 적는다.
-   2. 주장하는 수치(코드 규모, 회귀 실적, 자동화 등급 건수)를 **실측으로 다시 확인**
+   3. 주장하는 수치(코드 규모, 회귀 실적, 자동화 등급 건수)를 **실측으로 다시 확인**
       하고 기준 시점을 함께 적는다. 낡은 수치를 그대로 두지 않는다
-      (`tools_report_numbers.py`).
-   3. `automation_scope.json`, `traceability.json`, `NEXT_WORK.md`, `NEXT_TASK.md`,
+      (`tools/report_numbers.py`).
+   4. `automation_scope.json`, `traceability.json`, `NEXT_WORK.md`, `NEXT_TASK.md`,
       `..\지식\[자동화 구현 현황]`을 바뀐 내용에 맞춘다.
       `NEXT_WORK.md` 에는 현재 상태·이번 변경·남은 문제·P0/P1/P2·**다음 세션용
       실제 프롬프트**를 적는다.
-   4. **끝난 항목의 절 제목에 `[완료]` 를 붙이고 `python tools_prune_docs.py`
+   5. **끝난 항목의 절 제목에 `[완료]` 를 붙이고 `python tools/prune_docs.py`
       를 돌린다.** 이관 대상과 절감량을 보고, 맞으면 `--apply` 로 반영한다
       (아래 "문서 수명 정책"). 정보를 지우는 것이 아니라 `Archive/` 로 내리는
       것이므로 검색하면 그대로 나온다.
-   5. `diff`를 검토하고 관련 소스·문서 변경만 stage 해 커밋한 뒤,
+   6. `diff`를 검토하고 관련 소스·문서 변경만 stage 해 커밋한 뒤,
       **같은 작업 안에서** GitHub 원격에 push 한다. 코드만 올리고 문서를 두고
       가지 않는다.
 
@@ -293,8 +304,8 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
 남는다. 줄어드는 것은 **매 세션 읽어야 하는 분량**뿐이다.
 
 ```bash
-python tools_prune_docs.py            # 점검만 — 무엇이 얼마나 줄어드는지
-python tools_prune_docs.py --apply    # 실제로 옮기고/지운다 → 반드시 diff 를 눈으로 본다
+python tools/prune_docs.py            # 점검만 — 무엇이 얼마나 줄어드는지
+python tools/prune_docs.py --apply    # 실제로 옮기고/지운다 → 반드시 diff 를 눈으로 본다
 ```
 
 | 문서 | 정책 | 이유 |

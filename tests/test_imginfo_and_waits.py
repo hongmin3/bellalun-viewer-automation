@@ -227,7 +227,7 @@ class StopOnFailTests(unittest.TestCase):
         """정책을 이 시험 동안만 바꾼다(끝나면 자동 복원).
 
         `TCResult.stop_on_fail = ...` 을 직접 쓰지 않는다 —
-        `tools_check_module_attrs.py` 가 클래스 속성 대입을 결함 신호로 본다.
+        `tools/check_module_attrs.py` 가 클래스 속성 대입을 결함 신호로 본다.
         """
         from core.result import TCResult
         patcher = mock.patch.object(TCResult, "stop_on_fail", enabled)

@@ -27,13 +27,14 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 실행: `python tools_traceability.py` / `python tools_traceability.py --reverse`
 """
 
+
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
 import io
 import json
 import os
 import re
 import sys
 
-sys.path.insert(0, ".")
 
 from core import checklist, specs
 

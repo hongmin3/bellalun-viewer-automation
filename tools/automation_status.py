@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+
 import argparse
 import os
 import sys
@@ -23,7 +25,7 @@ def main(argv=None):
     ap.add_argument("--notify", action="store_true",
                     help="오래됐거나 없을 때 Windows 알림 표시")
     args = ap.parse_args(argv)
-    root = os.path.dirname(os.path.abspath(__file__))
+    root = _paths.REPO
     result = health.regression_age(
         os.path.join(root, "Reports"), max_age_days=args.max_age_days)
     if result["status"] == "ok":

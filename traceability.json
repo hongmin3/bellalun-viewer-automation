@@ -1,5 +1,5 @@
 {
-  "_about": "사양→TC / TC→사양 추적성 인덱스. TC 는 `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`) 기준이고, 요구사항은 `지식` 폴더의 사양서·매뉴얼 원문 인용이다. 쪽 번호와 SRS ID 는 손으로 적지 않고 문서 검색으로 실측한 값이다. `python tools_traceability.py` 가 이 파일의 모든 인용을 원문과 다시 대조하고 역방향(사양→TC) 인덱스를 만든다.",
+  "_about": "사양→TC / TC→사양 추적성 인덱스. TC 는 `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`) 기준이고, 요구사항은 `지식` 폴더의 사양서·매뉴얼 원문 인용이다. 쪽 번호와 SRS ID 는 손으로 적지 않고 문서 검색으로 실측한 값이다. `python tools/traceability.py` 가 이 파일의 모든 인용을 원문과 다시 대조하고 역방향(사양→TC) 인덱스를 만든다.",
   "_baseline": {
     "checklist": "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx",
     "sheet": "개정 TC",

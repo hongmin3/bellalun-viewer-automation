@@ -445,3 +445,428 @@ Preset UI 자동 삭제에 이어, 재실행을 막던 대화상자 2개를 처�
   → `flows.confirm_study_delete`가 처리(**사용자 승인**: 영상 없는 검사 삭제 허용.
   영상이 있으면 이 확인 자체가 뜨지 않는다). TC_04는 삭제 전후 STUDY Key를
   대조해 자기 환자 것 외에 사라지면 실패시킨다.
+
+<!-- 2026-08-26 이관 — NEXT_TASK.md -->
+
+<!-- 이관 사유: 해결 표시 -->
+### 9. 미구현 TC의 진입점 실측 (2026-08-19) — 다음에 이어서 하면 된다 [완료]
+
+캡처의 화면 라벨과 rect 를 대조해 확정했다. `core/flows.py` 에 상수로 기록했다.
+
+| 화면 | 확정한 것 |
+|---|---|
+| Setting > System 하위 | 186 General / 187 Security / 188 Region / 189 System Info. / 190 Software Info. / **191 Account** / 192 License / **193 My Settings** / 194 CS |
+| Setting > Study 하위 | 209 General / 210 Study Delete / **211 Reject/Retake** |
+| Account | 2280 목록 / 2281 + / 2282 휴지통 / 2283~2287 Properties |
+| New Account 모달 | 2288 ID / 2289 Name / 2290 PW / 2291 Check PW / 2292 Group / 1101 OK / 1102 Cancel |
+| My Settings | **2293 Export / 2294 Import** |
+| Reject/Retake | 2421·2422 Reject previous image on retake / 2423 Use reject reason / 2424 Use retake reason / 2425 Always display rejected images / 2426 Reasons 목록 / 2427 추가 / 2428 삭제 |
+| Patient 화면 | **1100 Emergency**(사이렌 아이콘) |
+| DICOM General | 2444 Study close option / 2446·2445 Send urgent patient automatically / 2448·2447 Validate study instance UID / 2449 Allow long accession number |
+
+**WF_11/12 전제조건은 이미 충족돼 있다** — Use reject reason ✓, Always display
+rejected images ✓, Reason 5건(Artifacts / Mispositioning / Patient Movement /
+Mechanical Failure / Inappropriate Processing). 자동화는 이 전제를 **바꾸지 않고
+확인**하면 된다.
+
+**남은 미지: Reject 실행 버튼.** Examined 툴바 14개(2181·2183·2189·2190·2196·
+2188·2191·2184·2197·2185·2186·2193·2195·2192)에는 없다. 검사를 연 화면에서
+찾아야 한다. 이번에는 Examined 목록이 기본 필터로 비어 나와(0행) 검사를 열지
+못했다 — `tests/workflow08.py` 의 `_examined_search(ui, PATIENT_ID)` 로 환자 ID 를
+넣고 조회해야 한다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 12. WF_13 완전 자동화 + WF_15 구현 (2026-08-20) [완료]
+
+**WF_13 은 이제 FULL 이다.** 사용자가 사양서1 78~80쪽 권한 표를 이미지로 확인해 줘서
+기대값이 확정됐고, 실측이 **56/56 일치**했다.
+
+남은 4개 그룹의 페이지 ID 를 실측해 9개 그룹 56개가 전부 맵에 들어왔다.
+
+| 그룹 | 페이지 ID (화면 순서) |
+|---|---|
+| System | 186 187 188 189 190 191 192 193 194 |
+| Patient | 195 196 197 198 199 **228 235 236** |
+| Display | 200 201 202 203 204 |
+| Tool | 205 206 207 208 |
+| Study | 209 210 211 |
+| Procedure | 212 213 214 215 |
+| DICOM | 216~225 |
+| Device | **234 226 230 231 229 232 233 227** |
+| Q.C. | 238 239 240 241 242 |
+
+**ID 가 화면 순서와 무관하다.** Device 는 순서가 완전히 뒤섞였고 Patient 의 뒤쪽 세
+항목은 228/235/236 으로 떨어져 있다. 연속이라고 추정했으면 전부 틀렸다. 각 항목을
+OCR 로 읽어 사양서 표 순서와 짝지어 확정했다.
+
+**새로 확정한 제품 동작**: 사양의 `O`/`X` 는 "보이지만 비활성"이 아니라
+**"메뉴가 아예 표시되지 않는다"** 다. 표에 명시가 없어 추측하지 않고 실측했다.
+User 에게 보이는 것은 `system>software_info / account / cs / security`,
+`tool>image_tool`, `procedure>hospital_code`, `qc>regular_inspection` 뿐이고 나머지
+49개는 표시되지 않는다.
+
+로그인 관련으로 두 가지를 잡았다.
+
+1. **ID 입력창은 목록형이다** — 사양서1 78쪽 "기존에 등록했던 계정 목록이 표시되며,
+   목록 중에 선택해서 로그인할 수 있다. ID를 사용자의 직접 입력이 아니라 목록 중에
+   선택하는 방법을 사용하여 사용자의 오입력을 방지한다." `ui.login` 이 계정 전환을
+   일부러 막고 있어(그 가드는 옳다) `flows.select_login_id` 를 만들어 항목 문구를
+   OCR 로 읽어 고르고, `cold_start` 가 로그인 직전에 호출한다.
+2. **그 콤보는 긴 ID 를 잘라서 보여준다** — `TEST_USER_FLOW` -> `TEST_USE`.
+   완전일치 비교가 불가능해 접두사 비교로 바꿨다(최소 4자). `service` 는
+   `TEST_USER_FLOW` 의 접두사가 아니므로 엉뚱한 계정으로 진행하는 것은 그대로 막힌다.
+
+**WF_15 도 구현했다**(PARTIAL, PASS 6 / MANUAL 4). 자세한 것은 커밋 메시지 참고.
+
+<!-- 이관 사유: 해결 표시 -->
+### 13. WF_11 / WF_12 — Reject 진입점을 아직 못 찾았다 (물어볼 것) [완료]
+
+찾아본 곳과 결과를 남긴다. **추측으로 누르지 않았다** — 인접한 휴지통(2186)/
+잠금(2193)을 잘못 누르면 데이터가 훼손된다.
+
+| 확인한 곳 | 결과 |
+|---|---|
+| Examined 툴바 16개 | Reject 없음. `2196` 이 Pre-send Preview 로 밝혀졌고(사용자 확인) 나머지도 기능이 다르다 |
+| 검사 카드 **우클릭** | 컨텍스트 메뉴가 뜨지 않는다(`ui.right_click` 을 새로 만들어 확인) |
+| 검사를 **View 로 열은 화면** 하단 | `2122` Raw / `2123` Recon / `2124` Syn. — 3D 영상 종류 전환이고 Reject 아니다. Examine 모드의 Retake(2205)는 View 모드에 아예 없다 |
+
+**남은 후보**: Examined 창 썸네일 패널(`2198`)의 각 썸네일에 붙은 작은 아이콘들.
+사용자가 보낸 캡처에서 `LCC` / `LCC (3D-N)` 썸네일 우하단에 아이콘 두세 개가 보였다
+(업로드 화살표 / 프린터 / 시계 모양). 그중 하나가 Reject 일 수 있지만 아이콘 추정은
+이 저장소에서 두 번 틀렸다(2184, 2196).
+
+**물어볼 것**: Image Reject 와 Study Reject 는 어디에서 실행하나요? Pre-send Preview
+처럼 **툴팁이 보이는 캡처 한 장**이면 바로 확정됩니다. 썸네일의 작은 아이콘 중
+하나인가요, 아니면 Examine(추가 촬영) 모드에서 하는 건가요?
+
+판정부는 이미 준비돼 있어(`tests/dataflow.py` 의 `workflow_11_evaluate` /
+`workflow_12_evaluate` / `*_mid_evaluate`) 진입점만 알면 바로 붙습니다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 15. WF_10 진행 상황 (2026-08-20) — Code 셀 편집만 남았다 [완료]
+
+**core/mwl.py 는 이미 처방을 등록할 수 있다.** 내가 "처방을 만들 수 있는지 확인이
+필요하다"고 적었던 것은 코드를 먼저 읽지 않은 탓이다. `POST /worklist/new` 와
+`make_mg_order(..., hospital_code=...)` 가 있고 Hospital Code 를
+`rp_code_value`(Requested Procedure Code Value)로 넣는다.
+
+실측해 확정한 것 (`core/flows.py` 에 기록)
+
+| 화면 | 확정 |
+|---|---|
+| Setting > Procedure > Hospital Code (215) | 2557 목록(Code / Procedure·View Position / Type / Description) / 2558 추가 / 2559 삭제 |
+| 새 행 | `+` 가 인라인 행을 만든다. Code 는 `Code`, `Code_1`, ... **자동 생성** |
+| Procedure 열 | 톱니바퀴를 누르면 `View Position` 대화상자 |
+| View Position 대화상자 | 탭 2082 Preset(2D) / 2083 Preset(3D-N) / 2084 Preset(3D-W) / **2086 Procedure** / 1101 OK / 1102 Cancel |
+| Procedure 탭 | 목록 행 ctrl_id 가 `PROCEDURE_INFO.Key` 와 일치(1 Routine Mammography / 2 Mammography (Rt) / ...). 헤더도 id=1 이라 문구를 OCR 로 읽어 고른다 |
+| DB | `HOSPITAL_CODE(Key, Code, Description, MappingKey, MappingType)` — 매핑은 MappingKey = PROCEDURE_INFO.Key |
+
+**남은 미지 하나 — Code 셀 값을 바꾸는 방법.**
+`Code`(자동 생성)를 `HC_FLOW_01` 로 바꿔야 하는데, 다음을 모두 시도해도 편집 모드가
+열리지 않았다(진짜 `Edit` 클래스 컨트롤이 생기지 않고 셀 문구도 그대로였다).
+  한 번 클릭 / 더블클릭 / 천천히 더블클릭 / F2 / Enter / 클릭 후 직접 타이핑
+
+**물어볼 것**: Hospital Code 의 `Code` 값은 어떻게 입력하나요? 자동 생성 값
+(`Code`, `Code_1`...)을 그대로 쓰는 것이 맞나요, 아니면 편집하는 별도 방법이
+있나요? 자동 생성 값을 쓰는 것이 맞다면 TC 문서의 `HC_FLOW_01` 표기를 그에 맞게
+보완하겠습니다(TC 번호는 건드리지 않습니다).
+
+**이번에 낸 사고와 조치**: `+` 가 Update 없이도 DB 에 즉시 저장된다는 것을 모르고
+프로브를 다섯 번 돌려 `HOSPITAL_CODE` 에 `Code`~`Code_4` 5행을 남겼다. UI 삭제로
+전부 정리해 현재 0행이다. 재발 방지 규칙을 `AGENTS.md` 3항과 지식 운영 지침
+10-1-2 / 10-1-3 절에 넣었다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 11. 자매 프로젝트(VXvue) 개선안 검토 결과 (2026-08-20) [완료]
+
+`..\..\VXvue에서_가져올_개선안.md` 를 검토했다. 8개 항목 중 **1번은 이 저장소에도
+실재하는 버그**여서 즉시 고쳤다(커밋 참고). 나머지 판단은 아래와 같다.
+
+| 항목 | 판단 | 근거 |
+|---|---|---|
+| 1. `specs.py` SRS 인용 오류 | **완료** | 실측으로 재현됐다. 버그가 셋이었다 — 위치 무시 정렬(SRS 2개 이상인 쪽 56개 중 36개 오작동), 3자리 끝 번호 절단(38건), 본문 교차참조를 근거로 착각. 인용 6건을 사양서 원문과 대조해 6/6 확인 |
+| 2. `BLOCKED` 판정 추가 | **채택 권장** | 이 저장소도 `SKIP` 하나가 "환경상 정상적 건너뜀"과 "선행 조건 미구성으로 수행 불가"를 섞는다. WF_06 의 RDSR 미수신은 지금 `MANUAL` 인데 성격상 `BLOCKED` 다 |
+| 7. note 에 해제 조건 + "말할 수 없는 것" | **채택 권장 — 가장 값싸고 효과 큼** | 특히 "이 실행으로는 무엇을 말할 수 없는가" 를 빠뜨리고 있었다. WF_06 RDSR MANUAL 이 그 사례다 — 검증하지 못했는데 "문제 없다"로 읽힐 수 있다 |
+| 6. 환경 헤더를 4종 리포트 전부에 | 채택 | 간단하고, HTML 을 공유받은 사람이 되묻지 않게 된다 |
+| 3. 파괴적 조작 `confirm` 인자 | **부분 채택** | `restore_baseline(ctx)` 에 `confirm` 을 붙이는 것은 타당하다. 다만 회귀는 매 실행 복원에 의존하므로 **플래그 필수화는 회귀 흐름을 바꾼다** — 기본 동작은 유지하고 `confirm` 만 추가하는 선에서 |
+| 5. 좌표 → 속성 | **일부는 이미 적용** | 이 저장소는 컨트롤 ID + `rect` 기반이고, VXvue 의 1항(ListItem 행)·3항(ID 일관성)은 이미 쓰고 있다. **2항(화면 제목을 읽어 메뉴 지도를 실행 시점에 생성)은 새롭고 값이 크다** — 2026-08-19 에 Setting 하위 페이지 ID 를 캡처로 하나씩 확정한 작업이 자동화된다 |
+| 4. 실패 시점 메모리 실측 | 우선순위 낮음 | 이 PC 에서 겪은 문제가 아니다. 비용이 낮아 넣어도 무해하다 |
+| 8. 팝업 반복 상한 | 채택 권장 | 방어적이고 저렴하다. 지금 `dismiss_dialog` 계열에 상한이 일관되지 않다 |
+| 8. 취소선(삭제 사양) 처리 | **확인 필요** | 방금 고친 인용 버그와 같은 계열이다. 취소선 사양을 근거로 쓰면 판정 자체가 틀린다. `pypdf` 텍스트 추출로 취소선이 보이지 않으므로, 인용한 쪽을 눈으로 확인하는 절차가 필요하다 |
+
+<!-- 이관 사유: 해결 표시 -->
+### 10. 사용자 답변 반영 (2026-08-20) [완료]
+
+어제 남긴 질문 4건에 답을 받았다. 각각 무엇이 확정되고 무엇이 남았는지 적는다.
+
+**① WF_13 Step 6 — 권한별 메뉴 범위: 확정.**
+사양서1 **78~80쪽**에 "Setting에서 계정 그룹별로 사용할 수 있는 메뉴" 표가 있다.
+근거 SRS 는 77쪽 제목 **`SRS 01-30-20`**("로그인한 계정의 권한 그룹에 따라 사용할 수
+있는 기능을 제한한다").
+
+`User` 그룹이 **O** 인 것만 추리면 다음과 같다. 나머지는 전부 **X** 다.
+
+| Menu Group | User = O |
+|---|---|
+| System | Software Info. / Account / CS (Security 는 "Date/Time Change 만 사용, KIOSK 사용 중일 때만 버튼 활성화") |
+| Tool | Image Tool |
+| Procedure | Hospital Code |
+| Q.C. | Regular Inspection ("Inspection Information 항목만 표시") |
+
+이미 실측해 둔 System 페이지 ID 와 대조하면 기대값이 그대로 나온다 —
+`190 Software Info.` / `191 Account` / `194 CS` 는 접근 가능, `186 General` /
+`188 Region` / `189 System Info.` / `192 License` / `193 My Settings` 는 불가.
+
+**남은 확인 하나**: 사양의 `O`/`X` 가 "메뉴가 안 보인다"인지 "보이지만 비활성"인지
+명시돼 있지 않다. 추측하지 않고 `User` 로 로그인해 **실측**해서 확정한다.
+로그인 복구는 `flows.cold_start(cfg, db, force_restart=True)` 로 한다 — Viewer 를
+재시작하며 `config.json` 의 service 계정으로 다시 로그인하므로 확실하다.
+
+**② WF_10 — Hospital Code Mapping: 진입점 확정.**
+`Setting > DICOM > MWL` 우측의 콤보가 **`2453`** 이다(현재 값 `None`,
+`flows.MWL_HOSPITAL_CODE_MAPPING`). 사진과 rect 가 정확히 일치한다.
+
+**순서가 있다는 것을 실측으로 확인했다** — 등록된 Hospital Code 가 없으면 이 콤보를
+눌러도 **목록이 아예 열리지 않는다.** 그래서 구현 순서는
+`Setting > Procedure > Hospital Code(페이지 215)에서 HC_FLOW_01 생성`
+→ `Procedure 매핑` → `2453 에서 그 코드 선택` → `콤보 목록의 항목을 기준으로 MWL
+서버 커스텀 태그 구성` 이다.
+
+**남은 것**: MWL 서버(`core/mwl.py`)에 커스텀 태그를 넣어 처방을 등록하는 부분.
+
+**③ WF_15 — TC 를 수정했다.** 사용자 지시로 개정본 체크리스트 25행을 고쳤다.
+원본은 `..\Baseline\Checklist_개정본_20260820_WF15수정전.xlsx` 로 백업했다.
+
+이전 TC 는 "Apply preview position 을 켜고 Zoom/Pan/Rotation 을 바꿔 그 표시 위치가
+수신 영상에 반영되는지"를 요구했는데, 수신 DICOM 의 어떤 값으로 판정할지 확정할 수
+없어 막혀 있었다. 바뀐 TC 는 **Pre-send Preview 팝업의 표시 내용이 View/Examine
+화면과 같은지**와 **Send 후 Queue·수신까지 정상인지**를 요구한다 — 둘 다 관찰
+가능하다.
+
+| 항목 | 이후 |
+|---|---|
+| Title | Pre-send Preview 표시 및 전송 |
+| Step | 1. Examined 에서 검사 선택 / 2. Pre-send Preview 실행 / 3. 팝업의 Step 영상·Overlay 확인 / 4. View·Examine 화면과 비교 / 5. Preview 에서 Send / 6. Queue 상태 확인 / 7. Storage SCP 수신 확인 |
+| Expected | 1. 대상 지정 / 2. 팝업 표시 / 3. 각 Step 영상과 Overlay 표시 / 4. View·Examine 과 동일한 구성 / 5. Queue 등록 / 6. Done / 7. 누락 없이 수신되고 식별 Tag 일치 |
+| Test Data | 수신 경로의 TC 번호가 `..._17` 로 어긋나 있어 `..._15` 로 고쳤다 |
+
+**④ WF_07 — 데이터 정리 불필요: 확정.**
+"쌓이는건 문제가 없을것 같아 스터디가! 짜피 전체 회귀 돌릴때 db초기화를 하니깐!"
+회귀는 `AUTOMATION_ENVIRONMENT_RESET` 에서 DB 기준 스냅샷을 복원하므로 Emergency
+검사를 TC 안에서 지우지 않는다. **지우는 코드를 넣지 않는 것이 맞다** — 파괴적
+동작을 늘리지 않는다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 아직 못 찾은 것 — Pre-send Preview 버튼 (물어볼 것) [완료]
+
+WF_15 를 구현하려면 Examined 화면의 **Pre-send Preview 진입점**이 필요한데
+특정하지 못했다. 툴바 16개를 확대 캡처해 아이콘을 눈으로 확인했다
+(`Evidence/ui/probe_examined_toolbar_zoom.png`).
+
+| x | ctrl_id | 상태 |
+|---|---|---|
+| 108 | 2140 | 보기 전환 드롭 |
+| 196 | 2200 | 데이터 소스 드롭(All) |
+| 1190 | 2181 | `+` 미확인 |
+| 1236 | 2183 | 분할 보기 미확인 |
+| 1282 | 2189 | 목록 보기 미확인 |
+| 1328 | 2190 | 상세 목록 미확인 |
+| 1374 | 2196 | 검사 내 검색 미확인 |
+| 1420 | **2188** | **Print** (WF_08 에서 확정) |
+| 1466 | **2191** | **Export Manager** (확정) |
+| 1512 | **2184** | **Import Study** (클릭 확정) |
+| 1558 | **2197** | **Move Image** — DICOM Send 아님 (클릭 확정) |
+| 1604 | 2185 | 연필(편집) — 누르지 않음 |
+| 1650 | 2186 | 휴지통(삭제) — 누르지 않음 |
+| 1696 | 2193 | 자물쇠(잠금) — 누르지 않음 |
+| 1742 | 2195 | 폴더 찾아보기(확정)로 문서화됨. 다만 확대해 보니 아이콘이 "공 + 작은 목록" 모양으로 폴더와 무관해 보인다 — **이 확정이 틀렸을 가능성** |
+| 1788 | 2192 | 열린 폴더 미확인 |
+
+**물어볼 것**: Pre-send Preview 는 이 툴바의 몇 번째 버튼인가요? 아니면 검사 카드를
+**우클릭**해서 나오는 메뉴, 혹은 Send 대화상자 안에 있나요? 화면을 보시면 바로 아실
+것 같아서 여쭙습니다. 아이콘 모양으로 추정해 누르면 편집·삭제·잠금 버튼을 잘못
+누를 수 있어 확인 전에는 시도하지 않겠습니다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 사용자에게 물어볼 것 (2026-08-19) [완료]
+
+1. **WF_13 4~6단계** — 시험 계정으로 로그인한 뒤 원래 계정으로 돌아오는 절차를
+   어떻게 할까요? 회귀 중간에 실패하면 뒤따르는 TC 가 전부 무너지므로, 실패 시
+   복구 방법(예: Viewer 재시작 후 service 로 재로그인)을 확정하고 싶습니다.
+   그리고 **권한 그룹별로 어떤 메뉴가 보여야 하는지** 표가 있으면 6단계를
+   자동 판정할 수 있습니다. 매뉴얼·사양서에서 찾지 못했습니다.
+2. **WF_10** — "RIS/MWL 서버에 HC_FLOW_01이 포함된 처방을 등록한다"를 자동화하려면
+   시험용 MWL 서버에 Hospital Code 를 넣어 처방을 만드는 방법이 필요합니다.
+   현재 `core/mwl.py` 가 처방을 만들 수 있는지, 아니면 별도 도구를 쓰는지
+   알려 주시면 구현하겠습니다.
+3. **WF_15** — "수신 영상의 표시 결과가 Send Preview 의 위치와 일치한다"를 무엇으로
+   판정할까요? 수신 DICOM 의 어떤 태그(예: Requested Image Size, Presentation
+   State)로 확인하는 것이 맞는지 확정이 필요합니다.
+4. **WF_07** — Emergency 검사는 실행마다 새 검사를 만듭니다. 회귀에서 데이터가
+   쌓이는 것을 그대로 둘까요, 아니면 TC 끝에 지울까요?
+
+<!-- 이관 사유: 해결 표시 -->
+### 그 밖의 다음 후보 [완료]
+
+`TC_Basic_WorkFlow_04` / `05`는 **구현 완료**(아래 참고).
+
+1. **WF05의 View창/Examined Send 경로** — Examine 경로(1148)는 자동화됐지만 나머지
+   두 경로의 Send 진입점을 아직 못 찾았다. Examined 툴바 14개에는 Send가 없다.
+2. ~~**`DICOM_STORAGE` 중복 정리**~~ — **해소 확인(2026-08-18 17:15 실측).**
+   기준 스냅샷 복원 + `setup-dicom` 1회 실행 후 세 테이블 모두 1행이다
+   (`DICOM_STORAGE` Key=17 BUNNY_TEST / `DICOM_PRINT` Key=13 PRINT_TEST /
+   `DICOM_MWL` Key=6 MWL_TEST). 즉 `setup-dicom`이 매 실행마다 추가하는 게
+   아니라, 이전에 본 7행은 **복원 전 누적분**이었다. 회귀는 항상 복원으로
+   시작하므로 추가 조치가 필요 없다.
+3. `TC_Basic_WorkFlow_06`(3D Send) — WF05 구조를 그대로 재사용할 수 있다.
+4. `tests/dataflow.py`의 WF_07/10/12/13 판정 로직에 UI 드라이버 붙이기.
+   WF10(익명 Export)은 `core/export_manager.py`의 `ANONYMOUS`(1031)를 쓰면 된다.
+
+<!-- 이관 사유: 해결 표시 -->
+## 사양 대조로 확인한 불일치 — Storage Transfer Syntax (2026-08-18) [완료]
+
+**확인 필요(제품 담당자 판단 대상).** 자동화 판정으로는 올리지 않고 기록만 한다.
+
+DICOM Conformance Statement V1.3W1 "Association Initiation Policy / Proposed
+Presentation Context Table"에 따르면 네트워크 Storage SCU가 제안하는 Transfer
+Syntax는 다음 두 가지뿐이다.
+
+| Abstract Syntax | Transfer Syntax |
+|---|---|
+| Digital Mammography X-ray Image Storage - For Presentation (`1.2.840.10008.5.1.4.1.1.1.2`) | Implicit VR LE (`1.2.840.10008.1.2`), Explicit VR LE (`1.2.840.10008.1.2.1`) |
+| Breast tomosynthesis Image Storage (`1.2.840.10008.5.1.4.1.1.13.1.3`) | 같음 |
+| X-Ray Radiation Dose SR Storage (`1.2.840.10008.5.1.4.1.1.88.67`) | 같음 |
+
+같은 문서에서 **JPEG은 General Purpose DVD-RAM/USB 매체 저장 프로파일에만**
+나온다. 네트워크 전송용 JPEG 계열 Transfer Syntax(`1.2.840.10008.1.2.4.*`)는
+문서 전체에 **한 번도 선언돼 있지 않다**(grep으로 확인).
+
+그런데 제품 `Setting > DICOM > Storage`의 Transfer Syntax 옵션(컨트롤 `2459`)에는
+JPEG2000을 선택할 수 있고, 이 상태로 Send하면 conformant SCP 상대로 전송이
+**실패**한다 — Bunny 로그 `1 - Rejected`, Viewer 로그 `Not Support class`.
+
+확인할 것:
+1. 이 옵션이 사양에서 빠진 것인지(문서 누락), 아니면 UI가 선언 범위 밖의 값을
+   노출하는 것인지.
+2. 노출이 의도된 것이라면 Conformance Statement에 추가돼야 한다.
+
+자동화 쪽 조치: `core/send_verify.py:ensure_transfer_syntax`가 전송 전에
+**선언된 값(Implicit VR LE)으로 되돌린다.** 테스트 SCP에 맞춘 우회가 아니라
+사양 준수 상태를 만드는 것이므로 그대로 유지한다.
+
+<!-- 이관 사유: 해결 표시 -->
+## 현재 검증된 상태 (2026-08-19 갱신) [완료]
+
+- 저장소: GitHub `hongmin3/bellalun-viewer-automation`, 브랜치 `main`.
+  로컬 경로는 PC마다 다르므로 문서에 하드코딩하지 않는다.
+- 자동화 범위 총 39건 = **FULL 10 / PARTIAL 18 / MANUAL 11**
+  (`python run.py list`로 확인).
+- **FULL**: Install_01/02, WF_01/03, XIPL_01/02/03/04/05/06.
+  `WF_02`는 체크리스트 원문과 구현 범위가 달라 **MANUAL로 내렸다**(위 0절 참고).
+- `TC_XIPL_compatibility_05`는 2026-08-18 **전 단계 PASS**로 검증됐다. 시험 파라미터
+  (`TEST_QC_2D_M.pim`/`TEST_QC_3D.eap`)는 제품 기본값 복사로 자동 생성한다.
+  다만 그 내용이 Q.C 임계값 판정에 적절한지는 사용자 확인이 필요하다.
+- `TC_XIPL_compatibility_06`의 이전 블로커(Noise reduction 슬라이더 OCR)는
+  해결됐다. 원인은 타이밍/프로세스 경합이 아니라 Tesseract `--psm` 선택이었고
+  (`psm 7`이 한 자리 숫자를 빈 문자열로 버림), `_ocr_integer`를 psm 6/7/8 다수결
+  투표로 교체했다. 상세는 운영 지침 7절.
+- `TC_XIPL_compatibility_03`은 Step 9가 **FAIL로 나오는 것이 정상**이다(제품 실제
+  동작을 정확히 잡아낸 결과, GPU 무관 — 절대 완화하지 않는다). Step 10은 GPU
+  미탑재 환경에서 SKIP된다.
+- **보조 항목**: `AUTOMATION_3D_ACQUISITION_3DN`(3D-Narrow) / `_3DW`(3D-Wide) —
+  `tests/system_compat.py`, `python run.py run-sys3d`. 개정본 TC가 아니다(0절).
+  등록·Demo F8 촬영·`INSTANCE_GROUP.Type`/`ExposureMode`(`1/1`=3D-N, `1/2`=3D-W)는
+  자동 판정하고, 장비 LCD·2430 패들·회전 각도는 MANUAL로 분리 기록한다. 그래서
+  종합 판정은 MANUAL이다.
+- 검증된 서버 등록값:
+  - MWL: `MWL_TEST / MWL_SCP / 10.13.0.222:11112`
+  - Storage: `BUNNY_TEST / Bunny / 127.0.0.1:3000` (유일한 `Use=1` Storage)
+  - Print: `PRINT_TEST / PRINT_SCP / 10.13.0.222:11113`
+- `setup-dicom`은 Storage뿐 아니라 **MWL도** `Use=1`로 자동 활성화한다
+  (Print는 DB에 Use 컬럼이 없어 제외).
+- `run.py`는 `data_dir`이 PC마다 다른 드라이브(C:/D:)에 있어도 모든 드라이브를
+  탐색해 찾는다(`_resolve_data_dir`).
+
+<!-- 이관 사유: 해결 표시 -->
+## 회귀 7차 (2026-08-18 16:56) — 연쇄 실패와 그 수정 [완료]
+
+`PASS 30 / FAIL 10` (17 TC). **FAIL 10건 전부가 첫 FAIL 하나의 결과였다.**
+자세한 경위와 교훈은 `지식/[자동화 운영 지침]` 11절 사례를 볼 것. 요약:
+
+`DB 복원(프로세스 전체 종료)` → `cold_start(force_restart=True)`로 재기동 →
+로그인 성공 → **`ensure_patient_screen`이 화면이 그려지기 전 t=0에 판단** →
+`open_main_menu`가 상태바를 못 찾고 15초 뒤 사망 → DICOM 등록 실패 →
+MWL 미등록(`DB=[]`) → WF01/02/03/04, XIPL 01/02/03/06, WF05 연쇄 FAIL.
+
+실측 기동 소요는 **약 36초**였다. 예산 부족이 아니라 **기다리지 않은 것**이다.
+
+<!-- 이관 사유: 해결 표시 -->
+### 수정 (모두 실제 경로로 검증) [완료]
+
+| 문제 | 조치 | 검증 |
+|---|---|---|
+| 화면 그려지기 전 조작 | `flows.wait_known_screen()` 추가, `ensure_patient_screen`이 랜드마크 출현까지 상한 60초 대기 | `setup-dicom` 재실행 → 해당 단계 **36.6s PASS** (이전 53.6s FAIL) |
+| `Bellalun Service`를 죽이고 안 되살림 | 서비스는 SCM(`net stop`)으로 내리고 `start_app_services()`로 `finally`에서 복구 + RUNNING 확인 | `RUNNING → STOPPED → RUNNING` 왕복 실측 |
+| 실패 시 진단 정보 유실 | `setup_all`이 기동 로그 + 마지막 화면 스크린샷을 남김 | 캡처 동작 확인 |
+| 리포트가 연쇄를 안 드러냄 | 상단에 `[ 먼저 볼 것 ] 가장 앞선 FAIL` 추가 | 실패 리포트 재생성으로 확인 |
+| 스텝 밖 소요시간 은폐 | TC 전체와 스텝 합계 차이가 5초 넘으면 명시 | — |
+| `ui_flows.py`의 6초 고정 sleep | `statusbar.wait_ready()`로 아이콘 출현 대기로 교체 | 5초 이상 고정 sleep **0건** |
+| Examined 창 컨트롤 즉시 판정 | `flows.wait_controls()`로 상한 대기 (`viewer_processing`, `tests/workflow03.py`) | — |
+| `_open_examined`가 `open_main_menu` 반환값 무시 | 실패 지점을 정확히 보고 | — |
+
+<!-- 이관 사유: 해결 표시 -->
+### 읽는 사람을 위한 규칙 [완료]
+
+**FAIL 개수보다 가장 앞선 FAIL을 먼저 본다.** 그리고 **한 실행 안에서 뒤 TC가
+통과했다는 사실은 앞 TC 실패를 환경 문제에서 제외하는 근거가 아니다** — 7차에서
+`TC_XIPL_04/05`가 PASS해서 "환경은 정상"으로 보였지만, 그때쯤 Viewer가 이미 떠
+있어 재사용된 것뿐이었다.
+
+<!-- 이관 사유: 해결 표시 -->
+## 최신 회귀 결과 (2026-08-18 12:10) [완료]
+
+**PASS 121 / FAIL 1 / MANUAL 6 / SKIP 1.** FAIL 1건은
+`TC_XIPL_compatibility_03 Step 9`로 **제품 실제 결함을 잡아낸 정상 결과**다
+(Apply 후 재진입 시 값이 기본값 복귀). GPU 무관하며 **절대 완화하지 않는다.**
+
+- WF02 Window Level의 간헐 FAIL은 해소됐다. 원인은 Overlay가 꺼져 판정 근거
+  (W1/W2)를 못 읽던 것이었고, WF02가 Overlay를 직접 보장하고 판정을 사양 기준
+  (값 증감)으로 바꾼 뒤 연속 PASS한다. 다시 FAIL하면 먼저
+  `CONFIGURATION.OVERLAY_ITEM`의 FieldID 113/134를 확인할 것.
+- `TC_XIPL_compatibility_04`는 검증 9단계 전부 PASS이며 종합 MANUAL은 시험
+  Preset 수동 삭제 안내 때문이다(회귀는 DB 복원으로 자동 해소).
+
+<!-- 이관 사유: 해결 표시 -->
+## WF04 / WF05 구현 완료 (2026-08-18) [완료]
+
+| TC | 명령 | 자동 판정 |
+|---|---|---|
+|  |  | Image Overlay 추가, Print Overlay 등록·선택, DICOM Send, Export |
+|  |  | Storage Transfer Syntax, Examine Send (All Images / Selected) |
+
+둘 다 에 포함된다. 새 모듈: ,
+, , ,
+.
+
+<!-- 이관 사유: 해결 표시 -->
+### 이 과정에서 확정한 실측 지식 [완료]
+
+- **Send 전제**: 영상을 선택해야 Send(1148)가 활성화된다. 첫 클릭이 삼켜지므로
+  대화상자 등장을 확인하며 재시도해야 한다. 범위 선택은 =502 /
+  =501 / =500.
+- **전송 실패의 진짜 원인은 Transfer Syntax였다.** Viewer가 JPEG2000
+  ()을 제안하면 Bunny가 Presentation Context를
+  한다. Storage 옵션 를 Implicit VR LE로 맞춰야 한다.
+  (SOP Class나 Bunny setting.txt는 원인이 아니었다 — 둘 다 검증해 배제했다.)
+- **Bunny 수신 폴더는 ** 다(는 비어 있음). config 수정 완료.
+- **Export Manager는 별도 프로세스** 다.
+  로 붙어야 컨트롤이 보인다. 경로 Edit()에
+  제품 기본값 가 이미 채워져 있고 **폴더 선택 창은 안 뜬다.**
+- **Export 완료 안내 팝업의 OK를 눌러야** 창이 닫힌다. 방치하면 모달이 이후
+  클릭을 삼키고, Close 버튼도 먹지 않는다.
+- **Export 성공 판정은 파일 목록 차집합으로 하면 안 된다.** 같은 검사를 다시
+  내보내면 같은 경로에 덮어쓰므로 크기·mtime까지 비교해야 한다.
+- **Overlay FieldID 실측**: Dose kVp=115, Dose mAs=118 (Patient ID=1,
+  Patient Name=2, Birth Date=15, Sex/Age=100, Histogram=113, W1/W2=134).
+- **Examined 검색은 **(돋보기). 은 새로고침이라 목록이 안 채워진다.
+

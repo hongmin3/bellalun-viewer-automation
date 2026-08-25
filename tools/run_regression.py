@@ -9,6 +9,8 @@ Windows 알림을 보낸다.
 
 from __future__ import annotations
 
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+
 import os
 import subprocess
 import sys
@@ -18,7 +20,7 @@ from datetime import datetime
 from core import automation_health as health
 
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = _paths.REPO
 
 
 def main(argv=None):

@@ -902,7 +902,7 @@ def main():
         # `main()` 전체에서 지역 이름이 되게 만들었다(자동 치환이 **첫 등장**을
         # 바꿔 놓은 흔적). 이것이 2026-08-20 에 회귀가 41분을 돌고 나서
         # `UnboundLocalError: cannot access local variable 'run_emergency'` 로
-        # 죽은 원인이다. `tools_check_regression_names.py` 가 재발을 검사한다.
+        # 죽은 원인이다. `tools/check_regression_names.py` 가 재발을 검사한다.
         from tests.workflow10 import run as run_hospital_code
         return finish(ctx, [run_hospital_code(ctx)])
 

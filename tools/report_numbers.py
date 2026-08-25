@@ -16,12 +16,14 @@ python tools_report_numbers.py Reports\Result_....json
 
 from __future__ import annotations
 
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+
 import glob
 import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = _paths.REPO
 STATUSES = ("PASS", "FAIL", "MANUAL", "SKIP", "BLOCKED")
 
 

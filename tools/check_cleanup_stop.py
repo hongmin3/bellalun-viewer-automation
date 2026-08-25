@@ -27,6 +27,8 @@
 실행: python tools_check_cleanup_stop.py
 """
 
+
+import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
 import ast
 import glob
 import io

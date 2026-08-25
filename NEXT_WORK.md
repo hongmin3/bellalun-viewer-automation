@@ -14,7 +14,7 @@
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — **TC 37건** | 2026-08-24 `TC_XIPL_compatibility_07` 추가 |
 | 자동화 범위 | 완전자동 **20** / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
 | 코드 규모 | Python **24,038줄** / 모듈 64개 (core 34 · tests 29 · `run.py`) | 2026-08-25 재실측 |
-| 추적성 | TC 37건 중 24건에 사양 인용 68건, 위반 0 | `python tools_traceability.py` |
+| 추적성 | TC 37건 중 24건에 사양 인용 68건, 위반 0 | `python tools/traceability.py` |
 | 단위 시험 | **71건** 전부 통과 | `python -m unittest discover -s tests -p "test_*.py"` |
 | **최신 전체 회귀** | **2026-08-25 20:44~22:19 (24차)** — TC 27건: PASS 20 / FAIL 2 / MANUAL 3 / BLOCKED 2, 검증 271개: PASS 255 / FAIL 7 / MANUAL 4 / SKIP 1 / BLOCKED 4, **94.1분** | `Reports/Result_20260825_221901.json` |
 
@@ -106,16 +106,17 @@ Step 7 은 설정 테이블 **전수 대조**인데 **바꾸지 않은 영역은
 
 - Phase 1: README 온보딩, 4개 문서 지도, 자동화 범위 전수표, 증상→원인→조치
   색인, 문서 수명 정책과 `Archive/` 이관을 반영했다.
-- MD→HTML 자동 렌더러는 **도입하지 않았다.** `프로젝트 상세.html`을 직접 갱신하라는
-  2026-08-24 사용자 지시와 충돌하고, 이미 유지 중인 HTML을 자동 변환물이 덮을 수
-  있기 때문이다. 대신 `tools_check_docs_sync.py`가 기준 문서보다 오래된 HTML을
-  경고한다.
-- `tools_run_regression.py`가 회귀 Python 바깥에서 실행을 감시한다. 새 전체 회귀
+- MD→HTML 자동 렌더러를 **2026-08-26에 도입했다**(`tools/render_docs.py`). 원본이
+  `..\프로젝트_상세.md` 하나뿐이 되어 "손으로 유지 중인 HTML을 자동 변환물이 덮는다"는
+  기존 우려가 없어졌다. 같은 날 `tools_*.py` 10개를 `tools/`로 모으고 접두사를 뗐다.
+  `tools/check_docs_sync.py`가 상세 원본이 저장소 문서보다 최신인지와 HTML 재생성
+  누락을 함께 검사한다.
+- `tools/run_regression.py`가 회귀 Python 바깥에서 실행을 감시한다. 새 전체 회귀
   리포트가 없으면 비정상 종료로 확정해 상태 파일·Windows 알림을 남기고 Viewer를
   안전 종료한다.
 - TC 사이에서 Viewer가 사라지면 WER 덤프로 실제 크래시 여부를 구분해 판정에 남기고
   다음 TC용으로 재기동한다(`run.py::recover_viewer_after_termination`).
-- `tools_automation_status.py` / `check_automation_status.cmd N`은 개별 TC나 전제 실패
+- `tools/automation_status.py` / `check_automation_status.cmd N`은 개별 TC나 전제 실패
   리포트를 제외하고 마지막 **완료 전체 회귀**의 경과일을 알려 준다. 일일 작업
   스케줄은 이 PC에 임의 등록하지 않았으며, 필요하면 이 CMD를 Task Scheduler에
   연결한다.
@@ -162,7 +163,7 @@ Step 7 은 설정 테이블 **전수 대조**인데 **바꾸지 않은 영역은
 | 5 | Step 3 OCR 이 화면 문구와 달랐다 | `3D-N` 0건 / `(3D-N)` 1건. 캡처로 실제 판독을 확인해 고쳤다(추측하지 않았다) |
 | 6 | 콤보에서 **다른 콤보의 표시값**을 눌렀다 | 좌표로 후보를 고르려던 시도가 **세 번 다 실패**(제약 없음 → `min_y` → `exclude_rects`). 이제 누른 뒤 표시값·DB 로 확인하고 재시도한다 |
 | 7 | `install_01`/`install_02` 가 **`except` 없이** 회귀 첫 단계에 있었다 | 정적 감사로 발견. `guarded()` 로 호출 지점에서 일괄 보호 |
-| 8 | `tools_check_regression_names.py` 가 **무력화**됐다 | 회귀 사슬을 참조 목록으로 바꾸자 세는 이름이 0개가 되고 통과 메시지는 그대로 나왔다. 0개면 실패로 만들었다 |
+| 8 | `tools/check_regression_names.py` 가 **무력화**됐다 | 회귀 사슬을 참조 목록으로 바꾸자 세는 이름이 0개가 되고 통과 메시지는 그대로 나왔다. 0개면 실패로 만들었다 |
 | 9 | 로그인 시 **비밀번호를 3번 입력**했다 | PW 필드는 password 스타일이라 `WM_GETTEXT` 가 빈 문자열을 준다. "확인 불가"를 "실패"로 단정한 것이 원인. 재시도를 로그인 단위로 옮겼다 |
 | 10 | 저장소의 유일한 단위 시험이 **실패 상태로 방치**돼 있었다 | 아무도 돌리지 않았다. 사전 검사에 넣었다 |
 
@@ -171,11 +172,11 @@ Step 7 은 설정 테이블 **전수 대조**인데 **바꾸지 않은 영역은
 | 파일 | 용도 |
 |---|---|
 | `core/imginfo.py` | 제품 `.img` 꼬리의 `<INFORMATION>` XML 판독(3D Recon 파라미터). DB 에 없는 근거다 |
-| `traceability.json` + `tools_traceability.py` | 사양↔TC 양방향 추적성. 인용을 **매번 원문과 대조**한다. 위조 7건 주입 검출 확인 |
+| `traceability.json` + `tools/traceability.py` | 사양↔TC 양방향 추적성. 인용을 **매번 원문과 대조**한다. 위조 7건 주입 검출 확인 |
 | `core/viewer_processing.wait_new_group()` | 고정 `settle` 대신 DB 도착 조건 대기. 2D 각 2.9초(고정 14초 대비) / 3D 29.5·39.7초(**고정 20초는 오히려 부족했다**) |
 | `tests/test_imginfo_and_waits.py` | 단위 시험 26건 |
 | `run.py probe-preset3d` | 3D Preset 목록 컨트롤 실측용 조회 전용 프로브 |
-| `..\프로젝트 상세.html` | 운영 상세 문서(프로젝트 루트, 저장소 밖). **작업할 때마다 직접 갱신한다** |
+| `..\프로젝트_상세.md` / `.html` | **기본 문서**(프로젝트 루트, 저장소 밖). 상세를 먼저 갱신하고 `python tools/render_docs.py` 로 HTML 재생성. README 는 그 축약형 |
 
 ### 2.5 정리
 
@@ -393,7 +394,7 @@ Bellalun Viewer QA 자동화를 아래 경로에서 이어서 진행해줘.
 프로젝트 루트: C:\Users\ksj74\OneDrive\Desktop\자동화\Bellalun Viewer
 Git 저장소: 같은 경로의 auto
 
-먼저 auto/AGENTS.md, auto/NEXT_WORK.md, auto/NEXT_TASK.md, ..\프로젝트 상세.html,
+먼저 auto/AGENTS.md, auto/NEXT_WORK.md, auto/NEXT_TASK.md, ..\프로젝트_상세.md,
 그리고 지식 폴더의 영구 지침 3종을 읽어 현재 상태와 규칙을 파악해라.
 TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의 `개정 TC` 시트만 기준으로
 삼는다(지식 폴더의 다른 체크리스트는 번호 매핑이 다르다).
@@ -421,13 +422,14 @@ P1
    호출부가 WF_01/WF_02/run-sys3d 이므로 그 셋을 회귀 순서로 실제 지나가라.
 
 검증·Git
-- 긴 실행 전에 반드시: py_compile, tools_check_module_attrs.py,
-  tools_check_regression_names.py, tools_traceability.py,
+- 긴 실행 전에 반드시: py_compile, tools/check_module_attrs.py,
+  tools/check_regression_names.py, tools/traceability.py,
   python -m unittest discover -s tests -p "test_*.py"
 - 고친 뒤 전체 회귀를 1회 돌리고 실제 결과만 기록해라.
-- 문서를 갱신해라: README.md(간결·최신 회귀 1건), ..\프로젝트 상세.html(직접 갱신,
-  auto/ 안에 만들지 말 것), NEXT_WORK.md, NEXT_TASK.md, automation_scope.json,
-  traceability.json, 지식/[자동화 구현 현황].
+- 문서를 갱신해라. 순서가 있다: ..\프로젝트_상세.md(**기본 문서** — 먼저 갱신)
+  → python tools/render_docs.py → README.md(그 포트폴리오 축약형, 최신 회귀 1건)
+  → NEXT_WORK.md, NEXT_TASK.md, automation_scope.json, traceability.json,
+  지식/[자동화 구현 현황]. 상세와 HTML 은 auto/ 안에 만들지 마라.
 - git status/diff/remote 검토 후 관련 파일만 commit 하고 git push origin main.
   Force Push·history 재작성 금지. config.json, Reports/, Evidence/, Log/, Cache/,
   Temp/, work/ 는 커밋하지 마라.

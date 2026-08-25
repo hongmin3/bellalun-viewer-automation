@@ -4,7 +4,7 @@
 두 겹으로 동작한다.
 
 * ``run.py`` 안에서는 TC가 끝날 때 Viewer가 사라졌는지 확인한다.
-* ``tools_run_regression.py``는 회귀 Python **바깥**에서 기다린다. 따라서 Python
+* ``tools/run_regression.py``는 회귀 Python **바깥**에서 기다린다. 따라서 Python
   자체가 예외·강제종료로 사라져 리포트를 못 남긴 경우도 감지할 수 있다.
 
 상태 파일은 ``work/regression_state.json``에 원자적으로 쓴다. ``work/``는 Git
