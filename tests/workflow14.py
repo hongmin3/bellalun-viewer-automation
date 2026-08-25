@@ -62,6 +62,30 @@ Step 7 의 판정은 설정 테이블 **전수 대조**인데, **바꾸지 않�
 
 2026-08-25 왕복 실측: 7개 적용 -> 설정 섹션 7개 변경 -> 7개 원복 -> **잔여 차이 0**.
 
+### ③ 여기에 **UPS 설정**을 하나 더 얹는다 — DB 가 아니라 화면으로 판정한다
+
+`Setting > Device > UPS` 의 `UPS Setting`(`None` / `EATON Ellipse ECO 650`)은
+위 7개와 성격이 다르다. **어느 설정 테이블에도 저장되지 않는다.**
+
+2026-08-25 확인 (사용자 제보로 조사)
+
+    .vms 안 20개 항목                          UPS 관련 0건
+    CONFIGURATION/ACCOUNT/PROCEDURE 전 컬럼    'UPS'/'EATON' 0건, %UPS% 컬럼명 0건
+    ExternalInput.xml                          ups/eaton/battery 0건
+    레지스트리 HKLM|HKCU\SOFTWARE\Vieworks     UPS 값 0건
+    UPSHandler\ 폴더                           설정 파일 없음(exe/dll/log 뿐)
+    값을 바꾸고 Update                          설정 섹션 38개 중 0개 변화
+    값을 바꾸고 Viewer 재기동                   **값이 남는다** (= 저장은 된다)
+
+즉 **저장은 되는데 Export 산출물에는 들어가지 않는다** → Import 로 복원될 방법이
+없다. 사양서1 60절이 Export 대상을 "Study 정보를 제외한 모든 설정 정보" 로
+정의하는 것과 어긋난다. Step 7 마지막에 판정으로 남기고 **완화하지 않는다**
+(`TC_XIPL_compatibility_03` Step 9 와 같은 취급).
+
+같은 페이지의 `2537~2541`(Model / Serial No. / Battery Charged / Power State /
+Remaining run time)은 **설정이 아니라 실시간 장치 상태**라 비교에서 뺀다
+(`setting_values.VOLATILE_CONTROLS`).
+
 ## 판정 근거
 
 - Step 2: 사양서1 "60. Setting Export/Import" 개발 사양이 `.vms` 를
@@ -100,7 +124,7 @@ import os
 
 from core import (flows, screen, setting_changes, setting_transfer,
                   setting_values, snapshot, specs)
-from core.result import FAIL, PASS, TCResult
+from core.result import FAIL, PASS, StepFailed, TCResult
 
 EXPORT_FILE = "WF14_Baseline_Settings.vms"
 
@@ -115,6 +139,7 @@ def run(ctx):
     ui = None
     applied = []
     imported = False
+    ups_baseline = None
     try:
         # --- Precondition ----------------------------------------------
         ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
@@ -130,6 +155,8 @@ def run(ctx):
                  "권한 표(사양서1 78~80쪽)에서 User 에게 보이지 않는 항목이다.")
 
         baseline = setting_changes.plan_targets(ctx.db)
+        ups_baseline = setting_changes.read_ups(ui)
+        setting_changes.close_setting(ui)
         pre = snapshot.take(ctx.db)
         r.assert_true(
             0, "[Precondition] 변경 전 기준 설정값 기록",
@@ -138,6 +165,7 @@ def run(ctx):
                      f"현재값 판독",
             actual={"기준값": {b["item"].key: b.get("before", b.get("error"))
                             for b in baseline},
+                    "UPS Setting(화면)": ups_baseline,
                     "설정 섹션 수": len(snapshot.CONFIG_SECTIONS)},
             note="Export 직전 상태를 DB 스냅샷으로 떠 둔다. Step 7 의 전수 대조 "
                  "기준이며, Import 가 실패했을 때 되돌릴 목표값이기도 하다.")
@@ -147,9 +175,17 @@ def run(ctx):
             ui, tesseract_exe=tess,
             capture_dir=os.path.join(evidence, "pages_before"))
         n_items = sum(len(v) for v in before_vals["pages"].values())
+        if before_vals.get("viewer_died"):
+            # 순회 도중 제품이 종료됐다. 여기서 멈추면 정작 검증하려는
+            # Export/Import 를 한 번도 못 해 본다 — 재기동해서 본 시험을
+            # 계속하고, **이 사실은 Step 7 에서 판정으로 남긴다.**
+            ui, _restart = flows.cold_start(ctx.cfg, ctx.db,
+                                            force_restart=True)
+            flows.ensure_patient_screen(ui)
         r.add(0, "[근거 수집] Setting 전 페이지 컨트롤 값 판독(1회차)", PASS,
               expected="Setting 9개 그룹의 페이지별 컨트롤 값",
               actual={"pages": len(before_vals["pages"]), "items": n_items,
+                      "Viewer 종료됨": bool(before_vals.get("viewer_died")),
                       "missing": list(before_vals["missing"])},
               note="사내 선행 도구(Setting 화면 캡처-비교 프로그램)와 같은 목적이지만 "
                    "**이미지 비교가 아니다**. 절대좌표/Calibration 없이 컨트롤 ID 로 "
@@ -241,6 +277,32 @@ def run(ctx):
                     "변경 세트가 덮은 테이블": summary["덮은 설정테이블"]},
             note="Step 7 전수 대조가 실제로 검증하게 될 범위를 여기서 확정한다. "
                  "이 목록이 비면 Step 7 은 통과해도 아무 의미가 없다.")
+
+        ups_target = setting_changes.other_ups_value(ups_baseline)
+        ups_changed = setting_changes.set_ups(ui, ups_target)
+        # **Update 를 반드시 누른다.** 누르지 않고 `close_setting` 으로 닫으면
+        # 저장 확인 팝업에 "저장 안 함" 으로 답해 변경이 버려진다. 그러면 Step 7 의
+        # "Export 시점 값으로 복원" 판정은 **바뀐 적 없는 값을 확인하는 빈 판정**이
+        # 된다 — 2026-08-25 첫 실행에서 실제로 그렇게 통과했다.
+        flows.setting_update(ui, wait=1.8)
+        flows.confirm_setting_dialog(ui, required=True)
+        # **닫기 전에** 다시 읽는다. 닫고 다시 열면 Setting 창을 한 회차 더
+        # 여닫게 되는데, 그 직후 `Setting > System > My Settings` 진입이
+        # 레일 항목(193)을 못 찾고 실패했다(2026-08-25 실측).
+        ups_saved = setting_changes.read_ups(ui)
+        setting_changes.close_setting(ui)
+        r.assert_true(
+            3, "Setting > Device > UPS 설정 변경이 적용됨",
+            ups_target.startswith(ups_saved) and ups_saved != ups_baseline,
+            expected=ups_target,
+            actual={"변경 전": ups_baseline, "고른 값": ups_changed,
+                    "Update 후 다시 읽은 값": ups_saved},
+            note="이 항목은 **어느 설정 테이블에도 저장되지 않는다** — 2026-08-25 "
+                 "에 CONFIGURATION/ACCOUNT/PROCEDURE 의 모든 문자열 컬럼과 "
+                 "`%UPS%` 컬럼명을 뒤져 0건이었고, 레지스트리(Vieworks 트리)와 "
+                 "UPSHandler 폴더, `ExternalInput.xml` 에도 없었다. 그래서 "
+                 "DB 가 아니라 화면 콤보 값으로 판정한다. 재기동 후에도 값이 "
+                 "남으므로 **저장은 되는 설정**이다.")
 
         if summary["적용됨"] == 0:
             raise RuntimeError(
@@ -348,10 +410,53 @@ def run(ctx):
         after_vals = setting_values.read_all(
             ui, tesseract_exe=tess,
             capture_dir=os.path.join(evidence, "pages_after"))
+        swept_ok = not (before_vals.get("viewer_died")
+                        or after_vals.get("viewer_died"))
+        if after_vals.get("viewer_died"):
+            ui, _restart = flows.cold_start(ctx.cfg, ctx.db,
+                                            force_restart=True)
+            flows.ensure_patient_screen(ui)
         vc = setting_values.compare(before_vals, after_vals)
         r.assert_true(
+            7, "Setting 전 페이지 순회 중 Viewer 가 종료되지 않음", swept_ok,
+            expected="56개 페이지를 두 회차 도는 동안 Viewer 유지",
+            actual={"1회차 종료": bool(before_vals.get("viewer_died")),
+                    "2회차 종료": bool(after_vals.get("viewer_died")),
+                    "1회차 읽은 페이지": len(before_vals["pages"]),
+                    "2회차 읽은 페이지": len(after_vals["pages"])},
+            note="제품 관찰. Setting 페이지를 순회하면 페이지마다 콘텐츠 패널이 "
+                 "새로 생기고 이전 것이 남는다 — 2026-08-25 실측으로 51개 페이지를 "
+                 "도는 동안 GDI 객체 348->2886, USER 객체 1433->5610 으로 늘고 "
+                 "한 번도 반환되지 않았다. 같은 51페이지 뒤 Q.C. 그룹에 들어가면 "
+                 "Viewer 가 종료됐다. 다만 그룹 순서를 뒤집어 Q.C. 를 먼저 읽으면 "
+                 "56개 페이지가 모두 정상이었으므로 Q.C. 고유 문제는 아니고, "
+                 "3페이지짜리 최소 재현으로도 재현되지 않았다. 원인은 아직 "
+                 "특정하지 못했다. 판정을 흐리지 않으려고 **순회 완주 여부를 따로 "
+                 "남긴다** — 순회가 중단되면 아래 화면 값 대조의 근거가 불완전하다.")
+
+        # 스크롤 한계 안내는 아래 제품 판정이 FAIL 하더라도 반드시 보고서에
+        # 남아야 한다. 사용자가 무엇을 자동 확인했고 무엇을 직접 봐야 하는지
+        # 결과 문서만 읽고 알 수 있도록 실패 가능 판정보다 먼저 기록한다.
+        r.manual(
+            7, "Setting 스크롤 아래 목록 행의 상세값 복원(차기 개선)",
+            "현재 목록은 휠을 조금씩 내리면 같은 가상 ListItem 컨트롤을 재사용한다. "
+            "행 핸들/ID만으로는 새 행인지 판별할 수 없어 일부 행만 읽고도 전수조사로 "
+            "오인할 수 있음을 2026-08-25 실측으로 확인했다. 불완전한 스크롤을 "
+            "판정에 사용하지 않도록 이 실행에서는 목록을 스크롤하거나 행을 선택하지 "
+            "않는다. 화면에 현재 보이는 컨트롤 값과 설정 DB 전수 대조는 위에서 "
+            "별도로 수행한다. **해제 조건**: 스크롤바 위치 또는 첫/마지막 행의 실제 "
+            "문구로 페이지 전환을 확인하고, 겹치는 행을 제거하면서 끝 행 도달을 "
+            "증명하는 전용 탐색기를 구현한 뒤 전후 DB 무변경 시험을 통과한다. "
+            "**이 실행으로 말할 수 없는 것**: 현재 화면 아래에 숨은 목록 행을 "
+            "선택했을 때 나타나는 상세값이 Import 후 동일한지 여부.",
+            expected="스크롤 아래를 포함한 목록 전 행의 상세값이 Export 시점과 동일",
+            actual="미수행 — 부정확한 부분 스크롤 판정을 제거함")
+
+        screen_restored = (not vc["changed"] and not vc["only_before"]
+                           and not vc["only_after"])
+        r.add(
             7, "Setting 화면 컨트롤 값 항목 단위 복원(보강 근거)",
-            not vc["changed"] and not vc["only_before"] and not vc["only_after"],
+            PASS if screen_restored else FAIL,
             expected=f"{vc['compared_pages']}개 페이지 / "
                      f"{vc['compared_items']}개 항목 값 동일",
             actual={"페이지": vc["compared_pages"], "항목": vc["compared_items"],
@@ -378,7 +483,31 @@ def run(ctx):
                  "2026-08-25 실행에서 UPS 미연결 때문에 '0 %'/'Power Unknown' 이 "
                  "'Not Connected' 로 바뀌어 이 판정이 FAIL 했다. 판정을 약화시킨 "
                  "것이 아니라 **대상이 아닌 값을 뺀 것**이고, 몇 개를 뺐는지 "
-                 "여기에 남긴다(core/setting_values.VOLATILE_CONTROLS).")
+                 "여기에 남긴다(core/setting_values.VOLATILE_CONTROLS).",
+            stop=False)
+
+        # 마지막에 둔다 — 앞의 판정을 가리지 않기 위해서다.
+        ups_now = setting_changes.read_ups(ui)
+        setting_changes.close_setting(ui)
+        ups_restored = (str(ups_baseline).strip().lower()
+                        == str(ups_now).strip().lower())
+        r.add(
+            7, "Setting > Device > UPS 설정이 Export 시점 값으로 복원",
+            PASS if ups_restored else FAIL, ups_baseline, ups_now,
+            note="**제품 결함으로 관찰됨(2026-08-25).** 사양서1 60절은 Export "
+                 "대상을 'Study 정보를 제외한 모든 설정 정보' 로 정의하는데, UPS "
+                 "설정은 Export 산출물 어디에도 들어가지 않는다 — .vms 안의 20개 "
+                 "항목(CONFIGURATION/ACCOUNT/PROCEDURE 백업, ExternalInput.xml, "
+                 "PARAMETER*, RECON_PARAMETER, Version.txt)에 UPS 관련이 0건이고, "
+                 "설정을 바꿔 Update 해도 설정 테이블 38개 중 어느 것도 바뀌지 "
+                 "않는다. 그런데 재기동 후에는 값이 남으므로 **저장은 되는 "
+                 "설정**이다. 따라서 Import 로 되돌아올 방법이 없다. "
+                 "완화하지 않고 계속 보고한다.",
+            stop=False)
+        if not screen_restored or not ups_restored:
+            raise StepFailed(
+                "Step 7 FAIL — 화면 설정값 또는 UPS 설정이 Export 시점 값으로 "
+                "복원되지 않았습니다.")
 
     except Exception as exc:                           # noqa: BLE001
         # `r.abort` 를 쓴다. `r.add(..., FAIL)` 은 `stop_on_fail` 때문에 예외
@@ -410,6 +539,12 @@ def run(ctx):
                                              force_restart=True)
                     flows.ensure_patient_screen(ui)
                 restored = setting_changes.restore_all(ui, ctx.db, applied)
+                if ups_baseline:
+                    # Import 가 되돌려 주지 못하는 항목이므로 **반드시** 손으로
+                    # 되돌린다. 안 그러면 다음 회귀가 바뀐 값을 물려받는다.
+                    setting_changes.set_ups(ui, ups_baseline)
+                    flows.setting_update(ui, wait=1.8)
+                    flows.confirm_setting_dialog(ui, required=True)
                 setting_changes.close_setting(ui)
             except Exception as exc:                   # noqa: BLE001
                 r.cleanup(0, "정리: 변경 설정 원복", FAIL,

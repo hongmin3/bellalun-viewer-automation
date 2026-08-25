@@ -22,9 +22,9 @@ CHECKLIST_SHEET = "개정 TC"
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from core.result import PASS, FAIL, MANUAL, SKIP
+from core.result import PASS, FAIL, MANUAL, SKIP, BLOCKED, STATUSES
 
-RESULT_HEADERS = ["자동화 판정", "판정 일시", "PASS", "FAIL", "MANUAL", "SKIP",
+RESULT_HEADERS = ["자동화 판정", "판정 일시", "PASS", "FAIL", "MANUAL", "SKIP", "BLOCKED",
                   "실패 항목", "수동 확인 / 미수행 항목", "증거"]
 
 FILLS = {
@@ -32,6 +32,7 @@ FILLS = {
     FAIL:   PatternFill("solid", fgColor="FFC7CE"),
     MANUAL: PatternFill("solid", fgColor="FFEB9C"),
     SKIP:   PatternFill("solid", fgColor="E7E6E6"),
+    BLOCKED: PatternFill("solid", fgColor="E4DFEC"),
     "미수행": PatternFill("solid", fgColor="F2F2F2"),
 }
 FONTS = {
@@ -39,6 +40,7 @@ FONTS = {
     FAIL:   Font(color="9C0006", bold=True),
     MANUAL: Font(color="9C6500", bold=True),
     SKIP:   Font(color="808080"),
+    BLOCKED: Font(color="7030A0", bold=True),
     "미수행": Font(color="A6A6A6"),
 }
 
@@ -203,7 +205,7 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None):
     for name in RESULT_HEADERS:
         ws.column_dimensions[
             ws.cell(hdr_row, col_of[name]).column_letter].width = (
-            12 if name in ("자동화 판정", "PASS", "FAIL", "MANUAL", "SKIP") else 40)
+            12 if name in ("자동화 판정", *STATUSES) else 40)
 
     wb.save(out_path)
     return {"path": out_path, "written": written, "extra": len(extra),
@@ -232,10 +234,11 @@ def _set(ws, row, col, value, status=None):
 def _write_row(ws, row, col_of, hits, stamp):
     verdicts = [h.verdict for h in hits]
     verdict = (FAIL if FAIL in verdicts else
+               BLOCKED if BLOCKED in verdicts else
                MANUAL if MANUAL in verdicts else
                PASS if PASS in verdicts else SKIP)
 
-    total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    total = {status: 0 for status in STATUSES}
     fails, manuals, evidence = [], [], []
     for h in hits:
         for k, v in h.counts.items():
@@ -243,7 +246,7 @@ def _write_row(ws, row, col_of, hits, stamp):
         for c in h.checks:
             if c.status == FAIL:
                 fails.append(f"[Step {c.step}] {c.title} — 기대={c.expected} / 실제={c.actual}")
-            elif c.status in (MANUAL, SKIP):
+            elif c.status in (MANUAL, SKIP, BLOCKED):
                 # **사유(note)를 함께 적는다** (2026-08-21 사용자 요청 "비고도 잘
                 # 기록해 달라"). 제목만 적으면 체크리스트만 받은 사람이 "왜 수동인가 /
                 # 왜 대상이 아닌가"를 알 수 없어 리포트를 다시 열어야 했다.
@@ -258,7 +261,7 @@ def _write_row(ws, row, col_of, hits, stamp):
 
     _set(ws, row, col_of["자동화 판정"], verdict, verdict)
     _set(ws, row, col_of["판정 일시"], stamp)
-    for k in (PASS, FAIL, MANUAL, SKIP):
+    for k in STATUSES:
         _set(ws, row, col_of[k], total[k])
 
     for name, items in (("실패 항목", fails), ("수동 확인 / 미수행 항목", manuals),

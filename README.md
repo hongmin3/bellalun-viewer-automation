@@ -6,7 +6,7 @@
 |---|---|
 | **목적** | 의료영상 진단 SW(디지털 유방촬영 Viewer)의 QA 체크리스트를 **실제 UI로 자동 수행하고 Pass/Fail 을 스스로 판정**한다. 사람이 하루씩 돌리던 회귀를 명령 한 줄로 돌리고 판정 근거까지 남긴다 |
 | **기준 문서** | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`. **여기에 없는 TC 는 이 저장소의 시험 대상이 아니다** — 지식 폴더의 다른 체크리스트는 번호 매핑이 다르다 |
-| **자동화 범위** | 개정본 **37 TC** = 완전자동 **21** / 부분자동 6 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
+| **자동화 범위** | 개정본 **37 TC** = 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
 | **실행 1줄** | `python run.py run-regression` — 그 전에 `python run.py portability-check` 로 **`관리자 권한` 이 True** 인지 먼저 본다(False 면 UI 자동화가 전부 막힌다) |
 | **필수 조건** | 관리자 권한(High Integrity) · 1920×1080 @100%(96 DPI) · Tesseract-OCR · SQL Server 인스턴스 · XIPL Studio |
 
@@ -31,7 +31,7 @@
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
 사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 수행하고 판정 근거까지
-남기는** 자동화로 만들었습니다. 최신 전수 회귀는 104.6분이 걸렸습니다.
+남기는** 자동화로 만들었습니다. 최신 전수 회귀는 94.1분이 걸렸습니다.
 
 ```bash
 python run.py run-regression
@@ -50,13 +50,13 @@ python run.py run-regression
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **24,971줄** / 모듈 73개 (core 34 · tests 28 · `run.py` · 도구 10) — 2026-08-25 재실측 |
-| 시험 범위 | 개정본 체크리스트 **37개 TC** 전수 등록 — 완전자동 **21** / 부분자동 6 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
-| 최신 전체 회귀 | 2026-08-25 08:19~10:04 — TC 27건 : PASS 19 / FAIL 3 / MANUAL 5 / SKIP 0 (104.6분)<br>그 안의 검증 267개 : PASS 248 / FAIL 11 / MANUAL 7 / SKIP 1 |
-| 남은 FAIL | `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀, 완화하지 않습니다) / `WF_13` Step 4 로그인 ID 콤보 선택 불안정 / `XIPL_05` Step 4 Q.C 채점 결과 (자세한 것은 `NEXT_WORK.md`) |
+| 규모 | Python **24,038줄** / 모듈 64개 (core 34 · tests 29 · `run.py`) — 2026-08-25 재실측 |
+| 시험 범위 | 개정본 체크리스트 **37개 TC** 전수 등록 — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
+| 최신 전체 회귀 | 2026-08-25 20:44~22:19 — TC 27건 : PASS 20 / FAIL 2 / MANUAL 3 / BLOCKED 2 / SKIP 0 (94.1분)<br>그 안의 검증 271개 : PASS 255 / FAIL 7 / MANUAL 4 / BLOCKED 4 / SKIP 1 |
+| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). WF14의 스크롤 아래 목록 행은 부정확한 부분 스크롤을 제거하고 차기 개선 MANUAL로 명시 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools_traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. 구현된 25개 TC 중 **24개**에 사양 인용 68건 연결 |
-| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_check_docs_sync.py`(운영 HTML 갱신 누락) / `tools_report_numbers.py`(문서 수치 실측) / `tools_prune_docs.py`(문서 수명·읽기 비용) / 단위 시험 64건 |
+| 자체 검사 | `tools_check_module_attrs.py`(모듈 오염·없는 이름) / `tools_check_regression_names.py`(회귀 블록 이름 결속) / `tools_traceability.py`(인용·모듈·명령 대조) / `tools_check_docs_sync.py`(운영 HTML 갱신 누락) / `tools_report_numbers.py`(문서 수치 실측) / `tools_prune_docs.py`(문서 수명·읽기 비용) / 단위 시험 71건 |
 
 ### 이 자동화가 실제로 하는 일
 

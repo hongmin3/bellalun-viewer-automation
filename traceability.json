@@ -516,7 +516,7 @@
     {
       "tc_id": "TC_Basic_WorkFlow_14",
       "title": "Setting Export 및 Import",
-      "level": "FULL",
+      "level": "PARTIAL",
       "module": "tests/workflow14.py::run",
       "command": "run-wf14",
       "requirements": [

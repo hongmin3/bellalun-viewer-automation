@@ -224,7 +224,7 @@ def run(ctx):
 
         missing_pid = [k for k in preview_hits if k not in pid_panels]
         if missing_pid:
-            r.manual(
+            r.blocked(
                 3, f"환자 ID 를 읽지 못한 패널: {missing_pid}",
                 "2026-08-21 에 전처리를 강화했는데도(명암 반전 / 임계값 이진화 150·110 / "
                 "NEAREST 확대 x psm 6·7, `core/uitext.read_overlay_text`) 이 패널에서는 "

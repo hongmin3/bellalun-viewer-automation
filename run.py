@@ -311,14 +311,14 @@ def announce_done(results, elapsed_minutes, paths):
     2026-08-24 사용자 요청. 긴 실행을 켜 두고 다른 일을 하다가 돌아왔을 때
     "끝났는지"를 스크롤하지 않고 알 수 있어야 한다. 콘솔 벨(`\\a`)도 함께 낸다.
     """
-    from core.result import FAIL, MANUAL, PASS, SKIP
+    from core.result import BLOCKED, FAIL, MANUAL, PASS, SKIP
     tc = {}
     checks = {}
     for r in results:
         tc[r.verdict] = tc.get(r.verdict, 0) + 1
         for c in r.checks:
             checks[c.status] = checks.get(c.status, 0) + 1
-    order = (PASS, FAIL, MANUAL, SKIP)
+    order = (PASS, FAIL, MANUAL, SKIP, BLOCKED)
     line = " / ".join(f"{k} {tc.get(k, 0)}" for k in order)
     sub = " / ".join(f"{k} {checks.get(k, 0)}" for k in order)
     bar = "=" * 74

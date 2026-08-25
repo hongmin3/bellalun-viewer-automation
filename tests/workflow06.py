@@ -10,7 +10,7 @@ from core import flows
 from core import send_verify as sv
 from core import viewer_processing as vp
 from core.dicom_settings import ensure_bunny
-from core.result import TCResult, PASS, FAIL, MANUAL
+from core.result import BLOCKED, TCResult, PASS, FAIL
 
 def workflow_06(ctx):
     r"""TC_Basic_WorkFlow_06 - All Images 및 Dose SR 전송.
@@ -34,7 +34,7 @@ def workflow_06(ctx):
       SOP Class UID로 판정한다. 체크리스트 Test Data가 RDSR의 UID를 명시하고,
       DICOM Conformance Statement V1.3W1이 X-Ray Radiation Dose SR Storage를
       선언한다.
-    * RDSR이 도착하지 않으면 **FAIL이 아니라 MANUAL**로 보고한다. Precondition이
+    * RDSR이 도착하지 않으면 **FAIL이 아니라 BLOCKED**로 보고한다. Precondition이
       "RDSR 생성 조건을 충족"을 요구하는데 이 환경은 Demo(F8) 가상 촬영이라 그
       조건이 성립하는지 확인되지 않았다. 전제 미충족을 제품 결함처럼 보고하지
       않는다(운영 지침 2절). 관측값은 증거로 남긴다.
@@ -121,13 +121,16 @@ def workflow_06(ctx):
                 note=f"RDSR SOP Class UID {sv.SOP_CLASS_RDSR}(체크리스트 Test Data)로 "
                      "구분한다. DICOM_STORAGE_QUEUE.ClassUID 대조.")
         else:
-            r.manual(
+            r.blocked(
                 3, "Queue에서 Image와 DSR Type 항목 확인",
                 "Queue에 RDSR SOP Class 항목이 없다. 개정본 Precondition은 '검사가 "
                 "종료되어 RDSR 생성 조건을 충족'을 요구하는데, 이 환경은 실제 X-ray "
                 "대신 Demo(F8) 가상 촬영이라 그 조건이 성립하는지 확인되지 않았다. "
                 "전제 미충족을 제품 결함으로 보고하지 않는다 - 실제 촬영 환경에서 "
-                "재확인이 필요하다.",
+                "재확인이 필요하다. **해제 조건**: 실제 촬영 환경에서 RDSR 생성 "
+                "조건을 충족시킨 뒤 다시 실행한다. "
+                "**이 실행으로 말할 수 없는 것**: Demo 촬영이 아닌 실제 촬영의 "
+                "RDSR Queue 등록 여부.",
                 expected="Image와 RDSR이 모두 Queue에 등록",
                 actual=detail_queue)
 
@@ -140,7 +143,7 @@ def workflow_06(ctx):
                   if str(o.get("SOPClassUID") or "")
                   in (sv.SOP_CLASS_MG, sv.SOP_CLASS_DBT)]
         r.add(4, "Storage SCP에서 영상 객체와 RDSR 객체 수 확인",
-              PASS if (images and rdsr) else MANUAL,
+              PASS if (images and rdsr) else BLOCKED,
               expected="전송 대상 영상과 RDSR이 누락 없이 수신",
               actual={"received_total": len(received),
                       "image_objects": len(images),
@@ -149,7 +152,9 @@ def workflow_06(ctx):
                           k: len(v)
                           for k, v in sorted(identity["by_type"].items())}},
               note="수신 파일을 파싱해 SOP Class로 구분한다. RDSR이 없으면 "
-                   "위 Step 3의 사유와 같다.")
+                   "위 Step 3의 사유와 같다. **해제 조건**: 실제 촬영 환경에서 "
+                   "RDSR 생성 조건을 충족시킨 뒤 다시 실행한다. "
+                   "**이 실행으로 말할 수 없는 것**: 실제 촬영의 RDSR 수신 여부.")
         if rdsr:
             bad = [o for o in rdsr
                    if o.get("PatientID") != patient_id
@@ -164,8 +169,11 @@ def workflow_06(ctx):
                         "mismatch": bad},
                 note="개정본 Expected 5. DATA.PATIENT/STUDY와 대조.")
         else:
-            r.manual(5, "RDSR의 Patient ID와 Study Instance UID 비교",
-                     "수신된 RDSR 객체가 없어 대조할 수 없다(Step 3 사유 참고).",
+            r.blocked(5, "RDSR의 Patient ID와 Study Instance UID 비교",
+                     "수신된 RDSR 객체가 없어 대조할 수 없다(Step 3 사유 참고). "
+                     "**해제 조건**: 실제 촬영 환경에서 RDSR을 생성·수신한 뒤 "
+                     "다시 실행한다. **이 실행으로 말할 수 없는 것**: RDSR의 "
+                     "Patient ID와 Study Instance UID 일치 여부.",
                      expected="RDSR의 식별 Tag가 원본 검사와 일치",
                      actual="RDSR 미수신")
     except Exception as exc:

@@ -295,7 +295,7 @@ def run(ctx):
                  "영상과 Dose SR 은 성격이 달라 나눠 판정한다"
                  "(core/send_verify.is_dose_sr_row).")
         if dose_q and any(int(q["State"]) != sv.QUEUE_STATE_DONE for q in dose_q):
-            r.manual(
+            r.blocked(
                 6, "Dose SR Queue 상태가 Done 이다",
                 "확인 항목은 **기대 상태**를 적는다(2026-08-21 사용자 지적) — 이전에는 "
                 "'Done 이 아니다' 라고 관측 결과를 제목에 적어 확인 항목처럼 읽히지 "
@@ -314,7 +314,7 @@ def run(ctx):
                 expected=f"Dose SR 행 State={sv.QUEUE_STATE_DONE}",
                 actual={"dose_sr": dose_q})
         elif not dose_q:
-            r.manual(
+            r.blocked(
                 6, "Dose SR 이 Queue 에 등록된다",
                 "Auto Send 로 영상은 전송됐지만 Dose SR 행이 없다. Demo 가상 촬영은 "
                 "RDSR 생성 조건을 충족하지 않는다(WF_06 과 같은 판단). "

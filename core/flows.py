@@ -250,13 +250,27 @@ SETTING_DICOM_GENERAL = {
 }
 
 
-def _click_setting_control(ui, ctrl_id, what, wait=1.5):
-    hits = [c for c in ui.controls(max_depth=7)
-            if c.ctrl_id == ctrl_id and c.visible
-            and c.rect[2] - c.rect[0] > 20]
+def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=8):
+    """Setting 화면의 컨트롤을 누른다. **나타날 때까지 상한을 두고 기다린다.**
+
+    Setting 창을 막 열었거나 방금 닫았다 다시 연 직후에는 그룹/페이지 레일이
+    아직 그려지지 않은 순간이 있다. 2026-08-25 실측: UPS 설정을 바꾸느라 Setting
+    을 한 번 더 여닫은 뒤 `Setting > System > My Settings`(193)를 찾지 못해 TC 가
+    Step 4 에서 중단됐다. 고정 대기를 늘리는 대신 **실제로 나타나는 것**을
+    기다린다.
+    """
+    end = time.time() + timeout
+    hits = []
+    while time.time() < end:
+        hits = [c for c in ui.controls(max_depth=7)
+                if c.ctrl_id == ctrl_id and c.visible
+                and c.rect[2] - c.rect[0] > 20]
+        if hits:
+            break
+        time.sleep(0.4)
     if not hits:
-        raise FlowError(f"{what}(ID {ctrl_id})을 찾지 못했습니다. "
-                        f"현재 화면을 ui-probe로 확인하십시오.")
+        raise FlowError(f"{what}(ID {ctrl_id})을 {timeout}초 동안 찾지 "
+                        f"못했습니다. 현재 화면을 ui-probe로 확인하십시오.")
     ui.click(hits[0], settle=1.0)
     time.sleep(wait)
     return hits[0]
@@ -812,6 +826,104 @@ PRESET_2D_DELETE = 2549
 SETTING_CONFIRM_OK = 500
 
 
+def _setting_result_text(text):
+    """Setting Update 결과 팝업으로 확정할 수 있는 OCR 문구인가."""
+    compact = "".join(ch for ch in str(text or "").lower()
+                      if ch.isalnum())
+    return ("restarttheprogramtoapply" in compact
+            or "updatesuccessfully" in compact
+            or "updatedsuccessfully" in compact)
+
+
+def _pink_button_point(image):
+    """Setting 중앙 영역의 채워진 분홍 버튼 중심(이미지 상대좌표).
+
+    1px 팝업 테두리보다 채워진 버튼 행의 분홍 픽셀이 훨씬 많다는 점을 이용한다.
+    Update 버튼과 좌측 선택 레일은 중앙/중간 높이 범위 밖이라 후보가 아니다.
+    """
+    from core import screen
+
+    width, height = image.size
+    x0, x1 = int(width * .28), int(width * .72)
+    y0, y1 = int(height * .30), int(height * .72)
+    pixels = image.load()
+    pink = {(x, y) for y in range(y0, y1) for x in range(x0, x1)
+            if screen.is_pink(pixels[x, y])}
+    components = []
+    while pink:
+        seed = pink.pop()
+        stack = [seed]
+        component = [seed]
+        while stack:
+            x, y = stack.pop()
+            for point in ((x - 1, y), (x + 1, y),
+                          (x, y - 1), (x, y + 1)):
+                if point in pink:
+                    pink.remove(point)
+                    stack.append(point)
+                    component.append(point)
+        xs = [point[0] for point in component]
+        ys = [point[1] for point in component]
+        box_width = max(xs) - min(xs) + 1
+        box_height = max(ys) - min(ys) + 1
+        density = len(component) / float(box_width * box_height)
+        # OK는 가로로 긴 채움 버튼이다. 팝업의 1px 테두리나 라디오 표시처럼
+        # 서로 떨어진 분홍 요소를 같은 y행이라는 이유로 합치지 않는다.
+        if (len(component) >= 300 and box_width >= 40 and box_height >= 10
+                and box_width > box_height * 1.3 and density >= .35):
+            components.append((len(component), min(xs), max(xs),
+                               min(ys), max(ys)))
+    if not components:
+        return None
+    _area, left, right, top, bottom = max(components)
+    return ((left + right) // 2, (top + bottom) // 2)
+
+
+def _setting_inline_result(ui):
+    """UPS처럼 Setting 창 안에 그려지는 결과 팝업을 찾는다.
+
+    이 팝업은 별도 Win32 버튼이 아니다. 실측상 OK가 자식 컨트롤로 열거되지 않아
+    팝업 문구 OCR + 채워진 분홍 버튼을 함께 확인해야 한다. 좌표는 Setting 창에
+    상대적이며, 둘 중 하나라도 확인되지 않으면 클릭하지 않는다.
+    """
+    if not hasattr(ui, "windows"):
+        return None
+    from core import screen
+
+    updates = [c for c in ui.by_id(SETTING_UPDATE_BUTTON)
+               if c.visible and c.rect[2] > c.rect[0]]
+    if len({c.hwnd: c for c in updates}) != 1:
+        return None
+    update = next(iter({c.hwnd: c for c in updates}.values()))
+    containers = []
+    for top in ui.windows():
+        nodes = [top] + list(children(top.hwnd, 3))
+        for node in nodes:
+            if node.cls != "#32770" or not node.visible:
+                continue
+            l, t, r, b = node.rect
+            ul, ut, ur, ub = update.rect
+            if l <= ul and t <= ut and ur <= r and ub <= b:
+                containers.append(node)
+    if not containers:
+        return None
+    dialog = min({c.hwnd: c for c in containers}.values(),
+                 key=lambda c: ((c.rect[2] - c.rect[0])
+                                * (c.rect[3] - c.rect[1])))
+    image = screen.grab(dialog.rect)
+    point = _pink_button_point(image)
+    if point is None:
+        return None
+    l, t, r, b = dialog.rect
+    text_box = (l + int((r - l) * .28), t + int((b - t) * .30),
+                l + int((r - l) * .72), t + int((b - t) * .72))
+    text = screen.ocr(text_box, scale=3, psm=6)
+    if not _setting_result_text(text):
+        return None
+    return {"dialog": dialog, "text": text,
+            "point": (l + point[0], t + point[1])}
+
+
 def open_procedure_setting(ui, page, wait=1.5):
     """Setting > Procedure > <page> 로 이동한다.
 
@@ -858,15 +970,83 @@ def open_qc_tool(ui, wait=2.0):
     return _click_menu(ui, "qc", wait)
 
 
-def confirm_setting_dialog(ui, wait=1.5, timeout=6):
-    """Update 후 뜨는 결과 팝업의 OK를 누른다. 팝업이 없으면 조용히 넘어간다."""
+def confirm_setting_dialog(ui, wait=1.5, timeout=6, required=False):
+    """Update 결과 팝업 **안의** OK를 누르고 실제로 닫힐 때까지 확인한다.
+
+    예전 구현은 ``ui.by_id(500)`` 으로 Viewer 전체 트리를 훑어 첫 항목을 눌렀다.
+    Setting 본문이나 다른 창에도 같은 ID가 있을 수 있어 엉뚱한 컨트롤을 누른 뒤
+    성공 팝업을 남길 수 있었고, 그러면 모달이 뒤이은 메뉴 클릭을 전부 삼킨다.
+    2026-08-25 사용자가 WF_14의 UPS Update 직후 그 상태를 직접 확인했다.
+
+    표준 ``#32770`` 외에 UPS처럼 Setting 안에 그려지는 인라인 팝업도 처리한다.
+    UPS Update는 "재시작 필요"와 "Update 성공" 팝업이 **연속 두 개** 뜨므로,
+    하나를 닫았다고 성공하지 않고 결과 팝업이 더 없을 때까지 반복한다.
+    ``required=True`` 는 Update 직후처럼 팝업이 반드시 떠야 하는 경로다.
+    """
     end = time.time() + timeout
+    handled = False
+    handled_count = 0
     while time.time() < end:
-        ok = [c for c in ui.by_id(SETTING_CONFIRM_OK) if c.visible]
-        if ok:
-            ui.click(ok[0], settle=wait)
+        inline = _setting_inline_result(ui)
+        if inline:
+            ui.click(inline["point"], settle=.2)
+            close_end = time.time() + max(wait, 1.0)
+            while time.time() < close_end:
+                current = _setting_inline_result(ui)
+                if current is None or current["text"] != inline["text"]:
+                    handled = True
+                    handled_count += 1
+                    break
+                time.sleep(.2)
+            else:
+                raise FlowError(
+                    "Setting 인라인 결과 팝업의 OK를 눌렀지만 같은 팝업이 "
+                    f"남았습니다(OCR={inline['text']!r}). 이후 메뉴를 누르지 않습니다.")
+            # 다음 결과 팝업이 연달아 나타날 수 있으므로 처음부터 다시 확인한다.
+            if handled_count >= 4:
+                raise FlowError("Setting 결과 팝업이 4개를 초과해 연속으로 나타났습니다.")
+            # OCR 한 번이 수 초 걸릴 수 있다. 이미 닫은 팝업의 OCR 시간 때문에
+            # 전체 제한이 끝나 성공을 '팝업 없음'으로 덮어쓰지 않도록 갱신한다.
+            end = time.time() + timeout
+            continue
+        dialog = ui.dialog()
+        if dialog:
+            buttons = ui.dialog_buttons(dialog)
+            ok = [c for c in buttons
+                  if c.ctrl_id == SETTING_CONFIRM_OK and c.visible]
+            if len(ok) != 1:
+                raise FlowError(
+                    "Setting 결과 팝업의 OK 버튼 구성이 예상과 다릅니다"
+                    f"(기대 ID {SETTING_CONFIRM_OK} 1개, "
+                    f"실제={[(b.ctrl_id, b.rect[0]) for b in buttons]}). "
+                    "잘못된 버튼을 누르지 않도록 중단합니다.")
+            dialog_hwnd = dialog.hwnd
+            ui.click(ok[0], settle=.2)
+            close_end = time.time() + max(wait, 1.0)
+            while time.time() < close_end:
+                current = ui.dialog()
+                if current is None or current.hwnd != dialog_hwnd:
+                    handled = True
+                    handled_count += 1
+                    break
+                time.sleep(.2)
+            else:
+                raise FlowError(
+                    "Setting 결과 팝업의 OK를 눌렀지만 팝업이 닫히지 않았습니다"
+                    f"(dialog hwnd={dialog_hwnd}). 이후 메뉴를 누르지 않고 중단합니다.")
+            if handled_count >= 4:
+                raise FlowError("Setting 결과 팝업이 4개를 초과해 연속으로 나타났습니다.")
+            end = time.time() + timeout
+            continue
+        if handled:
             return True
         time.sleep(.3)
+    if handled:
+        return True
+    if required:
+        raise FlowError(
+            f"Setting Update 후 {timeout}초 동안 결과 팝업이 나타나지 않았습니다. "
+            "저장 성공을 확인할 수 없으므로 이후 메뉴를 누르지 않습니다.")
     return False
 
 
@@ -1348,6 +1528,23 @@ def ensure_patient_screen(ui, wait=5, settle_timeout=60):
     """
     if not wait_known_screen(ui, timeout=settle_timeout):
         return False
+    # Patient 화면 위에 큰 `Examined` 창이 떠 있어도 뒤쪽 Patient 컨트롤은
+    # `visible=True`로 열거된다. 예전 코드는 아래 `tab_new_patient`만 보고 True를
+    # 돌려 Setting 메뉴를 Examined 창 뒤에서 누르려 했다(WF14 복구 중 재현).
+    # Examined는 조회 창이므로 우상단 X를 눌러 닫고 실제 Patient 화면을 확인한다.
+    examined = next((w for w in ui.windows()
+                     if w.visible and w.text == "Examined"), None)
+    if examined is not None:
+        from core.ui import children
+
+        _l, top, right, _b = examined.rect
+        closes = [c for c in children(examined.hwnd, 4)
+                  if c.visible and c.ctrl_id == 4
+                  and c.rect[1] < top + 90 and c.rect[0] > right - 130]
+        if len({c.hwnd: c for c in closes}) == 1:
+            ui.click(next(iter({c.hwnd: c for c in closes}.values())), settle=1.0)
+        else:
+            return False
     if ui.by_id(PATIENT["tab_new_patient"]):
         return True
     # Setting 모달을 먼저 닫는다.

@@ -22,7 +22,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-STATUSES = ("PASS", "FAIL", "MANUAL", "SKIP")
+STATUSES = ("PASS", "FAIL", "MANUAL", "SKIP", "BLOCKED")
 
 
 def latest_report():
@@ -74,13 +74,13 @@ def report_numbers(path):
     for r in results:
         tc[r["verdict"]] = tc.get(r["verdict"], 0) + 1
         for k, v in r["counts"].items():
-            checks[k] += v
+            checks[k] = checks.get(k, 0) + v
     seconds = sum(r["duration_seconds"] for r in results)
     fails = [(r["tc_id"], c["step"], c["title"])
              for r in results for c in r["checks"] if c["status"] == "FAIL"]
     manual_tcs = sorted({r["tc_id"] for r in results
                          for c in r["checks"]
-                         if c["status"] in ("MANUAL", "SKIP")})
+                         if c["status"] in ("MANUAL", "SKIP", "BLOCKED")})
     return {"path": path, "generated": data.get("generated"),
             "tc_total": len(results), "tc": tc, "checks": checks,
             "check_total": sum(checks.values()),
@@ -127,7 +127,7 @@ def main():
             print(f"   - {tc_id} / Step {step} / {title}")
     else:
         print(" FAIL 없음")
-    print(f" MANUAL/SKIP 이 있는 TC {len(n['manual_tcs'])}건: "
+    print(f" MANUAL/SKIP/BLOCKED 가 있는 TC {len(n['manual_tcs'])}건: "
           + ", ".join(n["manual_tcs"]))
     print()
     print("-" * 76)
@@ -137,10 +137,12 @@ def main():
     print(f"REGRESSION_TC_LINE  = {stamp} — TC {n['tc_total']}건 : "
           f"PASS {n['tc']['PASS']} / FAIL {n['tc']['FAIL']} / "
           f"MANUAL {n['tc']['MANUAL']} / SKIP {n['tc']['SKIP']} "
+          f"/ BLOCKED {n['tc']['BLOCKED']} "
           f"({n['minutes']}분)")
     print(f"REGRESSION_CHECK_LINE = 검증 {n['check_total']}개 : "
           f"PASS {n['checks']['PASS']} / FAIL {n['checks']['FAIL']} / "
-          f"MANUAL {n['checks']['MANUAL']} / SKIP {n['checks']['SKIP']}")
+          f"MANUAL {n['checks']['MANUAL']} / SKIP {n['checks']['SKIP']} / "
+          f"BLOCKED {n['checks']['BLOCKED']}")
     if n["fails"]:
         print("REGRESSION_FAIL_LINE = "
               + "; ".join(f"{t} Step {s}" for t, s, _ in n["fails"]))

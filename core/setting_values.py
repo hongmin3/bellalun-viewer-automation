@@ -239,14 +239,28 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
     캡처는 **판정에 쓰지 않는다** — 판정은 값과 DB 다.
 
     반환: {"pages": {"system.general": {키: {...}}}, "missing": {...},
-           "shots": {"system.general": png}, "pane": [l,t,r,b]}
+           "shots": {"system.general": png}, "pane": [l,t,r,b],
+           "viewer_died": bool}
+
+    `viewer_died` 는 순회 도중 **Viewer 프로세스가 사라진** 경우다. 그때는 남은
+    페이지를 "못 읽었다" 로만 적으면 원인이 보이지 않는다 — 2026-08-25 에 이
+    상황을 "패널을 찾지 못했습니다" 로만 보고해, 제품이 종료된 사실을 알아채는 데
+    한참 걸렸다. 사라진 것을 확인하면 **거기서 멈추고** 그 사실을 남긴다.
     """
     pages, missing, shots = {}, {}, {}
     pane = None
+    died = False
+    start_pid = ui.pid
     if capture_dir:
         os.makedirs(capture_dir, exist_ok=True)
     window = None
     for group in (groups or list(flows.SETTING_GROUPS)):
+        if _viewer_gone(ui, start_pid):
+            died = True
+        if died:
+            for name in flows.setting_pages(group):
+                missing[f"{group}.{name}"] = _DIED_REASON
+            continue
         try:
             flows.open_setting(ui, wait=2.5)
             flows.open_setting_group(ui, group, wait=2.0)
@@ -258,10 +272,18 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             continue
         for name, ctrl_id in flows.setting_pages(group).items():
             key = f"{group}.{name}"
+            if died or _viewer_gone(ui, start_pid):
+                died = True
+                missing[key] = _DIED_REASON
+                continue
             try:
                 rail = _open_page(ui, ctrl_id, f"{group} 설정 '{name}'")
             except Exception as exc:                   # noqa: BLE001
-                missing[key] = str(exc)
+                if _viewer_gone(ui, start_pid):
+                    died = True
+                    missing[key] = _DIED_REASON
+                else:
+                    missing[key] = str(exc)
                 continue
             # **전체 트리를 훑지 않는다.** Setting 최상위 창의 얕은 자식에서
             # 콘텐츠 패널을 찾고, 값은 그 패널 **하위**에서만 읽는다.
@@ -288,7 +310,22 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             if on_event:
                 on_event(f"{key}: {len(pages[key])}개 값 settled={settled}")
     return {"pages": pages, "missing": missing, "shots": shots,
-            "pane": list(pane) if pane else None}
+            "pane": list(pane) if pane else None,
+            "viewer_died": died or _viewer_gone(ui, start_pid)}
+
+
+#: Viewer 가 사라졌을 때 남기는 사유. 화면 문제와 구분하려고 문구를 고정한다.
+_DIED_REASON = ("Viewer 프로세스가 사라져 순회를 중단했습니다"
+                "(화면/컨트롤 문제가 아니라 제품이 종료된 것이다).")
+
+
+def _viewer_gone(ui, start_pid):
+    """순회를 시작할 때의 Viewer 가 아직 살아 있는가."""
+    if not start_pid:
+        return False
+    from core.ui import ViewerUi
+
+    return ViewerUi(ui.process_name)._find_pid() != start_pid
 
 
 def _open_page(ui, ctrl_id, what):

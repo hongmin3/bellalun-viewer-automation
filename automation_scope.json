@@ -244,12 +244,12 @@
   {
     "tc_id": "TC_Basic_WorkFlow_14",
     "title": "Setting Export 및 Import",
-    "level": "FULL",
-    "reason": "1~7단계 전부 자동(tests/workflow14.py, core/setting_transfer.py, core/setting_values.py, run-wf14). Setting > System > My Settings 의 Export(2293)로 .vms 를 저장하고, 사양서1 '60. Setting Export/Import' 개발 사양이 요구하는 구성(CONFIGURATION/ACCOUNT/PROCEDURE .bak + Config/ExternalInput.xml + PARAMETER/*.pim + RECON_PARAMETER/*.xtp)을 zip 내부로 대조한다 — 파일이 생겼다는 것만으로 통과시키지 않는다. Import(2294)는 제품 자체 모달이고 File Path(2075) + 옵션 체크박스 System(2076)/Account(2077)/Procedure(2078) + Import(2074)/Close(1102)로 구성된다(사양의 '사용자가 선택한 설정 값만 가져온다'와 일치). Step 3 의 변경 항목은 Theme 대신 같은 화면·같은 테이블의 StorageWarning 을 쓴다 — Theme 는 Viewer 전체 색을 바꿔 복원 실패 시 픽셀/OCR 판정을 쓰는 다른 TC 가 연쇄로 무너진다(체크리스트가 'Theme 또는 검증 대상 비파괴 설정 1개'를 허용한다). Step 7 은 설정 테이블 전수 대조(snapshot.config_identical)를 주 판정으로, Setting 56개 페이지의 컨트롤 값 항목 단위 대조를 보강으로 쓴다. 사내 선행 도구(Setting 화면 캡처-비교 프로그램)와 같은 목적이지만 **이미지 비교가 아니다** — 그 도구가 회고에 적은 두 오탐(텍스트 커서 캡처 / 탭 로딩 지연)은 픽셀을 값의 대리물로 쓴 데서 나오므로, 컨트롤 ID 로 이동해 WM_GETTEXT 로 값을 직접 읽어 원인을 없앴다(Calibration 불필요)",
+    "level": "PARTIAL",
+    "reason": "1~7단계와 Setting 56개 페이지의 현재 보이는 컨트롤 값은 자동 판정한다(tests/workflow14.py, core/setting_transfer.py, core/setting_values.py, run-wf14). Export 산출물 내부 구성과 7개 설정 테이블 변경·Import 복원도 대조한다. 다만 스크롤 아래 목록 행은 같은 가상 ListItem HWND/ID를 재사용해 일부 행만 읽고도 끝으로 오인할 수 있어, 2026-08-25 사용자 지시에 따라 불완전한 스크롤을 제거하고 MANUAL로 남긴다.",
     "coverage": {
-      "category": "자동 판정(구현 완료)",
-      "gap": "",
-      "unblock": ""
+      "category": "부분 자동(숨은 목록 행 수동)",
+      "gap": "현재 화면 아래에 숨은 목록 행을 선택했을 때 나타나는 상세값의 Import 전후 동일 여부",
+      "unblock": "스크롤바 위치 또는 첫/마지막 행 문구로 이동을 확인하고 겹치는 행을 제거하면서 끝 행 도달을 증명하는 전용 탐색기 구현 + 전후 DB 무변경 시험"
     }
   },
   {

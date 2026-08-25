@@ -225,7 +225,7 @@ def find_edit_by_value(ui, controls, value):
 
 def _commit(ui):
     flows.setting_update(ui, wait=1.8)
-    flows.confirm_setting_dialog(ui)
+    flows.confirm_setting_dialog(ui, required=True)
 
 
 def _wait_db(db, item, want, timeout=15):
@@ -463,6 +463,67 @@ def summarize(applied):
                    "값": "%s -> %s" % (r.get("before"), r.get("actual"))}
                   for r in ok],
     }
+
+
+# --- UPS 설정 (Export 범위 밖으로 확인된 항목) -------------------------
+#: Setting > Device > UPS 의 유일한 설정. 값은 `None` / `EATON Ellipse ECO 650`.
+UPS_COMBO = 2536
+UPS_VALUES = ("None", "EATON Ellipse ECO 650")
+
+
+def read_ups(ui):
+    """UPS Setting 콤보의 현재 값. 콤보는 앞 8자로 잘려 온다(`'EATON El'`).
+
+    이 설정은 **어느 DB 에도 없다** — 2026-08-25 에 CONFIGURATION / ACCOUNT /
+    PROCEDURE 의 모든 문자열 컬럼을 뒤졌고(`UPS`/`EATON` 0건), `%UPS%` 컬럼명도
+    0건이었다. 레지스트리(`HKLM|HKCU\\SOFTWARE\\Vieworks`)에도, `UPSHandler\\`
+    폴더에도, `ExternalInput.xml` 에도 없다. 그래서 화면에서 읽는 수밖에 없다.
+    """
+    _pane, controls = goto(ui, "device", "ups")
+    hits = [c for c in controls if c.ctrl_id == UPS_COMBO and c.visible]
+    if len(hits) != 1:
+        raise ChangeError("UPS 설정 콤보(%d)가 %d개입니다." % (UPS_COMBO, len(hits)))
+    return (ui.get_text(hits[0]) or "").strip()
+
+
+def set_ups(ui, want, rows=(1, 2), timeout=6):
+    """UPS Setting 콤보를 `want` 로 바꾸고 **표시값이 바뀌었는지 확인**한다.
+
+    드롭다운 항목은 콤보 바로 아래에 34px 간격으로 그려진다(실측). 행을 눌러
+    보고 표시값이 원하는 값으로 바뀌면 성공, 아니면 다음 행을 눌러 본다 —
+    순서로 단정하지 않는다.
+
+    반환: 최종 표시값.
+    """
+    for row in rows:
+        _pane, controls = goto(ui, "device", "ups")
+        combo = next((c for c in controls
+                      if c.ctrl_id == UPS_COMBO and c.visible), None)
+        if combo is None:
+            raise ChangeError("UPS 설정 콤보(%d)를 찾지 못했습니다." % UPS_COMBO)
+        before = (ui.get_text(combo) or "").strip()
+        if want.startswith(before) and before:
+            return before
+        ui.click(combo, settle=1.0)
+        left, _t, _r, bottom = combo.rect
+        ui.click((left + 70, bottom + 3 + (row - 1) * 34 + 17), settle=1.0)
+        end = time.time() + timeout
+        while time.time() < end:
+            now = read_ups(ui)
+            if now and now != before:
+                if want.startswith(now):
+                    return now
+                break
+            time.sleep(0.3)
+    return read_ups(ui)
+
+
+def other_ups_value(current):
+    """현재 값의 반대쪽 값(전체 문구)."""
+    for v in UPS_VALUES:
+        if not v.startswith(current):
+            return v
+    return UPS_VALUES[0]
 
 
 def close_setting(ui):

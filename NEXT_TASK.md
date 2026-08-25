@@ -928,3 +928,16 @@ python run.py setup-dicom
 작업이 끝나면 이 파일을 다음 TC 기준으로 갱신하거나 제거하고, `AGENTS.md`에 따라
 검증·커밋·푸시한다. 로컬 설정과 런타임 증거는 커밋하지 않는다. 계속 적용해야 하는
 규칙은 이 파일이 아니라 `..\지식\`의 운영 지침/구현 현황 문서에 반영한다.
+# 2026-08-25 야간 인수인계 — Result/WF14/XIPL Save As
+
+- Result 4종에 원본 체크리스트 수행 절차·기준 기대 결과·자동화 기대값을 Check별로 연결했다.
+  BLOCKED를 별도 상태로 집계하고, 미수행 사유·해제 조건·말할 수 없는 범위를 표시한다.
+- WF14의 가상 목록 부분 스크롤은 제거했다. 숨은 하단 행 상세값은 차기 개선 MANUAL이며,
+  현재 보이는 56페이지 값과 설정 DB 38개 섹션 대조는 유지한다.
+- Setting Update 인라인 팝업은 연결된 분홍 버튼 도형을 찾아 연속 팝업까지 닫고, OCR
+  소요시간이 전체 timeout을 넘겨도 이미 닫힌 성공을 잃지 않는다.
+- XIPL Save As는 helper PID의 `다른 이름으로 저장` 창을 전역 HWND에서 찾는다. 실측
+  파일명 Edit ID=1001, 저장 Button ID=1이며, 실제 입력값 재확인 후에만 저장한다.
+- 최종 전체 회귀: `Reports/Result_20260825_221901.json`, 94.1분, TC 27건 =
+  PASS 20 / FAIL 2 / MANUAL 3 / BLOCKED 2. XIPL_06 전 Step PASS. 남은 FAIL은
+  WF14 UPS Import 미복원과 XIPL_03 3D 파라미터 유지 실패의 제품 동작이다.

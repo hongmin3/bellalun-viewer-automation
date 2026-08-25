@@ -2,12 +2,13 @@
 """판정 결과 모델과 리포트 산출물.
 
 각 TC는 여러 개의 Check(=Expected Result 한 줄)를 갖는다.
-판정은 PASS / FAIL / MANUAL / SKIP 네 가지만 쓴다.
+판정은 PASS / FAIL / MANUAL / SKIP / BLOCKED 다섯 가지를 쓴다.
 
   PASS   : 자동 판정으로 기대 결과 충족
   FAIL   : 자동 판정으로 기대 결과 불충족
   MANUAL : 자동화 대상이 아니거나 문서상 기대값이 확정되지 않아 수동 확인 필요
   SKIP   : 사전 조건 미충족으로 수행하지 않음
+  BLOCKED: 필수 선행 환경이 없어 수행 자체가 불가능
 """
 
 import csv
@@ -17,7 +18,67 @@ import os
 import time
 from datetime import datetime
 
-PASS, FAIL, MANUAL, SKIP = "PASS", "FAIL", "MANUAL", "SKIP"
+PASS, FAIL, MANUAL, SKIP, BLOCKED = (
+    "PASS", "FAIL", "MANUAL", "SKIP", "BLOCKED")
+STATUSES = (PASS, FAIL, MANUAL, SKIP, BLOCKED)
+
+
+def _note_field(note, label):
+    """Markdown 비고에서 ``**label**: 값`` 한 필드를 읽는다."""
+    import re
+
+    text = str(note or "")
+    match = re.search(
+        r"(?:\*\*)?%s(?:\*\*)?\s*[:：]\s*(.*?)(?=(?:\s*\*\*[^*]+\*\*\s*[:：])|$)"
+        % re.escape(label), text, flags=re.DOTALL)
+    return " ".join(match.group(1).split()) if match else ""
+
+
+def _numbered_items(text):
+    """체크리스트의 ``1. ...`` 문단을 단계 번호별로 나눈다."""
+    import re
+
+    items = {}
+    current = None
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        match = re.match(r"^(\d+)\s*[.)]\s*(.*)$", line)
+        if match:
+            current = int(match.group(1))
+            items[current] = match.group(2).strip()
+        elif current is not None:
+            items[current] = (items[current] + " " + line).strip()
+        else:
+            items[0] = (items.get(0, "") + " " + line).strip()
+    return items
+
+
+def _step_context(meta, tc_id, step):
+    """한 판정에 대응하는 기준 체크리스트의 수행 절차와 기대 결과."""
+    try:
+        number = int(step)
+    except (TypeError, ValueError):
+        number = 0
+    spec = ((meta or {}).get("checklist") or {}).get(tc_id) or {}
+    procedures = _numbered_items(spec.get("steps"))
+    expected = _numbered_items(spec.get("expected"))
+    return {
+        "step_description": procedures.get(number, procedures.get(0, "")),
+        "source_expected_result": expected.get(number, expected.get(0, "")),
+    }
+
+
+def _results_payload(results, meta):
+    """JSON 판정 바로 옆에도 사람이 읽을 기준 Step을 붙인다."""
+    payload = []
+    for result in results:
+        item = result.as_dict()
+        for check in item["checks"]:
+            check.update(_step_context(meta, result.tc_id, check.get("step")))
+        payload.append(item)
+    return payload
 
 
 def step_label(step):
@@ -48,7 +109,17 @@ class Check:
         return {
             "step": self.step, "title": self.title, "status": self.status,
             "expected": str(self.expected), "actual": str(self.actual), "note": self.note,
+            "unblock_condition": self.unblock_condition,
+            "not_verified": self.not_verified,
         }
+
+    @property
+    def unblock_condition(self):
+        return _note_field(self.note, "해제 조건")
+
+    @property
+    def not_verified(self):
+        return _note_field(self.note, "이 실행으로 말할 수 없는 것")
 
 
 class StepFailed(RuntimeError):
@@ -222,13 +293,17 @@ class TCResult:
         """
         return self.add(step, title, SKIP, expected, actual, note)
 
+    def blocked(self, step, title, note, expected="", actual=""):
+        """필수 선행 환경이 없어 확인 자체를 시작할 수 없는 항목."""
+        return self.add(step, title, BLOCKED, expected, actual, note)
+
     def attach(self, path):
         self.evidence.append(path)
 
     # --- 집계 ----------------------------------------------------------
     @property
     def counts(self):
-        c = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+        c = {status: 0 for status in STATUSES}
         for chk in self.checks:
             c[chk.status] = c.get(chk.status, 0) + 1
         return c
@@ -240,6 +315,7 @@ class TCResult:
         정책 (2026-08-21 사용자 확정)
           FAIL 이 하나라도 있으면 FAIL.
           MANUAL 이 남아 있으면 MANUAL — 사람이 아직 확인할 것이 있다는 뜻이다.
+          BLOCKED 가 남으면 BLOCKED — 필수 선행 환경이 없다는 뜻이다.
           **SKIP 은 판정을 끌어내리지 않는다.** SKIP 은 "이 환경에서 확인 대상이
           아니다"(예: 검증 환경서가 DICOM 전용 어댑터를 지정하지 않는 PC)이고,
           MANUAL 은 "확인해야 하는데 자동으로 못 한다"이다. 둘을 같이 취급하면
@@ -248,6 +324,8 @@ class TCResult:
         c = self.counts
         if c[FAIL]:
             return FAIL
+        if c[BLOCKED]:
+            return BLOCKED
         if c[MANUAL]:
             return MANUAL
         if c[PASS]:
@@ -301,7 +379,7 @@ table.fails col.c-title{width:15%}
 table.fails col.c-exp{width:27%}
 table.fails col.c-act{width:27%}
 table.fails col.c-note{width:auto}
-.PASS{color:#0a7f3f}.FAIL{color:#c62828}.MANUAL{color:#a06000}.SKIP{color:#777}
+.PASS{color:#0a7f3f}.FAIL{color:#c62828}.MANUAL{color:#a06000}.SKIP{color:#777}.BLOCKED{color:#6a1b9a}
 .sum td.s{font-size:13px}
 tr.hdr td{background:var(--card)}
 code{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
@@ -312,7 +390,7 @@ code{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
 .tile .k{font-size:11.5px;color:var(--mut);margin-top:2px}
 .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--line);margin:8px 0 2px}
 .bar span{display:block}
-.bPASS{background:#2e9e63}.bFAIL{background:#d34a4a}.bMANUAL{background:#e0a740}.bSKIP{background:#b8b8b8}
+.bPASS{background:#2e9e63}.bFAIL{background:#d34a4a}.bMANUAL{background:#e0a740}.bSKIP{background:#b8b8b8}.bBLOCKED{background:#8e44ad}
 .legend{font-size:11.5px;color:var(--mut)}
 .k{font-size:11px;color:var(--mut)}
 table.cov{table-layout:fixed}
@@ -387,10 +465,10 @@ def _one_line(value, limit=200):
     return text if len(text) <= limit else text[:limit - 3] + "..."
 
 
-def write_txt(results, path, env=None):
+def write_txt(results, path, env=None, checklist=None, command=None):
     """사람이 바로 읽는 Pass/Fail 요약 텍스트."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    total = {status: 0 for status in STATUSES}
     for r in results:
         for k, v in r.counts.items():
             total[k] += v
@@ -400,20 +478,24 @@ def write_txt(results, path, env=None):
     L.append(" Bellalun Viewer 기본기능 자동화 결과")
     L.append("=" * 78)
     L.append(f" 수행 일시 : {datetime.now():%Y-%m-%d %H:%M:%S}")
+    if command:
+        L.append(f" 실행 명령 : {command}")
     # **두 층을 구분해 적는다.** 아래 "판정 합계"는 Step(체크) 단위 합계라서 TC
     # 개수보다 훨씬 크다. 예: TC 20개인데 체크 172개 -> PASS 160.
     # 구분하지 않으면 "TC가 20개인데 왜 PASS가 160개냐"는 오해가 생긴다
     # (2026-08-19 사용자 지적).
-    tc_total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    tc_total = {status: 0 for status in STATUSES}
     for r in results:
         if r.verdict in tc_total:
             tc_total[r.verdict] += 1
     L.append(f" TC 건수   : {len(results)}")
     L.append(f" TC 판정   : PASS {tc_total[PASS]} / FAIL {tc_total[FAIL]} / "
-             f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]}   (TC 단위)")
+             f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]} / "
+             f"BLOCKED {tc_total[BLOCKED]}   (TC 단위)")
     checks = sum(total.values())
     L.append(f" 검증 판정 : PASS {total[PASS]} / FAIL {total[FAIL]} / "
-             f"MANUAL {total[MANUAL]} / SKIP {total[SKIP]}   "
+             f"MANUAL {total[MANUAL]} / SKIP {total[SKIP]} / "
+             f"BLOCKED {total[BLOCKED]}   "
              f"(Step 단위, 총 {checks}개 체크)")
     if env:
         L.append("")
@@ -446,7 +528,8 @@ def write_txt(results, path, env=None):
     for r in results:
         c = r.counts
         L.append(f" [{r.verdict:^6}] {r.tc_id:<28} {r.title} ({r.duration_seconds:.1f}s)")
-        L.append(f"          P{c[PASS]} F{c[FAIL]} M{c[MANUAL]} S{c[SKIP]}")
+        L.append(f"          P{c[PASS]} F{c[FAIL]} M{c[MANUAL]} "
+                 f"S{c[SKIP]} B{c[BLOCKED]}")
     L.append("")
 
     for r in results:
@@ -454,15 +537,27 @@ def write_txt(results, path, env=None):
         L.append(f" {r.tc_id} — {r.title}   →  {r.verdict}")
         L.append("=" * 78)
         for chk in r.checks:
+            source = _step_context({"checklist": checklist or {}},
+                                   r.tc_id, chk.step)
             L.append(f"  [{chk.status:^6}] "
                      f"Step {step_label(chk.step):<4} {chk.title}")
+            if source["step_description"]:
+                L.append(f"            수행 절차 : {source['step_description']}")
+            if source["source_expected_result"]:
+                L.append("            기준 기대 결과 : "
+                         + source["source_expected_result"])
             if chk.status in (FAIL, MANUAL) or chk.expected or chk.actual:
                 if str(chk.expected):
-                    L.append(f"            기대 : {chk.expected}")
+                    L.append(f"            자동화 기대값 : {chk.expected}")
                 if str(chk.actual):
                     L.append(f"            실제 : {chk.actual}")
             if chk.note:
                 L.append(f"            비고 : {chk.note}")
+            if chk.status in (MANUAL, SKIP, BLOCKED):
+                L.append("            해제 조건 : "
+                         + (chk.unblock_condition or "비고에 별도 기재되지 않음"))
+                L.append("            이 실행으로 말할 수 없는 것 : "
+                         + (chk.not_verified or "비고에 별도 기재되지 않음"))
         if r.evidence:
             L.append("  [증거]")
             for e in r.evidence:
@@ -505,7 +600,7 @@ def write_txt(results, path, env=None):
 def write_reports(results, out_dir, run_name=None, meta=None):
     """CSV / JSON / HTML / TXT 리포트를 out_dir에 생성하고 경로를 반환한다.
 
-    `meta` (있으면 HTML 에 함께 실린다):
+    `meta` 는 HTML뿐 아니라 TXT/CSV/JSON 네 형식에 공통으로 실린다:
       {"env":      {"항목": "값"},             # 실행 환경·버전
        "checklist":{tc_id: {precondition, steps, expected, test_data, ...}},
        "modules":  {tc_id: ["tests/workflow14.py", ...]},
@@ -517,24 +612,43 @@ def write_reports(results, out_dir, run_name=None, meta=None):
     stamp = run_name or datetime.now().strftime("%Y%m%d_%H%M%S")
     base = os.path.join(out_dir, f"Result_{stamp}")
 
-    # CSV
+    # CSV — Excel에서 열어도 시험 환경과 실행 명령을 잃지 않도록 데이터 표 위에
+    # 메타 행을 둔다.
     csv_path = base + ".csv"
     with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["TC ID", "Title", "TC 판정", "Step", "확인 항목", "판정", "기대값", "실제값", "비고"])
+        w.writerow(["# Bellalun Viewer 기본기능 자동화 결과"])
+        w.writerow(["# 생성 일시", datetime.now().isoformat(timespec="seconds")])
+        if meta.get("command"):
+            w.writerow(["# 실행 명령", meta["command"]])
+        for key, value in (meta.get("env") or {}).items():
+            w.writerow(["# 실행 환경", key, value])
+        w.writerow([])
+        w.writerow(["TC ID", "Title", "TC 판정", "Step", "기준 수행 절차",
+                    "확인 항목", "판정", "기준 기대 결과", "자동화 기대값",
+                    "실제값", "비고", "해제 조건",
+                    "이 실행으로 말할 수 없는 것"])
         for r in results:
             for c in r.checks:
-                w.writerow([r.tc_id, r.title, r.verdict, c.step, c.title,
-                            c.status, c.expected, c.actual, c.note])
+                source = _step_context(meta, r.tc_id, c.step)
+                w.writerow([r.tc_id, r.title, r.verdict, c.step,
+                            source["step_description"], c.title, c.status,
+                            source["source_expected_result"], c.expected,
+                            c.actual, c.note,
+                            c.unblock_condition, c.not_verified])
 
     # JSON
     json_path = base + ".json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({"generated": datetime.now().isoformat(timespec="seconds"),
-                   "results": [r.as_dict() for r in results]}, f, ensure_ascii=False, indent=2)
+                   "meta": meta,
+                   "results": _results_payload(results, meta)}, f,
+                  ensure_ascii=False, indent=2, default=str)
 
     # HTML
-    txt_path = write_txt(results, base + ".txt", env=meta.get("env"))
+    txt_path = write_txt(results, base + ".txt", env=meta.get("env"),
+                         checklist=meta.get("checklist"),
+                         command=meta.get("command"))
     html_path = base + ".html"
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(_render_html(results, meta,
@@ -553,12 +667,12 @@ def _render_html(results, meta, siblings=None):
     BLOCKED·SKIPPED 사유 / 자동화 코드 위치 / 실행 환경과 버전.
     """
     e = html.escape
-    total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    total = {status: 0 for status in STATUSES}
     for r in results:
         for k, v in r.counts.items():
             total[k] += v
     checks = sum(total.values())
-    tc_total = {PASS: 0, FAIL: 0, MANUAL: 0, SKIP: 0}
+    tc_total = {status: 0 for status in STATUSES}
     for r in results:
         if r.verdict in tc_total:
             tc_total[r.verdict] += 1
@@ -585,7 +699,7 @@ def _render_html(results, meta, siblings=None):
     P.append("<div class='dash'>")
     P.append(f"<div class='tile'><div class='n'>{len(results)}</div>"
              "<div class='k'>수행 TC</div></div>")
-    for k in (PASS, FAIL, MANUAL, SKIP):
+    for k in STATUSES:
         P.append(f"<div class='tile'><div class='n {k}'>{tc_total[k]}</div>"
                  f"<div class='k'>TC {k}</div></div>")
     P.append(f"<div class='tile'><div class='n'>{checks}</div>"
@@ -596,7 +710,7 @@ def _render_html(results, meta, siblings=None):
     P.append("</div>")
 
     P.append("<div class='bar'>")
-    for k in (PASS, FAIL, MANUAL, SKIP):
+    for k in STATUSES:
         if total[k]:
             P.append(f"<span class='b{k}' style='width:"
                      f"{_pct(total[k], checks)}%' title='{k} {total[k]}'></span>")
@@ -604,7 +718,7 @@ def _render_html(results, meta, siblings=None):
     P.append("<div class='legend'>검증 항목 "
              + " / ".join(f"<b class='{k}'>{k} {total[k]}</b> "
                           f"({_pct(total[k], checks)}%)"
-                          for k in (PASS, FAIL, MANUAL, SKIP)) + "</div>")
+                          for k in STATUSES) + "</div>")
     if first_start and last_end:
         P.append(f"<div class='meta'>실행 구간 {first_start:%Y-%m-%d %H:%M:%S} "
                  f"~ {last_end:%Y-%m-%d %H:%M:%S}</div>")
@@ -693,34 +807,43 @@ def _render_html(results, meta, siblings=None):
                  "<th>Step</th><th>확인 항목</th>"
                  "<th>기대값</th><th>실제값</th><th>판정 근거 / 비고</th></tr>")
         for r, c in fails:
+            source = _step_context(meta, r.tc_id, c.step)
             P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
                      f"<td>{e(step_label(c.step))}</td>"
-                     f"<td>{e(c.title)}</td>"
-                     f"<td><code>{e(str(c.expected))}</code></td>"
+                     f"<td>{e(c.title)}"
+                     + (f"<div class='k'>수행 절차: "
+                        f"{e(source['step_description'])}</div>"
+                        if source["step_description"] else "") + "</td>"
+                     f"<td>"
+                     + (f"<div class='k'>기준: "
+                        f"{e(source['source_expected_result'])}</div>"
+                        if source["source_expected_result"] else "")
+                     + f"<code>{e(str(c.expected))}</code></td>"
                      f"<td><code>{e(str(c.actual))}</code></td>"
                      f"<td class='note'>{e(c.note)}</td></tr>")
         P.append("</table>")
 
-    # --- MANUAL / SKIP 사유 (TC 별로 한 행) ----------------------------
+    # --- MANUAL / SKIP / BLOCKED 사유 (TC 별로 한 행) ------------------
     # 2026-08-21 사용자 요청: MANUAL Step 을 전부 행으로 펼치지 않고 **TC 별로
     # 한 행**에 모은다. 이전에는 17행이 나와 "어느 TC 가 왜 막혔는가"가 묻혔다.
     holds = []
     for r in results:
-        items = [c for c in r.checks if c.status in (MANUAL, SKIP)]
+        items = [c for c in r.checks if c.status in (MANUAL, SKIP, BLOCKED)]
         if items:
             holds.append((r, items))
     if holds:
         total_items = sum(len(x) for _, x in holds)
-        P.append(f"<h2>수동 확인 / 미수행 — TC {len(holds)}건 "
+        P.append(f"<h2>수동 확인 / 미수행 / 수행 불가 — TC {len(holds)}건 "
                  f"(확인 항목 {total_items}개) — 사유와 해제 조건</h2>")
         P.append("<div class='meta'>TC 하나에 여러 항목이 걸려 있어도 "
                  "<b>한 행</b>으로 묶어 적는다. 항목별 원문 사유는 각 TC 상세의 "
                  "단계별 판정 표에 그대로 남아 있다.</div>")
         P.append("<table class='holds'><colgroup><col style='width:190px'>"
-                 "<col style='width:52px'><col style='width:30%'>"
-                 "<col></colgroup>"
+                 "<col style='width:52px'><col style='width:25%'>"
+                 "<col style='width:28%'><col style='width:20%'><col></colgroup>"
                  "<tr><th>TC</th><th>건수</th><th>확인 항목</th>"
-                 "<th>사유 / 해제 조건</th></tr>")
+                 "<th>사유</th><th>해제 조건</th>"
+                 "<th>이 실행으로 말할 수 없는 것</th></tr>")
         for r, items in holds:
             labels = "<br>".join(
                 f"<span class='s {c.status}'>[{c.status}]</span> "
@@ -735,18 +858,23 @@ def _render_html(results, meta, siblings=None):
                     seen.add(text)
                     reasons.append(text)
             body = "<br><br>".join(e(x) for x in reasons) or "(사유 미기재)"
+            unblock = "<br>".join(e(c.unblock_condition) for c in items
+                                  if c.unblock_condition)
+            unverified = "<br>".join(e(c.not_verified) for c in items
+                                     if c.not_verified)
             P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a><br>"
                      f"<span class='k'>{e(r.title)}</span></td>"
                      f"<td style='text-align:center'>{len(items)}</td>"
-                     f"<td>{labels}</td>"
-                     f"<td class='note'>{body}</td></tr>")
+                     f"<td>{labels}</td><td class='note'>{body}</td>"
+                     f"<td class='note'>{unblock or '(비고에 별도 기재되지 않음)'}</td>"
+                     f"<td class='note'>{unverified or '(비고에 별도 기재되지 않음)'}</td></tr>")
         P.append("</table>")
 
     # --- TC 요약 표 + 목차 ---------------------------------------------
     P.append("<h2>TC 별 판정</h2>")
     P.append("<table class='sum'><tr><th>TC ID</th><th>Title</th>"
              "<th>자동화 범위</th><th>판정</th><th>P</th><th>F</th><th>M</th>"
-             "<th>S</th><th>시작</th><th>종료</th><th>소요</th></tr>")
+             "<th>S</th><th>B</th><th>시작</th><th>종료</th><th>소요</th></tr>")
     for r in results:
         c = r.counts
         lvl = (scope.get(r.tc_id) or {}).get("level", "-")
@@ -755,7 +883,7 @@ def _render_html(results, meta, siblings=None):
                  f"<td>{e(r.title)}</td><td>{e(str(lvl))}</td>"
                  f"<td class='s {r.verdict}'>{r.verdict}</td>"
                  f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td>"
-                 f"<td>{c[SKIP]}</td>"
+                 f"<td>{c[SKIP]}</td><td>{c[BLOCKED]}</td>"
                  f"<td>{r.started:%H:%M:%S}</td><td>{end:%H:%M:%S}</td>"
                  f"<td>{r.duration_seconds:.1f}s</td></tr>")
     P.append("</table>")
@@ -812,10 +940,18 @@ def _render_html(results, meta, siblings=None):
                  "<th>판정</th><th>기대값</th><th>실제값</th>"
                  "<th>판정 근거 / 비고</th></tr>")
         for c in r.checks:
+            source = _step_context(meta, r.tc_id, c.step)
             P.append(f"<tr><td>{e(step_label(c.step))}</td>"
-                     f"<td>{e(c.title)}</td>"
+                     f"<td>{e(c.title)}"
+                     + (f"<div class='k'>수행 절차: "
+                        f"{e(source['step_description'])}</div>"
+                        if source["step_description"] else "") + "</td>"
                      f"<td class='s {c.status}'>{c.status}</td>"
-                     f"<td><code>{e(str(c.expected))}</code></td>"
+                     f"<td>"
+                     + (f"<div class='k'>기준 기대 결과: "
+                        f"{e(source['source_expected_result'])}</div>"
+                        if source["source_expected_result"] else "")
+                     + f"<code>{e(str(c.expected))}</code></td>"
                      f"<td><code>{e(str(c.actual))}</code></td>"
                      f"<td class='note'>{e(c.note)}</td></tr>")
         P.append("</table>")
