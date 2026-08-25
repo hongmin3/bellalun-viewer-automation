@@ -348,12 +348,12 @@ def run(ctx):
         if changed_general and ui is not None:
             try:
                 _set_general(ui, NONE_LABEL, False, tess)
-                r.add(0, "뒷정리: Auto Send 설정 원복", PASS,
+                r.cleanup(0, "뒷정리: Auto Send 설정 원복", PASS,
                       expected={"close_option": NONE_LABEL, "urgent": "No"},
                       actual=_general(ctx.db),
                       note="켜 둔 채 끝나면 뒤따르는 TC 의 Queue 판정이 오염된다.")
             except Exception as exc:
-                r.add(0, "뒷정리: Auto Send 설정 원복", FAIL,
+                r.cleanup(0, "뒷정리: Auto Send 설정 원복", FAIL,
                       actual=f"원복 실패({exc}). **뒤따르는 TC 가 검사를 닫을 때마다 "
                              "자동 전송이 일어날 수 있다.** Setting > DICOM > General 의 "
                              "Study close option 을 None, Send urgent patient "

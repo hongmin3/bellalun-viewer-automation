@@ -208,10 +208,19 @@ grep -nE "Window Level|영상 전송하기" "지식/Bellalun Viewer Operation Ma
    python -m py_compile <바꾼 파일>
    python tools_check_module_attrs.py
    python tools_check_self_attrs.py
+   python tools_check_cleanup_stop.py
    python tools_check_regression_names.py
    python tools_traceability.py
    python -m unittest discover -s tests -p "test_*.py"
    ```
+
+   `tools_check_cleanup_stop.py` 도 2026-08-25 에 만들었다. `finally` 안에서
+   `r.add(..., FAIL)` 을 부르면 `stop_on_fail` 때문에 **정리 블록이 StepFailed 를
+   던져 TC 밖으로 샌다** — 단독 실행은 리포트조차 못 남기고, 회귀는 "TC 가 죽었다"로
+   기록해 "본 시험은 통과했고 정리만 실패했다"를 가린다. WF_14 에서 Step 1~7 을 다
+   통과한 실행이 그렇게 통째로 사라졌고, 같은 형태가 **7개 파일 18곳**에 있었다.
+   정리 경로는 평소에 성공하므로 **정리가 실패하는 날에만** 드러난다 — 그래서
+   `py_compile` 도 단위 시험도 잡지 못한다. 정리 기록은 `r.cleanup(...)` 을 쓴다.
 
    `tools_check_self_attrs.py` 는 2026-08-25 에 만들었다. `core/ui.py` 의 한 메서드를
    다시 쓰면서 **그 아래 있던 `sweep_dialogs` 를 통째로 지웠는데**, 위 검사가 전부

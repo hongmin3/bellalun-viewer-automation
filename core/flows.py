@@ -178,8 +178,39 @@ def _click_menu(ui, key, wait=3.0):
     return True
 
 
+def setting_is_open(ui):
+    """Setting 화면이 **이미 열려 있는가.**
+
+    최상위 창 중 큰 `#32770` 을 찾아 **직계 자식**에 그룹 레일의 System(177)이
+    있는지만 본다. `ui.by_id` 처럼 전체 트리를 훑지 않으므로 싸다(실측 0.1초).
+    Export/Import 저장 대화상자도 `#32770` 이지만 작고 177 이 없어 걸리지 않는다.
+    """
+    from core.ui import children
+
+    for w in ui.windows():
+        if w.cls != "#32770" or not w.visible:
+            continue
+        if w.rect[2] - w.rect[0] < 800 or w.rect[3] - w.rect[1] < 500:
+            continue
+        for c in children(w.hwnd, 1):
+            if c.ctrl_id == SETTING_GROUPS["system"] and c.visible:
+                return True
+    return False
+
+
 def open_setting(ui, wait=4.0):
-    """메인 메뉴 → Setting 화면으로 이동한다."""
+    """메인 메뉴 → Setting 화면으로 이동한다. **이미 열려 있으면 누르지 않는다.**
+
+    2026-08-25 사용자 지적: 그룹을 옮길 때마다 좌측 하단 메뉴 버튼과 Setting 을
+    다시 눌렀다. `setting_values.read_all` 은 9개 그룹을 도므로 한 회차에 9번,
+    WF_14 은 두 회차라 **18번을 헛눌렀다**(회차당 약 1분). 이미 열린 창을 다시
+    열려고 모달 뒤의 메뉴를 누르는 것이라 느릴 뿐 아니라 위험하다.
+
+    `open_system_setting` / `open_dicom_setting` 등 8개 헬퍼가 모두 이 함수를
+    무조건 부르므로, 여기서 한 번 막으면 전부 고쳐진다.
+    """
+    if setting_is_open(ui):
+        return True
     return _click_menu(ui, "setting", wait)
 
 
@@ -1335,7 +1366,16 @@ def ensure_patient_screen(ui, wait=5, settle_timeout=60):
     if ui.by_id(PATIENT["tab_new_patient"]):
         return True
     # Examine 화면에서는 메인 메뉴의 Examine 항목으로 Patient 화면을 연다.
-    if open_main_menu(ui):
+    #
+    # `open_main_menu` 는 상태바를 못 찾으면 `FlowError` 를 **던진다.** 이 함수는
+    # bool 만 돌려주기로 한 계약이므로(위 docstring) 여기서 삼키고 False 로
+    # 떨어뜨린다. 2026-08-25 WF_14 에서 정리(finally) 블록이 이 함수를 부르다
+    # 예외를 맞아, **본 시험을 다 통과한 실행이 리포트조차 남기지 못했다.**
+    try:
+        opened = open_main_menu(ui)
+    except FlowError:
+        opened = False
+    if opened:
         target = [c for c in ui.by_id(MAIN_MENU["item_examine"])
                   if c.visible and c.rect[2] - c.rect[0] > 20]
         if target:

@@ -405,9 +405,10 @@ def workflow_03(ctx):
             cleanup = _cleanup_film(ui, tess)
             close_ok = (cleanup["close_film"].get("was_open") is False
                         or cleanup["close_film"].get("closed") is True)
-            r.assert_true(
+            r.cleanup(
                 6, "뒷정리: Film 창 종료 후 Patient 화면 복귀",
-                close_ok and bool(cleanup["patient_screen"]),
+                PASS if (close_ok and bool(cleanup["patient_screen"]))
+                else FAIL,
                 expected={"film_open": False, "patient_screen": True},
                 actual=cleanup,
                 note="이 TC 다음에 오는 `WF_04` 는 **Viewer 를 재기동하지 않고** "

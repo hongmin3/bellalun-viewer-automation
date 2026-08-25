@@ -171,6 +171,56 @@ SHELL_WINDOW_TITLES = ("Program Manager",)
 SHELL_WINDOW_CLASSES = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
 
 
+def force_foreground(hwnd):
+    """`SetForegroundWindow` 가 **무시될 때** 쓰는 표준 우회.
+
+    Windows 는 포그라운드를 쥐고 있지 않은 프로세스의 `SetForegroundWindow` 를
+    조용히 거부한다(반환값만 0이고 예외는 없다). 그래서 호출만 하고 넘어가면
+    "올렸다고 생각하는데 실제로는 안 올라간" 상태가 된다.
+
+    2026-08-25 실측: Claude Code 데스크톱 앱이 최전면을 쥐고 있어 Viewer 가 끝내
+    올라오지 못했고, 그 상태에서 물리 키 입력이 나가 **계정 ID 가 그 앱의
+    입력란에 타이핑됐다.**
+
+    두 가지를 함께 쓴다.
+
+    `AttachThreadInput` 으로 최전면 창의 입력 스레드에 우리 스레드를 붙이면 같은
+    입력 큐를 공유하게 되어 호출이 받아들여진다(2026-08-25 실측: Claude 앱이
+    최전면인 상태에서 **1회 시도로** Viewer 가 올라왔다).
+
+    **널리 쓰이는 "Alt 키 탭" 우회는 쓰지 않는다.** 처음에는 대비책으로 넣었는데,
+    Viewer 는 MFC 앱이라 Alt 가 메뉴 활성화로 해석된다. 그 한 번의 Alt 때문에
+    Setting 창의 Q.C. 그룹 페이지 5개를 통째로 읽지 못했다(2026-08-25 실측).
+    포커스를 얻으려고 **시험 대상에 입력을 주입하면 안 된다.**
+
+    성공 여부는 이 함수가 판정하지 않는다. 호출자(`bring_to_front`)가 실제
+    최전면 창을 다시 읽어 확인한다.
+    """
+    fg = u32.GetForegroundWindow()
+    our_tid = k32.GetCurrentThreadId()
+    target_tid = u32.GetWindowThreadProcessId(fg, None) if fg else 0
+    attached = False
+    if target_tid and target_tid != our_tid:
+        attached = bool(u32.AttachThreadInput(our_tid, target_tid, True))
+    try:
+        # **최소화됐을 때만** 복원한다. `ShowWindow(hwnd, SW_RESTORE)` 를 무조건
+        # 부르면 **최대화된 창이 이전 크기로 줄어든다.** Viewer 는 전체화면으로
+        # 쓰는 앱이고 이 저장소의 판정은 창 크기에 딸린 좌표·rect 를 쓰므로,
+        # 줄어드는 순간 콘텐츠 패널이 최소 크기(700x400) 밑으로 내려가
+        # "패널을 찾지 못했습니다" 가 난다(2026-08-25 실측 — Setting 52페이지째
+        # 에서 그렇게 무너졌다).
+        #
+        # 이 줄은 `bring_to_front` 에 원래 있었지만 **그 함수를 부르는 곳이
+        # 없어서** 부작용이 드러난 적이 없었다.
+        if u32.IsIconic(hwnd):
+            u32.ShowWindow(hwnd, 9)                  # SW_RESTORE
+        u32.BringWindowToTop(hwnd)
+        u32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            u32.AttachThreadInput(our_tid, target_tid, False)
+
+
 def _is_shell_window(front):
     """최전면 창이 Windows 셸(데스크톱/작업표시줄)인지."""
     if not front:
@@ -336,8 +386,47 @@ class ViewerUi:
                 if (c.text.lower() == t if exact else t in c.text.lower())]
 
     # --- 조작 ----------------------------------------------------------
+    def require_front_for_pointer(self, what="클릭"):
+        """포인터 조작 **직전**에 Viewer 가 최전면인지 보장한다.
+
+        `click` 은 `SetCursorPos` + `mouse_event` 로 **실제 마우스**를 움직인다.
+        화면 좌표로 누르므로 **그 좌표를 덮고 있는 창이 클릭을 가져간다.**
+        컨트롤 ID 로 좌표를 구했다는 사실은 아무 보호가 되지 않는다.
+
+        2026-08-25 실측: Claude Code 앱 창이 Viewer 를 덮고 있어 로그인 클릭이
+        전부 그 앱으로 들어갔고, Viewer 는 로그인 화면에 그대로 멈췄다.
+        보고서에는 "Patient 화면이 준비되지 않았습니다" 만 남아 원인이 보이지
+        않았다.
+
+        **가려진 채로는 누르지 않는다.** 조용히 진행하면 (1) 시험이 무의미해지고
+        (2) 사용자의 다른 프로그램을 임의로 클릭하게 된다. 후자가 더 나쁘다.
+
+        비용: 정상 경로는 `foreground_pid()` 한 번(마이크로초)이다.
+        """
+        if self.is_foreground():
+            return True
+        blocking = self.blocking_window()
+        if blocking is None:
+            # **가리는 창이 없다** — 최전면이 Windows 셸(데스크톱/작업표시줄)
+            # 이거나 화면 전환 중인 순간이다. 클릭이 다른 프로그램으로 갈 위험이
+            # 없으므로 **창을 건드리지 않고** 그대로 진행한다.
+            #
+            # 이 구분을 빼면 정상 상황을 가림으로 오판한다. 2026-08-19 회귀가
+            # 바로 그것 때문에 로그인을 중단시켜 14개 TC 가 연쇄 FAIL 했다.
+            # 여기서 `bring_to_front()` 를 부르는 것조차 해롭다 — 그것이
+            # 시험 대상 창을 재배치한다.
+            return True
+        result = self.bring_to_front()
+        if result["ok"]:
+            return True
+        raise RuntimeError(
+            f"{what} 전에 Viewer 를 최전면으로 올리지 못했습니다"
+            f"(가린 창: {result['blocking'] or blocking}). 클릭이 다른 "
+            f"프로그램으로 들어가므로 중단합니다.")
+
     def click(self, target, settle=0.4):
-        """Control 또는 (x, y)를 클릭한다."""
+        """Control 또는 (x, y)를 클릭한다. **Viewer 가 최전면일 때만** 누른다."""
+        self.require_front_for_pointer("클릭")
         x, y = target.center if isinstance(target, Control) else target
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
@@ -353,6 +442,7 @@ class ViewerUi:
         가 더블클릭으로 인식하지 않는다(기본 임계값 500ms). 인라인 편집이 열리지
         않아 "편집할 수 없다"고 오판한 적이 있다(2026-08-20 Hospital Code).
         """
+        self.require_front_for_pointer("더블클릭")
         x, y = target.center if isinstance(target, Control) else target
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.06)
@@ -371,6 +461,7 @@ class ViewerUi:
         2196 을 검사 내 검색으로 추정했으나 Pre-send Preview). 파괴적일 수 있는
         버튼은 누르기 전에 이걸로 먼저 확인한다.
         """
+        self.require_front_for_pointer("호버")
         x, y = target.center if isinstance(target, Control) else target
         u32.SetCursorPos(int(x), int(y))
         time.sleep(settle)
@@ -382,6 +473,7 @@ class ViewerUi:
         커스텀 렌더 목록에서 컨텍스트 메뉴를 확인할 때 쓴다. 좌클릭과 같은 방식으로
         물리 입력을 보낸다 — `WM_CONTEXTMENU` 주입은 이 UI 에서 통하지 않는다.
         """
+        self.require_front_for_pointer("우클릭")
         x, y = target.center if isinstance(target, Control) else target
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
@@ -392,6 +484,7 @@ class ViewerUi:
 
     def drag(self, start, end, duration=.4, settle=.4):
         """Drag between physical screen coordinates."""
+        self.require_front_for_pointer("드래그")
         sx, sy = start.center if isinstance(start, Control) else start
         ex, ey = end.center if isinstance(end, Control) else end
         u32.SetCursorPos(int(sx), int(sy))
@@ -408,6 +501,7 @@ class ViewerUi:
 
     def wheel(self, target, notches, settle=.5):
         """Scroll at a control/point. Positive is up, negative is down."""
+        self.require_front_for_pointer("휠 스크롤")
         x, y = target.center if isinstance(target, Control) else target
         u32.SetCursorPos(int(x), int(y))
         time.sleep(.08)
@@ -437,7 +531,11 @@ class ViewerUi:
         WM_SETTEXT는 창의 텍스트만 바꿀 뿐 앱이 입력으로 인지하지 못하는 경우가
         있다(비밀번호 필드, 입력 검증이 붙은 필드에서 실제로 발생). 사용자가
         타이핑한 것과 동일한 경로를 쓰는 이 방식이 안전하다.
+
+        **물리 키 입력이므로 Viewer 가 최전면이어야 한다.** 가려져 있으면 입력이
+        다른 프로그램으로 들어간다(`require_front` 주석 참고).
         """
+        self.require_front("텍스트 입력")
         self.click(control, settle=0.25)
         if clear:
             self.key_combo(0x11, 0x41)          # Ctrl+A
@@ -453,15 +551,21 @@ class ViewerUi:
         if send_unicode(ch) == 0:
             send_ascii(ch)
 
-    @staticmethod
-    def raw_key(vk, settle=0.05):
+    # `raw_key` / `key_combo` 는 원래 `@staticmethod` 였다. 인스턴스 메서드로
+    # 바꾼 이유: 이 둘을 **직접 부르는 곳**이 `core/xipl.py`(Ctrl+O, Ctrl+A,
+    # Delete)와 `core/dicom_settings.py`(Home, Enter)에 있는데, 거기에는
+    # 최전면 확인이 없었다. 호출부를 하나씩 고치는 대신 **가드를 안쪽에** 두면
+    # 새 호출부가 생겨도 자동으로 보호된다. 호출 형태(`ui.raw_key(...)`)는
+    # 그대로라 바꿔야 하는 곳이 없다.
+    def raw_key(self, vk, settle=0.05):
+        self.require_front(f"키 입력(VK {vk:#04x})")
         u32.keybd_event(vk, 0, 0, 0)
         time.sleep(0.03)
         u32.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
         time.sleep(settle)
 
-    @staticmethod
-    def key_combo(mod_vk, vk):
+    def key_combo(self, mod_vk, vk):
+        self.require_front(f"키 조합(VK {mod_vk:#04x}+{vk:#04x})")
         u32.keybd_event(mod_vk, 0, 0, 0)
         u32.keybd_event(vk, 0, 0, 0)
         time.sleep(0.03)
@@ -470,7 +574,12 @@ class ViewerUi:
         time.sleep(0.08)
 
     def key(self, name, settle=0.3):
-        """가상 키 입력. 포커스가 Viewer에 있어야 한다."""
+        """가상 키 입력. **Viewer 가 최전면임을 보장한 뒤** 보낸다.
+
+        예전 주석은 "포커스가 Viewer에 있어야 한다" 였는데, 그 조건을 확인하는
+        코드가 없어 가려진 상태에서도 그냥 보냈다(`require_front` 주석 참고).
+        """
+        self.require_front(f"키 입력({name})")
         vk = VK[name.upper()] if name.upper() in VK else ord(name.upper())
         u32.keybd_event(vk, 0, 0, 0)
         time.sleep(0.05)
@@ -506,10 +615,36 @@ class ViewerUi:
         막아야 하는 것은 키 입력이 **다른 프로그램**으로 들어가는 것이므로
         프로세스 동일성으로 판정한다.
         """
-        front = self.foreground_window()
-        return bool(front and self.pid and front["pid"] == self.pid)
+        front_pid = self.foreground_pid()
+        return bool(front_pid and self.pid and front_pid == self.pid)
 
-    def bring_to_front(self, attempts=4, settle=0.4):
+    def blocking_window(self):
+        """Viewer 를 **가리고 있는 다른 프로세스의 창**. 없으면 None.
+
+        `bring_to_front` 가 쓰던 판정과 같은 규칙을 한 곳에 모은 것이다.
+        Windows 셸(데스크톱/작업표시줄)이 최전면인 것은 **가림이 아니다** —
+        Viewer 를 새로 띄운 직후에 흔히 나타나는 정상 순간이다.
+        """
+        front = self.foreground_window()
+        if not front or not self.pid:
+            return None
+        if front["pid"] == self.pid or _is_shell_window(front):
+            return None
+        return {"title": front["title"], "pid": front["pid"]}
+
+    def foreground_pid(self):
+        """최전면 창의 프로세스 ID 만 읽는다(제목까지 읽지 않아 싸다).
+
+        `click` 이 클릭마다 부르므로 비용이 중요하다.
+        """
+        hwnd = u32.GetForegroundWindow()
+        if not hwnd:
+            return None
+        pid = w.DWORD()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return int(pid.value) or None
+
+    def bring_to_front(self, attempts=6, settle=0.6):
         """Viewer를 최전면으로 올리고 **실제로 올라왔는지 확인**한다.
 
         `SetForegroundWindow`는 Windows가 무시할 수 있다(다른 프로세스가 포커스를
@@ -527,17 +662,45 @@ class ViewerUi:
         for attempt in range(1, attempts + 1):
             if self.is_foreground():
                 return {"ok": True, "blocking": None, "attempts": attempt - 1}
-            # 최소화되어 있으면 먼저 복원한다(SW_RESTORE = 9).
-            u32.ShowWindow(win.hwnd, 9)
-            u32.SetForegroundWindow(win.hwnd)
-            u32.BringWindowToTop(win.hwnd)
+            # `SetForegroundWindow` 만으로는 다른 앱이 최전면을 쥐고 있을 때
+            # 거부당한다. `force_foreground` 가 그 잠금을 푼다(주석 참고).
+            force_foreground(win.hwnd)
             time.sleep(settle)
-        front = self.foreground_window()
-        blocking = None
-        if front and front["pid"] != self.pid and not _is_shell_window(front):
-            blocking = {"title": front["title"], "pid": front["pid"]}
-        return {"ok": self.is_foreground(), "blocking": blocking,
-                "attempts": attempts}
+        return {"ok": self.is_foreground(),
+                "blocking": self.blocking_window(), "attempts": attempts}
+
+    def require_front(self, what="키 입력"):
+        """물리 키 입력 **직전**에 Viewer 가 최전면인지 보장한다.
+
+        `keybd_event` / `SendInput` 은 창을 지정할 수 없다 — **그 순간 최전면인
+        창**으로 들어간다. Viewer 가 가려져 있으면 아이디·비밀번호·설정값이
+        **다른 프로그램에 타이핑된다.**
+
+        2026-08-25 실측: WF_14 4차 실행에서 로그인이 `service` 를 **다른 창의
+        입력란에 쳐 넣었고**, Viewer 는 로그인 화면에 그대로 멈춰 전제 단계가
+        FAIL 했다. `bring_to_front()` 는 그때 이미 이 위험을 주석에 적어 두고
+        있었지만 **호출하는 곳이 한 군데도 없었다** — 가드를 만들어 두고 연결하지
+        않은 것이다.
+
+        올리지 못하면 **무엇이 가리고 있었는지** 담아 예외를 던진다. 조용히
+        진행하면 키 입력이 어디로 갔는지 모르게 된다.
+        """
+        if self.is_foreground():
+            return {"ok": True, "blocking": None, "attempts": 0}
+        blocking = self.blocking_window()
+        if blocking is None:
+            # 가리는 창이 없다(셸이 최전면이거나 전환 중). 키가 **다른
+            # 프로그램으로 새지는 않는다** — 허공으로 갈 수는 있지만 그것은
+            # 호출부의 확인(비밀번호 길이 대조, 로그인 화면 이탈 확인,
+            # 설정값 DB 대조)이 잡는다. 여기서 막으면 정상 상황을 오판한다.
+            return {"ok": False, "blocking": None, "attempts": 0}
+        result = self.bring_to_front()
+        if result["ok"]:
+            return result
+        raise RuntimeError(
+            f"{what} 전에 Viewer 를 최전면으로 올리지 못했습니다"
+            f"(가린 창: {result['blocking'] or blocking}). 키 입력이 다른 "
+            f"프로그램으로 들어가므로 중단합니다.")
 
     # --- 대기 ----------------------------------------------------------
     def wait_dialog(self, title=None, timeout=20, poll=0.5):
@@ -720,7 +883,7 @@ class ViewerUi:
         **값은 절대 읽어서 로그로 남기지 않는다. 길이만 본다.**
         """
         want = len(password)
-        self.activate()
+        self.require_front("비밀번호 입력")
         self.type_text(control, password)
         got = len(self.get_text(control) or "")
         if got == want:
@@ -854,7 +1017,7 @@ class ViewerUi:
         연관성도 없다'고 명시되어 있다. 따라서 획득 영상의 **내용**을 근거로
         View Position/Laterality/화질을 판정해서는 안 된다.
         """
-        self.activate()
+        self.require_front("Demo 촬영(F8)")
         self.key("F8", settle=0.5)
         time.sleep(wait_after)
 

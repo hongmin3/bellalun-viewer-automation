@@ -191,6 +191,24 @@ class TCResult:
                         "않고 다음 TC 로 넘어간다. 남은 Step 은 '미수행(FAIL)'로 "
                         "채워진다 — 제품 결함 판정이 아니라 수행하지 못한 것이다.")
 
+    def cleanup(self, step, title, status, expected="", actual="", note=""):
+        """**정리(원복) 결과**를 기록한다. 절대 중단 신호를 내지 않는다.
+
+        `finally` 안에서 `add(..., FAIL)` 을 부르면 `stop_on_fail` 때문에
+        **정리 블록 자체가 StepFailed 를 던져 TC 밖으로 샌다.** 단독 실행은
+        통째로 죽고, 회귀에서는 `guarded()` 가 받아 "TC 가 죽었다" 로 기록해
+        실제로 일어난 일("본 시험은 통과했고 정리만 실패했다")을 가린다.
+
+        2026-08-25 WF_14 에서 실측했다 — Step 1~7 을 다 통과한 실행이 정리
+        단계의 `ensure_patient_screen` 예외 때문에 리포트조차 남기지 못했다.
+        같은 형태가 7개 TC 파일 17곳에 있었다.
+
+        정리가 실패한 사실은 **FAIL 로 남긴다**(조용히 넘기지 않는다). 다만 그
+        FAIL 이 흐름을 끊지는 않는다 — 이미 끝난 TC 를 중단할 것이 없다.
+        """
+        return self.add(step, title, status, expected, actual, note,
+                        stop=False)
+
     def manual(self, step, title, note, expected="", actual=""):
         return self.add(step, title, MANUAL, expected, actual, note)
 

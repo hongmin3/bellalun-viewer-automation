@@ -388,6 +388,35 @@ def _pair_keys(before_page, after_page):
     return pairs, left, right
 
 
+#: Setting 화면에 있지만 **설정이 아니라 장치 상태**를 실시간으로 보여 주는
+#: 컨트롤. `{페이지: {컨트롤ID}}`.
+#:
+#: 설정 복원 여부를 묻는 판정에 이런 값을 넣으면 그 판정은 영구히 불안정해진다.
+#: DB 쪽의 `snapshot.VOLATILE_FIELDS`(`LastAccNum` 등)와 같은 취지의, 화면 쪽
+#: 목록이다.
+#:
+#: `device.ups` 의 2537~2541 은 UPS 의 **연결 상태·배터리 잔량·남은 시간**이다.
+#: 2026-08-25 WF_14 실행에서 1회차 `('', '', '0 %', 'Power Unknown',
+#: '0 minute(s) left')` 가 2회차에 전부 `'Not Connected'` 로 바뀌어 이 판정이
+#: FAIL 했다. 시험 장비에 UPS 가 연결돼 있지 않아(상태바에도 `Failed to
+#: communication with UPS.`) Viewer 재시작 전후로 표시가 달라진 것이고,
+#: **Import 가 설정을 복원했는지와는 아무 상관이 없다.**
+#: 같은 페이지의 2536(UPS 모델 선택)은 설정이므로 **제외하지 않는다.**
+VOLATILE_CONTROLS = {
+    "device.ups": {2537, 2538, 2539, 2540, 2541},
+}
+
+
+def _is_volatile(page, key):
+    ids = VOLATILE_CONTROLS.get(page)
+    if not ids:
+        return False
+    try:
+        return int(key.split("@", 1)[0]) in ids
+    except ValueError:
+        return False
+
+
 def compare(before, after):
     """두 회차의 값을 항목 단위로 비교한다.
 
@@ -397,22 +426,31 @@ def compare(before, after):
         "changed": [{"page":.., "control":.., "kind":.., "pre":.., "post":..}],
         "only_before": [...], "only_after": [...],
         "unreadable": [...],        # radio 판독이 None 이라 비교 못 한 항목
+        "volatile_skipped": [...],  # 설정이 아니라 장치 상태라 뺀 항목
         "jitter_matched": int,      # 1px 배치 흔들림을 흡수해 짝지은 항목 수
         "missing_pages": {...},
       }
+
+    제외한 항목은 **세어서 돌려준다.** 조용히 빼면 판정이 언제 좁아졌는지
+    아무도 모르게 된다.
     """
     bp, ap = before["pages"], after["pages"]
-    changed, only_b, only_a, unreadable = [], [], [], []
+    changed, only_b, only_a, unreadable, volatile = [], [], [], [], []
     items = jitter = 0
     common = sorted(set(bp) & set(ap))
     for page in common:
         b, a = bp[page], ap[page]
         pairs, left, right = _pair_keys(b, a)
-        only_b.extend(f"{page}:{k}" for k in left)
-        only_a.extend(f"{page}:{k}" for k in right)
+        only_b.extend(f"{page}:{k}" for k in left
+                      if not _is_volatile(page, k))
+        only_a.extend(f"{page}:{k}" for k in right
+                      if not _is_volatile(page, k))
         for key, akey in sorted(pairs):
             if key != akey:
                 jitter += 1
+            if _is_volatile(page, key):
+                volatile.append(f"{page}:{key}")
+                continue
             items += 1
             bv, av = b[key], a[akey]
             if bv["kind"] == "radio" and (bv["value"] is None
@@ -427,6 +465,7 @@ def compare(before, after):
                                 "post_ocr": av.get("ocr")})
     return {"compared_pages": len(common), "compared_items": items,
             "changed": changed, "only_before": only_b, "only_after": only_a,
-            "unreadable": unreadable, "jitter_matched": jitter,
+            "unreadable": unreadable, "volatile_skipped": volatile,
+            "jitter_matched": jitter,
             "missing_pages": {**before.get("missing", {}),
                               **after.get("missing", {})}}

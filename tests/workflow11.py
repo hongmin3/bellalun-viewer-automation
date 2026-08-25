@@ -341,12 +341,12 @@ def run(ctx):
                     ui.click(flows.restore_point(thumbs[0]), settle=2.5)
                     _confirm_restore(ui, tess)
                 left = _rejected_keys(ctx.db)
-                r.add(0, "뒷정리: Reject 상태 원복",
+                r.cleanup(0, "뒷정리: Reject 상태 원복",
                       PASS if not left else MANUAL,
                       expected="StatusRejected=1 인 그룹 0건",
                       actual=f"남은 그룹 {sorted(left)}" if left else "원복 확인")
             except Exception as exc:
-                r.add(0, "뒷정리: Reject 상태 원복", MANUAL,
+                r.cleanup(0, "뒷정리: Reject 상태 원복", MANUAL,
                       actual=f"원복 실패({exc}). Reject 상태가 남아 뒤따르는 TC 가 "
                              "영향을 받을 수 있습니다. DB 기준 복원으로 해소됩니다.")
     return r

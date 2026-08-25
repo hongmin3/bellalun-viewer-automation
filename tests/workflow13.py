@@ -518,13 +518,13 @@ def run(ctx):
                 original = ctx.cfg["viewer"]["login"]["id"]
                 ui, back = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
                 ok = flows.ensure_patient_screen(ui)
-                r.add(0, "뒷정리: 원래 계정으로 복구", PASS if ok else FAIL,
+                r.cleanup(0, "뒷정리: 원래 계정으로 복구", PASS if ok else FAIL,
                       expected=f"{original} 로 재로그인",
                       actual={"startup": back, "patient_screen": ok},
                       note="로그인 계정을 바꾸는 TC 는 반드시 되돌린다. 되돌리지 "
                            "못하면 뒤따르는 TC 가 전부 무너진다.")
             except Exception as exc:
-                r.add(0, "뒷정리: 원래 계정으로 복구", FAIL,
+                r.cleanup(0, "뒷정리: 원래 계정으로 복구", FAIL,
                       actual=f"복구 실패({exc}). **뒤따르는 TC 가 제한 권한으로 "
                              f"실행될 수 있다.** Viewer 를 재시작하고 "
                              f"{ctx.cfg['viewer']['login']['id']} 로 로그인하십시오.")
@@ -534,11 +534,11 @@ def run(ctx):
         if ui is not None and created:
             try:
                 gone = _delete_account(ui, ctx, account_id, tess)
-                r.add(0, "뒷정리: 시험 계정 삭제", PASS if gone else MANUAL,
+                r.cleanup(0, "뒷정리: 시험 계정 삭제", PASS if gone else MANUAL,
                       expected=f"{account_id} 삭제됨",
                       actual="삭제 확인" if gone
                              else f"삭제되지 않았다 — 수동 삭제 필요: {account_id}")
             except Exception as exc:
-                r.add(0, "뒷정리: 시험 계정 삭제", MANUAL,
+                r.cleanup(0, "뒷정리: 시험 계정 삭제", MANUAL,
                       actual=f"삭제 실패({exc}). 수동으로 {account_id} 를 지우십시오.")
     return r

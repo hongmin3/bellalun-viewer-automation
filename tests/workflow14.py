@@ -27,17 +27,40 @@ r"""TC_Basic_WorkFlow_14 — Setting Export 및 Import.
     설정 파일: Evidence\Settings\Baseline_Settings
     변경 항목: Theme 권장
 
-## Step 3 의 변경 항목 — Theme 을 쓰지 않는 이유 (명시적 이탈)
+## Step 3 의 변경 항목 — 명시적 이탈 두 가지
 
-Test Data 는 Theme 을 **권장**하고 Step 은 "Theme **또는** 검증 대상 비파괴 설정
-1개"를 허용한다. 이 자동화는 `Storage Free Space Alarm > Warning`
-(`SYSTEM_COMMON.StorageWarning`, 같은 Setting > System > General 화면)을 쓴다.
+체크리스트 Step 3 은 "Theme **또는** 검증 대상 비파괴 설정 **1개**" 다. 이
+자동화는 두 가지를 벗어난다. 둘 다 판정을 **강화**하는 방향이고, 이유는 아래와
+같다. (체크리스트 문구를 이대로 둘지는 사용자 판단 사항으로 `NEXT_WORK.md` 에
+남겼다 — 원문은 손대지 않았다.)
 
-이유: Theme 는 Viewer 전체의 색을 바꾼다. 이 저장소의 판정 다수가
-**브랜드 핑크 픽셀**(`core/screen.radio_selected`)과 **흰 배경/검은 글자 OCR**에
-의존하므로, Import 복원이 실패해 Theme 이 되돌아오지 않으면 뒤따르는 모든 TC 가
-무인 회귀에서 연쇄로 무너진다. `StorageWarning` 은 같은 화면·같은 DB 테이블
-(`SYSTEM_COMMON`)에 있고 숫자 하나만 바뀌므로 판정력은 같고 위험은 없다.
+### ① Theme 을 쓰지 않는다
+
+Theme 은 Viewer 전체의 색을 바꾼다. 이 저장소의 판정 다수가 **브랜드 핑크
+픽셀**(`core/screen.radio_selected`)과 **흰 배경/검은 글자 OCR** 에 의존하므로,
+Import 복원이 실패해 Theme 이 되돌아오지 않으면 뒤따르는 모든 TC 가 무인 회귀에서
+연쇄로 무너진다.
+
+### ② 1개가 아니라 **7개 메뉴 / 7개 설정 테이블**을 바꾼다
+
+Step 7 의 판정은 설정 테이블 **전수 대조**인데, **바꾸지 않은 영역은 그 판정이
+아무것도 증명하지 못한다.** Import 가 `TOOL_COMMON` 을 통째로 건너뛰어도 그
+테이블을 건드린 적이 없으면 Export 전후가 당연히 같아 통과한다. 즉 **변경 범위가
+곧 이 TC 의 실제 검증 범위**이고, 1개만 바꾸면 "전수 대조" 라는 이름과 달리 실제로
+검증되는 것은 그 한 테이블뿐이다.
+
+    System    > General       SYSTEM_COMMON.StorageWarning
+    Patient   > Patient List  REGISTRATION_COMMON.AutoRefreshTime
+    Display   > Overlay       OVERLAY.OverlayFontSize
+    Procedure > General       PROCEDURE_COMMON.TargetExposureIndex
+    Q.C.      > Setting 3D    QC_COMMON.TomoMTFThick
+    DICOM     > General       DICOM_COMMON.AllowLongAcc
+    Tool      > General       TOOL_COMMON.CopyImgCrop
+
+무엇을 왜 제외했는지(Theme / Language / Security / DICOM Port / Device 노출
+인터록 / 자동 삭제)는 `core/setting_changes.py` docstring 에 적었다.
+
+2026-08-25 왕복 실측: 7개 적용 -> 설정 섹션 7개 변경 -> 7개 원복 -> **잔여 차이 0**.
 
 ## 판정 근거
 
@@ -45,12 +68,16 @@ Test Data 는 Theme 을 **권장**하고 Step 은 "Theme **또는** 검증 대�
   `.zip 파일로 설정을 내보낸다. (확장자 변경 .vms)` 로 정의하고 담을 내용을
   나열한다 → `core/setting_transfer.inspect_vms()` 가 그 구성을 대조한다.
   파일이 "생겼다"만으로 통과시키지 않는다.
+- Step 3: 항목마다 **DB 컬럼으로** 변경을 확인한다. 화면이 바뀐 것처럼 보여도
+  DB 에 반영되지 않으면 Import 판정이 무의미해지므로 실패로 본다.
 - Step 4: 사양이 `System / Account / Procedure 중 사용자가 선택한 설정 값만`
   가져온다고 하므로 그 세 옵션이 실제로 있는지 OCR 로 확인한다.
 - Step 6: 사양이 `Import 한 설정은 Viewer를 재시작해야 적용된다` 고 하므로
   재시작을 **판정 단계**로 둔다(재시작 없이 값이 바뀌었다면 사양과 다르다).
 - Step 7 주 판정: 설정 테이블 **전수 대조**(`snapshot.config_identical`).
-  좌표·픽셀·OCR 이 개입하지 않는 결정적 근거다.
+  좌표·픽셀·OCR 이 개입하지 않는 결정적 근거다. 여기에 **변경한 7개 항목이
+  하나씩 원래 값으로 돌아왔는지**를 항목 단위로 덧붙인다 — 전수 대조가 통과해도
+  어느 항목이 어떻게 복원됐는지 보고서에 남게 하기 위해서다.
 - Step 7 보강: Setting **56개 페이지의 컨트롤 값**을 ID 기준으로 읽어 항목 단위
   대조(`core/setting_values.py`). 사내 선행 도구(Setting 화면 캡처-비교 프로그램)와 같은
   목적이지만 **이미지 비교가 아니다** — 그 도구가 회고에 적은 두 오탐
@@ -62,102 +89,20 @@ Test Data 는 Theme 을 **권장**하고 Step 은 "Theme **또는** 검증 대�
 ## 상태 복구
 
 이 TC 는 **자기 자신이 되돌린다.** Export 를 TC 시작 시점에 뜨므로 Import 는
-시작 상태를 복원한다. Step 5 이후 실패해 값이 남으면 `finally` 에서 UI 로
-`StorageWarning` 을 원래 값으로 되돌리고, 되돌리지 못하면 그 사실을 판정으로
-남긴다(조용히 넘기지 않는다).
+시작 상태를 복원한다. Step 5 이후 실패해 값이 남으면 `finally` 에서
+`setting_changes.restore_all` 이 UI 로 7개를 모두 되돌리고, 되돌리지 못한 항목은
+그 사실을 판정으로 남긴다(조용히 넘기지 않는다).
 """
 
 from __future__ import annotations
 
 import os
-import time
 
-from core import flows, screen, setting_transfer, setting_values, snapshot, specs
+from core import (flows, screen, setting_changes, setting_transfer,
+                  setting_values, snapshot, specs)
 from core.result import FAIL, PASS, TCResult
 
-# Setting > System > General 의 Storage Free Space Alarm (2026-08-21 실측)
-#   2230 Warning 슬라이더(자식 1 = 감소 ◀ / 2 = 증가 ▶) / 2232 Warning Edit
-#   2231 Critical 슬라이더                                / 2233 Critical Edit
-STORAGE_WARNING_SLIDER = 2230
-STORAGE_WARNING_EDIT = 2232
-SLIDER_DECREASE = 1
-SLIDER_INCREASE = 2
-
 EXPORT_FILE = "WF14_Baseline_Settings.vms"
-
-
-def _read_warning_edit(ui):
-    """Warning 값을 화면 Edit(2232)에서 읽는다. 표준 Edit 이라 OCR 이 필요없다."""
-    hits = [c for c in ui.by_id(STORAGE_WARNING_EDIT)
-            if c.visible and c.cls == "Edit"]
-    if not hits:
-        return None
-    text = (ui.get_text(hits[0]) or "").strip()
-    try:
-        return int(text)
-    except ValueError:
-        return None
-
-
-def _nudge_warning(ui, direction, timeout=6):
-    """Warning 슬라이더의 ◀/▶ 를 한 번 누르고 **값이 실제로 바뀔 때까지** 기다린다.
-
-    조작 후 확인 없는 코드를 만들지 않는다(운영 지침 11절).
-    """
-    from core.ui import children
-
-    slider = next((c for c in ui.by_id(STORAGE_WARNING_SLIDER) if c.visible),
-                  None)
-    if slider is None:
-        raise RuntimeError(
-            f"Storage Warning 슬라이더({STORAGE_WARNING_SLIDER})를 "
-            "찾지 못했습니다.")
-    want_id = SLIDER_INCREASE if direction > 0 else SLIDER_DECREASE
-    btn = next((c for c in children(slider.hwnd, 3)
-                if c.ctrl_id == want_id and c.visible
-                and c.rect[2] - c.rect[0] > 10), None)
-    if btn is None:
-        raise RuntimeError(
-            f"Storage Warning 슬라이더의 {'증가' if direction > 0 else '감소'} "
-            f"버튼({want_id})을 찾지 못했습니다.")
-    before = _read_warning_edit(ui)
-    ui.click(btn, settle=0.8)
-    end = time.time() + timeout
-    while time.time() < end:
-        now = _read_warning_edit(ui)
-        if now is not None and now != before:
-            return before, now
-        time.sleep(0.4)
-    return before, _read_warning_edit(ui)
-
-
-def _db_warning(db):
-    row = db.one("CONFIGURATION", "SELECT StorageWarning FROM SYSTEM_COMMON")
-    return int(row["StorageWarning"]) if row and row.get(
-        "StorageWarning") is not None else None
-
-
-def _set_warning_to(ui, db, target, attempts=12):
-    """UI 로 Warning 을 target 으로 맞추고 Update 한다. DB 로 확인한다.
-
-    `core/db.py` 는 조회 전용이므로 복구도 UI 로만 한다(설계 유지).
-    """
-    flows.open_system_setting(ui, "general", wait=2.5)
-    for _ in range(attempts):
-        now = _read_warning_edit(ui)
-        if now is None:
-            raise RuntimeError("Warning 값을 화면에서 읽지 못했습니다.")
-        if now == target:
-            break
-        _nudge_warning(ui, 1 if target > now else -1)
-    flows.setting_update(ui, wait=2.5)
-    flows.confirm_setting_dialog(ui)
-    end = time.time() + 15
-    while time.time() < end:
-        if _db_warning(db) == target:
-            return True
-        time.sleep(1)
-    return _db_warning(db) == target
 
 
 def run(ctx):
@@ -168,8 +113,7 @@ def run(ctx):
     vms = os.path.join(evidence, EXPORT_FILE)
 
     ui = None
-    baseline_warning = None
-    changed_warning = None
+    applied = []
     imported = False
     try:
         # --- Precondition ----------------------------------------------
@@ -185,14 +129,18 @@ def run(ctx):
             note="체크리스트 Precondition. Setting > System > My Settings 는 "
                  "권한 표(사양서1 78~80쪽)에서 User 에게 보이지 않는 항목이다.")
 
-        baseline_warning = _db_warning(ctx.db)
+        baseline = setting_changes.plan_targets(ctx.db)
         pre = snapshot.take(ctx.db)
         r.assert_true(
-            0, "[Precondition] 변경 전 기준 설정값 기록", baseline_warning is not None,
-            expected="SYSTEM_COMMON.StorageWarning 판독",
-            actual={"StorageWarning": baseline_warning,
+            0, "[Precondition] 변경 전 기준 설정값 기록",
+            all("error" not in b for b in baseline),
+            expected=f"변경 대상 {len(setting_changes.CHANGE_PLAN)}개 항목의 "
+                     f"현재값 판독",
+            actual={"기준값": {b["item"].key: b.get("before", b.get("error"))
+                            for b in baseline},
                     "설정 섹션 수": len(snapshot.CONFIG_SECTIONS)},
-            note="Export 직전 상태를 DB 스냅샷으로 떠 둔다. Step 7 의 전수 대조 기준.")
+            note="Export 직전 상태를 DB 스냅샷으로 떠 둔다. Step 7 의 전수 대조 "
+                 "기준이며, Import 가 실패했을 때 되돌릴 목표값이기도 하다.")
 
         # --- Step 7 보강의 1회차: 설정 화면 값 판독 --------------------
         before_vals = setting_values.read_all(
@@ -261,27 +209,43 @@ def run(ctx):
                  "들어 있으므로 결함으로 보지 않는다.")
 
         # --- Step 3 ----------------------------------------------------
-        target = baseline_warning + 1 if baseline_warning is not None else None
-        if target is None:
-            raise RuntimeError("기준 StorageWarning 을 읽지 못해 변경할 수 없습니다.")
-        ok = _set_warning_to(ui, ctx.db, target)
-        changed_warning = _db_warning(ctx.db)
+        applied = setting_changes.apply_all(ui, ctx.db)
+        summary = setting_changes.summarize(applied)
+        setting_changes.close_setting(ui)
         path = os.path.join(evidence, "03_changed.png")
         screen.grab(ui.main_window().rect, path=path)
         r.attach(path)
-        r.assert_equal(
-            3, "비파괴 설정 1개 변경이 적용됨(Storage Free Space Alarm > Warning)",
-            target, changed_warning,
+
+        want_n = len(setting_changes.CHANGE_PLAN)
+        r.assert_true(
+            3, "여러 메뉴의 비파괴 설정 변경이 모두 적용됨",
+            summary["적용됨"] == want_n,
+            expected=f"{want_n}개 항목 모두 DB 컬럼에 반영",
+            actual=summary,
             note="체크리스트는 'Theme 또는 검증 대상 비파괴 설정 1개'를 허용한다. "
                  "Theme 은 Viewer 전체 색을 바꿔 이 저장소의 픽셀/OCR 판정을 "
-                 "무너뜨릴 수 있어(복원 실패 시 회귀 전체 연쇄 실패) 같은 화면·같은 "
-                 "테이블(SYSTEM_COMMON)의 StorageWarning 을 쓴다. 판정력은 같다. "
-                 f"UI 조작으로 {baseline_warning} -> {target} 로 바꾸고 Update 후 "
-                 "DB 로 확인했다.")
-        if not ok:
+                 "무너뜨릴 수 있어 쓰지 않고, **1개 대신 7개 메뉴/7개 설정 "
+                 "테이블**을 바꾼다. 바꾸지 않은 테이블은 Step 7 의 전수 대조가 "
+                 "아무것도 증명하지 못하기 때문이다(변경 범위 = 실제 검증 범위). "
+                 "제외 항목과 이유는 core/setting_changes.py 에 적었다. "
+                 "항목마다 **DB 컬럼으로** 반영을 확인했다.")
+
+        mid = snapshot.take(ctx.db, snapshot.CONFIG_SECTIONS)
+        _same_mid, changed_sections = snapshot.config_identical(pre, mid)
+        r.assert_true(
+            3, "변경이 서로 다른 설정 테이블에 걸쳐 반영됨",
+            set(summary["덮은 설정테이블"]) <= set(changed_sections),
+            expected=f"변경한 {len(summary['덮은 설정테이블'])}개 테이블이 "
+                     f"DB 차이로 확인됨",
+            actual={"실제로 달라진 섹션": sorted(changed_sections),
+                    "변경 세트가 덮은 테이블": summary["덮은 설정테이블"]},
+            note="Step 7 전수 대조가 실제로 검증하게 될 범위를 여기서 확정한다. "
+                 "이 목록이 비면 Step 7 은 통과해도 아무 의미가 없다.")
+
+        if summary["적용됨"] == 0:
             raise RuntimeError(
-                f"설정 변경이 DB 에 반영되지 않아 Import 판정이 무의미해집니다"
-                f"(기대 {target}, 실제 {changed_warning}).")
+                "설정이 하나도 바뀌지 않아 Import 판정이 무의미해집니다: "
+                f"{summary['실패']}")
 
         # --- Step 4 ----------------------------------------------------
         setting_transfer.open_my_settings(ui, wait=3.0)
@@ -308,6 +272,8 @@ def run(ctx):
 
         # --- Step 5 ----------------------------------------------------
         # 전수 대조를 의미있게 하려면 세 범위를 모두 가져와야 한다.
+        # 변경 세트도 System(CONFIGURATION) 과 Procedure(PROCEDURE) 양쪽에
+        # 걸쳐 있으므로, 한 범위만 고르면 나머지가 복원되지 않는다.
         result = setting_transfer.run_import(
             ui, idlg, vms, options=("system", "account", "procedure"),
             tesseract_exe=tess)
@@ -327,7 +293,7 @@ def run(ctx):
 
         # 사양: 재시작 전에는 적용되지 않는다 → 여기서 값이 이미 돌아갔다면
         # 사양과 다르다. 확인만 하고 판정으로 남긴다.
-        before_restart = _db_warning(ctx.db)
+        before_restart = _current_values(ctx.db)
 
         # --- Step 6 ----------------------------------------------------
         ui, restart = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
@@ -335,22 +301,32 @@ def run(ctx):
         r.assert_true(
             6, "Viewer 재시작 후 정상 실행", bool(ready),
             expected="로그인 통과 후 Patient 화면",
-            actual={"startup": restart, "patient_screen": bool(ready)},
+            actual={"startup": restart, "patient_screen": bool(ready),
+                    "재시작 직전 변경항목 값": before_restart},
             note=specs.cite(ctx, "Import 한 설정은 Viewer를 재시작",
                             fallback="사양서1 60절 — 'Import 한 설정은 Viewer를 "
-                                     "재시작해야 적용된다'") +
-                 f" 재시작 직전 StorageWarning={before_restart}.")
+                                     "재시작해야 적용된다'"))
         if not ready:
             raise RuntimeError("재시작 후 Patient 화면이 준비되지 않았습니다")
 
         # --- Step 7 ----------------------------------------------------
         post = snapshot.take(ctx.db)
-        restored = _db_warning(ctx.db)
-        r.assert_equal(
-            7, "변경한 설정값이 Export 시점 값으로 복원",
-            baseline_warning, restored,
-            note="주 판정. 변경 대상(StorageWarning)이 Export 시점 값으로 "
-                 "돌아왔는지 DB 로 확인한다.")
+        now = _current_values(ctx.db)
+        not_restored = [
+            {"메뉴": rec["key"], "항목": rec["label"], "컬럼": rec["column"],
+             "기대": rec.get("before"), "실제": now.get(rec["key"])}
+            for rec in applied if rec.get("ok")
+            and str(now.get(rec["key"])) != str(rec.get("before"))]
+        r.assert_true(
+            7, "변경한 설정값이 Export 시점 값으로 복원(항목 단위)",
+            not not_restored,
+            expected={rec["key"]: rec.get("before")
+                      for rec in applied if rec.get("ok")},
+            actual={"현재값": now,
+                    "복원 안 된 항목": not_restored or "없음"},
+            note="주 판정. Step 3 에서 바꾼 항목 하나하나가 Export 시점 값으로 "
+                 "돌아왔는지 DB 컬럼으로 확인한다. 전수 대조가 통과해도 어느 "
+                 "항목이 어떻게 복원됐는지 보고서에 남기기 위해 따로 둔다.")
 
         same, diff = snapshot.config_identical(pre, post)
         r.assert_true(
@@ -360,7 +336,9 @@ def run(ctx):
                                      f"{sorted(diff)}",
             note="사양서1 60절이 Export 대상을 'Study 정보를 제외한 모든 설정 "
                  "정보(DB / sql file)'로 정의하므로, 화면 픽셀이 아니라 설정 "
-                 "테이블 전수 대조가 결정적 근거다.")
+                 "테이블 전수 대조가 결정적 근거다. Step 3 에서 "
+                 f"{len(summary['덮은 설정테이블'])}개 테이블을 실제로 바꿨으므로 "
+                 "이 대조는 그만큼의 범위를 실제로 검증한다.")
         for sec in sorted(diff):
             r.add(7, f"설정 섹션 [{sec}] 복원", FAIL,
                   expected="Export 시점과 동일",
@@ -381,6 +359,7 @@ def run(ctx):
                     "한쪽에만 있음": (vc["only_before"][:10] +
                                 vc["only_after"][:10]),
                     "판독불가(라디오 픽셀)": len(vc["unreadable"]),
+                    "장치 상태라 제외": vc["volatile_skipped"],
                     "배치 흔들림 흡수": vc["jitter_matched"],
                     "진입불가 페이지": list(vc["missing_pages"])},
             note="컨트롤 ID 로 이동해 Edit·콤보는 WM_GETTEXT, 라디오/체크박스는 "
@@ -393,10 +372,21 @@ def run(ctx):
                  "'배치 흔들림 흡수'는 컨트롤이 회차 사이에 1~8px 움직여 키가 "
                  "어긋난 것을 같은 컨트롤로 짝지은 수다 — 2026-08-21 첫 실행에서 "
                  "`patient.general` 의 2303 이 x 595->594 로 1px 움직여 '한쪽에만 "
-                 "있음' 으로 잡혔고, 그것을 설정 차이로 보고하면 오탐이다.")
+                 "있음' 으로 잡혔고, 그것을 설정 차이로 보고하면 오탐이다. "
+                 "'장치 상태라 제외'는 `device.ups` 의 UPS 연결상태·배터리 잔량처럼 "
+                 "**설정이 아니라 실시간 장치 상태**를 보여 주는 칸이다 — "
+                 "2026-08-25 실행에서 UPS 미연결 때문에 '0 %'/'Power Unknown' 이 "
+                 "'Not Connected' 로 바뀌어 이 판정이 FAIL 했다. 판정을 약화시킨 "
+                 "것이 아니라 **대상이 아닌 값을 뺀 것**이고, 몇 개를 뺐는지 "
+                 "여기에 남긴다(core/setting_values.VOLATILE_CONTROLS).")
 
     except Exception as exc:                           # noqa: BLE001
-        r.add(0, "TC 수행 중 예외", FAIL, actual=f"{type(exc).__name__}: {exc}")
+        # `r.abort` 를 쓴다. `r.add(..., FAIL)` 은 `stop_on_fail` 때문에 예외
+        # 처리 블록 **안에서 다시 StepFailed 를 던져** TC 밖으로 샌다(2026-08-25
+        # 실측 — 단독 실행이 통째로 죽었다). 게다가 `aborted` 가 서지 않아
+        # 리포트의 남은 Step 이 '미수행' 으로 채워지지 않는다.
+        # 다른 18개 TC 는 이미 `r.abort` 를 쓰고 있었고 이 파일만 예외였다.
+        r.abort(0, "TC_Basic_WorkFlow_14 실행", exc)
         path = os.path.join(evidence, "99_error.png")
         try:
             screen.grab((0, 0, 1920, 1080), path=path)
@@ -405,33 +395,54 @@ def run(ctx):
             pass
     finally:
         # --- 상태 복구 -------------------------------------------------
-        # Import 가 끝났으면 시작 상태가 이미 복원돼 있다. Import 전에 실패했다면
-        # 바꿔 둔 값이 남으므로 UI 로 되돌린다.
-        now = _db_warning(ctx.db)
-        if baseline_warning is not None and now != baseline_warning:
-            recovered = False
+        # Import 가 끝났으면 시작 상태가 이미 복원돼 있다(대부분 "이미 원래 값"
+        # 으로 끝난다). Import 전에 실패했다면 바꿔 둔 값이 남으므로 UI 로
+        # 되돌린다 — `core/db.py` 는 조회 전용이라 복구도 UI 로만 한다.
+        if applied:
             try:
+                # **Setting 창을 먼저 닫는다.** 마지막 `read_all` 이 Setting 을
+                # 열어 둔 채 끝나므로, 모달이 떠 있는 상태로 Patient 화면을
+                # 확인하러 가면 상태바를 찾지 못한다.
+                if ui is not None:
+                    setting_changes.close_setting(ui)
                 if ui is None or not flows.ensure_patient_screen(ui):
                     ui, _ = flows.cold_start(ctx.cfg, ctx.db,
                                              force_restart=True)
                     flows.ensure_patient_screen(ui)
-                recovered = _set_warning_to(ui, ctx.db, baseline_warning)
+                restored = setting_changes.restore_all(ui, ctx.db, applied)
+                setting_changes.close_setting(ui)
             except Exception as exc:                   # noqa: BLE001
-                r.add(0, "정리: StorageWarning 원복", FAIL,
-                      expected=baseline_warning,
-                      actual=f"복구 실패 {type(exc).__name__}: {exc}")
+                r.cleanup(0, "정리: 변경 설정 원복", FAIL,
+                          expected=f"{len(applied)}개 항목 모두 Export 시점 값",
+                          actual=f"복구 실패 {type(exc).__name__}: {exc}",
+                          note="정리 실패는 FAIL 로 남기되 흐름을 끊지 않는다"
+                               "(`TCResult.cleanup`). 다음 TC 가 오염된 설정을 "
+                               "물려받을 수 있으니 사람이 확인해야 한다.")
             else:
-                r.add(0, "정리: StorageWarning 원복",
-                      PASS if recovered else FAIL,
-                      expected=baseline_warning, actual=_db_warning(ctx.db),
-                      note="Import 전에 중단되면 변경값이 남아 다음 TC 의 설정 "
-                           "대조를 오염시킨다. UI 로만 되돌린다"
-                           "(core/db.py 는 조회 전용).")
-        elif imported:
-            r.add(0, "정리: Import 로 시작 상태 복원됨", PASS,
-                  expected=baseline_warning, actual=now,
-                  note="이 TC 는 Export 를 시작 시점에 떠서 Import 가 곧 원복이다.")
+                failed = [e for e in restored if not e.get("ok")]
+                r.cleanup(0, "정리: 변경 설정 원복",
+                          PASS if not failed else FAIL,
+                          expected=f"{len(restored)}개 항목 모두 Export 시점 값",
+                          actual={"원복 실패": failed or "없음",
+                                  "결과": {e["key"]: e.get("actual")
+                                         for e in restored}},
+                          note="Import 전에 중단되면 변경값이 남아 다음 TC 의 "
+                               "설정 대조를 오염시킨다. Import 가 정상이면 이미 "
+                               "원래 값이라 대부분 조작 없이 끝난다."
+                               + (" Import 로 이미 복원된 상태였다."
+                                  if imported else ""))
     return r
+
+
+def _current_values(db):
+    """변경 세트 각 항목의 현재 DB 값(키 -> 값)."""
+    out = {}
+    for item in setting_changes.CHANGE_PLAN:
+        try:
+            out[item.key] = setting_changes.db_value(db, item)
+        except Exception as exc:                       # noqa: BLE001
+            out[item.key] = f"판독 실패: {exc}"
+    return out
 
 
 def _fmt_section(sd):

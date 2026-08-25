@@ -405,9 +405,10 @@ class PasswordFillTests(unittest.TestCase):
         def __init__(self, reads):
             self.reads = list(reads)
             self.typed = 0
+            self.front_calls = 0
 
-        def activate(self):
-            pass
+        def require_front(self, what="키 입력"):
+            self.front_calls += 1
 
         def type_text(self, control, text, clear=True, settle=0.3):
             self.typed += 1
@@ -442,3 +443,15 @@ class PasswordFillTests(unittest.TestCase):
         self.assertEqual(3, typed)
         self.assertFalse(out["verified"])
         self.assertEqual(7, out["expected"])
+
+    def test_requires_viewer_to_be_in_front_before_typing(self):
+        """비밀번호를 치기 전에 **최전면인지 확인**해야 한다.
+
+        `keybd_event` 는 창을 지정할 수 없어 그 순간 최전면인 창으로 들어간다.
+        2026-08-25 실측: Viewer 가 가려진 상태에서 로그인이 진행돼 계정 ID 가
+        **다른 프로그램의 입력란**에 타이핑됐다.
+        """
+        from core.ui import ViewerUi
+        fake = self._FakeUi(["1234567"])
+        ViewerUi.fill_password(fake, object(), "1234567")
+        self.assertGreaterEqual(fake.front_calls, 1)

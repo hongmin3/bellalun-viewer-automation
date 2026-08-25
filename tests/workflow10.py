@@ -483,7 +483,7 @@ def run(ctx):
             try:
                 closed = flows.close_examine(ui, option="close", wait=6)
                 left = _wait_study(ctx.db, PATIENT_ID, timeout=3)
-                r.add(0, "뒷정리: Examine 종료 및 시험 검사 삭제",
+                r.cleanup(0, "뒷정리: Examine 종료 및 시험 검사 삭제",
                       PASS if left is None else MANUAL,
                       expected="Examine 종료 + 시험 검사(MWL_HC_01) 삭제",
                       actual={"close": closed,
@@ -492,7 +492,7 @@ def run(ctx):
                            "남아 있으면 다음 실행의 Step 5 조회가 중복 안내를 "
                            "만나므로 정리 여부를 판정으로 남긴다.")
             except Exception as exc:                   # noqa: BLE001
-                r.add(0, "뒷정리: Examine 종료", MANUAL,
+                r.cleanup(0, "뒷정리: Examine 종료", MANUAL,
                       actual=f"종료 실패({type(exc).__name__}: {exc}). "
                              "Viewer 를 재시작하면 정리된다.")
         # 시험용 Hospital Code 와 처방을 남기지 않는다.
@@ -503,12 +503,12 @@ def run(ctx):
                 flows.setting_update(ui, wait=2)
                 if ui.dialog():
                     ui.dismiss_dialog(timeout=2)
-                r.add(0, "뒷정리: Hospital Code 삭제",
+                r.cleanup(0, "뒷정리: Hospital Code 삭제",
                       PASS if not left else MANUAL,
                       expected="HOSPITAL_CODE 0행",
                       actual=f"남은 {sorted(left)}" if left else "삭제 확인")
             except Exception as exc:
-                r.add(0, "뒷정리: Hospital Code 삭제", MANUAL,
+                r.cleanup(0, "뒷정리: Hospital Code 삭제", MANUAL,
                       actual=f"삭제 실패({exc}). PROCEDURE.HOSPITAL_CODE 를 확인해 "
                              "수동으로 지우십시오.")
         try:

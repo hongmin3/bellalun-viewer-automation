@@ -2150,7 +2150,7 @@ def compatibility_07(ctx):
                 fallback = _restore_default_recon(ui, ctx, before_defaults)
             except Exception as exc:                   # noqa: BLE001
                 fallback = {"ok": False, "error": str(exc)}
-            r.add(0, "예외 종료 후 Default Recon Parameter 원복",
+            r.cleanup(0, "예외 종료 후 Default Recon Parameter 원복",
                   PASS if fallback.get("ok") else FAIL,
                   expected={mode["db_column"]: before_defaults.get(mode["db_column"])
                             for mode in XIPL07_MODES},

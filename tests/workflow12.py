@@ -296,12 +296,12 @@ def run(ctx):
                     _wait(lambda: not _rejected(ctx.db))
                 flows.select_examined_source(ui, "all", tess)
                 left = _rejected(ctx.db)
-                r.add(0, "뒷정리: Reject 상태 원복",
+                r.cleanup(0, "뒷정리: Reject 상태 원복",
                       PASS if not left else MANUAL,
                       expected="Reject 검사 0건",
                       actual=f"남은 검사 {sorted(left)}" if left else "원복 확인")
             except Exception as exc:
-                r.add(0, "뒷정리: Reject 상태 원복", MANUAL,
+                r.cleanup(0, "뒷정리: Reject 상태 원복", MANUAL,
                       actual=f"원복 실패({exc}). Reject 된 검사가 남아 기본 목록에서 "
                              "빠지므로 뒤따르는 TC 가 영향을 받을 수 있습니다. "
                              "DB 기준 복원으로 해소됩니다.")
