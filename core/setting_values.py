@@ -48,6 +48,7 @@ import os
 import time
 
 from core import flows, screen, uitext
+from core.ui import children
 
 # 커스텀 컨트롤이 `WM_GETTEXT` 로 돌려주는 **일반 이름**들. 값이 아니라 종류다.
 # 이 목록에 없는 문자열이 나오면 그 컨트롤은 "값을 표시하고 있다"는 뜻이다
@@ -72,6 +73,79 @@ _PANE_MIN_H = 400
 
 class SettingValueError(RuntimeError):
     pass
+
+
+#: Setting 다이얼로그의 콘텐츠 패널 rect (실측: 382,85 ~ 1840,905).
+#: 값을 박지 않고 매번 찾지만, 크기 하한과 함께 후보를 거르는 데 쓴다.
+
+
+def setting_window(ui):
+    """Setting 다이얼로그(최상위 `#32770`). **전체 트리를 훑지 않는다.**
+
+    `ui.windows()` 는 최상위 창만 보므로 싸다(실측 2개).
+    """
+    wins = [w for w in ui.windows() if w.cls == "#32770"]
+    if not wins:
+        return None
+    return max(wins, key=lambda w: (w.rect[2] - w.rect[0]) * (w.rect[3] - w.rect[1]))
+
+
+def shallow(ui, window, depth=1):
+    """창의 **얕은** 자식만 열거한다(보이는 것만).
+
+    `ui.controls()` 는 프로세스의 모든 창을 깊이 8까지 훑는다. Setting 화면에서는
+    페이지를 넘길수록 그 비용이 **단조 증가**한다 — 2026-08-25 실측: DICOM 그룹의
+    첫 페이지 0.50초 -> 여섯 번째 1.02초. 제품이 페이지마다 패널을 새로 만들고
+    이전 것을 남겨 두기 때문이다. 56개 페이지를 두 회차 도는 `read_all` 에서는
+    이것만으로 **9분씩** 쌓였다(WF_14 전체 23.6분 중 17.7분).
+    """
+    del ui                                    # 창 하나만 보므로 ui 는 쓰지 않는다
+    if window is None:
+        return []
+    return [c for c in children(window.hwnd, depth) if c.visible]
+
+
+def pane_control(ui, rail_ctrl, window=None, controls=None):
+    """콘텐츠 패널 **컨트롤**을 돌려준다(`content_pane` 은 rect 만 준다).
+
+    패널의 `hwnd` 는 **페이지마다 새로 만들어진다**(2026-08-25 실측 — 같은 rect,
+    다른 hwnd). 그래서 캐시하지 않고 매번 찾되, 최상위 Setting 창의 얕은 자식만
+    본다.
+    """
+    if controls is None:
+        controls = shallow(ui, window or setting_window(ui))
+    rail_right = rail_ctrl.rect[2]
+    candidates = []
+    for c in controls:
+        if c.cls != "#32770" or not c.visible:
+            continue
+        left, top, right, bottom = c.rect
+        if left < rail_right:
+            continue
+        if right - left < _PANE_MIN_W or bottom - top < _PANE_MIN_H:
+            continue
+        candidates.append(c)
+    if not candidates:
+        return None
+    # **크기로 고르지 않는다.** 제품이 페이지마다 패널을 새로 만들고 이전 것을
+    # 남겨 두어 **같은 rect 의 후보가 여러 개**다(2026-08-25 실측: DICOM 6페이지를
+    # 넘긴 뒤 5개). 크기가 같으면 `max` 는 먼저 만난 것을 주므로 **지난 페이지의
+    # 빈 패널**을 고를 수 있다. 지금 그려진 페이지의 패널은 **자식이 가장 많다.**
+    return max(candidates, key=lambda c: len(pane_controls(c)))
+
+
+def pane_controls(pane, depth=6):
+    """콘텐츠 패널 **하위**의 보이는 컨트롤.
+
+    `_in_pane`(전체 열거를 rect 로 거르기)과 달리 **그 패널에 실제로 속한** 것만
+    준다. 2026-08-25 실측: rect 로 거르면 Setting 창 **뒤에 있는 Viewer 본 화면의
+    장식 컨트롤 17개**(Tool 레일 아이콘·썸네일 등)가 섞여 들어온다. 다만 그것들은
+    값이 아니라 `read_page` 결과는 같았다(양쪽 22개, 차이 0). 즉 **판정은 그대로
+    두고 속도와 정확성만 얻는다.**
+    """
+    if pane is None:
+        return []
+    return [c for c in children(pane.hwnd, depth) if c.visible]
 
 
 def content_pane(ui, rail_ctrl, controls=None):
@@ -171,10 +245,13 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
     pane = None
     if capture_dir:
         os.makedirs(capture_dir, exist_ok=True)
+    window = None
     for group in (groups or list(flows.SETTING_GROUPS)):
         try:
             flows.open_setting(ui, wait=2.5)
             flows.open_setting_group(ui, group, wait=2.0)
+            # 그룹에 들어온 뒤 최상위 Setting 창을 한 번만 잡아 둔다.
+            window = setting_window(ui)
         except Exception as exc:                       # noqa: BLE001
             for name in flows.setting_pages(group):
                 missing[f"{group}.{name}"] = f"그룹 진입 실패: {exc}"
@@ -186,16 +263,20 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             except Exception as exc:                   # noqa: BLE001
                 missing[key] = str(exc)
                 continue
-            # 페이지가 그려질 때까지 기다린 뒤 **그때 열거한 목록을 돌려 쓴다.**
-            # `ui.controls()` 는 호출당 약 0.57초라(실측) 한 페이지에서 여러 번
-            # 부르면 그것만으로 회귀가 수십 분 길어진다.
-            controls = ui.controls(max_depth=8)
-            try:
-                pane = content_pane(ui, rail, controls=controls)
-            except Exception as exc:                   # noqa: BLE001
-                missing[key] = str(exc)
+            # **전체 트리를 훑지 않는다.** Setting 최상위 창의 얕은 자식에서
+            # 콘텐츠 패널을 찾고, 값은 그 패널 **하위**에서만 읽는다.
+            # 왜인지는 `shallow` / `pane_controls` 주석 참고(페이지를 넘길수록
+            # 전체 열거 비용이 단조 증가한다 — WF_14 23.6분 중 17.7분이 그것이었다).
+            top = window or setting_window(ui)
+            pane_ctrl = pane_control(ui, rail, window=top)
+            if pane_ctrl is None:
+                missing[key] = ("콘텐츠 패널(#32770)을 찾지 못했습니다. "
+                                f"레일 오른쪽(x>{rail.rect[2]})에 "
+                                f"{_PANE_MIN_W}x{_PANE_MIN_H} 이상인 패널이 없습니다.")
                 continue
-            controls, settled = _wait_page_settled(ui, pane, controls)
+            pane = pane_ctrl.rect
+            controls, settled = _wait_page_settled(ui, pane_ctrl,
+                                                   pane_controls(pane_ctrl))
             pane_image = screen.grab(pane)
             pages[key] = read_page(ui, pane, ocr_combos=ocr_combos,
                                    tesseract_exe=tesseract_exe,
@@ -218,7 +299,8 @@ def _open_page(ui, ctrl_id, what):
     짧게 누르고 **`_wait_page_settled` 가 실제로 그려질 때까지 기다린다** —
     고정 대기를 상태 기반 대기로 바꾼 것이므로 판정 안전성은 떨어지지 않는다.
     """
-    hits = [c for c in ui.controls(max_depth=7)
+    # 레일 항목도 **얕은 열거**로 찾는다(전체 트리 훑기 금지 — `shallow` 주석).
+    hits = [c for c in shallow(ui, setting_window(ui))
             if c.ctrl_id == ctrl_id and c.visible
             and c.rect[2] - c.rect[0] > 20]
     if not hits:
@@ -235,7 +317,7 @@ def _in_pane(controls, pane):
             and c.rect[2] <= pr and c.rect[3] <= pb]
 
 
-def _wait_page_settled(ui, pane, controls, tries=4, gap=0.25):
+def _wait_page_settled(ui, pane_ctrl, controls, tries=4, gap=0.25):
     """**콘텐츠 패널 안의** 컨트롤 수가 두 번 연속 같아질 때까지 기다린다.
 
     반환: (마지막으로 열거한 컨트롤 목록, 안정화 여부).
@@ -245,12 +327,12 @@ def _wait_page_settled(ui, pane, controls, tries=4, gap=0.25):
     시도(4회)를 다 소모해 페이지당 약 3초를 더 썼다. 고정 대기를 쓰지 않되,
     **판정에 쓰는 영역만** 안정화 기준으로 삼는다.
     """
-    prev_n = len(_in_pane(controls, pane))
+    prev_n = len(controls)
     prev = controls
     for _ in range(tries):
         time.sleep(gap)
-        cs = ui.controls(max_depth=8)
-        n = len(_in_pane(cs, pane))
+        cs = pane_controls(pane_ctrl)
+        n = len(cs)
         if n == prev_n and n > 0:
             return cs, True
         prev_n, prev = n, cs

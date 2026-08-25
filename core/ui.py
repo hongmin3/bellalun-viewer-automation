@@ -644,15 +644,23 @@ class ViewerUi:
         self.last_password_fill = self.fill_password(pw[0], password)
         self.click(btn[0], settle=1.2)
 
-        # 전환 중 컨트롤이 잠깐 사라질 수 있으므로 연속 2회 확인으로 확정한다.
+        # **"로그인 화면이 안 보인다"를 성공으로 보지 않는다.**
+        #
+        # 예전에는 로그인 화면이 연속 2회 안 보이면 True 를 돌려줬다. 그런데
+        # 화면 전환 중이나 오류 팝업(잘못된 자격증명)이 떠 있을 때도 로그인
+        # 화면의 컨트롤이 열거되지 않는다. 2026-08-25 실측: 비밀번호가 유실돼
+        # 로그인이 안 됐는데 `login()` 이 True 를 돌려줬고, 호출부는 로그인된
+        # 줄 알고 진행했다(캡처로 확인 — PW 칸이 비어 있고 로그인 화면 그대로).
+        #
+        # 그래서 **Viewer 화면이 실제로 올라왔다는 긍정 신호**를 요구한다.
+        # 전환 중 뜨는 팝업은 걷어내면서 기다린다.
         end = time.time() + timeout
-        gone = 0
         while time.time() < end:
-            if self.at_login_screen():
-                gone = 0
-            else:
-                gone += 1
-                if gone >= 2:
+            if self.dialog():
+                self.dismiss_dialog(timeout=2)
+            if not self.at_login_screen():
+                window = self.main_window()
+                if window and len(self.controls(window, max_depth=3)) >= 5:
                     return True
             time.sleep(0.7)
         return False
