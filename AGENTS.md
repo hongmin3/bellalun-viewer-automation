@@ -55,6 +55,8 @@ python run.py --help                        # 개별 명령 확인
 - `config.json`, 자격증명, 토큰, 환자·DICOM·런타임 데이터.
 - `Reports/`, `Evidence/`, `Log/`, `Cache/`, `Temp/`, `work/`의 생성물.
 - 공개 Git 이력; force-push나 이력 재작성 금지.
+- 관련 변경의 검증·diff 확인·커밋이 끝나면 일반 push는 별도 사용자 재승인 없이 같은
+  작업에서 수행한다. push한 브랜치와 commit SHA를 보고한다.
 - `../프로젝트_상세.html` 직접 편집 금지. 원본은 `../프로젝트_상세.md`이며 `tools/render_docs.py`로 생성한다.
 
 DB 상태 변경과 UI 입력은 명시적 기능/테스트 요청에만 수행한다. 조회처럼 보이는 UI도 즉시 저장할 수 있다.

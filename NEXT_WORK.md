@@ -217,7 +217,8 @@ P0
 - 문서를 갱신해라. 순서: ..\프로젝트_상세.md(기본 문서 — 먼저 갱신) →
   python tools/render_docs.py → README.md(포트폴리오 축약형) → NEXT_WORK.md,
   automation_scope.json, traceability.json, 지식/[자동화 구현 현황].
-- git status/diff/remote 검토 후 관련 파일만 commit 하고 사용자 승인 후 push해라.
+- git status/diff/remote 검토 후 관련 파일만 commit 하고 같은 작업에서 별도 재승인 없이
+  일반 push까지 수행해라. push한 브랜치와 commit SHA를 보고해라.
   Force Push·history 재작성 금지. config.json, Reports/, Evidence/, Log/, Cache/,
   Temp/, work/ 는 커밋하지 마라.
 - 테스트하지 않은 것을 성공했다고 기록하지 마라.
