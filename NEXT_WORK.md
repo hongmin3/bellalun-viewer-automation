@@ -19,7 +19,7 @@
 
 ---
 
-## 2. 2026-08-28 회차 — 버그 수정 5건 + 문서 구조 정리
+## 2. 2026-08-28 회차 — 버그 수정 및 문서 구조 정리
 
 ### 코드 수정 (검증 상태 포함)
 
@@ -34,6 +34,17 @@
 | `core/ui.py` 클릭 가드 — 다중 모니터 겹침 인식 | `require_front_for_pointer`가 "다른 창이 최전면"이라는 사실만으로 막던 것을, **그 창이 클릭 좌표를 실제로 화면에서 덮고 있는지**까지 확인하도록 바꿈(`_rect_contains_point`). 다른 모니터의 창은 Viewer를 가리지 않으므로 막지 않는다(2026-08-28 사용자 지시) | `run-xipl-05` 재검증으로 확인 |
 | `core/ui.py` `bring_to_front`가 항상 메인 프레임만 올리던 문제 | Q.C 테스트 창처럼 메인 프레임과 다른 최상위 창을 조작 중일 때, 최전면 복구가 메인 프레임을 올려 오히려 그 창을 가리는 문제를 고침 — 클릭 좌표를 실제로 담고 있는 창(`_window_at_point`)을 우선 올린다 | `run-xipl-05` 재검증으로 확인 |
 | `tests/xipl_flows.py` `_qc_recover` 1회 클릭 → 재시도 루프 | Q.C 콤보 팝업이 마우스를 잡고 있을 때 첫 클릭이 Cancel이 아니라 팝업만 닫아, 창이 안 닫힌 채 남던 문제. Cancel이 안 보일 때까지(최대 3회) 반복 | `run-xipl-05` 재검증으로 확인 — 이제 Step 4·5까지 정상 진행 |
+| `WF_10` 비기본 Procedure 매핑 | Hospital Code `HC`를 기본값 `Routine Mammography` 대신 `Mammography (Rt)`에 매핑한다. 기본값 사용 시 매핑 실패가 제품 기본값으로 가려질 수 있어 거짓 PASS를 막기 위한 변경 | 코드 반영. `run-wf10`으로 MappingKey, Study ProcedureKey, Step 수와 Examine 준비 상태 재검증 대기 |
+| `cold_start` 주 모니터 이탈 중단 | Viewer 창이 주 모니터 좌표 범위 밖이면 강제 이동하지 않고 오류로 중단한다. 다중 모니터/DPI 가상화에서 자동 이동이 잘못된 모니터로 창을 옮긴 사례를 방지 | 코드 반영. 주 모니터 밖에서는 안전 중단, 안에서는 정상 로그인하는지 실제 UI 검증 대기 |
+| 로그인 전용 스모크 도구 | `_login_check.py`가 TC 수행 없이 `cold_start()`를 1회 호출해 Viewer 실행·로그인만 확인 | 코드 반영. 위 창 위치 보호 로직의 좁은 스모크 검증에 사용 가능 |
+
+### 중단된 전체 회귀
+
+- 2026-08-28 15:16경 `python tools/run_regression.py`로 전체 회귀를 시작했으나 세션 만료 후
+  사용자 요청으로 감시 프로세스와 `run.py run-regression` 자식 프로세스를 종료했다.
+- 종료 직전 생성물 메타데이터는 `Evidence/Flow/14_Setting` 갱신을 보이지만 완료 리포트가
+  아니므로 `WF_14` 완료/PASS나 새 전체 회귀 결과로 기록하지 않는다.
+- 아래 미검증 변경을 개별 검증한 뒤 전체 회귀를 처음부터 다시 실행해야 한다.
 
 ### 문서 구조 정리 (2026-08-28)
 
@@ -57,6 +68,8 @@
 | 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
 | 8 | **Setting 페이지 순회 중 Viewer 가 종료되는 경우가 있다**(간헐) — 아래 3-B | 조사 계속 |
 | 9 | **`WF_14` 진입이 간헐적으로 실패한다**(`my_settings` ID 193 미발견) — 아래 3-C | P0 |
+| 10 | **`WF_10`의 `HC` → `Mammography (Rt)` 비기본 Procedure 매핑 변경이 미검증** — DB MappingKey/ProcedureKey, Step 수, Examine Ready를 함께 확인해야 한다 | P0 |
+| 11 | **`cold_start` 주 모니터 이탈 중단 로직이 미검증** — 밖에서는 안전 중단하고 안에서는 정상 로그인이 계속돼야 한다 | P0 |
 
 ### 3-A. UPS 설정이 Export/Import 로 복원되지 않는다 (제품 결함, 사용자 확인 완료)
 
@@ -86,22 +99,31 @@
 ### P0
 
 1. `WF_14` 간헐적 진입 실패 재현율 확인(3-C).
-2. 남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
+2. `run-wf10`으로 `HC`가 비기본 Procedure `Mammography (Rt)`에 실제 매핑되고 해당
+   Procedure Step이 등록되는지 검증한다. 기본 Procedure로 조용히 대체된 결과를 PASS로
+   인정하지 않는다.
+3. 주 모니터 밖/안 조건에서 `cold_start` 안전 중단과 정상 로그인을 각각 확인한다.
+4. 남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
    재검증한 뒤 전체 회귀 1회 실행. `run-xipl-04`/`run-xipl-05`는 2026-08-28 확인 완료.
 
 ### P1
 
-3. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 → `core/flows.py`
+5. **자동화 리팩터링과 속도 개선을 다음 개발의 중심으로 둔다.** 먼저 개별 TC/공용 흐름의
+   구간별 시간을 측정해 병목을 기록하고, 고정 `sleep`·중복 화면 전환·중복 로그인/검색을
+   우선 줄인다. 판정 기준·Workflow 순서·제품 상태 변경 방식은 유지하고, 변경 전후 실행
+   시간과 동일 판정 결과를 함께 검증한다.
+6. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 → `core/flows.py`
    상수로 기록.
-4. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
+7. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
    `XIPL_07` 에 추가.
-5. `demo_acquire_step` 의 고정 대기를 `wait_new_group` 으로 전환.
+8. 속도 개선의 첫 구체 항목으로 `demo_acquire_step`의 고정 대기를 상태 기반
+   `wait_new_group`으로 전환하고 `WF_01`/`WF_02`/`run-sys3d` 시간을 비교한다.
 
 ### P2
 
-6. `flows.close_examine` 의 no-dialog 경로 상태 신호화.
-7. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
-8. `XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1) — 급하지 않다.
+9. `flows.close_examine` 의 no-dialog 경로 상태 신호화.
+10. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
+11. `XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1) — 급하지 않다.
 
 ---
 
@@ -148,6 +170,11 @@ git push origin --delete agent/add-next-task-handoff
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
+이번 세션의 개발 초점은 **자동화 리팩터링과 실행 속도 개선**이다. 단순히 전체 회귀를
+다시 돌리는 데 그치지 말고, 현재 TC 판정 기준과 Workflow 순서를 보존하면서 실제 병목을
+측정하고 공용 흐름의 중복과 고정 대기를 줄여라. 추측으로 sleep 값을 낮추지 말고 상태 기반
+대기로 바꾸며, 변경 전후 실행 시간과 판정 결과가 동일한지 증거를 남겨라.
+
 먼저 auto/AGENTS.md, auto/README.md, auto/NEXT_WORK.md, ..\프로젝트_상세.md,
 그리고 지식 폴더의 영구 지침 3종([QA 작성 규칙]/[자동화 구현 현황]/[자동화 운영 지침])을 읽어 현재
 상태와 규칙을 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
@@ -158,12 +185,30 @@ False 면 UI 자동화가 전부 차단되므로 그 사실을 먼저 보고하�
 작업만 진행해라.
 
 P0
-1. NEXT_WORK.md 2절에 적은 2026-08-28 수정 5건을 하나씩 재검증해라 —
+1. NEXT_WORK.md 2절에 적은 2026-08-28 미검증 수정을 하나씩 재검증해라 —
+   run-wf10에서 Hospital Code `HC`가 기본값 `Routine Mammography`가 아니라
+   `Mammography (Rt)`에 실제 매핑되는지 DB MappingKey/ProcedureKey, Procedure Step 수,
+   Examine Ready를 함께 확인해라. 기본 Procedure 대체로 생긴 거짓 PASS를 허용하지 마라.
+2. Viewer가 주 모니터 밖일 때 cold_start가 창을 강제 이동하지 않고 안전 중단하는지,
+   주 모니터 안에서는 정상 로그인하는지 확인해라. `_login_check.py`를 좁은 스모크 점검에
+   사용할 수 있다.
+3. 나머지 수정도 재검증해라 —
    run-wf04 → run-wf06 (close_view_study), run-wf13 (로그인 콤보), run-xipl-05
    (Q.C 채점 + _qc_recover), run-wf15 (Dose Overlay 전제). 이미 PASS 확인된
    run-xipl-04 는 재검증 생략 가능.
-2. XIPL_05 불합격 경계 검증(3절 #1) — Fiber 콤보 항목 구성을 다시 확인해라.
-3. 전부 통과하면 전체 회귀를 1회 돌리고 실제 결과만 기록해라.
+4. XIPL_05 불합격 경계 검증(3절 #1) — Fiber 콤보 항목 구성을 다시 확인해라.
+5. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
+   완료 결과만 기록해라.
+
+리팩터링·속도 개선
+- 우선 개별 TC와 `cold_start`, 화면 전환, 검색, 영상 준비 구간의 소요 시간을 측정해
+  가장 큰 병목부터 고쳐라.
+- `demo_acquire_step(settle=14)` 등 고정 대기를 실제 상태 신호(`wait_new_group` 등)로
+  전환하는 작업을 우선 검토해라.
+- 반복되는 로그인·화면 진입·환자 검색·정리 흐름은 공용 helper로 합칠 수 있는지 보되,
+  관련 없는 TC의 판정이나 회귀 순서를 바꾸지 마라.
+- 리팩터링은 작은 단위로 나누고 각 단위마다 정적 검사, 관련 개별 TC, 변경 전후 실행
+  시간 비교를 수행해라. 전체 회귀는 이 좁은 검증이 끝난 뒤 마지막 확인으로 실행해라.
 
 검증·Git
 - 긴 실행 전에 반드시: py_compile, tools/check_module_attrs.py,

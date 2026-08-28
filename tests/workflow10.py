@@ -55,8 +55,12 @@ from core.ui import children
 
 # 사용자 지시(2026-08-20): "HC_FLOW_01 로 입력하지 말고 HC 로 입력을 해주고"
 DEFAULT_CODE = "HC"
-# 제품에 이미 있는 Procedure 를 매핑한다. 첫 항목(Default=1)이 Routine Mammography 다.
-PROCEDURE_NAME = "Routine Mammography"
+# 제품에 이미 있는 Procedure 를 매핑한다. **기본값(Default=1, Routine
+# Mammography)은 쓰지 않는다** — 매핑이 실패해도 제품이 기본 Procedure로 조용히
+# 대체하면 "매핑된 Step 이 등록됐다"는 판정이 우연히 참이 될 수 있다(2026-08-28
+# 사용자 지적). Mammography (Rt)(Key=2, Step 2개)는 Default가 아니라서 매핑이
+# 실제로 적용됐을 때만 그 Step 구성이 나온다.
+PROCEDURE_NAME = "Mammography (Rt)"
 PATIENT_ID = "MWL_HC_01"
 
 
@@ -354,7 +358,7 @@ def run(ctx):
         #        바로 보여 준다.
         #   Expected 7 "매핑된 Procedure Step 이 등록되고 첫 Step/Preset 이 선택된다"
         #     -> Step 개수는 `PROCEDURE_ITEMS` 의 그 Procedure 행 수와 대조한다
-        #        (Routine Mammography = 4행). 선택·준비 상태는 Examine 상단 배너
+        #        (현재 시험값 Mammography (Rt)의 실제 행 수). 선택·준비 상태는 Examine 상단 배너
         #        (`flows.examine_status`)가 Ready 인지로 본다.
         # **이 판정이 자기충족이 아닌 근거**: `TC_Basic_WorkFlow_01` 은 Procedure 가
         # 없는 MWL 처방으로 들어가 **Step 수 = 0** 을 확인한다. 같은 코드 경로가
