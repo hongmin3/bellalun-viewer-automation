@@ -2207,6 +2207,36 @@ def wait_ready(ui, timeout=20, poll=1.0):
     return st
 
 
+def instance_type_counts(db, study_key):
+    """StudyKey의 INSTANCE를 InstanceType별 건수로 집계한다.
+
+    `tests/workflow02.py`(WF_02)와 `tests/system_compat.py`(run-sys3d)가 각자
+    들고 있던 동일한 조회를 공용화한 것이다 — 두 콜사이트 모두 이 SQL 그대로
+    회귀에서 실측 확인됐다(2026-08-26 26차 회귀 WF_02 PASS).
+    """
+    rows = db.query(
+        "DATA", "SELECT InstanceType,COUNT(*) AS Cnt FROM INSTANCE "
+        "WHERE StudyKey=@study GROUP BY InstanceType ORDER BY InstanceType",
+        {"study": study_key})
+    return {int(row["InstanceType"]): int(row["Cnt"]) for row in rows}
+
+
+def wait_instance_types(db, study_key, required, timeout=90, poll=2.0):
+    """`required`(InstanceType -> 최소 건수)를 모두 만족할 때까지 DB를 폴링한다.
+
+    F8 가상 촬영 후 실제 영상 생성 완료를 기다리는 상태 신호 기반 대기다.
+    고정 sleep과 달리 조건이 이미 충족돼 있으면 즉시 반환하고, 느린 정상
+    환경에서도 timeout까지는 실패로 감추지 않는다.
+    """
+    end = time.time() + timeout
+    counts = instance_type_counts(db, study_key)
+    while time.time() < end and any(counts.get(t, 0) < n
+                                     for t, n in required.items()):
+        time.sleep(poll)
+        counts = instance_type_counts(db, study_key)
+    return counts
+
+
 def select_step(ui, index, scroll_tries=8):
     """index번째(1부터) Step을 선택한다.
 

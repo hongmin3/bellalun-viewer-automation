@@ -38,7 +38,6 @@ r"""3D-Narrow / 3D-Wide 촬영 등록 및 획득 (자동화 보조 항목).
 
 import os
 import re
-import time
 
 from PIL import Image, ImageGrab, ImageOps
 
@@ -119,21 +118,11 @@ def _capture(ctx, ui, name, result):
 
 
 def _instance_counts(ctx, study_key):
-    rows = ctx.db.query(
-        "DATA", "SELECT InstanceType,COUNT(*) AS Cnt FROM INSTANCE "
-        "WHERE StudyKey=@study GROUP BY InstanceType ORDER BY InstanceType",
-        {"study": study_key})
-    return {int(row["InstanceType"]): int(row["Cnt"]) for row in rows}
+    return flows.instance_type_counts(ctx.db, study_key)
 
 
 def _wait_types(ctx, study_key, required, timeout=90):
-    end = time.time() + timeout
-    counts = _instance_counts(ctx, study_key)
-    while time.time() < end and any(counts.get(t, 0) < n
-                                    for t, n in required.items()):
-        time.sleep(2)
-        counts = _instance_counts(ctx, study_key)
-    return counts
+    return flows.wait_instance_types(ctx.db, study_key, required, timeout=timeout)
 
 
 def _acquired_3d_rows(ctx, study_key, group_key):

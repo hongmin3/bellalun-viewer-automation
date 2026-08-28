@@ -227,17 +227,19 @@ def run(ctx):
 
         # --- Step 4: 2D 1회 촬영 ------------------------------------------
         viewer_processing.add_view_position(ui, "2d")
-        acquired = flows.demo_acquire_step(ui, 1)
-        end = time.time() + 60
-        images = 0
-        while time.time() < end:
-            row = ctx.db.one(
-                "DATA", "SELECT COUNT(*) n FROM INSTANCE WHERE StudyKey=@k",
-                {"k": study_key})
-            images = int(row["n"]) if row else 0
-            if images >= 1:
-                break
-            time.sleep(2)
+        # 고정 대기(settle=14) + 별도 폴링 대신 TC_XIPL_compatibility_04/07과
+        # 같은 `viewer_processing.wait_new_group` 상태 기반 대기로 통일한다
+        # (2026-08-24 실측: 2D는 14초 고정 대기가 2.8~2.9초로 충분했다). 판정에
+        # 쓰는 값은 대기 후 기존과 동일한 조회로 다시 확인한다.
+        known = set(viewer_processing.acquired_groups(ctx.db, study_key))
+        acquired = flows.demo_acquire_step(ui, 1, settle=0)
+        viewer_processing.wait_new_group(
+            ctx.db, study_key, known,
+            required_types=viewer_processing.INSTANCE_TYPES_2D, timeout=60)
+        row = ctx.db.one(
+            "DATA", "SELECT COUNT(*) n FROM INSTANCE WHERE StudyKey=@k",
+            {"k": study_key})
+        images = int(row["n"]) if row else 0
         path = os.path.join(evidence, "03_acquired.png")
         screen.grab(ui.main_window().rect, path=path)
         r.attach(path)

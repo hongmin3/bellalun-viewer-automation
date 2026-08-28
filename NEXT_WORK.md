@@ -62,7 +62,7 @@
 | 1 | `TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다(TC 전체는 정상적으로 MANUAL 판정까지 끝난다 — 크래시 아님, 2026-08-28 재검증) | P2 |
 | 2 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
 | 3 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
-| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — 2026-08-28 실측(26차 회귀 로그 분석)으로 위치를 정정함: 회귀에 포함된 곳은 `tests/workflow07.py:230`(WF_07)과 `tests/xipl_flows.py:1181/1185/1187`(XIPL_04)뿐이다. `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀에 포함되지 않는 별도 명령이다. **`WF_02`는 이미 `settle=0` + DB 폴링(`_wait_types`)으로 상태 기반 대기로 전환돼 있다 — 옛 서술은 구식.** `workflow07.py:230`은 이미 자체 DB 폴링(최대 60초)으로 재확인하므로 그 앞 고정 sleep은 그 호출부에서는 중복이지만, `xipl_flows.py`의 호출부는 후속 폴링 없이 고정 sleep에만 의존해 공용 함수 기본값을 그대로 바꾸면 안전망이 없다 — 콜사이트별로 나눠 처리해야 한다 | P1 |
+| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — **2026-08-29 전환 완료(라이브 재검증 대기).** 회귀에 남아 있던 두 콜사이트(`tests/workflow07.py` WF_07 Step 4, `tests/xipl_flows.py::compatibility_04` XIPL_04)를 `TC_XIPL_compatibility_07`이 이미 쓰고 있던(그리고 2026-08-24 실측: 2D 2.8~2.9초/3D-N 29.5초/3D-W 39.7초로 확인된) `core/viewer_processing.wait_new_group` 상태 기반 대기로 바꿨다. `demo_acquire_step` 자체 기본값(14초)은 안 건드렸다 — 두 콜사이트 모두 `settle=0`으로 호출해 우회하고 대기는 `wait_new_group`이 전담한다. 정적 검사·단위시험(89건) 통과 확인, **`run-wf07`/`run-xipl-04` 실측 재검증은 화면 잠금으로 아직 못 함**(가장 먼저 할 일). `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀 밖 별도 명령이라 후순위(P2)로 남긴다. 별도로 `tests/workflow02.py`/`tests/system_compat.py`가 각자 들고 있던 동일한 `_instance_counts`/`_wait_types`를 `core/flows.py::instance_type_counts`/`wait_instance_types`로 공용화했다(동작 변경 없음, 기계적 중복 제거) | P0(재검증) |
 | 5 | 중단 정책 때문에 `XIPL_03` Step 10 의 "GPU 없음 SKIP" 기록이 사라진다 | P2(맞바꾼 것) |
 | 6 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
 | 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
@@ -104,22 +104,25 @@
    인정하지 않는다.
 3. 주 모니터 밖/안 조건에서 `cold_start` 안전 중단과 정상 로그인을 각각 확인한다.
 4. 남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
-   재검증한 뒤 전체 회귀 1회 실행. `run-xipl-04`/`run-xipl-05`는 2026-08-28 확인 완료.
+   재검증한 뒤 전체 회귀 1회 실행. `run-xipl-05`는 2026-08-28 확인 완료.
+   **`run-xipl-04`는 2026-08-28에 확인 완료했지만 2026-08-29에 촬영 대기 방식을
+   `wait_new_group`으로 바꿨으므로 재확인이 필요하다(3절 #4).**
+5. `run-wf07`/`run-xipl-04` — 2026-08-29에 바꾼 `wait_new_group` 전환을 화면 잠금 해제 후
+   가장 먼저 실행해 판정 동일성과 실제 단축 시간을 확인한다(3절 #4).
 
 ### P1
 
-5. **자동화 리팩터링과 속도 개선을 다음 개발의 중심으로 둔다.** 먼저 개별 TC/공용 흐름의
+6. **자동화 리팩터링과 속도 개선을 다음 개발의 중심으로 둔다.** 먼저 개별 TC/공용 흐름의
    구간별 시간을 측정해 병목을 기록하고, 고정 `sleep`·중복 화면 전환·중복 로그인/검색을
    우선 줄인다. 판정 기준·Workflow 순서·제품 상태 변경 방식은 유지하고, 변경 전후 실행
    시간과 동일 판정 결과를 함께 검증한다.
-6. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 → `core/flows.py`
+7. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 → `core/flows.py`
    상수로 기록.
-7. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
+8. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
    `XIPL_07` 에 추가.
-8. 속도 개선의 첫 구체 항목으로 `demo_acquire_step`의 고정 대기를 상태 기반 대기로
-   전환하고 `run-wf07`/`run-xipl-04` 시간을 비교한다(실제 위치는 3절 #4 참고 —
-   `WF_01`/`WF_02`/`run-sys3d`가 아니다). 공용 함수라 콜사이트별 안전망 차이를 먼저
-   확인해야 한다.
+9. (2026-08-29 완료, 재검증만 남음) `demo_acquire_step`의 고정 대기를 상태 기반 대기로
+   전환하는 항목은 위 P0 #5로 옮겼다(3절 #4). `run-sys3d`/`run-ui`(회귀 밖)까지 마저
+   전환할지는 그 이후에 판단한다.
 
 ### P2
 

@@ -1176,15 +1176,26 @@ def compatibility_04(ctx):
         # Demo F8은 "선택된" Step이 아니라 등록 순서대로 다음 미촬영 Step을
         # 채운다(Service Manual: 선택 Step과 획득 영상은 무관). PRESET_FLOW_A/B가
         # 그 다음 순번이 되도록, 이미 등록된 기본 Step을 먼저 모두 촬영해 비운다.
-        default_steps = len(flows.step_items(ui))
-        for i in range(1, default_steps + 1):
-            flows.demo_acquire_step(ui, i)
+        #
+        # 고정 대기(settle=14) 대신 TC_XIPL_compatibility_07(`_acquire_pre_registered_steps`
+        # /`_acquire_mode`)과 같은 `vp.wait_new_group` 상태 기반 대기로 바꿨다 — INSTANCE_GROUP이
+        # 실제로 늘어나는 것을 신호로 쓴다(2026-08-24 실측: 2D는 14초 고정 대기가 2.8~2.9초로
+        # 충분했다). 아래 Step 8이 촬영 직후 그 영상의 Parameter를 바로 읽으므로, 영상이 실제로
+        # 커밋되기 전에 읽어 오판정될 위험도 고정 대기보다 줄어든다.
+        study_key = int(study["Key"])
+        _acquire_pre_registered_steps(ctx, ui, study_key)
 
         # Step 6~7: 각 Preset으로 2D 1회씩 촬영
         step_a = _add_view_position_by_alias(ui, "PRESET_FLOW_A")
-        acquire_a = flows.demo_acquire_step(ui, step_a)
+        known_a = set(vp.acquired_groups(ctx.db, study_key))
+        acquire_a = flows.demo_acquire_step(ui, step_a, settle=0)
+        wait_a = vp.wait_new_group(ctx.db, study_key, known_a,
+                                   required_types=vp.INSTANCE_TYPES_2D)
         step_b = _add_view_position_by_alias(ui, "PRESET_FLOW_B")
-        acquire_b = flows.demo_acquire_step(ui, step_b)
+        known_b = set(vp.acquired_groups(ctx.db, study_key))
+        acquire_b = flows.demo_acquire_step(ui, step_b, settle=0)
+        wait_b = vp.wait_new_group(ctx.db, study_key, known_b,
+                                   required_types=vp.INSTANCE_TYPES_2D)
 
         # Step 8: 각 영상의 Image Processing 적용 Parameter가 서로 다른지 확인
         vp.select_2d(ui, step_a)
@@ -1209,10 +1220,12 @@ def compatibility_04(ctx):
         match_b = _parameter_display_matches("TEST_2D_B_M.pim", applied_b or "")
         r.assert_true(6, "첫 영상(PRESET_FLOW_A)에 TEST_2D_A_M.pim 적용",
                       match_a, expected="TEST_2D_A_M.pim",
-                      actual={"acquire": acquire_a, "displayed": applied_a})
+                      actual={"acquire": acquire_a, "wait": wait_a,
+                              "displayed": applied_a})
         r.assert_true(7, "두 번째 영상(PRESET_FLOW_B)에 TEST_2D_B_M.pim 적용",
                       match_b, expected="TEST_2D_B_M.pim",
-                      actual={"acquire": acquire_b, "displayed": applied_b})
+                      actual={"acquire": acquire_b, "wait": wait_b,
+                              "displayed": applied_b})
         r.assert_true(8, "각 영상에 서로 다른 지정 Parameter 표시",
                       match_a and match_b and applied_a != applied_b,
                       expected="영상별 서로 다른 Parameter",

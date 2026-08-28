@@ -89,11 +89,7 @@ def _displayed_study_datetime(value):
 
 
 def _instance_counts(ctx, study_key):
-    rows = ctx.db.query(
-        "DATA", "SELECT InstanceType,COUNT(*) AS Cnt FROM INSTANCE "
-        "WHERE StudyKey=@study GROUP BY InstanceType ORDER BY InstanceType",
-        {"study": study_key})
-    return {int(row["InstanceType"]): int(row["Cnt"]) for row in rows}
+    return flows.instance_type_counts(ctx.db, study_key)
 
 
 def _image_structure(ctx, study_key):
@@ -124,12 +120,7 @@ def _valid_image_structure(structure, expected_types, expected_series, expected_
 
 
 def _wait_types(ctx, study_key, required, timeout=DB_TIMEOUT):
-    end = time.time() + timeout
-    counts = _instance_counts(ctx, study_key)
-    while time.time() < end and any(counts.get(t, 0) < n for t, n in required.items()):
-        time.sleep(2)
-        counts = _instance_counts(ctx, study_key)
-    return counts
+    return flows.wait_instance_types(ctx.db, study_key, required, timeout=timeout)
 
 
 def _capture(ctx, ui, name, result):
