@@ -62,7 +62,7 @@
 | 1 | `TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다(TC 전체는 정상적으로 MANUAL 판정까지 끝난다 — 크래시 아님, 2026-08-28 재검증) | P2 |
 | 2 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
 | 3 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
-| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기가 WF_01/WF_02/run-sys3d 에 남아 있다 | P1 |
+| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — 2026-08-28 실측(26차 회귀 로그 분석)으로 위치를 정정함: 회귀에 포함된 곳은 `tests/workflow07.py:230`(WF_07)과 `tests/xipl_flows.py:1181/1185/1187`(XIPL_04)뿐이다. `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀에 포함되지 않는 별도 명령이다. **`WF_02`는 이미 `settle=0` + DB 폴링(`_wait_types`)으로 상태 기반 대기로 전환돼 있다 — 옛 서술은 구식.** `workflow07.py:230`은 이미 자체 DB 폴링(최대 60초)으로 재확인하므로 그 앞 고정 sleep은 그 호출부에서는 중복이지만, `xipl_flows.py`의 호출부는 후속 폴링 없이 고정 sleep에만 의존해 공용 함수 기본값을 그대로 바꾸면 안전망이 없다 — 콜사이트별로 나눠 처리해야 한다 | P1 |
 | 5 | 중단 정책 때문에 `XIPL_03` Step 10 의 "GPU 없음 SKIP" 기록이 사라진다 | P2(맞바꾼 것) |
 | 6 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
 | 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
@@ -116,8 +116,10 @@
    상수로 기록.
 7. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
    `XIPL_07` 에 추가.
-8. 속도 개선의 첫 구체 항목으로 `demo_acquire_step`의 고정 대기를 상태 기반
-   `wait_new_group`으로 전환하고 `WF_01`/`WF_02`/`run-sys3d` 시간을 비교한다.
+8. 속도 개선의 첫 구체 항목으로 `demo_acquire_step`의 고정 대기를 상태 기반 대기로
+   전환하고 `run-wf07`/`run-xipl-04` 시간을 비교한다(실제 위치는 3절 #4 참고 —
+   `WF_01`/`WF_02`/`run-sys3d`가 아니다). 공용 함수라 콜사이트별 안전망 차이를 먼저
+   확인해야 한다.
 
 ### P2
 
