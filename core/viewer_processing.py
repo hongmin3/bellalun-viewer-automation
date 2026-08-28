@@ -805,11 +805,20 @@ def open_test_study(ctx):
         raise RuntimeError("View button not found")
     ui.click(open_button[0], settle=8)
     steps = flows.step_items(ui)
-    if len(steps) != 2:
-        raise RuntimeError(f"Fixture must expose exactly 2 acquired steps; actual={len(steps)}")
-    return {"ui": ui, "study_key": row["Key"], "patient_id": patient_id,
-            "step_2d": 1, "step_3d": 2, "initial_steps": 2,
-            "overlay_fields": overlay_fields, "instances": instance_rows}
+    # 2026-08-26: 3D-W 를 픽스처에 넣을 수 있게 **2 또는 3 스텝**을 받는다.
+    # 예전에는 정확히 2 를 요구해서, WF02 가 3D-W 를 추가하면 이 픽스처를 쓰는
+    # 모든 TC 가 열리지도 못했다. 스텝 순서는 WF02 가 만든 순서 그대로다
+    # (2D -> 3D-N -> 3D-W).
+    if len(steps) not in (2, 3):
+        raise RuntimeError(
+            f"Fixture must expose 2 (2D+3D-N) or 3 (+3D-W) acquired steps; "
+            f"actual={len(steps)}")
+    session = {"ui": ui, "study_key": row["Key"], "patient_id": patient_id,
+               "step_2d": 1, "step_3d": 2, "initial_steps": len(steps),
+               "overlay_fields": overlay_fields, "instances": instance_rows}
+    if len(steps) >= 3:
+        session["step_3d_w"] = 3
+    return session
 
 
 def _visible(ui, ctrl_id):

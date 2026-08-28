@@ -14,7 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
 
-from core.result import FAIL, MANUAL, PASS, TCResult
+from core.result import FAIL, MANUAL, PASS, SKIP, TCResult
 from core.ui import ViewerUi
 from core.xipl import XiplStudio
 from core import flows
@@ -602,10 +602,19 @@ def compatibility_03(ctx, session):
         r.attach(selected)
         source_raw = [row for row in session["instances"]
                       if int(row["InstanceType"]) == 1]
+        # 2026-08-26: 픽스처에 3D-W 스텝을 넣으면서 Raw 가 **2건**(3D-N, 3D-W)이
+        # 됐다. 예전 판정은 `len(source_raw) == 1` 을 요구해 여기서 막혔고, 정작
+        # 확인해야 할 Post Reconstruction 을 한 번도 수행하지 못했다.
+        # 이 TC 의 대상은 **3D-N 의 Raw** 다 — 먼저 촬영한 쪽(Key 오름차순 첫 건)이고,
+        # 위에서 선택한 스텝도 `session["step_3d"]`(3D-N)이다.
+        raw_target = source_raw[0] if source_raw else None
         r.assert_true(1, "3D Raw 원본 영상 선택",
-                      len(source_raw) == 1 and bool(source_raw[0].get("ImageInstanceUID")),
-                      expected="InstanceType=1 한 건과 고유 Image Instance UID",
-                      actual=source_raw)
+                      bool(raw_target) and bool(raw_target.get("ImageInstanceUID")),
+                      expected="3D-N 의 InstanceType=1 한 건과 고유 Image Instance UID",
+                      actual={"target": raw_target,
+                              "all_raw": source_raw,
+                              "note": ("픽스처에 3D-W 가 있으면 Raw 는 2건이 정상"
+                                       if len(source_raw) > 1 else "")})
         r.assert_true(2, "Viewer Post Reconstruction 지원 데이터 표시",
                       bool([c for c in ui.by_id(vp.PARAM_COMBO) if c.visible])
                       and set(baseline_state) == {
@@ -1221,7 +1230,12 @@ def compatibility_04(ctx):
 
 
 def _last_3d_recon_param(log_text):
-    """Q.C 3D(ACR Phantom 3D-N) 재구성 시작 로그에서 적용 eap 파일명을 읽는다."""
+    """Q.C 3D(ACR Phantom 3D-N/3D-W) 재구성 시작 로그에서 egp/eap 이름을 읽는다.
+
+    반환하는 `reconstruction_file`(egp)이 3D-N 은 narrow_standard.egp,
+    3D-W 는 wide_standard.egp 로 갈린다(2026-08-27 실측). `parameter`(eap)는
+    Setting > Q.C 의 3D Default Recon Parameter 하나를 두 항목이 공유한다.
+    """
     pattern = re.compile(
         r"Initialize Reconstruction\.\s*\(([^,]+),\s*([^,\)]+)", re.I)
     hits = pattern.findall(log_text)
@@ -1232,7 +1246,7 @@ def _last_3d_recon_param(log_text):
 
 
 _QC_RESULT_COMBOS = {"fiber": 2738, "speck": 2739, "mass": 2740}
-# ACR Phantom 창(2D/3D-N 공용) 레이아웃은 고정이며, 각 항목 드롭다운에서
+# ACR Phantom 창(2D/3D-N/3D-W 공용) 레이아웃은 고정이며, 각 항목 드롭다운에서
 # "합격 기준(threshold) 이상"에 해당하는 값의 화면 절대좌표다(2026-08-14 실측).
 # 실제 팬텀 판독이 아니라 Fiber>=4.0/Speck>=3.0/Mass>=3.0 여부만 비교하는
 # 제품 자체 로직이라는 것을 사용자가 확인했다 - Demo 촬영에서는 이 값 선택
@@ -1435,13 +1449,64 @@ def compatibility_05(ctx):
                      "QC_STUDY.Result=Pass",
             actual={"log": applied_3d, "qc_study": qc_3d})
 
+        # Step 4(확장): 3D Q.C 항목(ACR Phantom 3D-W) 1회 촬영
+        #
+        # 개정본 범위는 3D-N 하나였지만, 사용자가 "3D 의 모든 경우의 수의
+        # 영향성을 보고 싶다"고 요청해 3D-W 를 추가했다(2026-08-27).
+        # 제품에 실제로 3D-W 항목이 있는지부터 실측으로 확인했다 — Q.C 창
+        # Image Quality (3D) 그룹에 'ACR Phantom (3D-N)'(343,562) 바로 아래
+        # 'ACR Phantom (3D-W)'(343,606) 가 존재한다. 1회 수행 실측 결과:
+        #   * QC_STUDY.Type = 17 (2D=11, 3D-N=16 과 구분된다)
+        #   * 재구성 로그 = Initialize Reconstruction.(wide_standard.egp,
+        #     TEST_QC_3D.eap)  ← 3D-N 은 narrow_standard.egp
+        # 즉 Default Recon Parameter 는 3D 공용 설정 하나를 쓰되 **재구성
+        # 기하는 항목별로 갈린다**. 그래서 파라미터 일치만이 아니라 egp 가
+        # wide 인지까지 함께 본다 - 이것이 3D-W 가 정말 wide 로 돌았다는 근거다.
+        wide_enabled = (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True)
+        applied_3dw = {}
+        if wide_enabled:
+            click_time_3dw = datetime.now()
+            log_mark_3dw = _viewer_log_mark(ctx)
+            flows.open_qc_tool(ui)
+            shot_3dw = _qc_launch_and_expose(
+                ctx, ui, (343, 606), "3d_wide", log_mark_3dw, click_time_3dw,
+                lambda text: _last_3d_recon_param(text).get("parameter") == "TEST_QC_3D.eap")
+            r.attach(shot_3dw)
+            _qc_set_pass_scores_and_save(ui)
+            log_3dw = _log_lines_from(_viewer_log_since(log_mark_3dw), click_time_3dw)
+            applied_3dw = _last_3d_recon_param(log_3dw)
+            qc_3dw = ctx.db.one(
+                "DATA", "SELECT TOP 1 [Key],Result,Detail FROM QC_STUDY WHERE Type=17 "
+                        "ORDER BY [Key] DESC") or {}
+            r.assert_true(
+                4, "3D Q.C(ACR Phantom 3D-W) 1회 촬영 및 TEST_QC_3D.eap 적용 (커버리지 확장)",
+                applied_3dw.get("parameter") == "TEST_QC_3D.eap"
+                and applied_3dw.get("reconstruction_file") == "wide_standard.egp"
+                and qc_3dw.get("Result") == 1,
+                expected="Viewer 로그에 Initialize Reconstruction(wide_standard.egp, "
+                         "TEST_QC_3D.eap) 기록, QC_STUDY.Type=17 / Result=Pass",
+                actual={"log": applied_3dw, "qc_study": qc_3dw},
+                note="개정본 범위 밖의 확장이다 — 3D-N/3D-W 두 경우 모두 같은 "
+                     "Default Recon Parameter 를 받는지 확인한다. "
+                     "config.json > test_data.include_3d_wide 로 끌 수 있다.")
+        else:
+            r.add(4, "3D Q.C(ACR Phantom 3D-W) 1회 촬영 (커버리지 확장)", SKIP,
+                  expected="ACR Phantom (3D-W) 수행",
+                  actual="test_data.include_3d_wide=false 로 비활성",
+                  note="3D-W 픽스처를 끈 설정에서는 수행하지 않는다.")
+
         # Step 5: 각 Q.C 영상의 적용 Parameter가 설정값과 일치
+        expected_param = {"2D": "TEST_QC_2D_M.pim", "3D-N": "TEST_QC_3D.eap"}
+        actual_param = {"2D": applied_2d.get("parameter"),
+                        "3D-N": applied_3d.get("parameter")}
+        param_ok = (applied_2d.get("parameter") == "TEST_QC_2D_M.pim"
+                    and applied_3d.get("parameter") == "TEST_QC_3D.eap")
+        if wide_enabled:
+            expected_param["3D-W"] = "TEST_QC_3D.eap"
+            actual_param["3D-W"] = applied_3dw.get("parameter")
+            param_ok = param_ok and applied_3dw.get("parameter") == "TEST_QC_3D.eap"
         r.assert_true(5, "각 Q.C 영상의 적용 Parameter가 설정값과 일치",
-                      applied_2d.get("parameter") == "TEST_QC_2D_M.pim"
-                      and applied_3d.get("parameter") == "TEST_QC_3D.eap",
-                      expected={"2D": "TEST_QC_2D_M.pim", "3D": "TEST_QC_3D.eap"},
-                      actual={"2D": applied_2d.get("parameter"),
-                              "3D": applied_3d.get("parameter")})
+                      param_ok, expected=expected_param, actual=actual_param)
     except Exception as exc:
         r.abort(0, "TC_XIPL_compatibility_05 실행", exc)
     return r

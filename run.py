@@ -581,8 +581,39 @@ def main():
                         "조회 전용으로 실측(TC 아님. 판정하지 않고 목록만 출력)")
     sub.add_parser("snapshot-baseline", help="현재 4개 DB를 회귀 테스트 기준 스냅샷(.bak)으로 저장")
     sub.add_parser("reset-environment", help="기준 스냅샷(.bak)으로 4개 DB만 복원(단독 실행)")
+    verify_pkg = sub.add_parser(
+        "verify-install-package",
+        help="신규 설치용 Install.exe 패키지를 **설치하지 않고** 점검한다 "
+             "(Welcome~Summary. 회귀에 포함되지 않는 단독 실행)")
+    verify_pkg.add_argument(
+        "--package", default=None,
+        help="Install.exe 가 있는 폴더. 생략하면 실행 중에 묻는다")
+    verify_pkg.add_argument("--language", default=None,
+                            help="Register Options 의 Default Language. 주면 묻지 않는다")
+    verify_pkg.add_argument("--theme", default=None,
+                            help="Register Options 의 Default Theme. 주면 묻지 않는다")
+    verify_pkg.add_argument("--kiosk", default=None, choices=["Use", "Not Use"],
+                            help="Register Options 의 KIOSK Option. 주면 묻지 않는다")
+    verify_pkg.add_argument(
+        "--probe-options", action="store_true",
+        help="드롭다운 항목을 **전부 눌러 보며** 목록 전문을 사양과 대조한다"
+             "(느리다. 기본은 한 번만 열어 개수·화면으로 확인)")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
     args = ap.parse_args()
+
+    # 설치 패키지 점검은 **설치 이전** PC 에서 돈다. `Context` 는 BellalunData 를
+    # 못 찾으면 예외를 던지는데(신규 설치 전에는 없는 것이 정상) 그러면 이 명령은
+    # 시작조차 못 한다. 그래서 Context 생성 **이전에** 가로챈다.
+    # 이 명령은 `run-regression` 사슬에 들어 있지 않다 — 회귀는 이미 설치된
+    # Viewer 를 대상으로 돌고, 이 점검은 설치 이전 패키지를 본다.
+    if args.cmd == "verify-install-package":
+        from tests.install_package_flow import run_interactive
+        preset = {"language": args.language, "theme": args.theme,
+                  "kiosk": args.kiosk}
+        sys.exit(run_interactive(args.config, args.package,
+                                 preset={k: v for k, v in preset.items() if v},
+                                 probe_all=args.probe_options))
+
     ctx = Context(args.config)
     # **FAIL 이 나면 그 TC 를 즉시 중단한다**(2026-08-24 사용자 지시). 어차피 그
     # TC 는 사람이 직접 봐야 하므로, 남은 Step 을 계속 수행해 전체 시간을 늘리지
@@ -631,8 +662,16 @@ def main():
         return 0
     if args.cmd == "reset-environment":
         from core.dbreset import restore_baseline
-        restore_baseline(ctx)
+        outcome = restore_baseline(ctx)
         print("[reset-environment] 4개 DB를 기준 스냅샷으로 복원했습니다.")
+        # 환경을 고쳤으면 **무엇을 고쳤는지 말한다.** 조용히 고치면 다음 사람이
+        # 같은 함정을 또 밟는다.
+        service = outcome.get("db_service") or {}
+        if service.get("changed"):
+            print("  DB 서비스 자동 복구: " + "; ".join(service["changed"]))
+        if outcome.get("recreated"):
+            print("  데이터 파일이 없어 새로 만든 DB: "
+                  + ", ".join(outcome["recreated"]))
         return 0
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06", "run-wf07",
                    "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13",
@@ -676,6 +715,37 @@ def main():
             exists = os.path.exists(path)
             env.add(0, f"필수 경로 [{label}]", PASS if exists else FAIL,
                     expected=path, actual="존재" if exists else "없음")
+
+        # DB 서비스는 회귀·UI TC 전체의 **전제**다. 꺼져 있으면 Viewer 가
+        # `Database service is stopped.` 를 남기고 시작 단계에서 죽는다
+        # (2026-08-26 실측 — 이전 설치가 남긴 SQL 인스턴스가 Manual/Stopped 로
+        # 있는 PC 에 신규 설치를 하면 인스톨러가 MSSQL 설치를 건너뛰면서 이
+        # 상태가 그대로 남는다). 그래서 실행 명령에서는 **되살리고**,
+        # `portability-check` 는 진단 전용이라 **고치지 않고 알리기만** 한다.
+        from core import dbreset
+        sql_service = ctx.cfg.get("sql_service_name", "MSSQL$BELLALUN")
+        if args.cmd == "portability-check":
+            state = dbreset._service_state(sql_service)
+            mode = dbreset._service_start_mode(sql_service)
+            env.add(0, f"DB 서비스 [{sql_service}]",
+                    PASS if state == "RUNNING" else FAIL,
+                    expected="RUNNING / AUTO_START",
+                    actual=f"{state} / {mode}",
+                    note="정지 상태면 Viewer 가 시작 단계에서 종료된다. "
+                         "실행 명령(run-*)은 이 상태를 자동으로 복구한다")
+        else:
+            recovered = dbreset.ensure_database_service(ctx)
+            env.add(0, f"DB 서비스 [{sql_service}]",
+                    PASS if recovered["after"] == "RUNNING" else FAIL,
+                    expected="RUNNING",
+                    actual=(recovered["after"]
+                            + (f"  (자동 복구: {'; '.join(recovered['changed'])})"
+                               if recovered["changed"] else "")),
+                    note="꺼져 있으면 시작하고, 수동 시작이면 자동 시작으로 돌린다. "
+                         "**무엇을 바꿨는지 이 줄에 남긴다** — 조용히 고치지 않는다")
+            if recovered["changed"]:
+                print("[환경 복구] DB 서비스: " + "; ".join(recovered["changed"]))
+
         if args.cmd == "portability-check":
             return finish(ctx, [env])
         if env.verdict == "FAIL":
@@ -757,6 +827,27 @@ def main():
         except Exception as exc:
             reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
                       expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
+
+        # Storage SCP 수신 목록도 **전체 자동화 시작 시 한 번** 비운다
+        # (2026-08-27 사용자 확정). 이 서버는 여러 PC 가 함께 쓰고 개별 스터디
+        # 삭제 API 가 없어 `DELETE /api/studies` 가 전체를 지운다 — 그래서 Send TC
+        # 마다가 아니라 **여기서 한 번만** 지운다. TC 판정은 환자 필터로 이미
+        # 정확하므로 이 초기화가 없어도 틀리지 않는다.
+        from core import send_verify as _sv
+        try:
+            removed = _sv.clear_received(ctx, force=True)
+            reset.add(0, "Storage SCP 수신 목록 초기화", PASS,
+                      expected="전송 판정을 깨끗한 상태에서 시작",
+                      actual=f"지우기 전 스터디 {removed}건",
+                      note="공유 SCP 라 **다른 PC 의 수신 데이터도 함께 지워진다.** "
+                           "전체 자동화 시작 시 한 번만 수행한다.")
+        except Exception as exc:
+            # `MANUAL` 은 이 블록에 import 돼 있지 않다 — `reset.manual()` 을 쓴다.
+            reset.manual(0, "Storage SCP 수신 목록 초기화",
+                         "초기화하지 못해도 판정은 환자 필터로 정확하다. "
+                         "서버 접속만 확인하십시오.",
+                         expected="수신 목록 비우기",
+                         actual=f"실패: {str(exc)[:150]}")
         results.append(reset)
         # **개정본 체크리스트의 TC 행 순서대로 수행한다**(사용자 요청 2026-08-20).
         # 체크리스트가 의존성 순서로 설계돼 있어서 행 순서 = 실행 순서가 된다.

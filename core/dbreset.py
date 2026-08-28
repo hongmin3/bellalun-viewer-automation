@@ -85,12 +85,73 @@ backup_dir = staging_dir
 
 
 def _service_state(name):
-    out = subprocess.run(["sc", "query", name], capture_output=True, text=True)
+    out = subprocess.run(["sc", "query", name], capture_output=True, text=True,
+                         errors="replace")
     text = (out.stdout or "") + (out.stderr or "")
     for token in ("RUNNING", "STOPPED", "START_PENDING", "STOP_PENDING"):
         if token in text:
             return token
     return "UNKNOWN"
+
+
+def _service_start_mode(name):
+    """서비스 시작 유형(AUTO_START / DEMAND_START / DISABLED). 모르면 None.
+
+    `sc qc` 는 한국어 Windows 에서도 값 토큰은 영문으로 찍는다(실측:
+    `START_TYPE : 2   AUTO_START`).
+    """
+    out = subprocess.run(["sc", "qc", name], capture_output=True, text=True,
+                         errors="replace")
+    text = (out.stdout or "") + (out.stderr or "")
+    for token in ("AUTO_START", "DEMAND_START", "DISABLED", "BOOT_START",
+                  "SYSTEM_START"):
+        if token in text:
+            return token
+    return None
+
+
+def ensure_database_service(ctx, timeout=SERVICE_START_TIMEOUT):
+    """DB 서비스가 **Running** 이 되게 하고, 수동 시작이면 자동으로 돌린다.
+
+    왜 필요한가 (2026-08-26 실측)
+      이전 설치가 남긴 SQL 인스턴스가 `Manual` / `Stopped` 로 있는 PC 에 신규
+      설치를 하면, 인스톨러는 `CheckFile`(master.mdf 존재) 조건으로 **MSSQL 설치를
+      건너뛰고** 서비스 시작 유형도 손대지 않는다. 그 상태로 Viewer 설치가 돌아
+      **DB 가 하나도 만들어지지 않았는데 설치는 "Succeed to all install program"**
+      으로 끝났다. 뷰어는 `Database service is stopped.` 를 남기고 죽고
+      (`CViewerApp::CheckDatabaseServer`), 회귀도 첫 단계에서 멈춘다.
+
+      `APP_SERVICES` 는 `Bellalun Service` 만 다뤄서 이 상황을 되살리지 못했다.
+      DB 서비스는 회귀의 **전제**이므로 여기서 따로 보장한다.
+
+    **조용히 고치지 않는다.** 무엇을 바꿨는지 돌려주고, 호출부가 리포트에 남긴다.
+    """
+    name = (getattr(ctx, "cfg", None) or {}).get("sql_service_name",
+                                                 "MSSQL$BELLALUN")
+    before, mode_before = _service_state(name), _service_start_mode(name)
+    changed = []
+
+    if mode_before == "DEMAND_START":
+        # 재부팅하면 또 꺼진 채로 시작한다. 회귀는 그때마다 같은 지점에서 멈춘다.
+        subprocess.run(["sc", "config", name, "start=", "auto"],
+                       capture_output=True)
+        changed.append("시작 유형 DEMAND_START -> AUTO_START")
+    elif mode_before == "DISABLED":
+        subprocess.run(["sc", "config", name, "start=", "auto"],
+                       capture_output=True)
+        changed.append("시작 유형 DISABLED -> AUTO_START")
+
+    if before != "RUNNING":
+        subprocess.run(["net", "start", name], capture_output=True)
+        end = time.time() + timeout
+        while time.time() < end and _service_state(name) != "RUNNING":
+            time.sleep(1)
+        changed.append(f"서비스 {before} -> {_service_state(name)}")
+
+    return {"service": name, "before": before, "after": _service_state(name),
+            "start_mode_before": mode_before,
+            "start_mode_after": _service_start_mode(name),
+            "changed": changed}
 
 
 def stop_app_processes():
@@ -234,8 +295,12 @@ def restore_baseline(ctx):
             f"`python run.py snapshot-baseline`으로 먼저 생성하세요. "
             f"현재 상태={baseline_state(ctx)}")
 
+    # DB 서비스가 살아 있어야 아래 `RESTORE FILELISTONLY` 부터 동작한다.
+    # 꺼져 있으면 여기서 되살린다(무엇을 바꿨는지는 반환값에 남는다).
+    service = ensure_database_service(ctx)
+
     stop_app_processes()
-    moved = {}
+    moved, recreated = {}, []
     try:
         for db in DATABASES:
             path = os.path.join(stg, f"{db}.bak")
@@ -244,15 +309,34 @@ def restore_baseline(ctx):
             moved[db] = move
             restore = (f"RESTORE DATABASE {b} FROM DISK = N'{path}' WITH REPLACE"
                        + ("".join(f", {m}" for m in move) if move else ""))
-            ctx.db.query("master", f"ALTER DATABASE {b} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+            try:
+                ctx.db.query(
+                    "master", f"ALTER DATABASE {b} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+                single_user = True
+            except Exception:
+                # 데이터 파일이 없거나 SUSPECT 인 DB 는 **재시작이 안 되어**
+                # SINGLE_USER 로 바꿀 수 없다 — 2026-08-26 실측:
+                #   Unable to open the physical file "...\DATA.mdf".
+                #   Operating system error 2 / Could not restart database "DATA".
+                # 이럴 때는 **등록만 지우고 RESTORE 로 새로 만든다.** 내용은
+                # 어차피 `.bak` 에서 오므로 잃는 것이 없다. 이 경로가 없으면
+                # 회귀가 첫 단계에서 멈춘다(그날 실제로 멈췄다).
+                single_user = False
+                try:
+                    ctx.db.query("master", f"DROP DATABASE IF EXISTS {b}")
+                except Exception:
+                    pass          # DROP 도 막히면 아래 WITH REPLACE 가 덮어쓴다
+                recreated.append(db)
             try:
                 ctx.db.query("master", restore)
             finally:
                 # 복원이 실패해도 SINGLE_USER로 방치하면 Viewer가 아예 접속하지 못한다.
-                ctx.db.query("master", f"ALTER DATABASE {b} SET MULTI_USER")
+                # (DROP 한 DB 는 SINGLE_USER 로 만든 적이 없으니 되돌릴 것도 없다)
+                if single_user:
+                    ctx.db.query("master", f"ALTER DATABASE {b} SET MULTI_USER")
     finally:
         # 복원이 실패해도 서비스는 되살린다. 내려둔 채 끝내면 이후 모든 TC가
         # Viewer 시작 단계에서 연쇄 실패한다(APP_SERVICES 주석 참고).
         services = start_app_services()
     return {"restored": DATABASES, "from": stg, "source": src, "moved": moved,
-            "services": services}
+            "services": services, "db_service": service, "recreated": recreated}

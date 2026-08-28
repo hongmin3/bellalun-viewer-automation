@@ -9,8 +9,8 @@ from core import dicom_settings as ds
 from core import flows
 from core import send_verify as sv
 from core import viewer_processing as vp
-from core.dicom_settings import ensure_bunny
-from core.result import TCResult, FAIL
+from core.dicom_settings import ensure_storage_reachable
+from core.result import TCResult, FAIL, SKIP
 
 def workflow_05(ctx):
     r"""TC_Basic_WorkFlow_05 - 3D 수동 DICOM Send.
@@ -42,9 +42,11 @@ def workflow_05(ctx):
     patient_id = (ctx.cfg.get("xipl") or {}).get(
         "test_patient_id", "DATA_FLOW_MWL_01")
     try:
-        if not ensure_bunny(ctx.cfg):
-            r.add(0, "Storage SCP(Bunny) 기동", FAIL,
-                  expected="Bunny 실행 및 수신 포트 대기", actual="기동/포트 확인 실패")
+        reachable, storage = ensure_storage_reachable(ctx.cfg)
+        if not reachable:
+            r.add(0, "Storage SCP 도달 확인", FAIL,
+                  expected="SCP running + DICOM 포트 연결", actual=storage,
+                  note="2026-08-26 Bunny 대신 원격 Storage SCP 웹 서버를 쓴다.")
             return r
 
         ui = flows.cold_start(ctx.cfg, ctx.db)[0]
@@ -100,7 +102,7 @@ def workflow_05(ctx):
         # 수신 객체를 InstanceType으로 되짚어 어떤 3D 종류가 왔는지 남긴다.
         # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
         # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
-        received = sv.received(ctx) or []
+        received = sv.received(ctx, patient_id) or []
         received_uids = {o.get("SOPInstanceUID") for o in received
                          if o.get("SOPInstanceUID")}
         uid_to_type = {}
@@ -131,6 +133,39 @@ def workflow_05(ctx):
                  "선언하지 않으며, 실측도 Recon만 수신됨을 확인했다. 따라서 "
                  "Raw/Syn 미수신은 결함이 아니다. 제품이 바뀌면 received_types로 "
                  "드러난다.")
+
+        # --- 3D-N / 3D-W 구분 (픽스처 확장, 2026-08-26) --------------------
+        #
+        # 두 촬영 모드 모두 SOP Class 는 DBT 로 같아서 **객체만 보면 구분되지
+        # 않는다.** 그래서 DB 의 Series 로 되짚는다 — 3D-N 과 3D-W 는 각각 자기
+        # Series/Group 을 갖는다(WF_02 가 그렇게 만든다). 픽스처에 3D-W 가 없으면
+        # (`test_data.include_3d_wide=false`) 확인할 대상이 없으므로 SKIP 이다.
+        recon_uids = by_type.get(sv.INSTANCE_RECON, set())
+        recon_series = ctx.db.query(
+            "DATA",
+            "SELECT SeriesKey, COUNT(*) AS n FROM INSTANCE "
+            "WHERE StudyKey=@study AND InstanceType=@t "
+            "GROUP BY SeriesKey ORDER BY SeriesKey",
+            {"study": session["study_key"], "t": sv.INSTANCE_RECON})
+        received_recon = sorted(recon_uids & received_uids)
+        if len(recon_series) < 2:
+            r.add(4, "3D-N / 3D-W 각각 수신 확인", SKIP,
+                  expected="Recon Series 2개(3D-N, 3D-W)",
+                  actual=f"픽스처의 Recon Series {len(recon_series)}개 — "
+                         f"3D-W 스텝이 없다",
+                  note="`config.json > test_data.include_3d_wide` 를 켜고 WF_02 로 "
+                       "픽스처를 다시 만들면 3D-W 스텝이 생긴다.")
+        else:
+            r.assert_true(
+                4, "3D-N / 3D-W 각각 수신 확인",
+                len(received_recon) == len(recon_uids) and len(recon_uids) >= 2,
+                expected=f"Recon {len(recon_uids)}건(3D-N·3D-W 각 1건) 전부 수신",
+                actual={"recon_series": [dict(x) for x in recon_series],
+                        "received_recon": len(received_recon),
+                        "missing_recon": sorted(recon_uids - received_uids)},
+                note="3D-N 과 3D-W 는 SOP Class 가 DBT 로 같아 객체만으로는 "
+                     "구분되지 않는다. DB Series 로 되짚어 **두 촬영 모드가 모두** "
+                     "전송·수신됐는지 본다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_05 실행", exc)
     return r

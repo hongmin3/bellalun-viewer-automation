@@ -40,7 +40,6 @@ import time
 
 from core import flows, screen, viewer_processing, viewer_tools
 from core.result import FAIL, PASS, TCResult
-from core.ui import children
 
 
 PATIENT_ID = "DATA_FLOW_MWL_01"
@@ -141,45 +140,14 @@ def _capture(ctx, ui, name, result):
 
 
 def _examined_search(ui, patient_id, wait=3):
-    """Examined 화면에서 Patient ID로 월 범위 검색한다."""
-    if not [c for c in ui.by_id(2177) if c.visible]:
-        if not flows.open_main_menu(ui):
-            raise flows.FlowError("메인 메뉴가 열리지 않았습니다.")
-        view = [c for c in ui.by_id(flows.MAIN_MENU["item_view"])
-                if c.visible and c.rect[2] - c.rect[0] > 20]
-        if not view:
-            raise flows.FlowError("VIEW 메뉴 항목(53)을 찾지 못했습니다.")
-        ui.click(view[0], settle=4)
+    """Examined 화면에서 Patient ID로 월 범위 검색한다.
 
-    month = [c for c in ui.by_id(1108) if c.visible]
-    if month:
-        ui.click(month[0], settle=1)
-    field = [c for c in ui.by_id(2177) if c.visible]
-    edit = [c for c in ui.by_id(2178) if c.visible]
-    search = [c for c in ui.by_id(2179) if c.visible]
-    if not field or not edit or not search:
-        raise flows.FlowError("Examined 검색 컨트롤(2177/2178/2179)을 찾지 못했습니다.")
-    ui.click(field[0], settle=.5)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    options, seen = [], set()
-    for c in children(popups[0].hwnd, 3) if popups else []:
-        if c.text == "TextButton" and c.visible and c.hwnd not in seen:
-            seen.add(c.hwnd)
-            options.append(c)
-    patient_id_option = [c for c in options if c.ctrl_id == 2]
-    if not patient_id_option:
-        raise flows.FlowError("Patient ID 검색 옵션을 찾지 못했습니다.")
-    ui.click(patient_id_option[0], settle=.5)
-    ui.set_text(edit[0], patient_id)
-    ui.click(search[0], settle=wait)
-
-    study_list = [c for c in ui.by_id(2199) if c.visible]
-    rows, seen = [], set()
-    for c in children(study_list[0].hwnd, 4) if study_list else []:
-        if c.text == "StudyListItem" and c.visible and c.hwnd not in seen:
-            seen.add(c.hwnd)
-            rows.append(c)
-    return sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))
+    구현은 2026-08-27 에 `core/flows.examined_search` 로 옮겼다 — `WF_04` 가
+    개정본 Step 1("Examined 창에서 검사를 선택한다")의 UI 경로를 **직접** 밟게
+    하려면 tests 모듈이 아니라 공용 흐름에 있어야 하기 때문이다. 기존 호출부
+    (WF_02 / WF_06 / WF_15)가 그대로 동작하도록 이름은 남긴다.
+    """
+    return flows.examined_search(ui, patient_id, wait=wait)
 
 
 def _open_suspended(ui, patient_id, card_number):
@@ -341,6 +309,37 @@ def run(ctx):
                     "structure": structure_3d})
         _capture(ctx, ui, "05_acquired_3d.png", result)
 
+        # --- 3D-W 스텝 (픽스처 확장, 2026-08-26 사용자 요청) ----------------
+        #
+        # 개정본 `WF_02` 의 범위는 2D + 3D-N 까지이고, 그 판정(Step 2~5)은 위에서
+        # 이미 끝났다. 여기서 3D-W 를 하나 더 만드는 이유는 **Send TC 가 2D /
+        # 3D-N / 3D-W 세 종류를 모두 수신 검증**할 수 있게 하기 위해서다
+        # (`open_test_study` 가 3 스텝을 받도록 함께 넓혔다).
+        #
+        # 개정본에 없는 확장이므로 판정 제목에 그렇게 적고,
+        # `config.json > test_data.include_3d_wide` 로 끌 수 있게 둔다 — 이 픽스처를
+        # 쓰는 다른 TC 가 InstanceType 개수를 보고 있다면 되돌릴 수 있어야 한다.
+        if (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True):
+            viewer_processing.add_view_position(ui, "3d-w")
+            result.assert_equal(
+                5, "3D-W View Position 등록 (픽스처 확장)",
+                3, len(flows.step_items(ui)),
+                note="Procedure + / 3D-W Preset / LCC / OK. 개정본 범위 밖의 "
+                     "확장이다 — Send TC 의 3D-W 수신 검증에 필요하다.")
+            _capture(ctx, ui, "05a_registered_3dw.png", result)
+
+            shot_3dw = flows.demo_acquire_step(ui, 3, settle=0)
+            counts_w = _wait_types(ctx, target["Key"], {0: 1, 1: 2, 2: 2, 3: 2})
+            result.assert_true(
+                5, "3D-W 영상 데이터 생성 (픽스처 확장)",
+                counts_w == {0: 1, 1: 2, 2: 2, 3: 2},
+                expected="3D-W 촬영으로 Raw/Recon/Syn 이 각 1건씩 더 생긴다 "
+                         "(InstanceType {0:1, 1:2, 2:2, 3:2})",
+                actual={"capture": shot_3dw, "instance_types": counts_w},
+                note="전송 대상은 Recon 이므로(`send_verify.SENDABLE_3D_TYPES`) "
+                     "이후 All Images 전송에서 DBT 객체가 2건이 된다.")
+            _capture(ctx, ui, "05b_acquired_3dw.png", result)
+
         flows.select_step(ui, 1)
         evidence_dir = os.path.join(ctx.evidence_root, "Flow", "02_WorkFlow")
         tools_2d = viewer_tools.apply_tool_sequence(
@@ -367,11 +366,19 @@ def run(ctx):
         result.assert_true(8, "검사 종료 후 상태 전환",
                            after.get("StudyStatus") != before_status,
                            expected=f"StudyStatus != {before_status}", actual=after)
+        # 기대 영상 수는 **픽스처 구성에서 계산한다.** 예전에는 4 로 박아 두었는데
+        # (2D 1 + 3D-N 의 Raw/Recon/Syn 3), 2026-08-26 에 3D-W 스텝을 추가하자
+        # 7 건이 되어 이 판정만 깨졌다 — 촬영은 정상이었다. 픽스처를 넓힐 때
+        # 같이 넓혀야 하는 자리다.
+        include_wide = (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True)
+        expected_instances = 4 + (3 if include_wide else 0)
         result.assert_true(8, "검사 종료 후 Examined 재조회",
                            target_rank <= len(rows)
-                           and int(after.get("Instances") or 0) == 4,
+                           and int(after.get("Instances") or 0) == expected_instances,
                            expected=(f"{PATIENT_ID} 대상 Study 카드 표시 및 "
-                                     "동일 Study 영상 4건"),
+                                     f"동일 Study 영상 {expected_instances}건"
+                                     f"(2D 1 + 3D-N 3"
+                                     + (" + 3D-W 3" if include_wide else "") + ")"),
                            actual={"visible_rows": len(rows),
                                    "target_card_rank": target_rank,
                                    "target_study_key": target["Key"],

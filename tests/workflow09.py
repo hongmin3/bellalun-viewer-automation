@@ -40,8 +40,9 @@ r"""TC_Basic_WorkFlow_09 - Normal 및 Anonymous Export.
 import os
 
 from core import dicomlite, export_manager as em, flows
+from core import send_verify as sv
 from core import viewer_processing as vp
-from core.result import TCResult, PASS, FAIL, MANUAL
+from core.result import TCResult, PASS, FAIL, MANUAL, SKIP
 
 # 익명 처리 대상과 기대값 - **사양서1 134쪽 명문**.
 #
@@ -242,6 +243,45 @@ def workflow_09(ctx):
             normal["files"], anon["files"],
             note="개정본 Expected 8. 같은 검사를 두 번 내보냈으므로 파일 수가 "
                  "같아야 한다. 개인정보 처리 결과는 Step 4/7이 판정한다.")
+
+        # --- Step 8 보강: 3D-N / 3D-W 가 **각각** 나갔는가 -------------------
+        #
+        # 2026-08-27 사용자 요청. Send/Print/Export 에서 **3D 의 모든 경우의 수**를
+        # 보려는 것이라, "3건 나갔다" 로는 3D-N 과 3D-W 가 둘 다 포함됐는지 알 수
+        # 없다. 두 모드는 SOP Class 가 DBT 로 같아 객체만으로는 구분되지 않으므로
+        # **DB 의 Recon Series 로 되짚는다**(WF_05 의 수신 판정과 같은 방법).
+        recon_uids = sv.db_identity(ctx, patient_id)["by_type"].get(
+            sv.INSTANCE_RECON, set())
+        recon_series = ctx.db.query(
+            "DATA",
+            "SELECT SeriesKey, COUNT(*) AS n FROM INSTANCE "
+            "WHERE StudyKey=@study AND InstanceType=@t "
+            "GROUP BY SeriesKey ORDER BY SeriesKey",
+            {"study": session["study_key"], "t": sv.INSTANCE_RECON})
+        exported_uids = {o.get("SOPInstanceUID") for o in normal["objects"]
+                         if o.get("SOPInstanceUID")}
+        exported_recon = sorted(recon_uids & exported_uids)
+        if len(recon_series) < 2:
+            r.add(8, "3D-N / 3D-W 가 각각 Export", SKIP,
+                  expected="Recon Series 2개(3D-N, 3D-W)",
+                  actual=f"픽스처의 Recon Series {len(recon_series)}개 — "
+                         f"3D-W 스텝이 없다",
+                  note="`config.json > test_data.include_3d_wide` 를 켜고 WF_02 로 "
+                       "픽스처를 다시 만들면 3D-W 스텝이 생긴다.")
+        else:
+            r.assert_true(
+                8, "3D-N / 3D-W 가 각각 Export",
+                len(exported_recon) == len(recon_uids) and len(recon_uids) >= 2,
+                expected=f"Recon {len(recon_uids)}건(3D-N·3D-W 각 1건)이 모두 "
+                         f"Export 산출물에 포함",
+                actual={"recon_series": [dict(x) for x in recon_series],
+                        "exported_recon": len(exported_recon),
+                        "missing_recon": sorted(recon_uids - exported_uids),
+                        "exported_sop_classes": sorted(
+                            {o.get("SOPClassUID") for o in normal["objects"]})},
+                note="Export 는 검사 단위라 3D-W 를 픽스처에 넣으면 자동으로 "
+                     "포함되지만, **포함됐는지 확인하는 판정이 없었다.** "
+                     "3D 의 경우의 수를 전부 보려면 이 판정이 있어야 한다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_09 실행", exc)
     return r

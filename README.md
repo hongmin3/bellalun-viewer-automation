@@ -53,8 +53,8 @@ Bellalun Viewer\
 ├─ ORG\                      사내 선행 자산(참고용. 자동화가 참조하지 않는다)
 └─ auto\                     ★ Git 저장소
    ├─ run.py                 CLI · 환경 게이트 · 회귀 사슬 · 리포트 호출
-   ├─ core\                  재사용 계층 34개 모듈 (UI·OCR·DB·DICOM·리포트)
-   ├─ tests\                 TC 시나리오·판정 29개 모듈 (workflowNN.py = TC 번호)
+   ├─ core\                  재사용 계층 35개 모듈 (UI·OCR·DB·DICOM·리포트)
+   ├─ tests\                 TC 시나리오·판정 31개 모듈 (workflowNN.py = TC 번호)
    ├─ tools\                 자체 검사·운영 도구 11개 + _paths.py
    ├─ automation_scope.json  TC별 등급·사유·커버리지·해제 조건 (원본)
    ├─ traceability.json      사양↔TC 추적성 데이터
@@ -102,10 +102,11 @@ Bellalun Viewer\
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **25,508줄** / 모듈 75개 — core 13,074(34) · tests 9,974(29) · `run.py` 990 · `tools/` 1,470(11). 2026-08-26 재실측 |
+| 규모 | Python **28,355줄** / 모듈 80개 — core 13,986(36) · tests 11,464(31) · `run.py` 1,060 · `tools/` 1,845(12). 2026-08-26 재실측 |
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
-| 최신 전체 회귀 | 2026-08-25 20:44~22:19 — TC 27건 : PASS 20 / FAIL 2 / MANUAL 3 / BLOCKED 2 / SKIP 0 (94.1분)<br>그 안의 검증 271개 : PASS 255 / FAIL 7 / MANUAL 4 / BLOCKED 4 / SKIP 1 |
-| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). 둘 다 완화하지 않고 계속 보고합니다 |
+| 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
+| 최신 전체 회귀 | 2026-08-26 18:52~20:28 (26차) — TC 27건 : PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1 (96.3분)<br>그 안의 검증 275개 : PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3 |
+| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import 로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). **자동화 결함은 0건.** `TC_Basic_WorkFlow_06` 은 Dose SR 을 제품이 전송 큐에 넣지 않아 BLOCKED |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 68건, 위반 0 |
 | 자체 검사 | `tools/` 도구 11개 + 단위 시험 **71건** |
@@ -124,6 +125,23 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
   → Export(Normal/Anonymous), Reject·Restore, 계정·권한, Setting Export/Import
   → XIPL 연동 7종(2D/3D 영상처리 파라미터 왕복 검증)
   → 리포트 4종(HTML·CSV·JSON·TXT) + 체크리스트 xlsx 결과 기록
+```
+
+**회귀와 별개로 도는 단독 점검** — 설치 패키지가 사양·매뉴얼대로 구성됐는지
+확인합니다. 실제 설치는 하지 않습니다.
+
+```
+python run.py verify-install-package
+  → 패키지 구성·코드 서명·Install Package 버전
+  → Install.xml 이 참조하는 파일 18건 실존 대조 · Config.xml 설치 기본값
+  → Install.exe 실행 → Welcome(EULA 원문·분량·인코딩 대조 + 스크롤 캡처,
+     비동의 시 진행 차단 확인)
+  → Configure Path(기본 경로) → Register Options(고를 값을 물어 **한 번에** 선택,
+     드롭다운 항목 수와 화면을 증거로 남김)
+  → Input License(Hardware Key·18자 4-5-4-5 구조 확인 → **사람이 직접 입력**할 때까지 대기)
+  → Summary(스크롤하며 선택한 값이 그대로 실렸는지 대조. 라이선스는 입력 여부와
+     형식만 보고 값은 가려서 기록) → **여기서 멈춘다**
+  → 리포트 4종 + 선택 옵션 JSON(설치 후 대조용) + 화면 캡처
 ```
 
 ---
@@ -254,7 +272,7 @@ DB에 없는 것도 있습니다. **적용된 3D Recon 파라미터 이름은 `D
 
 ## 7. 실제로 잡아낸 것
 
-대표 네 건입니다.
+대표 여덟 건입니다.
 
 **제품 결함 — `TC_XIPL_compatibility_03` Step 9.** 3D Post Reconstruction의 Apply 후
 재진입하면 값이 기본값으로 되돌아갑니다(`Not use`→`Use`, 14→10). 사양서1 277쪽
@@ -271,6 +289,49 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 생김), 아무도 답하지 않아 모달이 이후 모든 클릭을 삼켰습니다. 두 번 잘못 짚은 뒤
 **세 번째 추측 대신 실패 시점의 화면 랜드마크와 대화상자 문구를 증거로 남기게 했고**
 그것이 팝업을 드러냈습니다.
+
+**패키지에 빠진 파일 — `Support\XIPLInstall.reg`.** `Install.xml` 이
+`regedit /s "[RunningDirectory]Support\XIPLInstall.reg"` 로 실행하는 파일이 배포
+패키지에 없습니다(참조 18건 중 1건). 사양서2 SRS 08-10-10 도 *"XIPL 설치 (기존 버전
+제거 후 새 버전 설치. 설치 후 registry 변경 -XIPLInstall.reg 실행)"* 로 명시합니다.
+같은 방식으로 참조되는 `shell_Kiosk.reg`/`shell_NoKiosk.reg` 는 들어 있고, **압축 해제
+전 원본 zip 에도 없어** 해제 누락이 아닙니다. 화면만 훑어서는 드러나지 않는 결함이라
+`Install.xml` 의 **모든 속성값**에서 패키지 내부 경로를 뽑아 실존을 대조하게 했습니다
+— 경로가 `ExecuteFile` 이 아니라 `Argument` 안에 들어 있어서, 경로 전용 속성만 보면
+놓칩니다.
+
+**설치가 "성공" 인데 제품이 실행되지 않는 경우.** 신규 설치를 마친 PC 에서 뷰어가
+더블클릭해도 뜨지 않았습니다. 뷰어 로그가 4회 시도 모두 같은 지점을 가리켰습니다 —
+`Database service is stopped.` (`CViewerApp::CheckDatabaseServer`). 원인은 두 겹이었고,
+둘 다 설치 프로그램이 알려 주지 않았습니다.
+
+1. 이전 설치가 남긴 SQL 인스턴스가 `Manual`/`Stopped` 로 있어서, 인스톨러가
+   `CheckFile`(master.mdf) 조건으로 **MSSQL 설치를 건너뛰며** 서비스 상태를 손대지 않음
+2. 그 상태로 Viewer 설치가 돌아 **DB 가 하나도 만들어지지 않았는데** 설치 로그는
+   `Succeed to all install program` 으로 끝남 (MSSQL·DB 초기화 단계는 로그에 없음)
+
+`master` 에는 DB 4개가 등록돼 있는데 데이터 파일이 없어서 `.bak` 복원조차
+`SET SINGLE_USER` 에서 막혔습니다. 그래서 **회귀 전제를 자동으로 복구**하게 했습니다 —
+DB 서비스를 살리고(수동 시작이면 자동 시작으로), 파일 없는 DB 는 등록을 지우고
+`RESTORE ... WITH REPLACE, MOVE` 로 되살립니다. **고친 내용은 판정에 적습니다**(조용히
+고치면 다음 사람이 같은 함정을 밟습니다). `portability-check` 는 진단 전용이라 고치지
+않고 알리기만 합니다.
+
+**사양서의 경로 표기를 절대경로로 단정한 오판.** SRS 08-10-10 의
+`C:\Documents\Bellalun\InstallLog` 를 드라이브 루트로 읽고 폴더가 없는 것을 확인해
+"설치 로그가 생성되지 않는다(사양 불일치)" 고 보고했는데 **틀렸습니다.** 실제 위치는
+사용자 Documents 폴더 아래였고 로그는 사양대로 생성되고 있었습니다. 지금은 경로를
+셸에 물어 해석하고(`SHGetFolderPathW`), 후보를 여러 개 두고 실제로 있는 것을 고릅니다.
+"없다" 를 결함으로 올리기 전에 **찾는 위치가 맞는지 먼저 의심**해야 한다는 교훈입니다.
+
+**Summary 가 KIOSK 선택을 알려 주지 않는다.** Register Options 에서 KIOSK Option 을
+고를 수 있는데(SRS 08-10-10 "KIOSK 사용 여부는 신규 설치 시에도 설정할 수 있다"),
+설치 직전 Summary 에는 그 값이 실리지 않습니다 — Operation System / Viewer Version /
+Database·Viewer Location / Default Language / Default Theme / License / XIPL License /
+XIPL Tomo License 9개 항목뿐입니다. 매뉴얼은 *"설치 정보를 확인하고 Install 버튼을
+클릭"* 하라고 하는데, **사용자가 고른 값 하나를 마지막 확인 화면에서 볼 수 없습니다.**
+다만 Summary 에 어떤 항목이 실려야 하는지는 사양서·매뉴얼에 정의돼 있지 않아
+**결함으로 단정하지 않고 MANUAL 로 사실만 남깁니다**(사양 확인 필요).
 
 **자동 치환이 모듈 함수를 리스트로 덮어쓴 일.** `py_compile`과 `ast` 미정의 이름 검사
 모두 통과했지만 회귀에서만 죽었습니다 — 둘 다 "존재하는 이름에 대입하는 것"은 잡지
@@ -313,6 +374,7 @@ python run.py portability-check          # 해상도·DPI·권한·필수 경로
 python run.py list                       # 개정본 37개 TC + 보조 4개의 자동화 수준
 python run.py run-regression             # 전체 회귀 (기준 복원부터 리포트까지)
 python run.py run-xipl-07                # 개별 TC (전수는 python run.py --help)
+python run.py verify-install-package     # 설치 패키지 점검 (회귀와 분리된 단독 실행)
 python tools/run_regression.py           # 외부 감시가 붙은 전체 회귀(권장, run_all.cmd가 사용)
 check_automation_status.cmd 7            # 마지막 완료 전체 회귀가 7일 넘었는지 알림
 ```

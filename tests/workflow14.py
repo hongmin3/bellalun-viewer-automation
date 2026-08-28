@@ -122,11 +122,56 @@ from __future__ import annotations
 
 import os
 
-from core import (flows, screen, setting_changes, setting_transfer,
-                  setting_values, snapshot, specs)
+from core import (flows, screen, setting_changes, setting_lists,
+                  setting_transfer, setting_values, snapshot, specs)
 from core.result import FAIL, PASS, StepFailed, TCResult
 
 EXPORT_FILE = "WF14_Baseline_Settings.vms"
+
+#: 목록 행 상세값을 대조할 후보 페이지 `(그룹, 페이지)`.
+#
+#  Setting 56개 페이지를 전부 훑지 않는 이유는 비용이다 — 목록이 없는 페이지에
+#  들어가 확인만 해도 페이지당 1~2초가 든다(WF_14 는 이미 약 16.5분이다).
+#  여기 적은 것은 **목록을 가진 것으로 알려진 페이지**이고, 실제로 목록이 없으면
+#  `sweep` 이 "목록 없음" 으로 건너뛰고 그 사실을 남긴다(조용히 빠지지 않는다).
+#  `core/setting_lists.ROW_COUNT_QUERIES` 에 원천 테이블이 매핑된 페이지와 짝을
+#  이룬다 — 매핑이 있는 페이지는 "개수 증명"까지 받는다.
+LIST_PAGES = (
+    ("system", "account"),
+    ("patient", "physician"),
+    ("display", "overlay"),
+    ("display", "lut"),
+    ("tool", "predefined_text"),
+    ("study", "reject_retake"),
+    ("procedure", "procedure"),
+    ("procedure", "hospital_code"),
+    ("dicom", "mwl"),
+    ("dicom", "mpps"),
+    ("dicom", "storage"),
+    ("dicom", "storage_group"),
+    ("dicom", "storage_commitment"),
+    ("dicom", "print"),
+    ("dicom", "print_overlay"),
+    ("dicom", "query_retrieve"),
+    ("dicom", "tag_mapping"),
+    ("qc", "scheduler"),
+)
+
+
+def _list_summary(sweep_result):
+    """`setting_lists.sweep` 결과를 판정 `actual` 에 실을 형태로 줄인다."""
+    pages = sweep_result.get("pages") or {}
+    return {
+        "목록 페이지": len(pages),
+        "열거한 행": {k: len(v.get("signatures") or []) for k, v in pages.items()},
+        "DB 원천 행": {k: v.get("expected_count") for k, v in pages.items()
+                    if v.get("expected_count") is not None},
+        "스크롤 횟수": {k: v.get("steps") for k, v in pages.items()},
+        "불완전": sweep_result.get("incomplete") or [],
+        "불완전 사유": {k: pages[k].get("reasons")
+                   for k in (sweep_result.get("incomplete") or [])},
+        "목록 없음/진입 실패": sweep_result.get("skipped") or {},
+    }
 
 
 def run(ctx):
@@ -195,6 +240,21 @@ def run(ctx):
                    "나오므로 원인을 제거했다. 커스텀 라디오/체크박스는 "
                    "BM_GETCHECK 에 응답하지 않아(실측 전부 0) 픽셀로 읽고, 그 "
                    "판정력은 DB 전수 대조가 보증한다.")
+
+        # --- Step 7 보강의 1회차: 목록 행 상세값 판독 -------------------
+        before_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES)
+        r.add(0, "[근거 수집] Setting 목록 행 상세값 판독(1회차)", PASS,
+              expected="스크롤 아래 숨은 행을 포함한 목록 전 행의 상세값",
+              actual=_list_summary(before_lists),
+              note="2026-08-27 신설(core/setting_lists.py). 목록은 가상 ListItem 이 "
+                   "같은 HWND/ID 를 재사용해 행을 핸들로 식별할 수 없다 — "
+                   "2026-08-25 에 그래서 일부 행만 읽고 끝으로 오인했고 스크롤을 "
+                   "통째로 제거했다. 이번에는 **행에 찍힌 문구**로 식별하고 끝까지 "
+                   "봤다는 것을 세 겹으로 증명한다: (1) 스크롤해도 시퀀스가 더 "
+                   "바뀌지 않고, (2) 스크롤 전후 시퀀스가 겹치며(겹치지 않으면 "
+                   "화면을 건너뛴 것이라 열거 실패로 보고한다), (3) 열거한 행 수가 "
+                   "**DB 원천 테이블 행 수**와 같다. 셋 중 하나라도 성립하지 않으면 "
+                   "그 페이지는 불완전으로 남기고 판정 근거로 쓰지 않는다.")
 
         # --- Step 1 ----------------------------------------------------
         setting_transfer.open_my_settings(ui, wait=3.0)
@@ -434,23 +494,71 @@ def run(ctx):
                  "특정하지 못했다. 판정을 흐리지 않으려고 **순회 완주 여부를 따로 "
                  "남긴다** — 순회가 중단되면 아래 화면 값 대조의 근거가 불완전하다.")
 
-        # 스크롤 한계 안내는 아래 제품 판정이 FAIL 하더라도 반드시 보고서에
-        # 남아야 한다. 사용자가 무엇을 자동 확인했고 무엇을 직접 봐야 하는지
-        # 결과 문서만 읽고 알 수 있도록 실패 가능 판정보다 먼저 기록한다.
-        r.manual(
-            7, "Setting 스크롤 아래 목록 행의 상세값 복원(차기 개선)",
-            "현재 목록은 휠을 조금씩 내리면 같은 가상 ListItem 컨트롤을 재사용한다. "
-            "행 핸들/ID만으로는 새 행인지 판별할 수 없어 일부 행만 읽고도 전수조사로 "
-            "오인할 수 있음을 2026-08-25 실측으로 확인했다. 불완전한 스크롤을 "
-            "판정에 사용하지 않도록 이 실행에서는 목록을 스크롤하거나 행을 선택하지 "
-            "않는다. 화면에 현재 보이는 컨트롤 값과 설정 DB 전수 대조는 위에서 "
-            "별도로 수행한다. **해제 조건**: 스크롤바 위치 또는 첫/마지막 행의 실제 "
-            "문구로 페이지 전환을 확인하고, 겹치는 행을 제거하면서 끝 행 도달을 "
-            "증명하는 전용 탐색기를 구현한 뒤 전후 DB 무변경 시험을 통과한다. "
-            "**이 실행으로 말할 수 없는 것**: 현재 화면 아래에 숨은 목록 행을 "
-            "선택했을 때 나타나는 상세값이 Import 후 동일한지 여부.",
-            expected="스크롤 아래를 포함한 목록 전 행의 상세값이 Export 시점과 동일",
-            actual="미수행 — 부정확한 부분 스크롤 판정을 제거함")
+        # --- Step 7 보강: 목록 행 상세값 (스크롤 아래 숨은 행 포함) --------
+        #
+        # 2026-08-27 자동화. 그전에는 MANUAL 이었다 — 2026-08-25 에 붙였던 스크롤이
+        # 가상 ListItem 의 HWND/ID 재사용 때문에 일부 행만 읽고 끝으로 오인해
+        # 사용자 지시로 제거했기 때문이다. 해제 조건이 "이동을 증명하고 겹치는 행을
+        # 제거하면서 끝 행 도달을 보장하는 전용 탐색기 + 전후 DB 무변경 시험" 이었고,
+        # `core/setting_lists.py` 가 그것이다.
+        db_before_lists = snapshot.take(ctx.db)
+        after_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES)
+        db_after_lists = snapshot.take(ctx.db)
+        lists_readonly, lists_diff = snapshot.config_identical(
+            db_before_lists, db_after_lists)
+
+        # (a) 탐색 자체가 무해한가 — 해제 조건의 "전후 DB 무변경 시험".
+        r.add(7, "목록 탐색이 설정을 바꾸지 않음(전후 DB 무변경)",
+              PASS if lists_readonly else FAIL,
+              expected=f"설정 섹션 {len(snapshot.CONFIG_SECTIONS)}개가 목록 탐색 "
+                       f"전후로 동일",
+              actual="일치" if lists_readonly
+                     else f"불일치 {len(lists_diff)}개 섹션: {sorted(lists_diff)}",
+              note="행을 선택하는 것은 조회 동작이어야 한다. 그런데 이 제품에는 "
+                   "**누르지 않아도 즉시 저장되는 화면**이 있었다 — 2026-08-20 에 "
+                   "Hospital Code 의 `+`(2558)가 Update 없이 DB 행을 만들어 사용자 "
+                   "DB 에 5행을 남겼다(AGENTS.md 3절). 그래서 탐색을 조회 전용이라 "
+                   "가정하지 않고 전후 스냅샷으로 확인한다.",
+              stop=False)
+
+        # (b) 전 행을 실제로 봤는가 — 정지·연속·개수 세 증명.
+        incomplete = sorted(set(before_lists.get("incomplete") or [])
+                            | set(after_lists.get("incomplete") or []))
+        r.add(7, "목록 전 행 열거 완주(스크롤 아래 숨은 행 포함)",
+              PASS if not incomplete else FAIL,
+              expected="후보 목록 페이지 전부에서 정지·연속·개수 증명 통과",
+              actual={"1회차": _list_summary(before_lists),
+                      "2회차": _list_summary(after_lists),
+                      "불완전 페이지": incomplete},
+              note="세 겹으로 증명한다 — (1) 스크롤해도 행 시퀀스가 더 바뀌지 "
+                   "않는다(끝), (2) 스크롤 전후 시퀀스가 겹친다(건너뛰지 않았다. "
+                   "겹치지 않으면 폭을 줄여 재시도하고 그래도 안 겹치면 실패로 "
+                   "보고한다), (3) 열거한 행 수가 DB 원천 테이블 행 수와 같다"
+                   "(core/setting_lists.ROW_COUNT_QUERIES). (3)은 화면과 무관한 "
+                   "결정적 근거라 (1)·(2)가 통과해도 어긋나면 실패다. **불완전한 "
+                   "열거는 아래 상세값 대조의 근거로 쓰지 않는다.**",
+              stop=False)
+
+        # (c) 본 판정 — 행 상세값이 Export 시점으로 복원되었는가.
+        lc = setting_lists.compare_sweep(before_lists, after_lists)
+        lists_restored = (not lc["changed"] and not lc["only_before_pages"]
+                          and not lc["only_after_pages"])
+        r.add(7, "Setting 목록 행 상세값 복원(스크롤 아래 숨은 행 포함)",
+              PASS if lists_restored else FAIL,
+              expected=f"{lc['compared_rows']}개 행 / {lc['compared_items']}개 "
+                       f"항목 값이 Export 시점과 동일",
+              actual={"행": lc["compared_rows"], "항목": lc["compared_items"],
+                      "달라진 항목": lc["changed"][:20],
+                      "한쪽에만 있는 페이지": (lc["only_before_pages"]
+                                     + lc["only_after_pages"]),
+                      "페이지별 차이": {k: v["changed"] for k, v in
+                                  lc["pages"].items() if v["changed"]}},
+              note="개정본 Expected 7 을 **목록 행**에도 적용한다. 행을 좌측 첫 열 "
+                   "좌표로 선택해(행 가운데 버튼을 피한다 — AGENTS.md 3절) 상세 "
+                   "영역의 값을 컨트롤 ID 기준으로 읽고 Import 전후를 항목 단위로 "
+                   "대조했다. 장치 상태 칸은 제외한다"
+                   "(core/setting_values.VOLATILE_CONTROLS).",
+              stop=False)
 
         screen_restored = (not vc["changed"] and not vc["only_before"]
                            and not vc["only_after"])

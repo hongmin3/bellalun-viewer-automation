@@ -23,6 +23,10 @@ TAGS = {
     "Modality":           (0x0008, 0x0060),
     "AccessionNumber":    (0x0008, 0x0050),
     "InstitutionName":    (0x0008, 0x0080),
+    # MWL 오더의 Scheduled Station Name 이 촬영 객체의 StationName 으로 실려
+    # 나가는지 **왕복으로** 확인하려고 넣었다(2026-08-26 사용자 요청).
+    # Storage SCP 서버도 이 값을 읽어 `/api/studies` 의 `station_names` 로 준다.
+    "StationName":        (0x0008, 0x1010),
     "PatientName":        (0x0010, 0x0010),
     "PatientID":          (0x0010, 0x0020),
     "PatientBirthDate":   (0x0010, 0x0030),

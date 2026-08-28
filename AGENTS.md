@@ -26,6 +26,11 @@ Precondition, Step Description, Expected Result, Test Data를 **여기서만** �
 R-23-2346의 같은 ID는 "External Device/Barcode/QR"이다. 2026-08-19에 이 둘을
 혼동해 정상 구현된 TC를 "범위 불일치"로 잘못 강등한 적이 있다.
 **TC 판정 근거는 항상 개정본이다.** 지식 폴더의 다른 TC xlsx는 참고 자료일 뿐
+
+**예외 — 개정본 TC 가 아닌 단독 점검이 하나 있다.** `verify-install-package`(설치 패키지
+검증)는 **설치 이전** 패키지를 보는 일이라 개정본 TC 도, 회귀 사슬의 일부도 아니다.
+판정 ID 도 `Pkg_*` 로 구분한다. 근거 문서는 개정본이 아니라 **사양서2 SRS 08-10-10/20 과
+Service Manual 설치 절차**다. 상세는 `..\프로젝트_상세.md` 3-A절.
 판정 기준이 아니다.
 
 ### 사양·절차의 근거 문서 (`..\지식\`)

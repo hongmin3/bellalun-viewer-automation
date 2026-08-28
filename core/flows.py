@@ -2244,3 +2244,172 @@ def send_current_study(ui, scope="all", attempts=4, dialog_timeout=5):
         f"Send 후 전송 범위 선택 메시지 박스가 {attempts}회 시도에도 "
         f"나타나지 않았습니다. 전송할 영상이 선택돼 있는지 확인하십시오"
         f"(선택 전에는 Send 버튼이 비활성입니다).")
+
+
+#: Examined(View) 검색 화면의 컨트롤. `tests/workflow02._examined_search` 가
+#  2026-08-19 에 실측한 값이고, 2026-08-27 에 여러 TC 가 같은 경로를 직접 밟을 수
+#  있도록 여기로 올렸다(그 함수는 이제 이 구현을 부르는 얇은 래퍼다).
+EXAMINED_SEARCH = {
+    "field_combo": 2177,      # 검색 항목 콤보 (팝업 'ItemList' 의 ctrl_id 2 = Patient ID)
+    "text": 2178,
+    "button": 2179,
+    "study_list": 2199,       # 카드 목록 컨테이너. 자식 중 text=='StudyListItem' 이 카드
+    "row_text": "StudyListItem",
+    "patient_id_option": 2,
+}
+
+
+def examined_search(ui, patient_id, wait=3):
+    """Examined(View) 화면에서 **Patient ID 로 월 범위 검색**하고 카드를 돌려준다.
+
+    반환: 화면에 보이는 검사 카드 컨트롤 목록 (위->아래, 왼->오른쪽 순).
+
+    카드 순서는 제품이 **StudyDate/Time 내림차순**으로 배열한다(실측). 따라서
+    `[0]` 이 가장 새 검사, `[-1]` 이 가장 오래된 검사다. 재사용 픽스처는 한 번
+    만들어 계속 쓰므로 보통 마지막 카드다.
+
+    기본 조회 범위가 "Today" 라 **Month 로 넓히고** 검색한다 — 픽스처가 다른 날
+    만들어졌으면 Today 범위로는 0건이 나온다.
+    """
+    if not [c for c in ui.by_id(EXAMINED_SEARCH["field_combo"]) if c.visible]:
+        if not open_main_menu(ui):
+            raise FlowError("메인 메뉴가 열리지 않았습니다.")
+        view = [c for c in ui.by_id(MAIN_MENU["item_view"])
+                if c.visible and c.rect[2] - c.rect[0] > 20]
+        if not view:
+            raise FlowError(f"VIEW 메뉴 항목({MAIN_MENU['item_view']})을 찾지 못했습니다.")
+        ui.click(view[0], settle=4)
+
+    month = [c for c in ui.by_id(PATIENT["range_month"]) if c.visible]
+    if month:
+        ui.click(month[0], settle=1)
+    field = [c for c in ui.by_id(EXAMINED_SEARCH["field_combo"]) if c.visible]
+    edit = [c for c in ui.by_id(EXAMINED_SEARCH["text"]) if c.visible]
+    search = [c for c in ui.by_id(EXAMINED_SEARCH["button"]) if c.visible]
+    if not field or not edit or not search:
+        raise FlowError(
+            f"Examined 검색 컨트롤({EXAMINED_SEARCH['field_combo']}/"
+            f"{EXAMINED_SEARCH['text']}/{EXAMINED_SEARCH['button']})을 "
+            "찾지 못했습니다.")
+    ui.click(field[0], settle=.5)
+    popups = [w for w in ui.windows() if w.text == "ItemList"]
+    options, seen = [], set()
+    for c in children(popups[0].hwnd, 3) if popups else []:
+        if c.text == "TextButton" and c.visible and c.hwnd not in seen:
+            seen.add(c.hwnd)
+            options.append(c)
+    option = [c for c in options
+              if c.ctrl_id == EXAMINED_SEARCH["patient_id_option"]]
+    if not option:
+        raise FlowError("Patient ID 검색 옵션을 찾지 못했습니다.")
+    ui.click(option[0], settle=.5)
+    ui.set_text(edit[0], patient_id)
+    ui.click(search[0], settle=wait)
+    return examined_cards(ui)
+
+
+def examined_cards(ui):
+    """현재 Examined 목록에 보이는 검사 카드(위->아래, 왼->오른쪽)."""
+    study_list = [c for c in ui.by_id(EXAMINED_SEARCH["study_list"]) if c.visible]
+    rows, seen = [], set()
+    for c in children(study_list[0].hwnd, 4) if study_list else []:
+        if (c.text == EXAMINED_SEARCH["row_text"] and c.visible
+                and c.hwnd not in seen):
+            seen.add(c.hwnd)
+            rows.append(c)
+    return sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))
+
+
+def open_examined_study(ui, patient_id, card="oldest", settle=8.0, wait=3):
+    """**Examined 목록에서 카드를 직접 골라** 검사를 View 로 연다.
+
+    반환: `{"cards": 카드수, "picked": 0-based 순번, "picked_rect": rect,
+            "steps": Step 수, "patient_id": 검색어}`
+
+    왜 별도 함수인가 — `viewer_processing.open_test_study` 도 같은 UI 경로를
+    지나지만 그 함수는 **XIPL 픽스처 준비**(Overlay 항목 보장, InstanceType
+    0/1/2/3 무결성 검사, 세션 dict 구성)까지 하는 공용 준비 흐름이다. 개정본
+    Step 1 이 *"Examined 창에서 검사를 선택한다"* 인 TC 들이 그 준비 흐름에
+    얹혀 가면 **그 TC 가 Step 1 의 UI 경로를 직접 밟지 않게 된다** — 자동화
+    범위표에서 `WF_04` 가 2026-08-26 까지 그 이유로 부분 자동이었다.
+    이 함수는 검사를 고르고 여는 **그 동작만** 하고 근거를 돌려준다.
+
+    `card` 는 `"oldest"`(기본) / `"newest"` / 0-based 정수.
+    카드는 StudyDate/Time 내림차순이라 재사용 픽스처는 보통 가장 오래된 카드다
+    (`open_test_study` 도 같은 규칙을 쓴다 — 나중에 생긴 빈 중복 카드를 피한다).
+    """
+    cards = examined_search(ui, patient_id, wait=wait)
+    if not cards:
+        raise FlowError(f"Examined 검색 결과가 없습니다: {patient_id}")
+    if card == "oldest":
+        index = len(cards) - 1
+    elif card == "newest":
+        index = 0
+    else:
+        index = int(card)
+    if not 0 <= index < len(cards):
+        raise FlowError(f"대상 카드 순번 {index}, 화면 카드 {len(cards)}건")
+    target = cards[index]
+    ui.click(target, settle=1.2)
+    button = [c for c in ui.by_id(EXAMINED_VIEW_BUTTON) if c.visible]
+    if not button:
+        raise FlowError(
+            f"Examined 의 View 버튼({EXAMINED_VIEW_BUTTON})을 찾지 못했습니다. "
+            "카드가 선택되지 않았을 수 있습니다.")
+    ui.click(button[0], settle=settle)
+    return {"cards": len(cards), "picked": index, "picked_rect": target.rect,
+            "steps": len(step_items(ui)), "patient_id": patient_id}
+
+
+# Examined 툴바. **툴팁으로 확정했다**(2026-08-26) — 아이콘만으로는 구분되지
+# 않는다(2196 을 '검사 내 검색' 으로 오인한 전례가 있다).
+EXAMINED_SEND = 2189          # 툴팁 'Send'
+EXAMINED_MULTI_SEND = 2190    # 툴팁 'Multi Send'
+EXAMINED_PRINT = 2188         # 툴팁 'Print'
+EXAMINED_EXPORT = 2191        # 툴팁 'Export'
+EXAMINED_MOVE_IMAGE = 2197    # 툴팁 'Move Image'
+
+
+def send_examined_study(ui, scope="all", attempts=4, dialog_timeout=6):
+    """**Examined 목록**에서 선택한 검사를 전송한다.
+
+    `send_current_study`(Examine 화면의 Send)와 **경로가 다르고, 결과도 다르다.**
+    사양서1 이 둘을 명확히 구분한다.
+
+      - Storage 옵션에 Send Dose SR 이 켜져 있을 때 Dose SR 을 전송하는 경우:
+        **① Examine Mode 에서 자동 전송 옵션이 활성화되어 있을 때,
+        ② Examined 모드에서 모든 영상을 전송할 때.**
+      - 그리고 못박는다: *"Dose SR 은 검사가 종료될 때만 전송이 된다.
+        (**Examine/View 모드에서 Send/Multi-Send 버튼을 클릭했을 때는 Dose SR 을
+        전송하지 않는다**)"*
+
+    그래서 **Dose SR 을 보는 TC(WF_06)는 반드시 이 함수를 써야 한다.** 검사를
+    `open_test_study` 로 열어(View 모드) `send_current_study` 를 부르면 Dose SR 이
+    오지 않는 것이 **정상**이라, 제품 결함으로 오판하게 된다(2026-08-26 실제로
+    그렇게 보고했다가 사용자 지적으로 바로잡았다).
+
+    호출 전에 Examined 목록에서 **대상 검사 카드를 선택**해 두어야 한다.
+    """
+    if scope not in SEND_SCOPE_IDS:
+        raise FlowError(f"알 수 없는 전송 범위: {scope}")
+    target_id = SEND_SCOPE_IDS[scope]
+
+    for _ in range(attempts):
+        buttons = [c for c in ui.by_id(EXAMINED_SEND)
+                   if c.visible and (c.rect[2] - c.rect[0]) >= 30]
+        if not buttons:
+            raise FlowError(
+                f"Examined 의 Send 버튼({EXAMINED_SEND})을 찾지 못했습니다. "
+                "Examined 화면인지 확인하십시오.")
+        ui.click(buttons[0], settle=2.0)
+        end = time.time() + dialog_timeout
+        while time.time() < end:
+            hits = [c for c in ui.by_id(target_id) if c.visible]
+            if hits:
+                ui.click(hits[0], settle=2.5)
+                return {"scope": scope, "clicked": target_id,
+                        "via": "Examined Send"}
+            time.sleep(.5)
+    raise FlowError(
+        f"Examined Send 후 전송 범위 선택 메시지 박스가 {attempts}회 시도에도 "
+        f"나타나지 않았습니다. 대상 검사 카드가 선택돼 있는지 확인하십시오.")

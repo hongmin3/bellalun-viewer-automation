@@ -29,7 +29,9 @@
       "XIPL"
     ],
     "dicom_nic_alias": "DICOM",
-    "expected_ipv4": null
+    "expected_ipv4": null,
+    "vcredist_min_major": 14,
+    "_vcredist_note": "2026-08-26: 표시명만으로 찾지 않는다. 재배포가 14.50.35719 로 갱신되며 이름이 'Visual C++ 2015-2022 Redistributable' -> 'Visual C++ v14 Redistributable' 로 바뀌어 패턴 검사가 0건이 됐다. 2015~2022 는 모두 v14 런타임이므로 **메이저 버전 14 이상**으로 판정한다. 아래 pattern 은 참고용으로만 남긴다(판정에 쓰지 않는다)."
   },
   "install_option": {
     "expected_theme": "Pure White",
@@ -46,11 +48,12 @@
       "tls_port": 21113
     },
     "storage_scp": {
-      "_comment": "Bunny는 보통 Viewer와 같은 PC에서 동작한다. 그 경우 host와 servers_to_register의 Storage ip를 모두 127.0.0.1로 둔다. 다른 PC의 Bunny를 쓸 때만 그 PC의 IP를 넣는다.",
-      "app_path": "C:\\Program Files (x86)\\Bunny\\Bunny.exe",
-      "ae_title": "Bunny",
-      "host": "STORAGE_PC_IP",
-      "port": 3000
+      "_comment": "2026-08-26 사용자 지시로 Bunny 를 대체했다. 10.13.0.222 의 DICOM Storage SCP 웹 서버로 **PC 에 Bunny 를 띄우지 않고 바로 전송**한다. 수신 확인은 HTTP API(`api_url`)로 하고, SOP 단위 검증이 필요하면 `/api/studies/<uid>/download` 로 객체를 받아 파싱한다(core/storagescp.py).",
+      "api_url": "http://10.13.0.222:5003",
+      "ae_title": "STORAGE_SCP",
+      "host": "10.13.0.222",
+      "port": 11116,
+      "tls_port": 21116
     },
     "servers_to_register": [
       {
@@ -62,10 +65,10 @@
       },
       {
         "kind": "Storage",
-        "name": "BUNNY_TEST",
-        "ae_title": "Bunny",
-        "ip": "STORAGE_PC_IP",
-        "port": 3000
+        "name": "STORAGE",
+        "ae_title": "STORAGE_SCP",
+        "ip": "10.13.0.222",
+        "port": 11116
       },
       {
         "kind": "Print",
@@ -75,9 +78,10 @@
         "port": 11113
       }
     ],
-    "received_root": "C:\\Program Files (x86)\\Bunny\\Temp",
     "print_received_root": "",
-    "_received_root_note": "Bunny는 수신 객체를 Receive가 아니라 Temp에 저장한다(2026-08-18 실측)."
+    "_received_root_note": "2026-08-26: Bunny 를 쓰지 않는다. 수신 객체는 파일 시스템이 아니라 Storage SCP 웹 API 로 확인한다 — `core/storagescp.py` 참고. `received_root` 는 더 이상 쓰지 않는다.",
+    "clear_storage_before_send": true,
+    "_clear_storage_note": "2026-08-27 사용자 확정. 이 Storage SCP 는 여러 PC 가 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 **전체**를 지운다. true 면 Send TC 마다 지우고(정확하지만 남의 데이터도 지운다), false 면 지우지 않고 전송 전후 차이로 이번 전송분만 센다. **전체 자동화(run-regression)는 이 값과 무관하게 시작 시 한 번 초기화한다.**"
   },
   "viewer": {
     "exe": "C:\\Program Files\\Bellalun\\VIEWER.exe",
@@ -113,7 +117,9 @@
   "test_data": {
     "account_id": "TEST_USER_FLOW",
     "hospital_code": "HC_FLOW_01",
-    "procedure_name": "PROC_FLOW_01"
+    "procedure_name": "PROC_FLOW_01",
+    "include_3d_wide": true,
+    "_include_3d_wide_note": "2026-08-26 사용자 요청. WF_02 가 픽스처에 3D-W 스텝을 하나 더 만들어 Send TC 가 2D / 3D-N / 3D-W 를 모두 수신 검증하게 한다. 개정본 WF_02 의 판정 범위(2D+3D-N)는 그대로이고 그 뒤에 덧붙인다. 이 픽스처를 쓰는 다른 TC 가 InstanceType 개수를 보고 있다면 false 로 되돌린다."
   },
   "regression": {
     "_comment": "stop_tc_on_fail=true 면 어떤 Step 이 FAIL 하는 순간 그 TC 를 중단하고 다음 TC 로 넘어간다(2026-08-24 사용자 지시 — 어차피 그 TC 는 사람이 직접 보므로 남은 Step 을 수행해 전체 시간을 늘리지 않는다). 남은 Step 은 리포트에 '미수행(FAIL)'로 채워진다. false 로 두면 예전처럼 끝까지 수행한다.",

@@ -73,38 +73,199 @@ def _open_examined_fixture(ctx, ui, target):
     return rows, rank
 
 
-def _film_from_selected_study(ui):
-    buttons = [c for c in ui.by_id(2188) if c.visible]
+def _wait_visible(ui, ctrl_id, timeout, predicate=None, poll=.3):
+    """`ctrl_id` 가 보일 때까지 기다린다(고정 sleep 금지, 운영 지침 1절).
+
+    2026-08-27: 3D 인쇄 패스를 붙이면서 **두 번째 이후 필름 열기가 5초를
+    넘긴다**는 것을 실측했다(첫 패스는 5초 안에 떴다). 고정 대기 뒤 한 번만
+    보던 코드는 이때 "Film window did not open" 으로 죽었다 — 제품 문제가
+    아니라 대기 방식 문제였다.
+    """
+    end = time.time() + timeout
+    while True:
+        found = [c for c in ui.by_id(ctrl_id)
+                 if c.visible and (predicate is None or predicate(c))]
+        if found:
+            return found
+        if time.time() >= end:
+            return []
+        time.sleep(poll)
+
+
+def _film_from_selected_study(ui, timeout=25):
+    buttons = _wait_visible(ui, 2188, 8)
     if not buttons:
         raise RuntimeError("Examined Print button (2188) not found")
     ui.click(buttons[0], settle=1)
-    selected = [c for c in ui.by_id(501) if c.visible]
+    selected = _wait_visible(ui, 501, 8)
     if not selected:
         raise RuntimeError("Print Selected button (501) not found")
-    ui.click(selected[0], settle=5)
-    film = [c for c in ui.by_id(158) if c.visible and c.text == "CWndFilmManager"]
+    ui.click(selected[0], settle=1)
+    film = _wait_visible(ui, 158, timeout,
+                         lambda c: c.text == "CWndFilmManager")
     if not film:
         raise RuntimeError("Film window did not open")
-    one_by_one = [c for c in ui.by_id(1141) if c.visible and c.rect[0] > 1400]
+    one_by_one = _wait_visible(ui, 1141, 8, lambda c: c.rect[0] > 1400)
     if not one_by_one:
         raise RuntimeError("Film 1x1 layout button (1141) not found")
-    ui.click(one_by_one[0], settle=2)
-    managers = [c for c in children(film[0].hwnd, 4)
-                if c.ctrl_id == 203 and c.visible]
-    unique = {c.hwnd: c for c in managers}.values()
-    largest = max(unique, key=lambda c: ((c.rect[2] - c.rect[0]) *
-                                         (c.rect[3] - c.rect[1])), default=None)
-    if not largest:
-        raise RuntimeError("Film 1x1 image pane not found")
+    ui.click(one_by_one[0], settle=1)
+    # 레이아웃 전환도 상태로 기다린다 — 칸이 실제로 필름 전체를 덮을 때까지.
     film_area = ((film[0].rect[2] - film[0].rect[0]) *
                  (film[0].rect[3] - film[0].rect[1]))
-    pane_area = ((largest.rect[2] - largest.rect[0]) *
-                 (largest.rect[3] - largest.rect[1]))
+    end = time.time() + 12
+    largest, pane_area = None, 0
+    while True:
+        managers = [c for c in children(film[0].hwnd, 4)
+                    if c.ctrl_id == 203 and c.visible]
+        unique = {c.hwnd: c for c in managers}.values()
+        largest = max(unique, key=lambda c: ((c.rect[2] - c.rect[0]) *
+                                             (c.rect[3] - c.rect[1])), default=None)
+        pane_area = 0 if largest is None else (
+            (largest.rect[2] - largest.rect[0]) * (largest.rect[3] - largest.rect[1]))
+        if pane_area >= film_area * .85:
+            break
+        if time.time() >= end:
+            break
+        time.sleep(.3)
+    if not largest:
+        raise RuntimeError("Film 1x1 image pane not found")
     if pane_area < film_area * .85:
         raise RuntimeError(
             f"Film layout did not change to 1x1: pane={largest.rect}, film={film[0].rect}")
     return film[0], {"button_id": 1141, "pane": largest.rect,
                      "film": film[0].rect, "pane_ratio": pane_area / film_area}
+
+
+# ---------------------------------------------------------------------------
+# 3D 커버리지 확장 (2026-08-27 사용자 요청)
+#
+# 사용자 요청: "dicom send/print/export 할 때 3D 의 모든 경우의 수를 전부
+# 테스트하고 싶어. 무지성으로 3D-W 를 촬영하고 싶은 게 아니라 모든 경우의 수의
+# 영향성을 보고 싶다." 기존 WF_08 은 Examined 우측 썸네일 중 **맨 위 한 장
+# (2D LCC)** 만 Selected 로 인쇄해, 3D-N / 3D-W 는 단 한 번도 필름에 오르지
+# 않았다.
+#
+# 실측(2026-08-27):
+#   * Examined 에서 Print(2188) 를 누르면 "Do you want to print all images of
+#     the selected study?" 대화상자가 뜬다 - All Images(502) / Selected(501) /
+#     Cancel(500). `Selected` 는 **그 순간 선택돼 있는 썸네일 한 장**만 필름에
+#     올린다. 그래서 썸네일을 바꿔 가며 세 번 돌리면 2D / 3D-N / 3D-W 를 각각
+#     인쇄할 수 있다.
+#   * 우측 썸네일은 `text == "ScrollWnd"` 이고 x > 1600 인 컨트롤이며, 위에서
+#     부터 `LCC` / `LCC (3D-N)` / `LCC (3D-W)` 다. **ctrl_id 를 믿으면 안 된다**
+#     - 같은 날 같은 화면에서 13/14/15 와 11/12 를 모두 관측했다(창을 다시 열면
+#     달라진다). y 정렬로 순서를 잡고 **라벨 OCR** 로 종류를 확정한다.
+#   * Print SCP 가 돌려주는 job 메타데이터는 Film 단위(id / received_at /
+#     calling_ae_title / film_size_id)라 **어떤 영상이 실렸는지는 알려 주지
+#     않는다**. 따라서 "필름 프리뷰 == 서버 프리뷰" 만 보면 세 번 모두 같은
+#     영상을 보내도 전부 통과해 버린다. 그래서 교차 대조를 함께 한다 - 각
+#     서버 프리뷰는 **자기 필름과 가장 닮아야** 한다. 임의의 유사도 임계값을
+#     새로 고르지 않아도 되고("3D-N 과 3D-W 가 얼마나 달라야 하는가"는 근거를
+#     댈 수 없는 수치다), 세 장이 실제로 다른 영상이라는 것이 증명된다.
+_THUMB_LABEL_BAND = 26          # 썸네일 하단 라벨 띠 높이(실측)
+
+
+def _thumbnail_controls(ui):
+    """Examined 우측 썸네일 컨트롤을 위에서 아래 순서로 돌려준다."""
+    found = {}
+    for c in ui.controls():
+        if c.visible and c.text == "ScrollWnd" and c.rect[0] > 1600:
+            found[c.hwnd] = c          # core.ui.children 은 중복을 준다
+    return sorted(found.values(), key=lambda c: c.rect[1])
+
+
+def _thumb_label(control, tesseract_exe):
+    import pytesseract
+
+    if tesseract_exe:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
+    box = (control.rect[0], control.rect[3] - _THUMB_LABEL_BAND,
+           control.rect[2], control.rect[3] + 2)
+    image = ImageGrab.grab(bbox=box, all_screens=True).convert("L")
+    image = ImageOps.autocontrast(image)
+    image = image.resize((image.width * 4, image.height * 4))
+    return pytesseract.image_to_string(image, config="--psm 7", lang="eng").strip()
+
+
+def _thumbnails(ui, tesseract_exe):
+    """썸네일 목록을 라벨 OCR 로 2D / 3D-N / 3D-W 로 분류한다."""
+    out = []
+    for c in _thumbnail_controls(ui):
+        label = ""
+        if tesseract_exe:
+            try:
+                label = _thumb_label(c, tesseract_exe)
+            except Exception:
+                label = ""
+        # `_norm` 은 영숫자만 남긴다: 'LCC(3D-N) ,t,@' -> 'lcc3dnt'
+        norm = _norm(label)
+        kind = "3D-N" if "3dn" in norm else "3D-W" if "3dw" in norm else "2D"
+        out.append({"control": c, "rect": c.rect, "label": label, "kind": kind})
+    return out
+
+
+def _ensure_thumbnails(ctx, ui, target, tesseract_exe, expected=2, wait=8):
+    """썸네일이 보일 때까지 기다리고, 안 보이면 Examined 를 다시 열어 잡는다."""
+    end = time.time() + wait
+    while time.time() < end:
+        if len(_thumbnail_controls(ui)) >= expected:
+            return _thumbnails(ui, tesseract_exe)
+        time.sleep(.4)
+    _open_examined_fixture(ctx, ui, target)     # 필름을 닫고 돌아온 뒤 복구
+    return _thumbnails(ui, tesseract_exe)
+
+
+def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known,
+                     job_timeout=90):
+    """썸네일 한 장을 Selected 로 필름에 올려 인쇄하고 서버 프리뷰까지 받는다.
+
+    반환: `{"film": 필름 캡처 경로, "web": 서버 프리뷰 경로, "job": job, ...}`
+    """
+    ui.click(thumb["control"], settle=1.0)
+    film, layout = _film_from_selected_study(ui)
+    Path(evidence_dir).mkdir(parents=True, exist_ok=True)
+    film_path = os.path.join(evidence_dir, f"07_film_{tag}.png")
+    ImageGrab.grab(bbox=film.rect, all_screens=True).save(film_path)
+
+    print_buttons = [c for c in ui.by_id(1149) if c.visible]
+    if not print_buttons:
+        raise RuntimeError(f"{tag}: Film Print button (1149) not found")
+    ui.click(print_buttons[0], settle=2)
+    dialog = ui.dialog()
+    if dialog:
+        buttons = ui.dialog_buttons(dialog)
+        if len(buttons) == 1:          # 단일 버튼 안내창만 닫는다
+            ui.click(buttons[0], settle=1)
+
+    jobs = server.wait_for_jobs(count=1, timeout=job_timeout, poll=.5,
+                                exclude_ids=known)
+    if not jobs:
+        raise RuntimeError(
+            f"{tag}: Print SCP did not receive a new job within {job_timeout} seconds")
+    job = jobs[-1]
+    web_path = os.path.join(evidence_dir, f"07_print_job_{tag}_{job['id']}.png")
+    Path(web_path).write_bytes(server.preview(job["id"]))
+    return {"film": film_path, "web": web_path, "job": job, "layout": layout,
+            "similarity": _image_similarity(film_path, web_path)}
+
+
+def _cross_match(prints):
+    """각 서버 프리뷰가 '자기 필름' 과 가장 닮았는지 본다.
+
+    같은 영상을 세 번 보냈다면 어떤 필름과 비교해도 유사도가 고만고만해져서
+    자기 짝이 최댓값이 되지 못한다. 임계값을 새로 정하지 않고 판정할 수 있다.
+    """
+    kinds = list(prints)
+    table, ok = {}, True
+    for kind in kinds:
+        scores = {other: _image_similarity(prints[other]["film"],
+                                           prints[kind]["web"])["similarity"]
+                  for other in kinds}
+        best = max(scores, key=scores.get)
+        table[kind] = {"scores": scores, "best_match": best}
+        if best != kind:
+            ok = False
+    return ok, table
 
 
 # 필름 OCR 판독·판정은 `core/print_overlay.py` 로 옮겼다(2026-08-21).
@@ -211,6 +372,28 @@ def run(ctx):
                            expected=print_spec, actual=status)
         known = {str(j.get("id")) for j in server.jobs()}
 
+        # 인쇄 대상 썸네일 확인 (2D / 3D-N / 3D-W)
+        wide_enabled = (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True)
+        want = ["2D", "3D-N"] + (["3D-W"] if wide_enabled else [])
+        thumbs = _ensure_thumbnails(ctx, ui, target, tess, expected=len(want))
+        by_kind = {}
+        for item in thumbs:
+            by_kind.setdefault(item["kind"], item)
+        result.assert_true(
+            4, "Examined 썸네일에 " + " / ".join(want) + " 가 모두 존재 (커버리지 확장)",
+            all(kind in by_kind for kind in want),
+            expected=want,
+            actual=[{"kind": t["kind"], "label": t["label"], "rect": t["rect"]}
+                    for t in thumbs],
+            note="개정본 범위 밖의 확장이다 — 3D 의 모든 경우의 수를 Print 까지 "
+                 "태우기 위한 전제 확인이다. 썸네일 ctrl_id 는 창을 다시 열면 "
+                 "바뀌므로 y 순서 + 라벨 OCR 로 고른다(2026-08-27 실측). "
+                 "config.json > test_data.include_3d_wide 로 3D-W 를 끌 수 있다.")
+        if "2D" in by_kind:
+            # 지금까지는 '기본 선택이 맨 위 2D' 라는 암묵적 가정에 기대고
+            # 있었다. 세 패스를 대칭으로 만들면서 명시적으로 고른다.
+            ui.click(by_kind["2D"]["control"], settle=1.0)
+
         film, layout = _film_from_selected_study(ui)
         result.assert_true(5, "Film 레이아웃 1x1 적용",
                            layout["pane_ratio"] >= .85,
@@ -278,6 +461,51 @@ def run(ctx):
             actual={"job_url": f"{server.base}/viewer.html?id={job['id']}",
                     "film_ocr": film_texts, "web_ocr": web_texts,
                     "web_areas": web_values, "image": similarity})
+
+        # --- 3D 인쇄 패스 (커버리지 확장) --------------------------------
+        # 2D 는 위에서 Overlay OCR 까지 끝났다. 3D-N / 3D-W 는 "그 영상이
+        # 실제로 필름에 올라가 Print SCP 까지 갔는가"가 확인할 점이다.
+        prints = {"2D": {"film": film_path, "web": web_path, "job": job,
+                         "similarity": similarity}}
+        known.add(str(job.get("id")))
+        for kind in want[1:]:
+            flows.close_film(ui, tess)
+            thumbs = _ensure_thumbnails(ctx, ui, target, tess, expected=len(want))
+            picked = next((t for t in thumbs if t["kind"] == kind), None)
+            if picked is None:
+                result.add(7, f"{kind} 영상 Film Print (커버리지 확장)", FAIL,
+                           expected=f"{kind} 썸네일 선택",
+                           actual=[t["label"] for t in thumbs],
+                           note="필름을 닫고 돌아온 뒤 썸네일을 다시 찾지 못했다.")
+                continue
+            tag = kind.replace("-", "").lower()
+            done = _print_thumbnail(ui, server, picked, tag, evidence_dir, known)
+            known.add(str(done["job"].get("id")))
+            prints[kind] = done
+            result.attach(done["film"])
+            result.attach(done["web"])
+            result.assert_true(
+                7, f"{kind} 영상 Film Print 후 Print SCP 수신 및 프리뷰 일치 (커버리지 확장)",
+                str(done["job"].get("id")) not in {str(job.get("id"))}
+                and done["similarity"]["similarity"] >= .96,
+                expected={"new_job": True, "image_similarity": ">= 0.96"},
+                actual={"thumbnail": picked["label"], "job": done["job"],
+                        "job_url": f"{server.base}/viewer.html?id={done['job']['id']}",
+                        "image": done["similarity"]},
+                note="Print SCP job 메타데이터는 Film 단위라 어떤 영상이 실렸는지 "
+                     "알려 주지 않는다 — 필름 프리뷰와 서버 프리뷰의 픽셀 일치로 "
+                     "본다. 어느 영상인지는 다음 교차 대조가 증명한다.")
+
+        if len(prints) >= 2:
+            matched, table = _cross_match(prints)
+            result.assert_true(
+                7, "인쇄된 " + " / ".join(prints) + " 필름이 서로 다른 영상 (커버리지 확장)",
+                matched,
+                expected="각 서버 프리뷰는 자기 필름과 가장 닮아야 한다",
+                actual=table,
+                note="같은 영상을 여러 번 보내도 '필름==서버' 판정만으로는 전부 "
+                     "통과한다. 자기 짝이 최댓값인지 보면 임계값을 새로 정하지 "
+                     "않고도 서로 다른 영상임이 증명된다.")
     except Exception as exc:
         result.abort(0, "TC_Basic_WorkFlow_08 실행", exc)
     return result

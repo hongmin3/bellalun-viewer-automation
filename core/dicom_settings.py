@@ -9,37 +9,56 @@ Use=1 단일 활성으로 정리한다(DICOM_PRINT에는 [Use] 컬럼이 없어 
 """
 import os
 import socket
-import subprocess
 import time
 
 from core import flows
 from core.result import TCResult, PASS, FAIL
-from core.ui import ViewerUi, children
+from core.ui import children
 
 PAGE = {"MWL": "mwl", "Storage": "storage", "Print": "print"}
 
 
-def ensure_bunny(cfg):
-    spec = cfg["dicom"]["storage_scp"]
-    exe = spec["app_path"]
-    if not ViewerUi("Bunny").pid:
-        subprocess.Popen([exe], cwd=os.path.dirname(exe))
-        end = time.monotonic() + 15
-        while time.monotonic() < end and not ViewerUi("Bunny").pid:
-            time.sleep(.25)
-    ui = ViewerUi("Bunny")
-    tree = [c for c in ui.by_id(1022) if c.visible and c.cls == "SysTreeView32"]
-    if tree:
-        ui.click(tree[0], settle=.2)
-        ui.raw_key(0x24)  # Home = Storage Server
-        ui.raw_key(0x0D)
-    end = time.monotonic() + 15
-    while time.monotonic() < end:
-        if (tcp_open(spec["host"], int(spec["port"])) or
-                tcp_open("127.0.0.1", int(spec["port"]))):
-            return True
-        time.sleep(.25)
-    return False
+def ensure_storage_reachable(cfg):
+    """Storage SCP 가 전송을 받을 수 있는 상태인지 확인한다.
+
+    2026-08-26 Bunny(로컬 애플리케이션)를 원격 Storage SCP 웹 서버로 바꿨다.
+    **우리가 띄울 것이 없다** — 그래서 '기동' 이 아니라 **'도달 가능'** 을 본다.
+
+    두 가지를 함께 본다. 하나만 보면 조용히 틀린다.
+      - HTTP API `/api/scp-status` 의 `running` — 웹은 살아 있는데 SCP 가 안 떠
+        있는 경우를 걸러낸다.
+      - DICOM 포트 TCP 연결 — API 가 running 이라고 해도 방화벽에 막히면
+        전송은 실패한다.
+
+    반환: `(가능한가, 상세)`. 상세는 판정 `actual` 에 그대로 실을 수 있다.
+    """
+    spec = (cfg.get("dicom") or {}).get("storage_scp") or {}
+    host = spec.get("host")
+    port = int(spec.get("port") or 0)
+    detail = {"ae_title": spec.get("ae_title"), "host": host, "port": port}
+
+    api_url = spec.get("api_url")
+    if api_url:
+        try:
+            from core.storagescp import StorageServer
+            status = StorageServer(api_url, timeout=15).status() or {}
+            detail["api"] = {k: status.get(k) for k in
+                             ("ae_title", "host", "port", "running", "tls_running")}
+            detail["api_running"] = bool(status.get("running"))
+            # 서버가 말하는 AE/Port 가 우리가 등록할 값과 같은지도 본다.
+            if status.get("ae_title") and spec.get("ae_title"):
+                detail["ae_matches"] = (status["ae_title"] == spec["ae_title"])
+            if status.get("port") and port:
+                detail["port_matches"] = (int(status["port"]) == port)
+        except Exception as exc:
+            detail["api_error"] = str(exc)[:140]
+            detail["api_running"] = False
+    else:
+        detail["api_running"] = None      # API 주소가 없으면 TCP 만으로 판단
+
+    detail["tcp_open"] = bool(host and port and tcp_open(host, port))
+    ok = detail["tcp_open"] and detail.get("api_running") is not False
+    return ok, detail
 
 
 def tcp_open(host, port, timeout=2):
@@ -602,10 +621,15 @@ def setup_all(ctx, kinds=None):
         return r
 
     if "Storage" in kinds:
-        if not ensure_bunny(ctx.cfg):
-            r.add(0, "Bunny Storage SCP 시작", FAIL, expected="TCP 3000 LISTEN", actual="연결 실패")
-        else:
-            r.add(0, "Bunny Storage SCP 시작", PASS, expected="TCP 3000 LISTEN", actual="연결 성공")
+        ok, detail = ensure_storage_reachable(ctx.cfg)
+        spec = (ctx.cfg.get("dicom") or {}).get("storage_scp") or {}
+        r.add(0, "Storage SCP 도달 확인", PASS if ok else FAIL,
+              expected=f"{spec.get('ae_title')} @ {spec.get('host')}:"
+                       f"{spec.get('port')} — SCP running + DICOM 포트 연결",
+              actual=detail,
+              note="2026-08-26 Bunny(로컬 앱)를 원격 Storage SCP 웹 서버로 "
+                   "대체했다. 우리가 띄울 것이 없으므로 '기동' 이 아니라 "
+                   "'도달 가능' 을 판정한다.")
     for spec in ctx.cfg["dicom"]["servers_to_register"]:
         kind = spec["kind"]
         if kind not in kinds:

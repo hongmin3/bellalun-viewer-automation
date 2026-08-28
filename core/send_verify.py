@@ -11,14 +11,12 @@ Patient ID / Study·Series·SOP Instance UID 를 DB 원본과 대조하고, SOP 
 `tests/send_flows.py`(삭제됨)에서 분리했다(2026-08-19). 파일명이 담당 TC 를 드러내도록
 TC 함수를 번호별 모듈로 옮기면서, 인프라에 해당하는 이 부분만 core 로 내렸다.
 """
-import os
 import time
 
-from core import dicomlite, flows
+from core import flows, storagescp
 from core import viewer_processing as vp
 from core import dicom_settings as ds
-from core.dicom_settings import ensure_bunny
-from core.result import TCResult, PASS, FAIL, MANUAL
+from core.result import PASS, FAIL, SKIP
 
 # Storage 서버 Option 컨트롤 (Setting > DICOM > Storage), 2026-08-18 실측.
 # Transfer Syntax 관련 상수와 조작은 WF04와 공유하려고
@@ -27,26 +25,101 @@ from core.result import TCResult, PASS, FAIL, MANUAL
 STORAGE_MODALITY = 2460
 
 
-def received(ctx):
-    root = (ctx.cfg.get("dicom") or {}).get("received_root") or ""
-    if not root or not os.path.isdir(root):
+def received(ctx, patient_id=None):
+    """수신 객체를 **DICOM 태그까지 파싱해서** 돌려준다.
+
+    2026-08-26 Bunny(로컬 파일 폴더) 대신 원격 Storage SCP 웹 서버를 쓴다.
+    서버가 주는 목록은 series 단위까지라 SOP 단위 대조에는 모자라므로,
+    스터디 ZIP 을 받아 `dicomlite` 로 파싱한다(`core/storagescp.py`).
+    **반환 형식은 예전 `dicomlite.scan_dir` 과 같다** — 그래서 아래 판정들은
+    Bunny 를 읽던 때와 똑같이 동작한다.
+
+    **`patient_id` 를 주면 그 환자의 스터디만 본다.** 이 서버는 여러 PC 가 함께
+    쓰는 **공유 SCP** 라, 우리가 보내는 사이에 다른 시험이 보낸 객체가 섞인다 —
+    2026-08-26 실측: `WF_06` 판정에 VXvue 가 보낸 `VXVUE_260826_182948` 이
+    끼어들어 "DB 에 없는 UID" 로 FAIL 했다. Bunny(로컬)에는 없던 문제다.
+    필터를 걸면 다운로드도 우리 스터디만 받아 더 빠르다.
+
+    비용이 있으므로(스터디마다 ZIP 다운로드) **확정 시점에만 부른다.**
+    도중 폴링은 `wait_received_stable` 이 가벼운 목록 조회로 한다.
+    """
+    try:
+        srv = storagescp.server(ctx)
+        if patient_id:
+            uids = [s["study_instance_uid"] for s in srv.studies()
+                    if (s.get("patient_id") or "") == patient_id]
+            return srv.objects(study_uids=uids) if uids else []
+        return srv.objects()
+    except Exception:
         return None
-    return dicomlite.scan_dir(root)
 
 
-def clear_received(ctx):
-    """수신 폴더를 비운다. 이번 전송으로 도착한 것만 세기 위한 준비다."""
-    root = (ctx.cfg.get("dicom") or {}).get("received_root") or ""
-    removed = 0
-    if root and os.path.isdir(root):
-        for dirpath, _, files in os.walk(root):
-            for name in files:
-                try:
-                    os.remove(os.path.join(dirpath, name))
-                    removed += 1
-                except OSError:
-                    pass
-    return removed
+def _patient_instance_count(srv, patient_id):
+    """서버 목록에서 그 환자의 인스턴스 수 합계.
+
+    **다운로드하지 않는다** — `/api/studies` 한 번이면 되므로 폴링에 쓸 만큼 싸다.
+    """
+    total = 0
+    for study in srv.studies():
+        if (study.get("patient_id") or "") == patient_id:
+            total += int(study.get("instance_count") or 0)
+    return total
+
+
+def clear_received(ctx, force=False):
+    """수신 목록을 비운다. 이번 전송으로 도착한 것만 세기 위한 준비다.
+
+    **이 서버는 여러 PC 가 함께 쓰고, 개별 스터디 삭제 API 가 없다**
+    (`DELETE /api/studies` = 전체 삭제). 그래서 부를 때마다 **남의 수신 데이터까지
+    지운다.** 판정은 환자 필터(`received(ctx, patient_id)`)로 이미 정확하므로,
+    TC 마다 지울 이유가 없어졌다.
+
+    - `config.json > dicom.clear_storage_before_send` (기본 `false`)
+      → Send TC 가 전송 전에 지울지. 기본은 **지우지 않는다.**
+    - `force=True` → 설정과 무관하게 지운다. **전체 자동화 시작 시 한 번**
+      (`run-regression` 의 환경 초기화 단계)만 이것을 쓴다 — 사용자가 "전체
+      자동화를 수행할 때는 서버를 초기화하고 싶다" 고 확정했다(2026-08-27).
+
+    반환: 지웠으면 지우기 전 스터디 수, 지우지 않았으면 `None`.
+    """
+    if not force:
+        wanted = (ctx.cfg.get("dicom") or {}).get(
+            "clear_storage_before_send", True)
+        if not wanted:
+            return None
+    try:
+        srv = storagescp.server(ctx)
+        before = len(srv.studies())
+        srv.clear()
+        return before
+    except Exception:
+        return 0
+
+
+def _signature_count(signature):
+    """서명 `"<건수>|<최근수신시각>"` 에서 건수만 뽑는다."""
+    try:
+        return int(str(signature or "0").split("|")[0])
+    except (TypeError, ValueError):
+        return 0
+
+
+def configured_station_name(ctx):
+    """전송 객체의 `StationName(0008,1010)` 기대값 — **Setting 값**이다.
+
+    사양이 두 곳에서 못박는다(사양서2 `06. DICOM`).
+      - Storage IOD 표: `Station Name (0008,1010) 3 VNAP **From Config**`
+      - MWL 절: *"Worklist에 표기된 Station Name은 **MWL List에서만 사용된다.**
+        그 외의 Station Name은 **Setting > General > DICOM에 설정된 Station
+        Name**을 사용한다."*
+
+    그래서 **MWL 오더에 넣은 Station Name 이 전송 객체에 실리면 사양 위반**이고,
+    기대값은 `CONFIGURATION.DICOM_COMMON.StationName` 이다. Type 3 / VNAP 이라
+    설정이 비어 있으면 값이 없는 것이 정상이다.
+    """
+    row = ctx.db.one("CONFIGURATION",
+                     "SELECT TOP 1 StationName FROM DICOM_COMMON") or {}
+    return (row.get("StationName") or "").strip()
 
 
 def queue_keys(ctx):
@@ -97,7 +170,8 @@ def db_identity(ctx, patient_id):
     }
 
 
-def wait_received_stable(ctx, wait=60, settle_rounds=3, poll=2.0):
+def wait_received_stable(ctx, patient_id=None, wait=60, settle_rounds=3,
+                         poll=2.0):
     """수신 개수가 **더 늘지 않을 때까지** 기다린 뒤 목록을 확정한다.
 
     이전 구현은 UID가 하나라도 보이면 즉시 break 해서, 실제로 여러 건이 도착해도
@@ -106,20 +180,43 @@ def wait_received_stable(ctx, wait=60, settle_rounds=3, poll=2.0):
     검증할 수 없다 - Selected(1개)와 All(전체)의 차이가 시험 대상이다.
 
     개수가 `settle_rounds`회 연속 같으면 확정한다.
+
+    2026-08-26: 폴링을 **서버 서명**(`/api/studies/signature`, `"건수|최근수신시각"`)
+    으로 바꿨다. 예전에는 회차마다 수신 파일을 전부 파싱했지만, 원격 서버에서는
+    그것이 매번 ZIP 다운로드가 되어 비싸다. 서명이 `settle_rounds` 회 연속 같으면
+    **그때 한 번만** 내려받아 파싱한다. 판정 의미는 그대로다 — 건수가 0 인 동안은
+    안정으로 세지 않으므로, 아무것도 도착하지 않았는데 조기 확정하지 않는다.
     """
+    srv = None
+    try:
+        srv = storagescp.server(ctx)
+    except Exception:
+        pass
+    if srv is None:
+        return []
+
     end = time.time() + wait
-    objects, stable = [], 0
+    last, stable = None, 0
     while time.time() < end:
-        current = received(ctx) or []
-        if current and len(current) == len(objects):
+        try:
+            # 환자를 지정하면 **그 환자의 인스턴스 수**로 본다. 서명은 서버 전체
+            # 기준이라, 공유 SCP 에서 다른 PC 가 보내는 동안 계속 바뀌어 안정을
+            # 못 찾는다(2026-08-26).
+            key = (_patient_instance_count(srv, patient_id) if patient_id
+                   else srv.signature())
+        except Exception:
+            key = None
+        settled = (key > 0 if patient_id
+                   else bool(key) and _signature_count(key) > 0)
+        if settled and key == last:
             stable += 1
             if stable >= settle_rounds:
-                return current
+                break
         else:
             stable = 0
-        objects = current
+        last = key
         time.sleep(poll)
-    return objects
+    return received(ctx, patient_id) or []
 
 
 def ensure_transfer_syntax(ctx, ui, r):
@@ -224,9 +321,52 @@ SOP_CLASS_DBT = "1.2.840.10008.5.1.4.1.1.13.1.3"  # Breast tomosynthesis Image
 SOP_CLASS_RDSR = "1.2.840.10008.5.1.4.1.1.88.67"  # X-Ray Radiation Dose SR
 
 
+def wait_queue_registered(ctx, before, wait=30, poll=1.0):
+    """이번 전송이 **Queue 에 올라올 때까지** 기다리고 새 Key 를 돌려준다.
+
+    Send 를 누른 직후에는 아직 Queue 행이 없을 수 있다. 바로 조회하면 빈 목록이
+    되어 "전송이 등록되지 않았다" 로 오판한다.
+    """
+    end = time.time() + wait
+    added = []
+    while True:
+        added = sorted(queue_keys(ctx) - before)
+        if added or time.time() >= end:
+            return added
+        time.sleep(poll)
+
+
+def wait_queue_settled(ctx, keys, wait=60, poll=1.5):
+    """Queue 항목이 **전부 Done 이 될 때까지** 기다린 뒤 상태를 확정한다.
+
+    수신 객체가 다 도착해도 **Queue 의 `State` 갱신은 조금 늦을 수 있다.**
+    2026-08-26 회귀에서 `WF_05`/`WF_06` 이 이렇게 FAIL 했다 — 3건 중 둘은
+    `State=7`(Done)인데 마지막 하나가 아직 `State=1` 인 채로 판정됐다.
+    **수신 객체 자체는 정상**이었고, 픽스처에 3D-W 를 넣어 전송 객체가 늘면서
+    드러난 것이다.
+
+    고정 대기를 늘리는 대신 **상태를 보고 기다린다**(운영 지침 1절). 다 끝나면
+    즉시 빠져나오므로 정상 회차가 느려지지 않고, 끝내 안 끝나면 그 상태 그대로
+    돌려주어 **무엇이 안 끝났는지 판정에 남는다.**
+    """
+    if not keys:
+        return {}
+    wanted = set(keys)
+    end = time.time() + wait
+    states = {}
+    while True:
+        states = {int(row["Key"]): int(row["State"]) for row in ctx.db.query(
+            "DATA", "SELECT [Key],State FROM DICOM_STORAGE_QUEUE")}
+        if all(states.get(k) == QUEUE_STATE_DONE for k in wanted):
+            return states
+        if time.time() >= end:
+            return states
+        time.sleep(poll)
+
+
 def send_and_verify(ctx, ui, r, patient_id, scope="selected",
                      expect_count=None, expect_types=None, wait=90,
-                     step_queue=3, step_receive=4, step_tags=5):
+                     step_queue=3, step_receive=4, step_tags=5, sender=None):
     """전송 1회를 수행하고 개정본 Step 3~5를 각각 판정한다.
 
     개정본 `TC_Basic_WorkFlow_04`의 Expected는 세 가지를 따로 요구한다.
@@ -239,21 +379,42 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     `expect_count`가 주어지면 **정확히 그 개수**를 요구한다. 이전 구현은 ">=1건"만
     봐서 Selected와 All의 차이를 검증하지 못했다.
     """
-    clear_received(ctx)
+    # 초기화를 **끈 경우에도 개수 판정이 정확**하도록, 전송 전 우리 환자의 객체를
+    # 기록해 두고 아래에서 **새로 생긴 것만** 센다. 지운 경우에는 이 집합이 비어
+    # 있어 아무 영향이 없다(2026-08-27: 공유 SCP 라 전체 삭제를 줄이려고 넣었다).
+    cleared = clear_received(ctx)
+    before_uids = set()
+    if cleared is None:
+        before_uids = {o.get("SOPInstanceUID")
+                       for o in (received(ctx, patient_id) or [])
+                       if o.get("SOPInstanceUID")}
     before_queue = queue_keys(ctx)
     try:
-        sent = flows.send_current_study(ui, scope=scope)
+        # `sender` 를 주면 그 경로로 보낸다. **Dose SR 을 보는 TC 는 반드시
+        # `flows.send_examined_study`(Examined 모드)를 넘겨야 한다** — 사양서1 이
+        # "Examine/View 모드에서 Send 를 클릭했을 때는 Dose SR 을 전송하지 않는다"
+        # 고 못박기 때문이다(`send_examined_study` 주석의 인용 참고).
+        sent = (sender(scope) if sender
+                else flows.send_current_study(ui, scope=scope))
     except Exception as exc:
         r.add(step_queue, f"전송 범위 '{scope}' 선택 후 전송", FAIL,
               expected=f"Send 후 범위 대화상자에서 '{scope}' 선택", actual=str(exc))
         return None
 
-    objects = wait_received_stable(ctx, wait=wait)
-    new_queue = sorted(queue_keys(ctx) - before_queue)
+    # **전송이 끝난 뒤에 수신을 센다.** 순서가 중요하다 — 2026-08-26 실측:
+    # 수신 안정을 먼저 보니 `received_objects=1` 로 확정됐는데, 같은 회차에서
+    # 곧바로 다시 조회하면 4건이었다. 전송이 아직 진행 중인데 서명이 잠깐
+    # 멈춘 것을 "안정" 으로 본 것이다. Queue 가 전부 Done 이면 제품이 보낼 것을
+    # 다 보낸 것이므로, 그때 수신을 세면 조급하게 끊기지 않는다.
+    new_queue = wait_queue_registered(ctx, before_queue)
+    states = wait_queue_settled(ctx, new_queue, wait=max(30, int(wait)))
+    arrived = wait_received_stable(ctx, patient_id, wait=wait)
+    # 초기화를 껐다면 이전 회차 객체가 섞여 있다. 이번 전송분만 남긴다.
+    objects = ([o for o in arrived
+                if o.get("SOPInstanceUID") not in before_uids]
+               if before_uids else arrived)
 
     # --- Step 3: Queue 등록과 Done 상태 --------------------------------
-    states = {int(row["Key"]): int(row["State"]) for row in ctx.db.query(
-        "DATA", "SELECT [Key],State FROM DICOM_STORAGE_QUEUE")}
     added_states = {k: states.get(k) for k in new_queue}
     done = [k for k, v in added_states.items() if v == QUEUE_STATE_DONE]
     r.assert_true(
@@ -286,13 +447,24 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
              "않고 안정될 때까지 기다린 뒤 확정한다(운영 지침 2절).")
 
     # --- Step 5: 식별 Tag 4개 비교 -------------------------------------
+    #
+    # **Dose SR(RDSR)은 영상 UID 대조에서 뺀다.** 영상이 아니라 제품이 검사 단위로
+    # 만드는 보고서라 `DATA.INSTANCE` 에 행이 없다 — 사양서1: *"Dose SR 에서 사용
+    # 시, 내부적으로 영상의 Instance UID 마지막에 '.1.1' 을 붙이기 때문에"*.
+    # 그대로 대조하면 Study UID + '.1.1' 이 "DB 에 없는 UID" 로 잡혀 FAIL 한다
+    # (2026-08-27 실측). RDSR 자체는 호출부(WF_06)가 Patient ID / Study UID 로
+    # 따로 판정한다 — 개정본 WF_06 Step 5 가 그렇게 요구한다.
+    image_objects = [o for o in objects
+                     if o.get("SOPClassUID") != SOP_CLASS_RDSR]
+    dose_sr_objects = [o for o in objects
+                       if o.get("SOPClassUID") == SOP_CLASS_RDSR]
     got = {
-        "PatientID": {o.get("PatientID") for o in objects if o.get("PatientID")},
-        "StudyInstanceUID": {o.get("StudyInstanceUID") for o in objects
+        "PatientID": {o.get("PatientID") for o in image_objects if o.get("PatientID")},
+        "StudyInstanceUID": {o.get("StudyInstanceUID") for o in image_objects
                              if o.get("StudyInstanceUID")},
-        "SeriesInstanceUID": {o.get("SeriesInstanceUID") for o in objects
+        "SeriesInstanceUID": {o.get("SeriesInstanceUID") for o in image_objects
                               if o.get("SeriesInstanceUID")},
-        "SOPInstanceUID": {o.get("SOPInstanceUID") for o in objects
+        "SOPInstanceUID": {o.get("SOPInstanceUID") for o in image_objects
                            if o.get("SOPInstanceUID")},
     }
     mismatch = {
@@ -301,15 +473,47 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
         "SeriesInstanceUID": sorted(got["SeriesInstanceUID"] - identity["series_uids"]),
         "SOPInstanceUID": sorted(got["SOPInstanceUID"] - identity["sop_uids"]),
     }
-    tags_ok = bool(objects) and not any(mismatch.values())
+    tags_ok = bool(image_objects) and not any(mismatch.values())
     r.assert_true(
         step_tags, "원본과 수신 객체의 식별 Tag 비교", tags_ok,
         expected=f"Patient ID / Study·Series·SOP Instance UID 4개가 모두 "
-                 f"{patient_id}의 DB 값과 일치",
+                 f"{patient_id}의 DB 값과 일치 (영상 객체 기준, Dose SR 제외)",
         actual={"received": {k: sorted(v) for k, v in got.items()},
-                "not_in_db": mismatch},
+                "not_in_db": mismatch,
+                "dose_sr_excluded": len(dose_sr_objects)},
         note="DATA의 PATIENT/STUDY/SERIES/INSTANCE와 대조. 개정본 Expected 5가 "
              "요구하는 네 개 태그 전부를 본다.")
+
+    # --- Step 5-b: Station Name (사양: From Config) ----------------------
+    #
+    # 2026-08-26 추가. 사용자가 "MWL 로 만든 환자의 station 값이 잘 send 되는지"
+    # 확인하고 싶어 했는데, **사양은 그렇지 않다고 정한다** — MWL 의 Station Name
+    # 은 MWL List 표시에만 쓰이고, 전송 객체에는 Setting 값이 실린다
+    # (`configured_station_name` 주석의 사양 인용). 그래서 판정을
+    # "Setting 값과 같은가" 로 세운다. MWL 값이 여기 나오면 그것이 결함이다.
+    station_expected = configured_station_name(ctx)
+    station_received = sorted({(o.get("StationName") or "").strip()
+                               for o in objects})
+    detail["received_station_names"] = station_received
+    detail["configured_station_name"] = station_expected
+    if not station_expected:
+        r.add(step_tags, "수신 객체의 Station Name", SKIP,
+              expected="Setting > General > DICOM 의 Station Name",
+              actual=f"설정값이 비어 있어 대조 대상이 없다 "
+                     f"(수신값: {station_received})",
+              note="사양서2 `Station Name (0008,1010) 3 VNAP From Config` — "
+                   "Type 3/VNAP 이라 설정이 비면 값이 없는 것이 정상이다. "
+                   "실제로 확인하려면 Setting > General > DICOM 에 값을 넣는다.")
+    else:
+        r.assert_true(
+            step_tags, "수신 객체의 Station Name",
+            bool(objects) and station_received == [station_expected],
+            expected=station_expected, actual=station_received,
+            note="사양서2 `Station Name (0008,1010) 3 VNAP From Config`, "
+                 "그리고 MWL 절 \"Worklist에 표기된 Station Name은 MWL List에서만 "
+                 "사용된다. 그 외의 Station Name은 Setting > General > DICOM에 "
+                 "설정된 Station Name을 사용한다\". **MWL 오더의 값이 여기 나오면 "
+                 "사양 위반이다.**")
 
     detail.update({"queue_added": new_queue, "tag_mismatch": mismatch})
     if expect_types is not None:

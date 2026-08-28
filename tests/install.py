@@ -16,6 +16,33 @@ from core.result import TCResult, PASS, FAIL, MANUAL
 
 
 # --------------------------------------------------------------------------
+def _version_major(version):
+    """표시 버전에서 메이저 숫자만. 못 읽으면 None."""
+    try:
+        return int(str(version).split(".")[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def vcredist_entries(programs, min_major=14):
+    """설치 목록에서 **v14 계열 Visual C++ 재배포**를 고른다.
+
+    이름은 느슨하게(`Visual C++` + `Redistributable`) 보고 **메이저 버전**으로
+    확정한다. 2015 / 2017 / 2019 / 2022 는 모두 v14 런타임이라 14.x 이고,
+    2005/2010/2012/2013 은 8/10/11/12 라 자연히 걸러진다. 표시명이 또 바뀌어도
+    이 판정은 견딘다(`install_02` Step 1 주석의 실측 근거 참고).
+    """
+    found = []
+    for name, version in (programs or {}).items():
+        low = (name or "").lower()
+        if "visual c++" not in low or "redistributable" not in low:
+            continue
+        major = _version_major(version)
+        if major is not None and major >= min_major:
+            found.append(f"{name} {version}")
+    return sorted(found)
+
+
 def install_01(ctx):
     r = TCResult("TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인")
     rn = ctx.cfg["release_note"]
@@ -86,12 +113,23 @@ def install_02(ctx):
     pre = ctx.cfg["prerequisites"]
 
     # Step 1. VC++ Redistributable
-    pattern = pre["vcredist_pattern"].strip("*").lower()
-    hits = [f"{k} {v}" for k, v in sysinfo.installed_programs().items()
-            if pattern in k.lower()]
-    r.assert_true(1, "Microsoft Visual C++ 2015-2022 Redistributable 설치",
-                  bool(hits), expected="설치됨",
-                  actual="; ".join(hits) if hits else "미설치")
+    min_major = int(pre.get("vcredist_min_major", 14))
+    programs = sysinfo.installed_programs()
+    hits = vcredist_entries(programs, min_major)
+    x64 = [h for h in hits if "x64" in h.lower()]
+    r.assert_true(1, "Microsoft Visual C++ 재배포(2015~2022 = v14) 설치",
+                  bool(hits),
+                  expected=f"이름에 'Visual C++' 와 'Redistributable' 이 있고 "
+                           f"버전이 {min_major}.x 이상인 항목 1건 이상",
+                  actual={"matched": hits, "x64": x64 or "없음"} if hits
+                         else "미설치",
+                  note="**표시명만으로 찾지 않는다.** 2026-08-26 실측: 재배포가 "
+                       "14.50.35719 로 갱신되며 표시명이 'Microsoft Visual C++ "
+                       "2015-2022 Redistributable' -> 'Microsoft Visual C++ v14 "
+                       "Redistributable' 로 바뀌어, 이름 패턴만 보던 검사가 0건이 "
+                       "되고 이 TC 가 FAIL 했다(제품은 정상 설치돼 있었다). "
+                       "2015/2017/2019/2022 는 모두 **v14 런타임**이라 메이저 버전이 "
+                       "14 이므로, 이름은 느슨하게 보고 버전으로 확정한다.")
 
     # Step 2. SQL Server(BELLALUN) 서비스
     svc = sysinfo.service_state(ctx.cfg["sql_service_name"])

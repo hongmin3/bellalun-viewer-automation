@@ -37,6 +37,38 @@ OVERLAY_MARKERS = {
     "Dose mAs": re.compile(r"m[a4]s"),
 }
 
+#: 선량 Overlay 에 **숫자 값**이 찍혔는지 보는 패턴 (`28 kVp` / `32 mAs`).
+#  OCR 변형에 따라 `28 k¥p` / `32 MAS` 로도 읽힌다.
+DOSE_VALUE_MARKERS = {
+    "Dose kVp": re.compile(r"\d\s*k[v¥y]p"),
+    "Dose mAs": re.compile(r"\d\s*m[a4]s"),
+}
+
+#: 선량 Overlay 가 **값 없이 라벨만** 찍혔는지 보는 패턴 (`-- kVp` / `-- mAs`).
+#  실측 크롭에서 `--k¥p` / `-- mAs` 로 읽힌다(bin150/bin110 x psm6).
+DOSE_DASH_MARKERS = {
+    "Dose kVp": re.compile(r"[-—–~_=]{1,3}\s*k[v¥y]p"),
+    "Dose mAs": re.compile(r"[-—–~_=]{1,3}\s*m[a4]s"),
+}
+
+#: 사양서1 **233쪽 SRS 03-50-10** — "영상 종류에 따라 표시 가능한 값이 다른 항목":
+#
+#      항목        2D  3D Raw  3D Recon  3D Sync
+#      Dose kVp    O     O        X         X
+#      Dose mA     O     O        X         X
+#      Dose ms     O     O        X         X
+#      Dose mAs    O     O        X         X
+#
+#  즉 선량 **값**은 2D 와 3D Raw 에만 표시된다. 3D Recon/Sync 는 라벨은 찍히고
+#  값 자리에 `--` 가 들어간다(2026-08-27 실측 크롭
+#  `Evidence/Flow/15_PreSendPreview/02_preview_panel2_bottom.png` — `-- kVp` /
+#  `-- mAs`). **그것이 사양대로의 정상**이므로 값이 없다고 실패로 판정하지 않고,
+#  거꾸로 "값이 있어야 하는 종류에 값이 있는가"를 이 표로 판정한다.
+#  키는 `core/send_verify.INSTANCE_NAMES` 의 InstanceType 이다.
+DOSE_VALUE_BY_INSTANCE_TYPE = {0: True, 1: True, 2: False, 3: False}
+DOSE_SPEC_CITE = ("사양서1 233쪽 SRS 03-50-10 — 영상 종류별 표시 가능 값 표 "
+                  "(Dose kVp/mA/ms/mAs: 2D O, 3D Raw O, 3D Recon X, 3D Sync X)")
+
 #: 환자 정보 Overlay 항목. 값은 DB 에서 가져와 대조한다.
 PATIENT_MARKERS = ("Patient ID", "Birth Date")
 
@@ -115,6 +147,41 @@ def hits(reads, study=None, markers=OVERLAY_MARKERS):
                            else "none")
     found["Birth Date"] = norm(study.get("PatientBirthDate")) in joined
     return found
+
+
+def dose_state(reads):
+    """선량 Overlay 가 **값으로** 찍혔는지 `--` 로 찍혔는지 항목별로 가른다.
+
+    반환: `{"Dose kVp": "value"|"dash"|"none", "Dose mAs": ...}`
+
+    왜 필요한가 — `hits()` 의 `OVERLAY_MARKERS` 는 라벨(`kVp`/`mAs`)만 보므로
+    `28 kVp` 와 `-- kVp` 를 구분하지 못한다. 그런데 사양서1 233쪽 SRS 03-50-10 이
+    **영상 종류마다 표시 가능한 값이 다르다**고 정하므로(위
+    `DOSE_VALUE_BY_INSTANCE_TYPE`), 그 사양을 판정하려면 둘을 갈라야 한다.
+
+    `value` 를 `dash` 보다 우선한다. 여러 전처리 x psm 결과를 합쳐 보기 때문에
+    한 변형이 숫자를 잡음으로 잘못 읽는 것보다 **하나라도 숫자를 읽었으면 값이
+    찍힌 것**으로 보는 편이 안전하다 — 값이 있는데 `dash` 로 판정하면 사양을
+    지킨 제품을 결함으로 만든다.
+    """
+    raw = " ".join(reads.values()).lower()
+    squeezed = raw.replace(" ", "")
+    out = {}
+    for label in DOSE_VALUE_MARKERS:
+        value_rx = DOSE_VALUE_MARKERS[label]
+        dash_rx = DOSE_DASH_MARKERS[label]
+        if value_rx.search(raw) or value_rx.search(squeezed):
+            out[label] = "value"
+        elif dash_rx.search(raw) or dash_rx.search(squeezed):
+            out[label] = "dash"
+        else:
+            out[label] = "none"
+    return out
+
+
+def dose_expected(instance_type):
+    """이 InstanceType 의 영상에 선량 **값**이 표시되어야 하는가(사양)."""
+    return DOSE_VALUE_BY_INSTANCE_TYPE.get(int(instance_type), False)
 
 
 def read_all(ui, evidence_dir, prefix, tesseract_exe, study=None,
