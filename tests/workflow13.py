@@ -29,7 +29,7 @@ r"""TC_Basic_WorkFlow_13 — 계정 추가·수정 및 로그인.
     TC 가 연쇄로 무너진다. 이 저장소는 그런 연쇄 실패를 이미 여러 번 겪었고
     (회귀 7·13·14차), 그때마다 원인 추적에 오래 걸렸다. 그래서 로그인 계정을
     바꾸는 단계는 **복구 절차를 사용자와 합의한 뒤** 붙인다.
-    `NEXT_TASK.md` 에 물어볼 것으로 남겼다.
+    `NEXT_WORK.md` "5. 사용자 판단이 필요한 항목"에 물어볼 것으로 남겼다.
 
 실측한 컨트롤 (2026-08-19, 캡처의 화면 라벨과 rect 대조)
   Setting > System > Account = 페이지 191 (`flows.SETTING_SYSTEM_PAGES`)
@@ -120,6 +120,24 @@ def _account_rows(db):
     return {r["ID"]: r for r in db.query(
         "ACCOUNT", "SELECT [Key],System,[Group],ID,Name FROM ACCOUNT "
                    "ORDER BY [Key]")}
+
+
+def _grab(ui, evidence_dir, name, r):
+    """전체 화면을 캡처해 증거로 붙인다. **못 찍어도 TC 를 중단시키지 않는다.**
+
+    로그인/재기동 직후처럼 화면이 전환되는 순간에는 `ui.main_window()`가
+    잠깐 `None`을 돌려준다 — 2026-08-28 실측: Step 3 저장 직후 이 호출이
+    `AttributeError: 'NoneType' object has no attribute 'rect'`로 죽어 TC 가
+    중단되고 시험 계정도 못 지운 채 남았다. 증거는 참고 자료일 뿐 판정 근거가
+    아니므로, 못 찍으면 건너뛰고 판정은 계속 진행한다.
+    """
+    win = ui.main_window()
+    if not win:
+        return None
+    path = os.path.join(evidence_dir, name)
+    screen.grab(win.rect, path=path)
+    r.attach(path)
+    return path
 
 
 def _password(ctx):
@@ -278,9 +296,18 @@ def _menu_visibility(ui):
             continue
         state = {}
         for name, ctrl_id in pages.items():
-            hits = [c for c in ui.controls(max_depth=8)
-                    if c.ctrl_id == ctrl_id and c.visible
-                    and c.rect[2] - c.rect[0] > 20]
+            # 그룹을 연 직후 페이지 레일이 아직 그려지는 중일 수 있다 — 한 번만
+            # 보면 간헐적으로 "안 보임"이 된다(2026-08-28 실측:
+            # `tool > image_tool`이 이 이유로 거짓 FAIL 이었다). 접근 불가(X)는
+            # 끝까지 안 보여야 하므로 상한을 짧게 둔다.
+            end = time.time() + 3
+            hits = []
+            while not hits and time.time() < end:
+                hits = [c for c in ui.controls(max_depth=8)
+                        if c.ctrl_id == ctrl_id and c.visible
+                        and c.rect[2] - c.rect[0] > 20]
+                if not hits:
+                    time.sleep(0.3)
             state[name] = bool(hits)
         seen[group] = state
     return seen
@@ -393,9 +420,7 @@ def run(ctx):
             after = _account_rows(ctx.db)
         row = after.get(account_id)
 
-        path = os.path.join(evidence_dir, "01_account_added.png")
-        screen.grab(ui.main_window().rect, path=path)
-        r.attach(path)
+        _grab(ui, evidence_dir, "01_account_added.png", r)
 
         r.assert_true(
             1, f"[Setting > System > Account] {account_id} 계정 추가",
@@ -442,9 +467,7 @@ def run(ctx):
             time.sleep(1)
             final = _account_rows(ctx.db)
 
-        path = os.path.join(evidence_dir, "02_account_edited.png")
-        screen.grab(ui.main_window().rect, path=path)
-        r.attach(path)
+        _grab(ui, evidence_dir, "02_account_edited.png", r)
 
         r.assert_equal(
             3, "수정한 계정 정보 저장", edited,
@@ -462,9 +485,7 @@ def run(ctx):
         logged_in_as_test = True
         ui, startup2 = _login_as(ctx, account_id, password)
         entered = flows.ensure_patient_screen(ui)
-        path = os.path.join(evidence_dir, "03_logged_in_as_test.png")
-        screen.grab(ui.main_window().rect, path=path)
-        r.attach(path)
+        _grab(ui, evidence_dir, "03_logged_in_as_test.png", r)
 
         r.assert_true(
             4, "로그오프 후 로그인 화면을 지나 재로그인",
@@ -486,9 +507,7 @@ def run(ctx):
         # --- Step 6: 권한 그룹에 따른 메뉴 접근 (사양서 표 56개 전부) ---------
         seen = _menu_visibility(ui)
         wrong, summary = _compare_with_spec(seen)
-        path = os.path.join(evidence_dir, "04_user_setting_menus.png")
-        screen.grab(ui.main_window().rect, path=path)
-        r.attach(path)
+        _grab(ui, evidence_dir, "04_user_setting_menus.png", r)
 
         r.assert_true(
             6, f"권한 그룹({GROUP_LABEL})에 허용된 메뉴만 접근 가능 "

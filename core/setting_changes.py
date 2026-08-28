@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 r"""여러 Setting 메뉴의 값을 **바꾸고 되돌리는** 변경 세트.
 
-`TC_Basic_WorkFlow_14`(Setting Export/Import) Step 3 — "Theme 또는 검증 대상
-비파괴 설정 1개를 변경한다" — 를 **여러 메뉴로 넓히기 위한** 모듈이다.
+`TC_Basic_WorkFlow_14`(Setting Export/Import) Step 3 — "검증 대상 비파괴 설정을
+여러 메뉴에서 변경한다" — 를 수행하는 모듈이다. 그 Step 원문은 2026-08-28 에
+사용자 승인으로 이 수행에 맞게 고쳤다(그전에는 "Theme 또는 검증 대상 비파괴
+설정 1개"였고, 자동화가 이미 여러 개를 바꾸고 있어 문서와 어긋나 있었다).
 
 ## 왜 1개가 아니라 여러 개인가
 

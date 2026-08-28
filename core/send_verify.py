@@ -76,15 +76,15 @@ def clear_received(ctx, force=False):
 
     - `config.json > dicom.clear_storage_before_send` (기본 `false`)
       → Send TC 가 전송 전에 지울지. 기본은 **지우지 않는다.**
-    - `force=True` → 설정과 무관하게 지운다. **전체 자동화 시작 시 한 번**
-      (`run-regression` 의 환경 초기화 단계)만 이것을 쓴다 — 사용자가 "전체
-      자동화를 수행할 때는 서버를 초기화하고 싶다" 고 확정했다(2026-08-27).
+    - `force=True` → 설정과 무관하게 지운다. **자동화가 서버 내용을 임의로
+      건드리지 않는다는 2026-08-28 사용자 확정에 따라 어떤 자동 실행 경로도
+      이제 `force=True` 로 부르지 않는다** — 필요하면 사람이 직접 호출한다.
 
     반환: 지웠으면 지우기 전 스터디 수, 지우지 않았으면 `None`.
     """
     if not force:
         wanted = (ctx.cfg.get("dicom") or {}).get(
-            "clear_storage_before_send", True)
+            "clear_storage_before_send", False)
         if not wanted:
             return None
     try:

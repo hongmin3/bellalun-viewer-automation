@@ -307,8 +307,9 @@ def run(ctx):
                 "로 남았다. "
                 "**해제 조건**: 실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 "
                 "뒤 재확인. "
-                "**고도화 예정**: Dose SR 전송 자체를 검증하는 자동화는 아직 없다 — "
-                "`NEXT_TASK.md` 의 '고도화 대기 항목' 에 등록해 두었다. "
+                "Dose SR **전송 경로** 자체는 `WF_06`(Examined All Images)과 "
+                "`WF_15`(Pre-send Preview)가 사양 경로로 검증한다 — 이 TC 는 "
+                "검사 종료 Auto Send 경로를 본다. "
                 "**이 실행으로 말할 수 없는 것**: Emergency Auto Send 경로의 "
                 "Dose SR 전송이 정상인지 여부.",
                 expected=f"Dose SR 행 State={sv.QUEUE_STATE_DONE}",
@@ -319,7 +320,7 @@ def run(ctx):
                 "Auto Send 로 영상은 전송됐지만 Dose SR 행이 없다. Demo 가상 촬영은 "
                 "RDSR 생성 조건을 충족하지 않는다(WF_06 과 같은 판단). "
                 "**해제 조건**: 실제 촬영 환경. "
-                "**고도화 예정**: Dose SR 전송 검증 자동화(NEXT_TASK.md 참고). "
+                "Dose SR 전송 경로 자체는 `WF_06`/`WF_15` 가 검증한다. "
                 "**이 실행으로 말할 수 없는 것**: RDSR 자동 전송 여부.",
                 expected="Dose SR 행 1건 이상", actual={"dose_sr": []})
 

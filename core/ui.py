@@ -62,6 +62,12 @@ KEYEVENTF_UNICODE = 0x0004
 u32.SendInput.argtypes = (w.UINT, ctypes.POINTER(_INPUT), ctypes.c_int)
 u32.SendInput.restype = w.UINT
 
+u32.WindowFromPoint.argtypes = (w.POINT,)
+u32.WindowFromPoint.restype = w.HWND
+GA_ROOT = 2
+u32.GetAncestor.argtypes = (w.HWND, ctypes.c_uint)
+u32.GetAncestor.restype = w.HWND
+
 
 def send_unicode(ch):
     """문자 1개를 유니코드 스캔코드로 입력한다. 전송된 이벤트 수를 반환."""
@@ -129,6 +135,33 @@ def _rect_of(hwnd):
     return (r.left, r.top, r.right, r.bottom)
 
 
+def _rect_contains_point(rect, point):
+    """`rect`(l, t, r, b) 가 `point`(x, y) 를 담는지. 다중 모니터 겹침 판정용."""
+    left, top, right, bottom = rect
+    x, y = point
+    return left <= x < right and top <= y < bottom
+
+
+def _pid_of(hwnd):
+    pid = w.DWORD()
+    u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return int(pid.value) or None
+
+
+def _window_at_point(point):
+    """그 화면 좌표를 실제로 담고 있는 **최상위** 창의 hwnd (없으면 None).
+
+    `WindowFromPoint` 는 그 좌표의 가장 안쪽(자식) 창을 돌려주므로,
+    `SetForegroundWindow` 에 쓸 수 있는 최상위 창까지 `GetAncestor(GA_ROOT)`
+    로 올라간다.
+    """
+    pt = w.POINT(int(point[0]), int(point[1]))
+    hwnd = u32.WindowFromPoint(pt)
+    if not hwnd:
+        return None
+    return u32.GetAncestor(hwnd, GA_ROOT) or hwnd
+
+
 def top_windows(pid):
     """지정 프로세스의 보이는 최상위 창 목록."""
     out = []
@@ -171,6 +204,114 @@ SHELL_WINDOW_TITLES = ("Program Manager",)
 SHELL_WINDOW_CLASSES = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
 
 
+#: `SystemParametersInfoW` 의 포그라운드 잠금 타임아웃 항목.
+#  Windows 는 사용자가 다른 창을 쓰는 동안 프로그램이 포커스를 뺏지 못하도록
+#  이 시간(ms) 만큼 `SetForegroundWindow` 를 거부한다. UI 자동화는 그 잠금을
+#  **일시적으로** 0 으로 두고 바로 되돌린다.
+SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000
+SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001
+SPIF_SENDCHANGE = 0x02
+
+
+def _foreground_lock_timeout():
+    """현재 포그라운드 잠금 타임아웃(ms). 읽지 못하면 0 을 돌려준다."""
+    value = ctypes.c_uint(0)
+    try:
+        ok = u32.SystemParametersInfoW(
+            SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ctypes.byref(value), 0)
+    except Exception:                                  # noqa: BLE001
+        return 0
+    return int(value.value) if ok else 0
+
+
+def _set_foreground_lock_timeout(ms):
+    """포그라운드 잠금 타임아웃을 설정한다. 실패해도 예외를 내지 않는다.
+
+    **되돌리기 위해서만** 쓴다 — `force_foreground` 가 0 으로 낮췄다가
+    `finally` 에서 원래 값으로 복원한다. 값을 낮춘 채로 두면 이 PC 를 쓰는
+    사람이 다른 작업을 할 때 창이 멋대로 튀어나온다.
+    """
+    # 이 항목은 값을 **pvParam 자리에 그대로** 넣는다(uiParam 아님).
+    try:
+        u32.SystemParametersInfoW(
+            SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ctypes.c_void_p(int(ms)),
+            SPIF_SENDCHANGE)
+    except Exception:                                  # noqa: BLE001
+        pass
+
+
+#: `SetWindowPos` 로 창을 Z-order 맨 뒤로 보낼 때 쓰는 값.
+HWND_BOTTOM = 1
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
+
+
+class foreground_unlocked:                             # noqa: N801
+    """자동화가 도는 동안 **포그라운드 잠금을 풀어 둔다.**
+
+    `force_foreground` 안에서만 잠깐 0 으로 낮췄다 되돌리면, **Viewer 가 새로
+    뜨는 순간**에는 잠금이 다시 걸려 있어 새 창이 포그라운드를 잡지 못한다.
+    2026-08-28 실측: 이 PC 의 `ForegroundLockTimeout` 이 `2147483647`(INT_MAX)
+    이라 `cold_start(force_restart=True)` 로 재기동한 Viewer 가 끝내 올라오지
+    못했고, 로그인 직전 게이트가 다섯 번 연속 TC 를 중단시켰다.
+
+    그래서 명령 실행 전체를 감싸 **세션 동안 0 으로 유지**하고, 끝나면 원래
+    값으로 되돌린다. 되돌리지 않으면 이 PC 를 쓰는 사람이 다른 작업을 할 때
+    창이 멋대로 튀어나온다.
+
+        with foreground_unlocked():
+            ...  # UI 자동화
+    """
+
+    def __init__(self):
+        self.before = 0
+
+    def __enter__(self):
+        self.before = _foreground_lock_timeout()
+        if not self.before:
+            return self
+        _set_foreground_lock_timeout(0)
+        if _foreground_lock_timeout():
+            # **설정이 거부됐다.** `SPI_SETFOREGROUNDLOCKTIMEOUT` 은 호출
+            # 프로세스가 포그라운드일 때만 받아들여진다(2026-08-28 실측:
+            # 콘솔이 최소화된 상태에서 `SystemParametersInfoW` 가 0 을 돌려줬다).
+            # **자기 콘솔 창**을 잠깐 앞으로 올려 조건을 만든 뒤 다시 시도한다 —
+            # 남의 창을 건드리는 것이 아니라 이 프로세스의 창이다.
+            console = k32.GetConsoleWindow()
+            if console:
+                u32.SetForegroundWindow(console)
+                time.sleep(0.2)
+                _set_foreground_lock_timeout(0)
+        return self
+
+    def __exit__(self, *exc):
+        if self.before:
+            _set_foreground_lock_timeout(self.before)
+        return False
+
+
+def push_window_back(hwnd):
+    """가리는 창을 **Z-order 맨 뒤로** 보낸다. 최소화도 종료도 하지 않는다.
+
+    `SetForegroundWindow` 는 다른 프로세스가 포그라운드를 쥐고 있으면
+    `AttachThreadInput` 과 포그라운드 잠금 해제를 함께 써도 거부될 때가 있다
+    (2026-08-28 실측 — 자동화를 띄운 콘솔 창이 계속 포그라운드를 쥐어 로그인이
+    다섯 번 연속 막혔다). 그때 **가리는 창을 뒤로 보내면** 포그라운드가 비어
+    Viewer 가 올라온다.
+
+    최소화하지 않는 이유: 최소화는 사용자가 창을 잃어버렸다고 느끼고 작업
+    표시줄에서 복구해야 한다. Z-order 만 바꾸면 클릭 한 번으로 돌아오고,
+    창 크기·위치·상태가 그대로다. `SWP_NOACTIVATE` 라 포커스도 옮기지 않는다.
+    """
+    try:
+        return bool(u32.SetWindowPos(
+            hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE))
+    except Exception:                                  # noqa: BLE001
+        return False
+
+
 def force_foreground(hwnd):
     """`SetForegroundWindow` 가 **무시될 때** 쓰는 표준 우회.
 
@@ -202,6 +343,12 @@ def force_foreground(hwnd):
     attached = False
     if target_tid and target_tid != our_tid:
         attached = bool(u32.AttachThreadInput(our_tid, target_tid, True))
+    lock_timeout = _foreground_lock_timeout()
+    if lock_timeout:
+        # 포그라운드 **잠금 타임아웃**이 남아 있으면 `AttachThreadInput` 을
+        # 붙여도 Windows 가 전환을 거부한다. 0 으로 두는 동안만 허용되므로
+        # 값을 읽어 두고 `finally` 에서 **반드시 원래 값으로 되돌린다.**
+        _set_foreground_lock_timeout(0)
     try:
         # **최소화됐을 때만** 복원한다. `ShowWindow(hwnd, SW_RESTORE)` 를 무조건
         # 부르면 **최대화된 창이 이전 크기로 줄어든다.** Viewer 는 전체화면으로
@@ -217,6 +364,8 @@ def force_foreground(hwnd):
         u32.BringWindowToTop(hwnd)
         u32.SetForegroundWindow(hwnd)
     finally:
+        if lock_timeout:
+            _set_foreground_lock_timeout(lock_timeout)
         if attached:
             u32.AttachThreadInput(our_tid, target_tid, False)
 
@@ -386,7 +535,7 @@ class ViewerUi:
                 if (c.text.lower() == t if exact else t in c.text.lower())]
 
     # --- 조작 ----------------------------------------------------------
-    def require_front_for_pointer(self, what="클릭"):
+    def require_front_for_pointer(self, what="클릭", point=None):
         """포인터 조작 **직전**에 Viewer 가 최전면인지 보장한다.
 
         `click` 은 `SetCursorPos` + `mouse_event` 로 **실제 마우스**를 움직인다.
@@ -402,6 +551,15 @@ class ViewerUi:
         (2) 사용자의 다른 프로그램을 임의로 클릭하게 된다. 후자가 더 나쁘다.
 
         비용: 정상 경로는 `foreground_pid()` 한 번(마이크로초)이다.
+
+        **다중 모니터 — `point` 가 그 창의 실제 화면 사각형 밖이면 막지 않는다**
+        (2026-08-28 실측). 최전면 창이 **다른 모니터**에 있으면 클릭 좌표를
+        전혀 덮지 않으므로 실제로는 위험하지 않다. 그런데도 `bring_to_front()`
+        를 부르면 `main_window()` 를 최전면으로 올리는 과정에서 **지금 조작하려는
+        다른 최상위 창(예: Q.C 테스트 창)이 그 뒤로 밀릴 수 있다** — 안 눌러도
+        되는 걸 누르려다 오히려 대상 창을 가리는 역효과다. `point` 를 안 주면
+        (기존 호출부, 키 입력처럼 좌표가 없는 경우) 이 판단을 할 수 없으므로
+        **예전처럼 보수적으로** 막는다.
         """
         if self.is_foreground():
             return True
@@ -416,7 +574,10 @@ class ViewerUi:
             # 여기서 `bring_to_front()` 를 부르는 것조차 해롭다 — 그것이
             # 시험 대상 창을 재배치한다.
             return True
-        result = self.bring_to_front()
+        if point is not None and not _rect_contains_point(
+                _rect_of(blocking["hwnd"]), point):
+            return True
+        result = self.bring_to_front(point=point)
         if result["ok"]:
             return True
         raise RuntimeError(
@@ -426,8 +587,8 @@ class ViewerUi:
 
     def click(self, target, settle=0.4):
         """Control 또는 (x, y)를 클릭한다. **Viewer 가 최전면일 때만** 누른다."""
-        self.require_front_for_pointer("클릭")
         x, y = target.center if isinstance(target, Control) else target
+        self.require_front_for_pointer("클릭", point=(x, y))
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
@@ -442,8 +603,8 @@ class ViewerUi:
         가 더블클릭으로 인식하지 않는다(기본 임계값 500ms). 인라인 편집이 열리지
         않아 "편집할 수 없다"고 오판한 적이 있다(2026-08-20 Hospital Code).
         """
-        self.require_front_for_pointer("더블클릭")
         x, y = target.center if isinstance(target, Control) else target
+        self.require_front_for_pointer("더블클릭", point=(x, y))
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.06)
         for _ in range(2):
@@ -630,7 +791,7 @@ class ViewerUi:
             return None
         if front["pid"] == self.pid or _is_shell_window(front):
             return None
-        return {"title": front["title"], "pid": front["pid"]}
+        return {"title": front["title"], "pid": front["pid"], "hwnd": front["hwnd"]}
 
     def foreground_pid(self):
         """최전면 창의 프로세스 ID 만 읽는다(제목까지 읽지 않아 싸다).
@@ -644,7 +805,7 @@ class ViewerUi:
         u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         return int(pid.value) or None
 
-    def bring_to_front(self, attempts=6, settle=0.6):
+    def bring_to_front(self, attempts=6, settle=0.6, point=None):
         """Viewer를 최전면으로 올리고 **실제로 올라왔는지 확인**한다.
 
         `SetForegroundWindow`는 Windows가 무시할 수 있다(다른 프로세스가 포커스를
@@ -654,20 +815,49 @@ class ViewerUi:
         올리지 못하면 마지막으로 최전면이던 창 정보를 함께 돌려준다. 호출자가
         "무엇이 가리고 있었는지" 보고할 수 있게 하는 것이 목적이다.
 
+        **`point` 가 있으면 그 좌표를 실제로 담고 있는 우리 창을 올린다** —
+        없으면 `main_window()` 를 올린다. `main_window()` 만 올리면 지금 누르려는
+        창이 메인 프레임과 **다른 최상위 창**(예: Q.C 테스트 창, XIPL Studio)일 때
+        메인 프레임이 그 앞으로 나와 **오히려 대상 창을 가릴 수 있다** — 2026-08-28
+        실측: `_qc_recover` 의 Cancel 클릭이 예외 없이 "성공"했는데도 Q.C 테스트
+        창이 닫히지 않았다(클릭이 새로 최전면이 된 메인 프레임으로 들어갔다).
+
         반환: {"ok": bool, "blocking": {...}|None, "attempts": int}
         """
-        win = self.main_window()
-        if not win:
+        hwnd = None
+        if point is not None:
+            candidate = _window_at_point(point)
+            if candidate and self.pid and _pid_of(candidate) == self.pid:
+                hwnd = candidate
+        if hwnd is None:
+            win = self.main_window()
+            hwnd = win.hwnd if win else None
+        if not hwnd:
             return {"ok": False, "blocking": None, "attempts": 0}
+        pushed_back = []
         for attempt in range(1, attempts + 1):
             if self.is_foreground():
-                return {"ok": True, "blocking": None, "attempts": attempt - 1}
+                return {"ok": True, "blocking": None,
+                        "attempts": attempt - 1,
+                        "pushed_back": pushed_back or None}
             # `SetForegroundWindow` 만으로는 다른 앱이 최전면을 쥐고 있을 때
             # 거부당한다. `force_foreground` 가 그 잠금을 푼다(주석 참고).
-            force_foreground(win.hwnd)
+            force_foreground(hwnd)
             time.sleep(settle)
+            # **절반을 써도 안 올라오면 가리는 창을 뒤로 보낸다.**
+            # 잠금 해제와 `AttachThreadInput` 만으로 뚫리지 않는 경우가 있다
+            # (2026-08-28 실측 — 자동화를 띄운 콘솔 창). 최소화·종료가 아니라
+            # Z-order 만 낮추므로 사용자가 클릭 한 번으로 되돌릴 수 있다.
+            if attempt >= max(1, attempts // 2) and not self.is_foreground():
+                blocking = self.blocking_window()
+                if blocking and blocking.get("hwnd") not in pushed_back:
+                    if push_window_back(blocking["hwnd"]):
+                        pushed_back.append(blocking["hwnd"])
+                        force_foreground(hwnd)
+                        time.sleep(settle)
         return {"ok": self.is_foreground(),
-                "blocking": self.blocking_window(), "attempts": attempts}
+                "blocking": self.blocking_window(), "attempts": attempts,
+                "pushed_back": pushed_back or None}
 
     def require_front(self, what="키 입력"):
         """물리 키 입력 **직전**에 Viewer 가 최전면인지 보장한다.

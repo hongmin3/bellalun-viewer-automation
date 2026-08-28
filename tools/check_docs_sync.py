@@ -31,7 +31,6 @@ SOURCES = [
     os.path.join(ROOT, "README.md"),
     os.path.join(ROOT, "AGENTS.md"),
     os.path.join(ROOT, "NEXT_WORK.md"),
-    os.path.join(ROOT, "NEXT_TASK.md"),
     os.path.join(PROJECT, "지식", "[자동화 운영 지침] Bellalun Viewer auto 저장소 구현 규칙.md"),
     os.path.join(PROJECT, "지식", "[자동화 구현 현황] Bellalun Viewer auto 구현 상태.md"),
 ]

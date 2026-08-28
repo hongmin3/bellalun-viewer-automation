@@ -828,26 +828,11 @@ def main():
             reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
                       expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
 
-        # Storage SCP 수신 목록도 **전체 자동화 시작 시 한 번** 비운다
-        # (2026-08-27 사용자 확정). 이 서버는 여러 PC 가 함께 쓰고 개별 스터디
-        # 삭제 API 가 없어 `DELETE /api/studies` 가 전체를 지운다 — 그래서 Send TC
-        # 마다가 아니라 **여기서 한 번만** 지운다. TC 판정은 환자 필터로 이미
-        # 정확하므로 이 초기화가 없어도 틀리지 않는다.
-        from core import send_verify as _sv
-        try:
-            removed = _sv.clear_received(ctx, force=True)
-            reset.add(0, "Storage SCP 수신 목록 초기화", PASS,
-                      expected="전송 판정을 깨끗한 상태에서 시작",
-                      actual=f"지우기 전 스터디 {removed}건",
-                      note="공유 SCP 라 **다른 PC 의 수신 데이터도 함께 지워진다.** "
-                           "전체 자동화 시작 시 한 번만 수행한다.")
-        except Exception as exc:
-            # `MANUAL` 은 이 블록에 import 돼 있지 않다 — `reset.manual()` 을 쓴다.
-            reset.manual(0, "Storage SCP 수신 목록 초기화",
-                         "초기화하지 못해도 판정은 환자 필터로 정확하다. "
-                         "서버 접속만 확인하십시오.",
-                         expected="수신 목록 비우기",
-                         actual=f"실패: {str(exc)[:150]}")
+        # Storage SCP 수신 목록은 **더 이상 자동으로 지우지 않는다**
+        # (2026-08-28 사용자 확정 — 2026-08-27 결정을 뒤집음). 이 서버는 여러 PC 가
+        # 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 전체를
+        # 지운다. TC 판정은 환자 필터(`core/send_verify.received`)로 이미 정확하므로
+        # 초기화 없이도 틀리지 않는다.
         results.append(reset)
         # **개정본 체크리스트의 TC 행 순서대로 수행한다**(사용자 요청 2026-08-20).
         # 체크리스트가 의존성 순서로 설계돼 있어서 행 순서 = 실행 순서가 된다.
@@ -1078,4 +1063,13 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # **포그라운드 잠금을 명령 실행 내내 풀어 둔다.**
+    #
+    # 이 PC 의 `ForegroundLockTimeout` 이 INT_MAX 라 Windows 가 모든 포그라운드
+    # 전환을 거부했고, 그 때문에 재기동한 Viewer 가 올라오지 못해 로그인 직전
+    # 게이트가 TC 를 반복 중단시켰다(2026-08-28 실측). `core/ui.py` 의
+    # `foreground_unlocked` 주석 참고. 끝나면 원래 값으로 되돌린다.
+    from core.ui import foreground_unlocked
+
+    with foreground_unlocked():
+        sys.exit(main())

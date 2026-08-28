@@ -250,7 +250,7 @@ SETTING_DICOM_GENERAL = {
 }
 
 
-def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=8):
+def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=15):
     """Setting 화면의 컨트롤을 누른다. **나타날 때까지 상한을 두고 기다린다.**
 
     Setting 창을 막 열었거나 방금 닫았다 다시 연 직후에는 그룹/페이지 레일이
@@ -258,6 +258,11 @@ def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=8):
     을 한 번 더 여닫은 뒤 `Setting > System > My Settings`(193)를 찾지 못해 TC 가
     Step 4 에서 중단됐다. 고정 대기를 늘리는 대신 **실제로 나타나는 것**을
     기다린다.
+
+    상한을 8초에서 15초로 올렸다(2026-08-28). 짧은 시간에 Viewer 를 반복
+    강제 재기동하며 여러 TC 를 돌리는 동안, 평소 잘 되던 Update 버튼(2226) 조차
+    8초 안에 나타나지 않아 `WF_13` 이 중단됐다 — `_need()` 가 같은 이유로 이미
+    8초에서 20초로 올린 전례와 같은 계열이다.
     """
     end = time.time() + timeout
     hits = []
@@ -414,6 +419,30 @@ VIEW_INSTANCE_TYPE = {"raw": 2122, "recon": 2123, "syn": 2124}
 VIEW_CLOSE = 2204          # View 모드의 닫기(366x64, Examine 의 2204 와 같은 ID)
 EXAMINED_VIEW_BUTTON = 2182  # Examined 창 하단의 `View`
 
+
+def close_view_study(ui, settle=3.0, dialog_timeout=3):
+    """View 로 연 검사를 닫고 Examined 목록으로 돌아간다.
+
+    **검사를 연 TC 는 반드시 이것으로 닫는다.** 열어 둔 채 끝나면 다음 TC 가
+    Examined 화면을 찾지 못한다 — 2026-08-28 실측: `WF_04` 가 닫지 않고 끝나
+    뒤따른 `WF_06` 이 `Examined 검색 컨트롤(2177/2178/2179)을 찾지 못했습니다`
+    로 진입조차 못 했다.
+
+    반환: 닫았으면 `{"closed": True, "dialog": bool}`, 닫기 버튼이 없으면 `None`
+    (이미 Examined 이거나 다른 화면이라는 뜻이라 예외로 만들지 않는다).
+    """
+    from core import uitext
+
+    btn = uitext.visible(ui, VIEW_CLOSE)
+    if not btn:
+        return None
+    ui.click(btn[0], settle=settle)
+    dialog = False
+    if ui.dialog():
+        ui.dismiss_dialog(timeout=dialog_timeout)
+        dialog = True
+    return {"closed": True, "dialog": dialog}
+
 # Examined 창의 Pre-send Preview (WF_15). 2026-08-20 실측 — 사용자가 툴팁 캡처로
 # 버튼을 지목해 줬다.
 #
@@ -491,8 +520,8 @@ def film_window(ui):
 def close_film(ui, tesseract_exe=None, timeout=15):
     """Film 창을 닫는다. **버튼 문구를 OCR 로 확인한 뒤에만 누른다.**
 
-    아이콘/위치 추정으로 버튼을 눌러 네 번 틀린 이력이 있다(NEXT_TASK.md:
-    2184 Import Study / 2196 Pre-send Preview / 2186 Reject Study /
+    아이콘/위치 추정으로 버튼을 눌러 네 번 틀린 이력이 있다(2184 Import Study /
+    2196 Pre-send Preview / 2186 Reject Study /
     2207 Left Implant). 같은 화면에 `Print`(1149)가 나란히 있어서, ID 만 믿고
     누르면 **의도치 않게 실제 출력을 보낼 수 있다.** 그래서 `close` 로 읽히는
     버튼만 누른다.
@@ -1075,16 +1104,68 @@ def select_login_id(ui, user_id, tesseract_exe=None):
     current = (ui.current_login_id() or "").strip()
     if matches(current):
         return {"already": True, "current": current}
-    picked = uitext.pick_combo_by_text(
-        ui, ui.LOGIN_ID_COMBO, user_id, tesseract_exe, what="로그인 ID",
-        match="prefix")
-    after = (ui.current_login_id() or "").strip()
-    if not matches(after):
-        raise FlowError(
-            f"로그인 ID 를 {user_id!r} 로 바꾸지 못했습니다(현재 {after!r}). "
-            f"읽은 항목={picked.get('items_read')}. 엉뚱한 계정으로 로그인하지 "
-            "않도록 중단합니다.")
-    return {"already": False, "current": after, "picked": picked}
+
+    # 1차: OCR 로 항목 문구를 읽어 고른다.
+    picked, ocr_error = None, None
+    try:
+        picked = uitext.pick_combo_by_text(
+            ui, ui.LOGIN_ID_COMBO, user_id, tesseract_exe, what="로그인 ID",
+            match="prefix")
+        after = (ui.current_login_id() or "").strip()
+        if matches(after):
+            return {"already": False, "current": after, "picked": picked}
+    except Exception as exc:                           # noqa: BLE001
+        ocr_error = f"{type(exc).__name__}: {exc}"
+
+    # 2차: **고른 뒤 확인하고, 틀리면 다음 후보로 재시도**한다.
+    #
+    # OCR 이 항목을 잘못 읽으면 1차는 "후보가 하나가 아니다" 로 실패한다
+    # (`pick_combo_by_text` 는 애매하면 아무것도 누르지 않는다 — 옳은 동작이다).
+    # 그런데 이 콤보는 **고른 결과를 `ui.current_login_id()` 로 확인할 수 있으므로**
+    # 후보를 하나씩 눌러 보고 확인하는 편이 안전하고 확실하다. 엉뚱한 계정이
+    # 골라져도 즉시 알아채고 다음 후보로 넘어가며, 끝내 못 찾으면 예외를 던진다.
+    # (`tests/xipl_flows._click_general_param_combo` 와 같은 방식이다.)
+    tried = []
+    for index in range(_LOGIN_ID_MAX_CANDIDATES):
+        items = _login_id_items(ui)
+        if index >= len(items):
+            break
+        ui.click(items[index], settle=0.8)
+        after = (ui.current_login_id() or "").strip()
+        tried.append(after)
+        if matches(after):
+            return {"already": False, "current": after,
+                    "picked": {"wanted": user_id, "by": "확인 후 재시도",
+                               "attempt": index + 1, "tried": tried,
+                               "ocr_error": ocr_error}}
+    raise FlowError(
+        f"로그인 ID 를 {user_id!r} 로 바꾸지 못했습니다. "
+        f"OCR 선택={ocr_error or (picked and picked.get('items_read'))}, "
+        f"후보를 눌러 확인한 결과={tried}. 엉뚱한 계정으로 로그인하지 "
+        "않도록 중단합니다.")
+
+
+#: 로그인 ID 콤보에서 눌러 볼 후보 수 상한. 계정이 이보다 많으면 그 사실이
+#  예외에 남는다 — 조용히 일부만 보고 "없다" 고 하지 않기 위한 상한이다.
+_LOGIN_ID_MAX_CANDIDATES = 12
+
+
+def _login_id_items(ui):
+    """로그인 ID 콤보를 열고 항목 컨트롤을 위에서부터 돌려준다."""
+    from core.ui import children
+
+    hits = [c for c in ui.by_id(ui.LOGIN_ID_COMBO) if c.visible]
+    if not hits:
+        return []
+    popups = [w for w in ui.windows() if w.text == "ItemList"]
+    if not popups:
+        ui.click(hits[0], settle=0.8)
+        popups = [w for w in ui.windows() if w.text == "ItemList"]
+    if not popups:
+        return []
+    return sorted({c.hwnd: c for c in children(popups[0].hwnd, 4)
+                   if c.visible and c.text == "TextButton"}.values(),
+                  key=lambda c: c.rect[1])
 
 
 def cold_start(cfg, db, on_event=None, force_restart=None):

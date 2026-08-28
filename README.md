@@ -30,11 +30,10 @@ python run.py run-regression
    P0/P1/P2, 사용자 판단이 필요한 항목.
 4. **`..\지식\[자동화 운영 지침] ...md`** — 영구 구현 규칙과 사고 이력. 상단의
    **"증상 → 원인 → 조치" 빠른 색인**부터 본다.
-5. **`NEXT_TASK.md`** — 누적 인수인계(실측 컨트롤 ID, 확정한 제품 동작). 통독하지 말고
-   **필요할 때 검색**한다.
 
 > 1~3만 읽으면 "무엇을 하는 저장소이고 지금 무엇이 문제인가"까지 파악됩니다.
-> 4~5는 코드를 실제로 고칠 때 엽니다.
+> 4는 코드를 실제로 고칠 때 엽니다. 과거에 실측으로 확정한 사실(컨트롤 ID,
+> 제품 동작)은 **코드 주석·상수**에 있고, 그 경위는 `git log`로 찾습니다.
 
 ---
 
@@ -61,8 +60,6 @@ Bellalun Viewer\
    ├─ config.example.json    설정 템플릿 (config.json 은 커밋하지 않는다)
    ├─ AGENTS.md              저장소 작업 규칙
    ├─ NEXT_WORK.md           현재 상태와 다음 할 일
-   ├─ NEXT_TASK.md           누적 인수인계 (실측 컨트롤 ID·확정한 제품 동작)
-   ├─ Archive\               끝난 기록 (tools/prune_docs.py 가 내려 둔 원문)
    ├─ Reports\               리포트 4종 + 체크리스트 결과 xlsx   ┐
    ├─ Evidence\              단계별 캡처·크롭 (판정 근거 이미지)  │ 전부
    └─ work\ Temp\ Log\ Cache\  런타임 산출물                      ┘ 커밋 제외
@@ -89,7 +86,6 @@ Bellalun Viewer\
 | `tools/traceability.py` | 인용·쪽·SRS·모듈·명령·Step 범위를 원문과 대조 |
 | `tools/check_docs_sync.py` | 운영 문서 갱신 누락 · HTML 재생성 누락 |
 | `tools/report_numbers.py` | 문서에 적을 수치를 리포트·저장소에서 재계산 |
-| `tools/prune_docs.py` | 끝난 기록을 `Archive/`로 이관, 문서 읽기 비용 점검 |
 | `tools/run_regression.py` | 회귀 Python 바깥에서 비정상 종료 감시 (권장 진입점) |
 | `tools/automation_status.py` | 마지막 완료 전체 회귀 경과일 |
 | `tools/render_docs.py` | 프로젝트 루트의 운영 상세 문서를 md → html 로 재생성 |
@@ -109,7 +105,7 @@ Bellalun Viewer\
 | 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import 로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). **자동화 결함은 0건.** `TC_Basic_WorkFlow_06` 은 Dose SR 을 제품이 전송 큐에 넣지 않아 BLOCKED |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 68건, 위반 0 |
-| 자체 검사 | `tools/` 도구 11개 + 단위 시험 **71건** |
+| 자체 검사 | `tools/` 도구 11개 + 단위 시험 **82건** |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -358,9 +354,10 @@ XIPL Tomo License 9개 항목뿐입니다. 매뉴얼은 *"설치 정보를 확�
   남기고 **해제 조건**을 적습니다.
 - **수치는 실측합니다.** `tools/report_numbers.py`가 문서에 적을 코드 규모·등급
   건수·회귀 판정을 리포트와 저장소에서 다시 계산합니다.
-- **문서에도 읽는 비용이 있습니다.** 끝난 기록은 지우지 않고 `tools/prune_docs.py`가
-  `Archive/`로 내립니다 — 검색하면 그대로 나오고, 줄어드는 것은 매 세션 읽어야 하는
-  분량뿐입니다.
+- **문서에도 읽는 비용이 있습니다.** 그래서 문서는 4개로 유지하고, 끝난 기록은
+  커밋한 뒤 지웁니다 — 과거 경위는 `git log`에 남고, 줄어드는 것은 매 세션
+  읽어야 하는 분량뿐입니다. 실측 지식은 지우기 전에 **코드 상수나 docstring으로
+  승격**합니다(예: `.img` 파일 구조는 `core/imginfo.py`가 들고 있습니다).
 
 ---
 
@@ -407,6 +404,31 @@ python -m unittest discover -s tests -p "test_*.py"
 
 실행 중에는 **마우스·키보드를 점유합니다.** 사람이 끼어들면 판정이 틀립니다.
 
+### 다른 PC로 옮길 때
+
+절대 좌표·절대 경로를 쓰지 않는 것이 이식성의 핵심입니다. 실행 전 해상도를
+1920×1080으로 맞추고 실제 결과를 검증하며, DPI가 100%가 아니면 조작 전에
+중단합니다. Viewer 조작은 MFC Control ID와 실제 control rectangle로 하고,
+XIPL은 WPF UI Automation을 우선합니다. 팝업 좌표는 팝업 실제 크기에 대한
+비율로 계산하고, 영상 로딩은 고정 sleep 대신 유효 프레임을 기다립니다.
+DB 기준 스냅샷은 저장소 기준 상대경로로 찾아 `sys.master_files` 기반
+`WITH MOVE`로 복원하므로 드라이브 문자에 의존하지 않습니다. 체크리스트 원본도
+`지식` 폴더에서 상대경로로 찾고, `config.json`의 경로는 **실제로 존재할 때만**
+씁니다 — 다른 PC의 Downloads 경로가 박혀 결과 기록이 조용히 빠진 적이 있습니다.
+
+옮겨도 해결되지 않는 제약은 다음과 같습니다.
+
+- 제품 버전이나 UI 언어가 달라 **Control ID가 바뀌면** 새 control map이 필요합니다.
+- Windows 배율은 안전하게 강제 변경할 수 없어 100%가 아니면 중단합니다.
+- 디스플레이 드라이버가 1920×1080을 지원하지 않으면 해상도를 바꾸지 않고 중단합니다.
+- MWL/Storage/Print 연결은 대상 PC의 NIC·방화벽·서버 접근성에 달려 있습니다.
+- 시험 환자 `DATA_FLOW_MWL_01`과 InstanceType 0/1/2/3 데이터가 대상 DB에 있어야 합니다.
+- DICOM Send는 SCP가 수락하는 Transfer Syntax에 달려 있습니다. 자동화가 전송 전에
+  Conformance Statement 선언값(Implicit VR LE)으로 맞추지만, 제품 기본값인
+  JPEG 2000 Lossless로는 conformant SCP가 Presentation Context를 거절합니다.
+- 실물 장비 의존 항목은 자동화 대상이 아닙니다 — Detector/Gantry, 2430 패들(3D 촬영),
+  ACR Phantom, 바코드/QR 스캐너.
+
 ---
 
 ## 10. 문서
@@ -415,9 +437,10 @@ python -m unittest discover -s tests -p "test_*.py"
 |---|---|
 | `AGENTS.md` | 저장소 작업 규칙 (기준 문서 · 작업 순서 · 검증 · Git 규약) |
 | `NEXT_WORK.md` | 현재 상태, 이번 변경, 남은 문제, P0/P1/P2, 다음 세션용 프롬프트 |
-| `NEXT_TASK.md` | 누적 인수인계 기록 (실측 컨트롤 ID · 확정한 제품 동작 · 판정 기준) |
 | `automation_scope.json` | TC별 자동화 등급·사유·커버리지 분류·**못 한 지점과 해제 조건** |
 | `traceability.json` | 사양↔TC 추적성 데이터 (`tools/traceability.py`가 검사) |
-| `Archive/` | **끝난 기록.** `tools/prune_docs.py`가 내려 둔 원문 — 새 세션은 읽지 않아도 되고, 과거 경위를 되짚을 때만 검색합니다 |
-| `PORTABILITY_AUDIT.md` | 다른 QA PC 이식 점검 기록 |
 | `..\지식\` | 판정 근거 원본 — 사양서1/2, Operation/Service Manual, DICOM Conformance Statement, 영구 지침 3종 |
+
+문서는 **이 4개와 데이터 2개**로 유지합니다(2026-08-28 정리). 끝난 기록을
+쌓아 두면 새 세션이 상태를 파악하는 데만 큰 비용이 들어, 완료 기록은 Git
+이력에 맡기고 현재 상태만 문서로 둡니다. 과거 경위는 `git log`로 찾습니다.

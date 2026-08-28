@@ -452,6 +452,12 @@ def add_image_overlay_items(ui, db, labels, position="top"):
     flows.open_setting(ui, wait=3)
     flows.open_setting_group(ui, "display", wait=2)
     flows._click_setting_control(ui, 201, "Display > Overlay", wait=2)
+    # 페이지 전환 직후 목록 컨트롤이 아직 그려지는 중일 수 있다 — 한 번만 보면
+    # 간헐적으로 "못 찾음"이 된다(2026-08-28 실측, `_click_setting_control`과 같은
+    # 폴링 방식을 따른다).
+    end = time.time() + 8
+    while not _visible(ui, OVERLAY_LIST_AVAILABLE) and time.time() < end:
+        time.sleep(0.4)
     if not _visible(ui, OVERLAY_LIST_AVAILABLE):
         raise RuntimeError("Display > Overlay item controls not found")
 
@@ -563,8 +569,14 @@ def ensure_tc01_overlay(ui, db):
     flows.open_setting(ui, wait=3)
     flows.open_setting_group(ui, "display", wait=2)
     flows._click_setting_control(ui, 201, "Display > Overlay", wait=2)
-    available = _visible(ui, 2382)
-    add_top = _visible(ui, 2383)
+    # 페이지 전환 직후 목록 컨트롤이 아직 그려지는 중일 수 있다 — 한 번만 보면
+    # 간헐적으로 "못 찾음"이 된다(2026-08-28 실측, add_image_overlay_items와 같은
+    # 원인·같은 폴링 방식으로 고친다).
+    end = time.time() + 8
+    available, add_top = _visible(ui, 2382), _visible(ui, 2383)
+    while not (available and add_top) and time.time() < end:
+        time.sleep(0.4)
+        available, add_top = _visible(ui, 2382), _visible(ui, 2383)
     if not available or not add_top:
         raise RuntimeError("Display > Overlay item controls not found")
 

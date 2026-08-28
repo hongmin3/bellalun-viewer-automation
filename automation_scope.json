@@ -134,12 +134,12 @@
   {
     "tc_id": "TC_Basic_WorkFlow_04",
     "title": "2D 수동 DICOM Send",
-    "level": "PARTIAL",
-    "reason": "Examined에서 대상 검사를 열고 Send 기능으로 2D 영상을 **Selected Images**로 전송한 뒤, Queue 등록·State=Done(DICOM_STORAGE_QUEUE), 수신 객체 **정확히 1건**, 그리고 개정본 Expected 5가 요구하는 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB와 대조해 자동 판정한다(tests/send_flows.py, run-wf04). 수신 객체가 Digital Mammography X-Ray Image Storage인지 SOP Class로 확인한다. 전송 전 Transfer Syntax를 Conformance Statement 선언값으로 맞춘다. Examined 창 진입 자체는 open_test_study가 대신하므로 Step 1의 UI 경로는 부분 자동이다",
+    "level": "FULL",
+    "reason": "Examined 목록에서 대상 검사 카드를 **이 TC 가 직접 골라** View 로 열고(flows.open_examined_study — 카드 수·순번·선택 카드의 환자 ID OCR 을 Expected 1 의 근거로 남긴다), Send 기능으로 2D 영상을 **Selected Images** 로 전송한 뒤 Queue 등록·State=Done(DICOM_STORAGE_QUEUE), 수신 객체 **정확히 1건**, 그리고 개정본 Expected 5 가 요구하는 식별 Tag 4개(Patient ID / Study·Series·SOP Instance UID)를 DB 와 대조해 자동 판정한다(tests/send_flows.py, tests/workflow04.py, run-wf04). 수신 객체가 Digital Mammography X-Ray Image Storage 인지 SOP Class 로 확인한다. 전송 전 Transfer Syntax 를 Conformance Statement 선언값으로 맞춘다. 이 경로는 사양서1 173쪽 SRS 03-10-50 에 따라 Dose SR 을 전송하지 않으므로 수신이 정확히 1건인 것이 정상이다. 2026-08-28 실측 전 단계 PASS",
     "coverage": {
-      "category": "부분 자동 — 남은 항목 있음",
-      "gap": "전송·Queue·수신·식별 Tag 대조는 전부 자동이다. Step 1 의 Examined 창 진입만 공용 흐름(`viewer_processing.open_test_study`)이 대신하므로 그 UI 경로 자체는 이 TC 가 직접 밟지 않는다.",
-      "unblock": "Examined 목록에서 카드를 직접 골라 여는 경로를 이 TC 에 추가하면 FULL 이 된다."
+      "category": "자동 판정(구현 완료)",
+      "gap": "2026-08-28 에 Step 1 의 Examined 진입을 이 TC 가 직접 밟도록 바꿔(flows.open_examined_study) 전 단계 자동 판정이 됐다. 연 검사는 finally 에서 닫는다.",
+      "unblock": ""
     }
   },
   {
@@ -156,12 +156,12 @@
   {
     "tc_id": "TC_Basic_WorkFlow_06",
     "title": "All Images 및 Dose SR 전송",
-    "level": "PARTIAL",
-    "reason": "All Images 전송을 실제로 수행하고 Queue 등록·State=Done, 수신 객체를 SOP Class로 Image/RDSR 구분해 자동 판정한다(tests/send_flows.py, run-wf06). Storage 설정의 SendDoseSR 활성화를 전제로 확인하고, RDSR이 수신되면 Patient ID·Study Instance UID를 DB와 대조한다. RDSR SOP Class UID는 체크리스트 Test Data(1.2.840.10008.5.1.4.1.1.88.67) 기준. 이 환경은 Demo(F8) 가상 촬영이라 Precondition의 'RDSR 생성 조건 충족'이 성립하는지 확인되지 않아, RDSR 미수신 시 FAIL이 아니라 MANUAL로 보고한다",
+    "level": "FULL",
+    "reason": "**Examined 모드에서** All Images 를 전송해(flows.send_examined_study — Examined 툴바 Send 2189) Queue 등록·State=Done, 수신 객체를 SOP Class 로 Image/RDSR 구분해 자동 판정한다(tests/workflow06.py, run-wf06). Storage 설정의 SendDoseSR 활성화를 전제로 확인하고, RDSR 의 Patient ID·Study Instance UID 를 DB 와 대조한다. RDSR SOP Class UID 는 체크리스트 Test Data(1.2.840.10008.5.1.4.1.1.88.67) 기준이고, Queue 의 Image/DSR 구분은 제품이 ClassUID 를 채우지 않으므로 DataType(0=영상, 1=Dose SR)으로 한다(실측). **경로가 사양을 따르는 것이 핵심이다** — 사양서1 125쪽 SRS 06-30-30 은 'Examined 모드에서 모든 영상을 전송할 때' Dose SR 을 전송한다고 하고, 173쪽 SRS 03-10-50 은 'Examine/View 모드에서 Send 를 클릭했을 때는 전송하지 않는다' 고 한다. 2026-08-27 까지 이 TC 는 검사를 View 로 열고 Send 해서 RDSR 이 오지 않았고 그것을 환경 문제로 오판했다. 2026-08-28 실측: 수신 4건(영상 3 + RDSR 1), RDSR 식별 Tag 일치, 전 단계 PASS",
     "coverage": {
-      "category": "실물 장비·촬영 환경 필요",
-      "gap": "All Images 전송·Queue·수신 객체 SOP Class 구분은 전부 자동이다. 남은 것은 **RDSR(Dose SR)** 뿐이다 — 이 PC 는 실제 X-ray 대신 Demo(F8) 가상 촬영을 쓰므로 개정본 Precondition('RDSR 생성 조건 충족')이 성립하지 않는다. 제품 결함이 아니라 전제 미충족이라 MANUAL 로 보고한다.",
-      "unblock": "실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 뒤 재확인."
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
     }
   },
   {

@@ -69,6 +69,27 @@ DOSE_VALUE_BY_INSTANCE_TYPE = {0: True, 1: True, 2: False, 3: False}
 DOSE_SPEC_CITE = ("사양서1 233쪽 SRS 03-50-10 — 영상 종류별 표시 가능 값 표 "
                   "(Dose kVp/mA/ms/mAs: 2D O, 3D Raw O, 3D Recon X, 3D Sync X)")
 
+#: 패널이 3D 영상인지 알려 주는 View Position 라벨. 제품이 패널 왼쪽 위에
+#  `LCC (3D-N)` / `RCC (3D-W)` 처럼 촬영 모드를 괄호로 붙여 표시한다
+#  (2026-08-28 실측 — Pre-send Preview panel2 top 크롭에서 `LCC (3D-N)` 판독).
+#  2D 패널에는 괄호 표기가 없다.
+PANEL_3D_MARKER = re.compile(r"\(?3[do]-?[nw]\)?")
+
+
+def panel_kind(reads):
+    """패널 Overlay 문구로 **2D 인지 3D 인지** 판별한다.
+
+    선량 표시 사양(`DOSE_VALUE_BY_INSTANCE_TYPE`)이 영상 종류에 따라 갈리므로,
+    패널을 종류별로 나눠 판정하려면 이 구분이 필요하다. 패널 순서와 전송 대상
+    순서를 짝짓는 방식은 쓰지 않는다 — Preview 는 Layout 에 따라 일부만
+    보여주므로(사양서1 132쪽 "기본 Layout 은 1x2") 순서 가정이 깨진다.
+
+    반환: `"3D"` / `"2D"`
+    """
+    text = " ".join(reads.values()).lower()
+    return "3D" if PANEL_3D_MARKER.search(text.replace(" ", "")) else "2D"
+
+
 #: 환자 정보 Overlay 항목. 값은 DB 에서 가져와 대조한다.
 PATIENT_MARKERS = ("Patient ID", "Birth Date")
 

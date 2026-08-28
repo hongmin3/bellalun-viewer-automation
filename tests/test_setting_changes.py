@@ -231,7 +231,7 @@ class ForegroundGuardTest(unittest.TestCase):
         def blocking_window(self):
             return self.result["blocking"]
 
-        def bring_to_front(self):
+        def bring_to_front(self, point=None):
             self.raise_calls += 1
             return self.result
 

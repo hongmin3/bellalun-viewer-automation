@@ -56,7 +56,12 @@ def workflow_06(ctx):
                   note="2026-08-26 Bunny 대신 원격 Storage SCP 웹 서버를 쓴다.")
             return r
 
-        ui = flows.cold_start(ctx.cfg, ctx.db)[0]
+        # **깨끗한 화면에서 시작한다.** 이 TC 는 Examined 목록에서 검사를
+        # 선택하는데, 앞 TC 가 Examine/View 화면을 남기면 그 목록에 닿지도
+        # 못한다 — 2026-08-28 실측: 앞 실행이 남긴 Examine 화면 때문에
+        # `Patient 화면 진입` 이 `landmarks=['status_bar','examine']` 로 FAIL 했다.
+        # WF_04 / WF_15 는 이미 `force_restart=True` 로 같은 문제를 피하고 있었다.
+        ui = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)[0]
         if not flows.ensure_patient_screen(ui):
             r.add(0, "Patient 화면 진입", FAIL,
                   expected="Setting 진입 가능한 Patient 화면",

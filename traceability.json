@@ -191,7 +191,7 @@
     {
       "tc_id": "TC_Basic_WorkFlow_04",
       "title": "2D 수동 DICOM Send",
-      "level": "PARTIAL",
+      "level": "FULL",
       "module": "tests/workflow04.py::run",
       "command": "run-wf04",
       "requirements": [
@@ -273,7 +273,7 @@
     {
       "tc_id": "TC_Basic_WorkFlow_06",
       "title": "All Images 및 Dose SR 전송",
-      "level": "PARTIAL",
+      "level": "FULL",
       "module": "tests/workflow06.py::run",
       "command": "run-wf06",
       "requirements": [
@@ -636,6 +636,15 @@
           "steps": [
             3,
             4
+          ]
+        },
+        {
+          "doc": "사양서1",
+          "page": 288,
+          "srs": "SRS 03-50-250",
+          "quote": "기본 Layout은 1x2이다.",
+          "steps": [
+            3
           ]
         }
       ]

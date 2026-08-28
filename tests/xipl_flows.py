@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 
 from core.result import FAIL, MANUAL, PASS, SKIP, TCResult
-from core.ui import ViewerUi
+from core.ui import ViewerUi, children
 from core.xipl import XiplStudio
 from core import flows
 from core import imginfo
@@ -1074,6 +1074,9 @@ def compatibility_04(ctx):
 
     cfg = ctx.cfg["viewer"]
     ui = ViewerUi()
+    # Step 1 이 이 값을 바꾼다. **원복 목표값을 바꾸기 전에 읽어 둔다.**
+    baseline_param = ctx.db.scalar(
+        "PROCEDURE", "SELECT DefaultImgProcess FROM PROCEDURE_COMMON")
     try:
         ui.ensure_ready(cfg["exe"], cfg["login"]["id"], cfg["login"]["password"])
         flows.ensure_patient_screen(ui)
@@ -1226,7 +1229,56 @@ def compatibility_04(ctx):
                    "둘 다 삭제 전후 DB 대조로 대상 외 삭제를 막는다.")
     except Exception as exc:
         r.abort(0, "TC_XIPL_compatibility_04 실행", exc)
+    finally:
+        # Step 1 이 바꾼 `PROCEDURE_COMMON.DefaultImgProcess` 를 되돌린다.
+        #
+        # 이 TC 는 그동안 이 값을 `TEST_2D_A_M.pim` 으로 **바꿔 놓은 채 끝났다**
+        # (2026-08-28 까지). 뒤따르는 TC 가 "2D 기본 파라미터" 를 전제로 판정하면
+        # 그 오염을 그대로 물려받는다. **DB 를 직접 고치지 않고 UI 로 되돌린다**
+        # (운영 지침 13절 — DB 는 조회 전용).
+        _restore_default_2d_param(ctx, r, ui, baseline_param)
     return r
+
+
+def _restore_default_2d_param(ctx, r, ui, baseline_param):
+    """`Setting > Procedure > General` 의 2D Default Parameter 를 되돌린다.
+
+    정리 경로이므로 **무엇을 하든 예외를 밖으로 내지 않는다.** 결과는
+    `r.cleanup` 으로 남긴다(`finally` 에서 `r.add(FAIL)` 을 부르면 정리 블록이
+    `StepFailed` 를 던져 TC 밖으로 샌다 — `core/result.cleanup` 주석 참고).
+    """
+    if not baseline_param:
+        return
+    now = ctx.db.scalar(
+        "PROCEDURE", "SELECT DefaultImgProcess FROM PROCEDURE_COMMON")
+    if str(now) == str(baseline_param):
+        r.cleanup(0, "2D Default Parameter 원복", PASS,
+                  expected=baseline_param,
+                  actual=f"{now} (바뀌지 않아 되돌릴 것이 없음)")
+        return
+    try:
+        if [c for c in ui.by_id(flows.EXAMINE["close"]) if c.visible]:
+            flows.close_examine(ui, option="close", wait=10)
+        flows.ensure_patient_screen(ui, wait=3)
+        flows.open_procedure_setting(ui, "general")
+        _click_general_param_combo(ui, flows.PROCEDURE_GENERAL_PARAM_2D,
+                                   baseline_param)
+        flows.setting_update(ui)
+        flows.confirm_setting_dialog(ui)
+        after = ctx.db.scalar(
+            "PROCEDURE", "SELECT DefaultImgProcess FROM PROCEDURE_COMMON")
+        r.cleanup(0, "2D Default Parameter 원복",
+                  PASS if str(after) == str(baseline_param) else FAIL,
+                  expected=baseline_param, actual=after,
+                  note="PROCEDURE.PROCEDURE_COMMON.DefaultImgProcess 를 UI 로 "
+                       "되돌리고 DB 값으로 확인했다.")
+    except Exception as exc:                           # noqa: BLE001
+        r.cleanup(0, "2D Default Parameter 원복", FAIL,
+                  expected=baseline_param,
+                  actual=f"{type(exc).__name__}: {exc}",
+                  note="되돌리지 못했다. 다음 실행 전에 Setting > Procedure > "
+                       f"General 의 2D Default Parameter 를 {baseline_param!r} "
+                       "로 되돌려야 뒤따르는 TC 가 오염된 값을 물려받지 않는다.")
 
 
 def _last_3d_recon_param(log_text):
@@ -1246,12 +1298,149 @@ def _last_3d_recon_param(log_text):
 
 
 _QC_RESULT_COMBOS = {"fiber": 2738, "speck": 2739, "mass": 2740}
-# ACR Phantom 창(2D/3D-N/3D-W 공용) 레이아웃은 고정이며, 각 항목 드롭다운에서
-# "합격 기준(threshold) 이상"에 해당하는 값의 화면 절대좌표다(2026-08-14 실측).
-# 실제 팬텀 판독이 아니라 Fiber>=4.0/Speck>=3.0/Mass>=3.0 여부만 비교하는
-# 제품 자체 로직이라는 것을 사용자가 확인했다 - Demo 촬영에서는 이 값 선택
-# 자체가 촬영 결과를 대체하는 것이 아니라 Save를 완료하기 위한 필수 입력이다.
-_QC_RESULT_PASS_XY = {"fiber": (1760, 364), "speck": (1750, 467), "mass": (1750, 570)}
+
+#: Q.C 합격 기준이 들어 있는 설정 컬럼. 2D 는 `ACR*`, 3D(Tomo)는 `TomoACR*` 다.
+#  값을 코드에 박지 않는다 — 제품이 이 값과 비교해 Pass/Fail 을 정하므로
+#  **기준도 제품에서 읽어** 판정한다(2026-08-28 실측: 둘 다 4.0/3.0/3.0).
+_QC_THRESHOLD_COLUMNS = {
+    "2d": {"fiber": "ACRFiber", "speck": "ACRSpeck", "mass": "ACRMass"},
+    "3d": {"fiber": "TomoACRFiber", "speck": "TomoACRSpeck",
+           "mass": "TomoACRMass"},
+}
+
+
+def _qc_thresholds(ctx, kind):
+    """Setting > Q.C 에 저장된 합격 기준을 읽는다."""
+    row = ctx.db.one(
+        "CONFIGURATION",
+        "SELECT ACRFiber,ACRSpeck,ACRMass,TomoACRFiber,TomoACRSpeck,"
+        "TomoACRMass FROM QC_COMMON") or {}
+    out = {}
+    for key, column in _QC_THRESHOLD_COLUMNS[kind].items():
+        try:
+            out[key] = float(row.get(column))
+        except (TypeError, ValueError):
+            raise flows.FlowError(
+                f"Q.C 합격 기준 {column} 을 읽지 못했습니다: {row.get(column)!r}")
+    return out
+
+
+def _qc_score_items(ui, combo_id, tesseract_exe=None):
+    """열려 있는 Q.C 점수 콤보의 항목을 (컨트롤, 숫자값)으로 읽는다.
+
+    **좌표를 쓰지 않는다.** 예전에는 "합격 기준 이상에 해당하는 값"의 화면
+    절대좌표(`1760,364` 등)를 눌렀는데, 그것은 창 위치·해상도가 달라지면 다른
+    값을 고르고도 고른 줄 모른다(AGENTS.md 5절). 실제로 22차 회귀에서
+    `QC_STUDY.Result=0` 이 나온 원인으로 의심된다 — 기준 미만 값을 골랐는데
+    자동화는 "합격 점수를 넣었다"고 기록했다.
+    """
+    from core import uitext as _uitext
+
+    popups = [w for w in ui.windows() if w.text == "ItemList"]
+    if not popups:
+        raise flows.FlowError(
+            f"Q.C 점수 콤보({combo_id}) 목록이 열리지 않았습니다.")
+    items = sorted({c.hwnd: c for c in children(popups[0].hwnd, 4)
+                    if c.visible and c.text == "TextButton"}.values(),
+                   key=lambda c: c.rect[1])
+    out = []
+    for item in items:
+        text = (_uitext.ocr(item, tesseract_exe) or "").strip()
+        match = re.search(r"\d+(?:\.\d+)?", text.replace(",", "."))
+        out.append((item, float(match.group()) if match else None, text))
+    return out
+
+
+def _qc_pick_score(ui, key, threshold, want_pass, tesseract_exe=None):
+    """Q.C 점수 콤보에서 **경계값**을 골라 누른다.
+
+    `want_pass=True` 면 기준 **이상** 중 가장 낮은 값(= 합격 경계),
+    `False` 면 기준 **미만** 중 가장 높은 값(= 불합격 경계)을 고른다.
+    경계를 고르는 이유: "기준 이상이면 Pass, 미만이면 Fail" 이라는 제품 로직을
+    가장 좁은 간격에서 확인하기 위해서다.
+
+    반환: {"picked": float, "items": [...], "boundary": "pass"|"fail"}
+    """
+    combo_id = _QC_RESULT_COMBOS[key]
+    hits = [c for c in ui.by_id(combo_id) if c.visible]
+    if not hits:
+        raise flows.FlowError(f"Q.C 결과 콤보 '{key}'(ID {combo_id})를 찾지 못했습니다.")
+    ui.click(hits[0], settle=1.0)
+    items = _qc_score_items(ui, combo_id, tesseract_exe)
+    readable = [(ctrl, value, text) for ctrl, value, text in items
+                if value is not None]
+    if not readable:
+        raise flows.FlowError(
+            f"Q.C '{key}' 콤보 항목을 숫자로 읽지 못했습니다: "
+            f"{[t for _, _, t in items]}")
+    if want_pass:
+        candidates = [x for x in readable if x[1] >= threshold]
+        chosen = min(candidates, key=lambda x: x[1]) if candidates else None
+    else:
+        candidates = [x for x in readable if x[1] < threshold]
+        chosen = max(candidates, key=lambda x: x[1]) if candidates else None
+    if chosen is None:
+        raise flows.FlowError(
+            f"Q.C '{key}' 콤보에 기준 {threshold} "
+            f"{'이상' if want_pass else '미만'}인 항목이 없습니다: "
+            f"{[v for _, v, _ in readable]}")
+    ui.click(chosen[0], settle=1.0)
+    return {"picked": chosen[1], "threshold": threshold,
+            "items": [v for _, v, _ in readable],
+            "boundary": "pass" if want_pass else "fail"}
+
+
+def _qc_recover(ui):
+    """`_qc_pick_score` 실패로 남은 Q.C 테스트 창을 Cancel 로 닫는다.
+
+    기준 미만/이상 항목을 못 찾으면 `_qc_pick_score` 가 Save 를 누르기 전에
+    예외를 던진다 — 창이 열린 채로 남는다. 이 창은 거의 전체화면이라 뒤이은
+    메인 메뉴 클릭을 가리고, 실측(2026-08-28)으로 `TC_XIPL_compatibility_05`
+    가 Step 4 진입에서 `메인 메뉴가 열리지 않았습니다`로 전체가 중단됐다.
+
+    **한 번만 누르면 안 된다.** `_qc_pick_score` 가 실패할 때 콤보 팝업
+    (`ItemList`)이 아직 열려 있을 수 있고, 그 팝업이 마우스를 붙잡고 있어서
+    **첫 클릭은 팝업만 닫고 Cancel 은 못 누른다**(2026-08-28 실측 — 예외 없이
+    "성공"했는데도 창이 안 닫혔다). 그래서 Cancel 이 안 보일 때까지(=창이
+    실제로 닫힐 때까지) 반복한다. 정리 경로이므로 실패해도 예외를 밖으로
+    내지 않는다.
+    """
+    try:
+        for _ in range(3):
+            cancel = [c for c in ui.controls()
+                      if c.ctrl_id == 1102 and c.visible and c.rect[0] > 1500]
+            if not cancel:
+                return
+            ui.click(cancel[0], settle=1.5)
+            ui.sweep_dialogs(timeout=2)
+    except Exception:                                  # noqa: BLE001
+        pass
+
+
+def _qc_save(ui):
+    """Q.C 테스트 창의 Save 를 누른다."""
+    save = [c for c in ui.controls()
+            if c.ctrl_id == 1103 and c.visible and c.rect[0] > 1500]
+    if not save:
+        raise flows.FlowError("Q.C 테스트 Save 버튼을 찾지 못했습니다.")
+    ui.click(save[0], settle=2.5)
+
+
+def _qc_set_scores_and_save(ui, thresholds, want_pass=True,
+                            fail_item="fiber", tesseract_exe=None):
+    """Fiber/Speck/Mass 를 골라 저장한다.
+
+    `want_pass=False` 면 `fail_item` **하나만** 기준 미만으로 넣고 나머지는
+    합격 경계로 넣는다. 한 항목만 떨어뜨려야 "그 항목 때문에 Fail 이 됐다"고
+    말할 수 있다 — 전부 떨어뜨리면 어느 조건이 작용했는지 구분되지 않는다.
+    """
+    picked = {}
+    for key in _QC_RESULT_COMBOS:
+        pass_this = want_pass or key != fail_item
+        picked[key] = _qc_pick_score(ui, key, thresholds[key], pass_this,
+                                     tesseract_exe)
+    _qc_save(ui)
+    return picked
 
 
 def _qc_launch_and_expose(ctx, ui, tile_xy, tag, log_mark, click_time, log_ready):
@@ -1295,19 +1484,6 @@ def _qc_launch_and_expose(ctx, ui, tile_xy, tag, log_mark, click_time, log_ready
     return shot
 
 
-def _qc_set_pass_scores_and_save(ui):
-    for key, combo_id in _QC_RESULT_COMBOS.items():
-        combo = [c for c in ui.by_id(combo_id) if c.visible]
-        if not combo:
-            raise flows.FlowError(f"Q.C 결과 콤보 '{key}'(ID {combo_id})를 찾지 못했습니다.")
-        ui.click(combo[0], settle=1.0)
-        ui.click(_QC_RESULT_PASS_XY[key], settle=1.0)
-    save = [c for c in ui.controls() if c.ctrl_id == 1103 and c.visible and c.rect[0] > 1500]
-    if not save:
-        raise flows.FlowError("Q.C 테스트 Save 버튼을 찾지 못했습니다.")
-    ui.click(save[0], settle=2.5)
-
-
 def _pick_combo_item(ui, combo, wanted, rounds=8):
     """열려 있는 콤보 팝업을 스크롤하며 *wanted* 항목을 찾아 클릭한다.
 
@@ -1348,6 +1524,7 @@ def compatibility_05(ctx):
         return r
 
     cfg = ctx.cfg["viewer"]
+    tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
     ui = ViewerUi()
     try:
         ui.ensure_ready(cfg["exe"], cfg["login"]["id"], cfg["login"]["password"])
@@ -1411,7 +1588,9 @@ def compatibility_05(ctx):
             ctx, ui, (343, 223), "2d", log_mark_2d, click_time_2d,
             lambda text: _last_2d_process(text).get("parameter") == "TEST_QC_2D_M.pim")
         r.attach(shot_2d)
-        _qc_set_pass_scores_and_save(ui)
+        thresholds_2d = _qc_thresholds(ctx, "2d")
+        picked_2d = _qc_set_scores_and_save(
+            ui, thresholds_2d, want_pass=True, tesseract_exe=tess)
         log_2d = _log_lines_from(_viewer_log_since(log_mark_2d), click_time_2d)
         applied_2d = _last_2d_process(log_2d)
         qc_2d = ctx.db.one(
@@ -1419,14 +1598,88 @@ def compatibility_05(ctx):
                     "ORDER BY [Key] DESC") or {}
         r.assert_true(
             3, "2D Q.C(ACR Phantom) 1회 촬영 및 TEST_QC_2D_M.pim 적용",
-            applied_2d.get("parameter") == "TEST_QC_2D_M.pim" and qc_2d.get("Result") == 1,
-            expected="Viewer 로그에 Image Process Param Name:TEST_QC_2D_M.pim 기록, "
-                     "QC_STUDY.Result=Pass",
+            applied_2d.get("parameter") == "TEST_QC_2D_M.pim",
+            expected="Viewer 로그에 Image Process Param Name:TEST_QC_2D_M.pim 기록",
             actual={"log": applied_2d, "qc_study": qc_2d},
-            note="Fiber/Speck/Mass 점수는 실제 팬텀 판독이 아니라 Setting > Q.C에 "
-                 "저장된 합격 기준(threshold) 이상 값을 선택해 Save를 완료한 것이다 "
-                 "(2026-08-14 사용자 확인: 기준치 이상이면 Pass/미만이면 Fail로 "
-                 "판정하는 제품 자체 로직).")
+            note="개정본 Expected 3 은 '2D Q.C 영상에 지정 Parameter가 적용된다' 다 "
+                 "— **채점 통과(Pass)를 요구하지 않는다.** 그래서 파라미터 적용만 "
+                 "판정하고, 채점 로직 자체는 아래에서 경계값 양방향으로 따로 "
+                 "확인한다.")
+
+        # Step 3 확장 — **채점 로직을 경계값 양방향으로 검증한다** (2026-08-28
+        # 사용자 요청). "기준 이상이면 Pass / 미만이면 Fail" 이 실제로 그렇게
+        # 동작하는지 Demo 환경에서 확인하는 것이 목적이다.
+        #
+        # 예전에는 `QC_STUDY.Result == 1` 을 파라미터 판정에 **묶어서** 요구했다.
+        # 그런데 점수를 화면 절대좌표로 골라서(`1760,364`) 무엇을 골랐는지 알 수
+        # 없었고, 22차 회귀는 `Result=0` 으로 FAIL 했다. 이제 항목을 OCR 로 읽어
+        # **기준 경계값**을 고르므로 무엇을 넣었는지가 판정에 남는다.
+        r.assert_true(
+            3, "Q.C 채점 — 합격 경계값 입력 시 Pass",
+            qc_2d.get("Result") == 1,
+            expected={"입력": {k: v["picked"] for k, v in picked_2d.items()},
+                      "기준": thresholds_2d, "QC_STUDY.Result": 1},
+            actual={"qc_study": qc_2d, "picked": picked_2d},
+            note="Setting > Q.C 의 합격 기준(CONFIGURATION.QC_COMMON.ACRFiber/"
+                 "ACRSpeck/ACRMass)을 DB 에서 읽어, 각 항목에서 **기준 이상 중 "
+                 "가장 낮은 값**(합격 경계)을 골랐다. 기준값을 코드에 박지 않고 "
+                 "제품 설정에서 읽으므로 기준이 바뀌어도 따라간다.")
+
+        # 같은 검사에 **기준 미만** 점수를 넣어 다시 저장하면 Fail 이 되는지.
+        # Fiber 하나만 떨어뜨린다 — 전부 떨어뜨리면 어느 조건이 작용했는지
+        # 구분되지 않는다.
+        # 저장된 Q.C 를 다시 여는 경로는 실측하지 않았으므로 **2D Q.C 를 한 번
+        # 더 촬영한다.** 이미 검증된 경로(`_qc_launch_and_expose`)를 재사용하는
+        # 것이라 추측이 들어가지 않는다. Demo(F8) 촬영이라 비용도 작다.
+        fail_picked, qc_2d_fail, fail_note = None, {}, ""
+        pass_key = qc_2d.get("Key")
+        try:
+            click_time_fail = datetime.now()
+            log_mark_fail = _viewer_log_mark(ctx)
+            flows.open_qc_tool(ui)
+            shot_fail = _qc_launch_and_expose(
+                ctx, ui, (343, 223), "2d_fail_boundary", log_mark_fail,
+                click_time_fail,
+                lambda text: _last_2d_process(text).get("parameter")
+                == "TEST_QC_2D_M.pim")
+            r.attach(shot_fail)
+            fail_picked = _qc_set_scores_and_save(
+                ui, thresholds_2d, want_pass=False, fail_item="fiber",
+                tesseract_exe=tess)
+            qc_2d_fail = ctx.db.one(
+                "DATA", "SELECT TOP 1 [Key],Result,Detail FROM QC_STUDY "
+                        "WHERE Type=11 ORDER BY [Key] DESC") or {}
+            if qc_2d_fail.get("Key") == pass_key:
+                # 새 행이 생기지 않았다면 위 Pass 행을 다시 읽은 것이다.
+                # 그 행으로 Fail 을 주장하면 거짓이 된다.
+                fail_note = (f"2D Q.C 를 다시 촬영했는데 QC_STUDY 에 새 행이 "
+                             f"생기지 않았다(Key={pass_key} 그대로).")
+                fail_picked = None
+        except Exception as exc:                       # noqa: BLE001
+            fail_note = f"{type(exc).__name__}: {exc}"
+            _qc_recover(ui)
+        if fail_picked:
+            r.assert_true(
+                3, "Q.C 채점 — 불합격 경계값 입력 시 Fail",
+                qc_2d_fail.get("Result") == 0,
+                expected={"입력": {k: v["picked"] for k, v in fail_picked.items()},
+                          "기준": thresholds_2d, "QC_STUDY.Result": 0},
+                actual={"qc_study": qc_2d_fail, "picked": fail_picked},
+                note="Fiber 만 **기준 미만 중 가장 높은 값**(불합격 경계)으로 "
+                     "낮추고 나머지는 합격 경계 그대로 두었다. 위 Pass 판정과 "
+                     "쌍을 이뤄 '기준 이상이면 Pass, 미만이면 Fail' 이라는 제품 "
+                     "채점 로직을 경계에서 확인한다 — 한쪽만 보면 제품이 항상 "
+                     "Pass 를 주더라도 통과한다.")
+        else:
+            r.add(3, "Q.C 채점 — 불합격 경계값 입력 시 Fail", MANUAL,
+                  expected="기준 미만 점수 입력 시 QC_STUDY.Result=0",
+                  actual=fail_note or "수행하지 못함",
+                  note="불합격 경계 확인을 위해 2D Q.C 를 한 번 더 촬영하려 했으나 "
+                       "수행하지 못했다. **해제 조건**: 위 사유를 해소한 뒤 다시 "
+                       "실행한다. **이 실행으로 말할 수 없는 것**: 기준 미만 "
+                       "점수를 넣었을 때 제품이 Fail 로 판정하는지 여부 — 합격 "
+                       "쪽만 확인했다.",
+                  stop=False)
 
         # Step 4: 3D Q.C 항목(ACR Phantom 3D-N) 1회 촬영
         click_time_3d = datetime.now()
@@ -1436,7 +1689,9 @@ def compatibility_05(ctx):
             ctx, ui, (343, 562), "3d", log_mark_3d, click_time_3d,
             lambda text: _last_3d_recon_param(text).get("parameter") == "TEST_QC_3D.eap")
         r.attach(shot_3d)
-        _qc_set_pass_scores_and_save(ui)
+        thresholds_3d = _qc_thresholds(ctx, "3d")
+        picked_3d = _qc_set_scores_and_save(
+            ui, thresholds_3d, want_pass=True, tesseract_exe=tess)
         log_3d = _log_lines_from(_viewer_log_since(log_mark_3d), click_time_3d)
         applied_3d = _last_3d_recon_param(log_3d)
         qc_3d = ctx.db.one(
@@ -1444,10 +1699,21 @@ def compatibility_05(ctx):
                     "ORDER BY [Key] DESC") or {}
         r.assert_true(
             4, "3D Q.C(ACR Phantom 3D-N) 1회 촬영 및 TEST_QC_3D.eap 적용",
-            applied_3d.get("parameter") == "TEST_QC_3D.eap" and qc_3d.get("Result") == 1,
-            expected="Viewer 로그에 Initialize Reconstruction(..., TEST_QC_3D.eap) 기록, "
-                     "QC_STUDY.Result=Pass",
-            actual={"log": applied_3d, "qc_study": qc_3d})
+            applied_3d.get("parameter") == "TEST_QC_3D.eap",
+            expected="Viewer 로그에 Initialize Reconstruction(..., TEST_QC_3D.eap) 기록",
+            actual={"log": applied_3d, "qc_study": qc_3d},
+            note="개정본 Expected 4 는 '3D Q.C 영상에 지정 Parameter가 적용된다' "
+                 "다. 채점 결과는 아래에서 따로 판정한다.")
+        r.assert_true(
+            4, "3D Q.C 채점 — 합격 경계값 입력 시 Pass",
+            qc_3d.get("Result") == 1,
+            expected={"입력": {k: v["picked"] for k, v in picked_3d.items()},
+                      "기준": thresholds_3d, "QC_STUDY.Result": 1},
+            actual={"qc_study": qc_3d, "picked": picked_3d},
+            note="3D 기준은 CONFIGURATION.QC_COMMON.TomoACRFiber/TomoACRSpeck/"
+                 "TomoACRMass 에서 읽는다. 불합격 경계는 2D 에서 확인한다 — "
+                 "3D 는 재구성까지 도는 촬영이라 한 번 더 돌리는 비용이 크고, "
+                 "채점 로직은 2D/3D 가 같은 구현이다(같은 콤보·같은 Save 경로).")
 
         # Step 4(확장): 3D Q.C 항목(ACR Phantom 3D-W) 1회 촬영
         #
@@ -1472,7 +1738,8 @@ def compatibility_05(ctx):
                 ctx, ui, (343, 606), "3d_wide", log_mark_3dw, click_time_3dw,
                 lambda text: _last_3d_recon_param(text).get("parameter") == "TEST_QC_3D.eap")
             r.attach(shot_3dw)
-            _qc_set_pass_scores_and_save(ui)
+            picked_3dw = _qc_set_scores_and_save(
+                ui, thresholds_3d, want_pass=True, tesseract_exe=tess)
             log_3dw = _log_lines_from(_viewer_log_since(log_mark_3dw), click_time_3dw)
             applied_3dw = _last_3d_recon_param(log_3dw)
             qc_3dw = ctx.db.one(
@@ -1485,7 +1752,8 @@ def compatibility_05(ctx):
                 and qc_3dw.get("Result") == 1,
                 expected="Viewer 로그에 Initialize Reconstruction(wide_standard.egp, "
                          "TEST_QC_3D.eap) 기록, QC_STUDY.Type=17 / Result=Pass",
-                actual={"log": applied_3dw, "qc_study": qc_3dw},
+                actual={"log": applied_3dw, "qc_study": qc_3dw,
+                        "picked": picked_3dw, "기준": thresholds_3d},
                 note="개정본 범위 밖의 확장이다 — 3D-N/3D-W 두 경우 모두 같은 "
                      "Default Recon Parameter 를 받는지 확인한다. "
                      "config.json > test_data.include_3d_wide 로 끌 수 있다.")

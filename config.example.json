@@ -80,8 +80,8 @@
     ],
     "print_received_root": "",
     "_received_root_note": "2026-08-26: Bunny 를 쓰지 않는다. 수신 객체는 파일 시스템이 아니라 Storage SCP 웹 API 로 확인한다 — `core/storagescp.py` 참고. `received_root` 는 더 이상 쓰지 않는다.",
-    "clear_storage_before_send": true,
-    "_clear_storage_note": "2026-08-27 사용자 확정. 이 Storage SCP 는 여러 PC 가 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 **전체**를 지운다. true 면 Send TC 마다 지우고(정확하지만 남의 데이터도 지운다), false 면 지우지 않고 전송 전후 차이로 이번 전송분만 센다. **전체 자동화(run-regression)는 이 값과 무관하게 시작 시 한 번 초기화한다.**"
+    "clear_storage_before_send": false,
+    "_clear_storage_note": "2026-08-28 사용자 확정(2026-08-27 결정을 뒤집음). 이 Storage SCP 는 여러 PC 가 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 **전체**를 지운다 — 자동화가 서버 내용을 건드리지 않도록 항상 false 로 둔다. 판정은 전송 전후 차이(환자 필터)로 이번 전송분만 센다. **전체 자동화(run-regression)도 더 이상 시작 시 강제 초기화하지 않는다.**"
   },
   "viewer": {
     "exe": "C:\\Program Files\\Bellalun\\VIEWER.exe",

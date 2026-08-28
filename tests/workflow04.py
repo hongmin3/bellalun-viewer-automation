@@ -41,7 +41,7 @@ from core import flows
 from core import send_verify as sv
 from core import viewer_processing as vp
 from core.dicom_settings import ensure_storage_reachable
-from core.result import TCResult, FAIL
+from core.result import TCResult, FAIL, PASS
 
 
 def _fixture(ctx, patient_id):
@@ -66,6 +66,7 @@ def workflow_04(ctx):
     r = TCResult("TC_Basic_WorkFlow_04", "2D 수동 DICOM Send")
     patient_id = (ctx.cfg.get("xipl") or {}).get(
         "test_patient_id", "DATA_FLOW_MWL_01")
+    ui = None
     try:
         reachable, storage = ensure_storage_reachable(ctx.cfg)
         if not reachable:
@@ -157,7 +158,31 @@ def workflow_04(ctx):
                      "Dose SR 을 전송하지 않으므로 수신은 영상 1건뿐이어야 한다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_04 실행", exc)
+    finally:
+        # **연 검사를 닫는다.** 이 TC 는 Examined 에서 카드를 골라 View 로 열므로,
+        # 닫지 않으면 다음 TC 가 Examined 화면을 찾지 못한다 — 2026-08-28 실측:
+        # WF_04 직후 `WF_06` 이 `Examined 검색 컨트롤(2177/2178/2179)을 찾지
+        # 못했습니다` 로 진입조차 못 했다. 자기가 만든 화면 상태는 자기가 되돌린다
+        # (운영 지침 12절 — 다른 TC 가 남긴 상태를 가정하지 않는다).
+        _close_view(r, ui)
     return r
+
+
+def _close_view(r, ui):
+    """View 로 연 검사를 닫고 Examined 로 돌아간다. 예외를 밖으로 내지 않는다."""
+    if ui is None:
+        return
+    try:
+        closed = flows.close_view_study(ui)
+        r.cleanup(0, "연 검사 닫기", PASS if closed else FAIL,
+                  expected="View 화면을 닫고 Examined 목록으로 복귀",
+                  actual=closed or "닫기 버튼을 찾지 못했다",
+                  note="다음 TC 가 Examined 진입을 전제하므로 여기서 되돌린다.")
+    except Exception as exc:                           # noqa: BLE001
+        r.cleanup(0, "연 검사 닫기", FAIL,
+                  expected="View 화면을 닫고 Examined 목록으로 복귀",
+                  actual=f"{type(exc).__name__}: {exc}",
+                  note="다음 TC 가 Examined 진입에 실패할 수 있다.")
 
 
 def run(ctx):

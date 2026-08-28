@@ -55,7 +55,8 @@ import time
 # 크롭/OCR/PIL 사용은 `core/image_overlay.py` 로 옮겼다(2026-08-21) — 여기서
 # 다시 import 하면 쓰지 않는 이름이 남아 "이 모듈이 직접 OCR 한다"고 오해된다.
 from core import dicom_settings as ds
-from core import flows, image_overlay, screen
+from core import flows, image_overlay, screen, setting_changes
+from core import viewer_processing as vp
 from core import send_verify as sv
 from core import uitext
 from core.result import FAIL, MANUAL, PASS, SKIP, TCResult
@@ -171,6 +172,63 @@ def run(ctx):
                    "있을 때' 만 Dose SR 을 전송한다. 꺼져 있으면 Dose SR 판정을 "
                    "SKIP 하고 영상 전송만 본다(끄는 것도 정상 설정이다).")
 
+        # **선량 Image Overlay 를 전제로 보장한다.**
+        #
+        # 개정본 Precondition 은 "TC_Basic_WorkFlow_03 이 Pass 이다" 이고, 그
+        # WF_03 이 `Dose kVp`(115) / `Dose mAs`(118)를 Bottom 에 추가한다.
+        # 회귀는 WF_03 이 먼저 돌아 문제가 없지만 **단독 실행에서는 그 전제가
+        # 빠진다** — 2026-08-28 실측: `reset-environment` 직후 `OVERLAY_ITEM` 에
+        # 선량 항목이 없어(Top 6개만) Step 3 이 "선량 Overlay 미표시" 로 FAIL 했다.
+        # 제품 결함이 아니라 전제 미충족이므로, 여기서 **멱등하게 준비**한다
+        # (`add_image_overlay_items` 는 이미 있으면 그대로 두고 실측값만 돌려준다).
+        bottom = vp.OVERLAY_POSITION["bottom"]
+
+        def dose_overlay_state():
+            return {int(row["FieldID"]): int(row["Position"])
+                    for row in ctx.db.query(
+                        "CONFIGURATION",
+                        "SELECT FieldID,Position FROM OVERLAY_ITEM "
+                        "WHERE FieldID IN (115,118)")}
+
+        dose_fields = dose_overlay_state()
+        if len(dose_fields) == 2 and set(dose_fields.values()) == {bottom}:
+            overlay_setup = "이미 설정돼 있어 Setting 을 열지 않았다"
+        else:
+            overlay_setup = vp.add_image_overlay_items(
+                ui, ctx.db, ["Dose kVp", "Dose mAs"], position="bottom")
+            # **Setting 을 거친 뒤에는 재기동한다.** `add_image_overlay_items` 는
+            # Setting 을 열고 저장까지 하지만 창을 닫지 않고, 닫아도 화면이 바로
+            # 돌아오지 않는다 — 2026-08-28 실측: `close_setting` 뒤에도
+            # `메인 메뉴 버튼(2015)을 15초 동안 찾지 못했습니다` 로 중단됐다.
+            # WF_03 도 같은 이유로 Overlay 를 바꾼 뒤 `open_test_study`(내부에서
+            # force_restart)로 화면을 새로 잡는다. 여기서도 같은 방식을 쓴다.
+            setting_changes.close_setting(ui)
+            ui, _restart = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+            if not flows.ensure_patient_screen(ui):
+                raise RuntimeError(
+                    "Overlay 전제를 준비한 뒤 Patient 화면으로 돌아오지 못했습니다")
+            # `ensure_patient_screen`은 Patient 탭만 확인하고 돌아온다 — 상태바
+            # (메인 메뉴 버튼 2015)는 별도로 조금 더 늦게 그려질 수 있다.
+            # 2026-08-28 실측: 위 확인 직후 바로 `_examined_search`로 넘어가면
+            # 그 안의 `open_main_menu`가 상태바를 15초 동안 못 찾고 죽었다 —
+            # Patient 화면 진입과 상태바 렌더링이 같은 신호가 아니었다.
+            found = flows.wait_controls(ui, [flows.STATUS_BAR["menu"]], timeout=20)
+            if not found.get(flows.STATUS_BAR["menu"]):
+                raise RuntimeError(
+                    "Overlay 전제를 준비한 뒤 상태바(메인 메뉴 버튼)가 20초 안에 "
+                    "나타나지 않았습니다.")
+            dose_fields = dose_overlay_state()
+        r.assert_true(
+            1, "[전제] 선량 Image Overlay 항목이 Bottom 에 설정됨",
+            len(dose_fields) == 2 and set(dose_fields.values()) == {bottom},
+            expected={"OVERLAY_ITEM": {115: bottom, 118: bottom}},
+            actual={"설정된 선량 항목": dose_fields, "수행": overlay_setup},
+            note="개정본 Precondition 'TC_Basic_WorkFlow_03 이 Pass 이다' 를 이 TC 가 "
+                 "스스로 만족시킨다 — WF_03 이 Bottom 에 추가하는 항목이라 단독 "
+                 "실행에서는 빠져 있고, 그러면 Step 3 이 제품 결함이 아닌 이유로 "
+                 "FAIL 한다. CONFIGURATION.OVERLAY_ITEM 의 FieldID/Position 으로 "
+                 "확인한다(115=Dose kVp, 118=Dose mAs, Position 1=Bottom).")
+
         known = set(sv.queue_keys(ctx))
         sv.clear_received(ctx)
 
@@ -226,37 +284,59 @@ def run(ctx):
         # 못 읽은 것이 아니라 **읽고도 값/미표시를 구분하지 않았던 것**이다.
         preview_dose = {k: image_overlay.dose_state(v)
                         for k, v in preview_reads.items()}
+        # **패널마다 종류를 판별해 사양표와 대조한다.**
+        #
+        # 패널 수를 전송 대상 수와 맞추려 하지 않는다 — Pre-send Preview 는
+        # 사양서1 132쪽이 정한 대로 **기본 Layout 1x2** 라 전송 대상이 3건이어도
+        # 한 번에 2개만 보여준다(2026-08-28 실측: sendable 3건 / 패널 2개).
+        # 그래서 "보이는 패널 각각이 그 종류의 사양대로 찍혔는가" 로 판정한다.
+        # 종류는 패널 Overlay 의 View Position 표기로 읽는다 — 3D 는
+        # `LCC (3D-N)` 처럼 괄호로 모드를 붙인다(`image_overlay.panel_kind`).
+        preview_kind = {k: image_overlay.panel_kind(v)
+                        for k, v in preview_reads.items()}
         dose_panels = [k for k, v in preview_dose.items()
                        if v["Dose kVp"] == "value" and v["Dose mAs"] == "value"]
         dash_panels = [k for k, v in preview_dose.items()
                        if v["Dose kVp"] == "dash" and v["Dose mAs"] == "dash"]
         unread_dose = [k for k, v in preview_dose.items()
                        if "none" in v.values()]
-        # 전송 대상 중 사양상 선량 **값**이 표시되어야 하는 영상 수.
-        # Preview 에 오르는 3D 는 Recon 뿐이므로(sv.SENDABLE_3D_TYPES) 보통 2D 1건.
+        # 사양 위반 패널 — 2D 인데 값이 없거나, 3D(Recon)인데 값이 찍힌 것.
+        dose_violations = []
+        for key, kind in preview_kind.items():
+            state = preview_dose[key]
+            has_value = (state["Dose kVp"] == "value"
+                         and state["Dose mAs"] == "value")
+            if kind == "2D" and not has_value:
+                dose_violations.append(
+                    {"panel": key, "kind": kind, "state": state,
+                     "기대": "선량 값 표시(사양표 2D=O)"})
+            elif kind == "3D" and has_value:
+                dose_violations.append(
+                    {"panel": key, "kind": kind, "state": state,
+                     "기대": "선량 값 미표시(사양표 3D Recon=X)"})
+        dose_spec_ok = not dose_violations and not unread_dose
+        # 전송 대상 중 사양상 선량 **값**이 표시되어야 하는 영상 수(참고 정보).
         dose_expected_n = sum(
             1 for i in study["sendable"]
             if image_overlay.dose_expected(i["InstanceType"]))
-        dose_dash_n = len(study["sendable"]) - dose_expected_n
-        dose_spec_ok = (len(dose_panels) == dose_expected_n
-                        and len(dash_panels) == dose_dash_n
-                        and not unread_dose)
         r.assert_true(
             3, "각 Step 영상과 설정한 Overlay 항목 표시",
             bool(panels) and birth_ok and bool(pid_panels) and dose_spec_ok,
-            expected={"영상 패널 수": f"전송 대상 {sendable}건에 대응 "
-                                    f"(DB 전체 {len(study['instances'])}건)",
+            expected={"영상 패널": "보이는 패널마다 종류에 맞는 선량 표시 "
+                                "(2D=값 / 3D Recon=`--`)",
                       "생년월일": "모든 패널",
                       "환자 ID": "한 패널 이상에서 원본과 일치",
-                      "선량 값이 찍힌 패널 수": dose_expected_n,
-                      "선량이 `--` 인 패널 수": dose_dash_n},
+                      "사양 위반 패널": "없음"},
             actual={"panels": len(panels), "overlay": preview_hits,
                     "birth_date_all_panels": birth_ok,
                     "patient_id_panels": pid_panels,
+                    "panel_kind": preview_kind,
                     "dose_state": preview_dose,
                     "dose_value_panels": dose_panels,
                     "dose_dash_panels": dash_panels,
                     "dose_unreadable_panels": unread_dose,
+                    "사양 위반 패널": dose_violations or "없음",
+                    "전송 대상 중 값 표시 대상 수(참고)": dose_expected_n,
                     "sendable_types": [sv.INSTANCE_NAMES.get(
                         int(i["InstanceType"]), i["InstanceType"])
                         for i in study["sendable"]],
@@ -265,13 +345,15 @@ def run(ctx):
                  "Overlay 는 패널 위(환자정보)와 아래(선량)를 나눠 읽는다 — 한 곳만 "
                  "읽으면 Bottom 항목을 놓친다. Dose kVp(115)/Dose mAs(118)는 WF_03 이 "
                  "Bottom 에 추가한 항목이고, 환자 ID·생년월일은 DB 값과 대조한다. "
-                 "선량은 **값이 찍힌 패널 수**를 사양표와 대조한다 — "
+                 "선량은 **패널마다 종류를 판별해** 사양표와 대조한다 — "
                  f"{image_overlay.DOSE_SPEC_CITE}. 전송 대상은 2D 와 3D Recon "
                  "이므로(사양서1 125쪽 SRS 06-30-30 '3D 영상은 Recon 영상이 "
-                 "전송된다') 값이 찍혀야 하는 패널은 2D 쪽뿐이고, Recon 패널이 "
+                 "전송된다') 2D 패널에는 값이 찍혀야 하고, Recon 패널이 "
                  "`-- kVp`/`-- mAs` 로 나오는 것이 **사양대로의 정상**이다. "
-                 "패널과 영상을 순서로 짝짓지 않고 **개수로** 대조한다 — 순서 "
-                 "가정 없이 사양표를 검증하기 위해서다.")
+                 "패널 수를 전송 대상 수와 맞추지 않는다 — Preview 는 사양서1 "
+                 "132쪽 '기본 Layout 은 1x2' 라 대상이 3건이어도 2개만 보인다"
+                 "(2026-08-28 실측). 종류는 패널 Overlay 의 View Position 표기"
+                 "(`LCC (3D-N)`)로 읽는다.")
         if unread_dose:
             r.add(3, f"선량 Overlay 를 읽지 못한 패널: {unread_dose}", FAIL,
                   expected="모든 패널에서 선량 항목이 값 또는 `--` 로 판독",
@@ -301,11 +383,37 @@ def run(ctx):
                 "정확히 같은지 — 표시 자체는 확인했고 값 대조를 못 했다.")
 
         # --- Step 5: Send (Step 4 는 창을 닫은 뒤에 비교한다) ----------------
-        send = uitext.visible(ui, flows.PRE_SEND_PREVIEW["send"])
+        #
+        # **버튼이 보일 때까지 기다린다.** Step 3 이 패널마다 크롭·OCR 을 여러 번
+        # 돌아 시간이 걸리는데, 그 뒤 곧바로 조회하면 컨트롤 열거가 비어 오는
+        # 경우가 있다(2026-08-28 실측 — Step 3 은 PASS 인데 Send 만 못 찾았다).
+        # 한 번 보고 없다고 단정하지 않는 것이 이 저장소의 반복된 교훈이다.
+        send = []
+        _send_end = time.time() + 15
+        while time.time() < _send_end:
+            send = uitext.visible(ui, flows.PRE_SEND_PREVIEW["send"])
+            if send:
+                break
+            time.sleep(1)
+        reopened = False
+        if not send:
+            # **Preview 창이 닫혔으면 다시 연다.** Step 3 의 크롭·OCR 이 도는
+            # 동안 창이 사라지는 경우가 있다(2026-08-28 실측 — 같은 코드로
+            # 9차 실행은 Send 를 찾았고 10차는 창 자체가 없었다. 이 창은 포커스를
+            # 잃으면 닫히는 것으로 보인다). Step 3 판정은 이미 끝났으므로 다시
+            # 열어도 판정에 영향이 없고, 아직 전송 전이라 부작용도 없다.
+            window = _open_preview(ui, scope="all")
+            reopened = True
+            _send_end = time.time() + 15
+            while time.time() < _send_end:
+                send = uitext.visible(ui, flows.PRE_SEND_PREVIEW["send"])
+                if send:
+                    break
+                time.sleep(1)
         if not send:
             raise RuntimeError(
-                f"Preview 의 Send({flows.PRE_SEND_PREVIEW['send']})를 "
-                "찾지 못했습니다.")
+                f"Preview 의 Send({flows.PRE_SEND_PREVIEW['send']})를 찾지 "
+                f"못했습니다(창 재오픈 {reopened}).")
         ui.click(send[0], settle=4.0)
         if ui.dialog():
             ui.dismiss_dialog(timeout=3)
@@ -475,11 +583,20 @@ def run(ctx):
             if not rows:
                 raise RuntimeError(f"Examined 목록이 비어 있습니다: {PATIENT_ID}")
             ui.click(rows[0], settle=1.2)
-            view_btn = uitext.visible(ui, flows.EXAMINED_VIEW_BUTTON)
+            # Send 직후라 화면이 아직 정리되는 중일 수 있다. 한 번 보고 없다고
+            # 단정하지 않는다 — 2026-08-28 실측: Step 5~7 이 전부 PASS 한 실행에서
+            # 이 버튼만 못 찾아 Step 4 가 MANUAL 로 빠졌다.
+            view_btn = []
+            _view_end = time.time() + 15
+            while time.time() < _view_end:
+                view_btn = uitext.visible(ui, flows.EXAMINED_VIEW_BUTTON)
+                if view_btn:
+                    break
+                time.sleep(1)
             if not view_btn:
                 raise RuntimeError(
                     f"Examined 의 View 버튼({flows.EXAMINED_VIEW_BUTTON})을 "
-                    "찾지 못했습니다.")
+                    "15초 동안 찾지 못했습니다.")
             ui.click(view_btn[0], settle=8.0)
             view_opened = True
             view_panels = _panels(ui)
@@ -557,13 +674,43 @@ def run(ctx):
         finally:
             if view_opened:
                 try:
-                    vclose = uitext.visible(ui, flows.VIEW_CLOSE)
-                    if vclose:
-                        ui.click(vclose[0], settle=3.0)
-                    if ui.dialog():
-                        ui.dismiss_dialog(timeout=3)
+                    flows.close_view_study(ui)
                 except Exception:                      # noqa: BLE001
                     pass
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_15 실행", exc)
+    finally:
+        # **Preview 창과 열린 검사를 반드시 닫는다.**
+        #
+        # Step 3 에서 중단되면 위의 `close`(Step 4 직전)에 닿지 못해 Preview 창이
+        # 열린 채 끝난다. 그러면 다음 TC 가 Patient/Examined 화면을 찾지 못한다 —
+        # 2026-08-28 실측: 중단된 WF_15 뒤에 돌린 WF_06 이
+        # `landmarks=['status_bar','examine']` 로 진입조차 못 했다.
+        # 자기가 연 창은 자기가 닫는다(운영 지침 12절).
+        _close_leftovers(r, ui)
     return r
+
+
+def _close_leftovers(r, ui):
+    """Pre-send Preview 창과 View 로 연 검사를 닫는다. 예외를 내지 않는다."""
+    if ui is None:
+        return
+    closed = []
+    try:
+        preview = uitext.visible(ui, flows.PRE_SEND_PREVIEW["close"])
+        if preview:
+            ui.click(preview[0], settle=2.5)
+            closed.append("preview")
+            if ui.dialog():
+                ui.dismiss_dialog(timeout=3)
+        if flows.close_view_study(ui):
+            closed.append("view")
+        r.cleanup(0, "남은 창 정리", PASS,
+                  expected="Preview 창과 View 화면을 닫고 Examined 로 복귀",
+                  actual=closed or "닫을 창이 없었다",
+                  note="다음 TC 가 Patient/Examined 진입을 전제하므로 되돌린다.")
+    except Exception as exc:                           # noqa: BLE001
+        r.cleanup(0, "남은 창 정리", FAIL,
+                  expected="Preview 창과 View 화면을 닫고 Examined 로 복귀",
+                  actual=f"{type(exc).__name__}: {exc} (닫은 것: {closed})",
+                  note="다음 TC 가 화면 진입에 실패할 수 있다.")
