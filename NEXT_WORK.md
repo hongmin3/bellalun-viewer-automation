@@ -1,4 +1,4 @@
-# 다음 작업 (2026-08-31 기준)
+# 다음 작업 (2026-08-31 후반 기준)
 
 > **문서 지도 — 이 문서의 역할과 다른 3개 문서와의 관계**
 > 이 문서는 **현재 상태와 다음에 할 일**만 담는다 — 최신 회귀 결과, 이번 회차에 바꾼 것, 남은 문제, P0/P1/P2, **사용자 판단이 필요한 항목(5절)**, 다음 세션용 프롬프트(6절).
@@ -15,8 +15,8 @@
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
 | **최신 전체 회귀** | 26차, 2026-08-26 18:52~20:28 — TC 27건: PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1, 검증 275개: PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3, 96.3분. 남은 FAIL 2건은 둘 다 제품 결함 | `Reports/Result_20260826_202818.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
-| **08-28 이후 회귀 미실행** | 08-28 회차와 08-29 리팩터링 회차(아래 2-B절)의 수정 사항은 아직 개별 TC 라이브 검증조차 다 끝나지 않았다. 전체 회귀 재실행은 그 뒤 | — |
-| **08-31 작업 PC 접근 불가** | 물리 콘솔 화면이 매우 짧은 주기(수 분 내)로 잠겼다 풀렸다를 반복하고, 풀린 순간에도 로그인 자체가 원인 불명으로 실패했다(아래 2-B절 끝부분). **다음 세션은 이 문제부터 확인해야 한다** | `progress.md` |
+| **08-28 이후 회귀 미실행** | 08-28 회차와 08-29 리팩터링 회차(아래 2-B절)의 수정 사항 중 `WF_07`/`XIPL_04`만 라이브 검증이 끝났다(아래 2-C절). 나머지 개별 검증 후 전체 회귀 재실행 | — |
+| **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
 
@@ -100,6 +100,73 @@
 
 ---
 
+## 2-C. 2026-08-31 회차 — 다른 PC에서 P0 #1 라이브 재검증 완료 (이번 세션)
+
+이식성 시험을 겸해 **다른 PC**에서 수행했다. 2-B절의 `wait_new_group` 전환을 실제 UI로
+끝까지 돌려 **판정 동일성과 단축 시간을 처음으로 실측**했다.
+
+### 결과 — 판정 동일, 실측 단축
+
+| 구간 | 26차(고정 대기) | 08-31(`wait_new_group`) | 차이 | 판정 |
+|---|---|---|---|---|
+| `WF_07` Step 4 (2D 1회 촬영) | 23.1초 | 12.9초 | **−10.2초** | 26차와 동일 PASS 11/11 |
+| `TC_XIPL_compatibility_04` Step 6 (기본 Step 비우기 + Preset A/B 촬영) | 144.7초 | 99.1초 | **−45.6초** | 26차와 동일 전 Step PASS |
+
+`wait_new_group`이 보고한 실제 대기는 2D 기준 **2.8초** — 2026-08-24 실측치(2.8~2.9초)와
+일치했다. 리포트: `Reports/Result_20260831_085640.json`(WF_07),
+`Reports/Result_20260831_085032.json`(XIPL_04).
+
+### 이번에 고친 것 — 고정 대기가 가려 주던 "클릭이 삼켜짐"
+
+`XIPL_04`는 첫 실행에서 Step 5 직후 `View Position dialog did not open`으로 **재현성 있게**
+실패했다. 원인은 이미 저장소에 기록돼 있던 동작이다 —
+`core/viewer_processing.add_view_position`에는 2026-08-24 실측으로 확인된
+"촬영 직후 `+`를 누르면 툴팁만 뜨고 다이얼로그가 안 열린다(클릭이 삼켜진다)"에 대한
+3회 재시도가 있었는데, **같은 클릭을 재시도 없이 하던
+`tests/xipl_flows._add_view_position_by_alias`** 에는 그 보호가 없었다. 고정 대기 14초가
+우연히 가려 주고 있다가, 대기를 걷어내자 드러난 것이다.
+
+→ 재시도 로직을 `core/viewer_processing.open_view_position_dialog`로 뽑아 두 콜사이트가
+같은 것을 쓰도록 합쳤다(진짜 동일한 클릭·동일한 실패 모드라 합쳤다). 재실행에서
+`XIPL_04` 전 Step PASS, `WF_07` PASS 11/11을 확인했다.
+
+**교훈: DB 행 도착은 "다음 UI 조작을 받을 준비"까지 보장하지 않는다.** 고정 대기를
+상태 기반 대기로 바꿀 때는 대기 직후의 첫 UI 조작이 재시도를 갖고 있는지 함께 봐야 한다.
+
+### 이식성 관찰 (다른 PC에서 처음 확인한 것)
+
+- **`reset-environment`의 기준 스냅샷에는 DICOM 서버 등록이 없다**(`DICOM_STORAGE` 0행).
+  전체 회귀는 복원 직후 `DICOM_Server_Setup`(`setup_all`)이 이 전제를 만들지만, TC 단독
+  실행에는 그 단계가 없다. 그래서 복원 직후 `run-wf07`이 Step 0 전제 `{'storage': None}`
+  으로 FAIL 했다 — 자동화 결함이 아니라 **단독 실행 시 `setup-storage` 선행 필요**다.
+  `README.md` "다른 PC로 옮길 때"에 반영했다.
+- DB 데이터 파일이 없는 PC에서도 `reset-environment`가 `.bak`에서 4개 DB를 새로 만들었다
+  (드라이브 문자 비의존 `WITH MOVE`가 실제로 동작함을 확인).
+- 이 PC에는 UPS 장치가 없어 Viewer 상태바에 `Failed to communication with UPS.`가 상시
+  표시된다. TC 판정에는 영향이 없었다(3-A의 UPS Export 결함과는 별개 사안).
+- `WF_07` Step 7(전송 영상 수신 확인)이 7.6초 → 40.2초로 늘었다. 네트워크·Storage SCP
+  응답 차이로 보이며 판정은 PASS로 동일하다.
+
+### 남긴 것 (사용자 판단 대기) — `close_examine` no-dialog 경로
+
+`WF_07`은 첫 실행에서 Step 5(검사 종료)가 1회 실패했고 **재실행에서는 PASS**했다(간헐).
+증거 캡처(`Evidence/Flow/07_Emergency/04_closed.png`)에 Close 버튼 위 툴팁
+("Send & Close")만 뜨고 검사는 Examine에 남아 있었으며 `STUDY.StudyStatus=1`이 유지됐다 —
+위 `+` 클릭과 **같은 "클릭이 삼켜짐" 증상**이다. 고정 대기를 걷어내 Close 클릭이 약 10초
+앞당겨지면서 확률이 올라간 것으로 본다(단정 아님 — 1/3 재현).
+
+고치려면 "아직 Examine 모드인가"를 판별해야 한다(팝업 없이 정상 종료되는 경로가 있어
+무조건 재클릭하면 다음 검사를 건드릴 수 있다). 판별 수단을 실측해 봤다:
+
+- **Close 버튼(2204)은 Examine이 아닌 화면에서도 `visible=True`** 라 판별에 쓸 수 없다(실측).
+- 상태 배너(2202)는 `AfxWnd140u` 커스텀 드로잉이라 텍스트가 `'TextButton'`으로만 잡힌다
+  → OCR이 필요하다.
+
+`close_examine`은 여러 TC가 공유하는 코드고 재현이 1/3이라, **재현 불가한 상태에서 공용
+종료 로직을 추측으로 바꾸지 않았다.** 5절 ⑥으로 올린다.
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -107,7 +174,7 @@
 | 1 | `TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다(TC 전체는 정상적으로 MANUAL 판정까지 끝난다 — 크래시 아님, 2026-08-28 재검증) | P2 |
 | 2 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
 | 3 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
-| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — **2026-08-29 전환 완료(라이브 재검증 대기).** 회귀에 남아 있던 두 콜사이트(`tests/workflow07.py` WF_07 Step 4, `tests/xipl_flows.py::compatibility_04` XIPL_04)를 `TC_XIPL_compatibility_07`이 이미 쓰고 있던(그리고 2026-08-24 실측: 2D 2.8~2.9초/3D-N 29.5초/3D-W 39.7초로 확인된) `core/viewer_processing.wait_new_group` 상태 기반 대기로 바꿨다. `demo_acquire_step` 자체 기본값(14초)은 안 건드렸다 — 두 콜사이트 모두 `settle=0`으로 호출해 우회하고 대기는 `wait_new_group`이 전담한다. 정적 검사·단위시험(89건) 통과 확인, **`run-wf07`/`run-xipl-04` 실측 재검증은 화면 잠금으로 아직 못 함**(가장 먼저 할 일). `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀 밖 별도 명령이라 후순위(P2)로 남긴다. 별도로 `tests/workflow02.py`/`tests/system_compat.py`가 각자 들고 있던 동일한 `_instance_counts`/`_wait_types`를 `core/flows.py::instance_type_counts`/`wait_instance_types`로 공용화했다(동작 변경 없음, 기계적 중복 제거) | P0(재검증) |
+| 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — **2026-08-31 라이브 재검증 완료(2-C절).** 회귀에 남아 있던 두 콜사이트(`tests/workflow07.py` WF_07 Step 4, `tests/xipl_flows.py::compatibility_04` XIPL_04)를 `core/viewer_processing.wait_new_group` 상태 기반 대기로 바꿨고, 실제 UI 실행에서 **판정 동일(WF_07 PASS 11/11, XIPL_04 전 Step PASS) + WF_07 Step 4 −10.2초 / XIPL_04 Step 6 −45.6초**를 실측했다. 전환 과정에서 드러난 `_add_view_position_by_alias` 재시도 누락은 `open_view_position_dialog` 공용화로 고쳤다. `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀 밖 별도 명령이라 후순위(P2)로 남긴다 | 완료(P2 잔여) |
 | 5 | 중단 정책 때문에 `XIPL_03` Step 10 의 "GPU 없음 SKIP" 기록이 사라진다 | P2(맞바꾼 것) |
 | 6 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
 | 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
@@ -115,7 +182,7 @@
 | 9 | **`WF_14` 진입이 간헐적으로 실패한다**(`my_settings` ID 193 미발견) — 아래 3-C | P0 |
 | 10 | **`WF_10`의 `HC` → `Mammography (Rt)` 비기본 Procedure 매핑 변경이 미검증** — DB MappingKey/ProcedureKey, Step 수, Examine Ready를 함께 확인해야 한다 | P0 |
 | 11 | **`cold_start` 주 모니터 이탈 중단 로직이 미검증** — 밖에서는 안전 중단하고 안에서는 정상 로그인이 계속돼야 한다 | P0 |
-| 12 | **작업 PC 물리 접근 문제(신규, 08-30~31)** — 화면이 짧은 주기로 잠겼다 풀렸다를 반복하고, 풀린 순간에도 로그인이 원인 불명으로 실패한다 — 아래 3-D | **P0(최우선)** |
+| 12 | ~~작업 PC 물리 접근 문제(08-30~31)~~ — **2026-08-31에 다른 PC로 옮겨 해소.** 새 PC에서는 화면 잠금·로그인 실패가 재현되지 않았고 `portability-check`와 `cold_start` 로그인이 정상이었다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다 | 해소(환경 이전) |
 
 ### 3-A. UPS 설정이 Export/Import 로 복원되지 않는다 (제품 결함, 사용자 확인 완료)
 
@@ -162,22 +229,23 @@
 
 ### P0
 
-0. **(신규, 최우선) 작업 PC가 자동화를 안정적으로 수행할 수 있는 상태인지 확인한다**
-   (3-D). 포그라운드 창 타이틀이 잠금 화면이 아닌지, `EnumWindows`로 잠금 화면 창이
-   없는지 확인하고, 화면이 몇 분 이상 안정적으로 유지되는지 지켜본 뒤에만 아래 항목을
-   시도한다. 로그인이 원인 불명으로 실패하면 무리하게 재시도하지 말고 사용자에게
-   PC 상태를 확인해달라고 요청한다.
-1. `run-wf07`/`run-xipl-04` — 2026-08-29에 바꾼 `wait_new_group` 전환을 실행해 판정
-   동일성과 실제 단축 시간을 확인한다(3절 #4). **아직 한 번도 끝까지 못 돌렸다.**
-2. `WF_14` 간헐적 진입 실패 재현율 확인(3-C).
+0. **매 세션 첫 단계 — 실행 PC가 자동화를 수행할 수 있는 상태인지 확인한다.**
+   `portability-check`의 "관리자 권한"이 True인지 보고, 포그라운드 창 타이틀이 잠금
+   화면이 아닌지 + `EnumWindows`로 잠금 화면 창이 없는지 확인한다(타이틀이 빈 hwnd=0
+   만으로 "풀렸다"고 판단하지 않는다). 2026-08-31에 옮긴 PC(`HOST=ADMIN`)에서는 잠금
+   문제가 재현되지 않았다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다.
+   TC 단독 실행에서 DICOM 전송을 쓰면 **`setup-storage`를 먼저 한 번 돌린다**(2-C절).
+1. ~~`run-wf07`/`run-xipl-04` `wait_new_group` 전환 재검증~~ — **2026-08-31 완료**
+   (2-C절: 판정 동일, WF_07 Step 4 −10.2초 / XIPL_04 Step 6 −45.6초).
+2. `WF_14` 간헐적 진입 실패 재현율 확인(3-C). **다음 세션의 첫 실행 항목.**
 3. `run-wf10`으로 `HC`가 비기본 Procedure `Mammography (Rt)`에 실제 매핑되고 해당
    Procedure Step이 등록되는지 검증한다. 기본 Procedure로 조용히 대체된 결과를 PASS로
    인정하지 않는다.
 4. 주 모니터 밖/안 조건에서 `cold_start` 안전 중단과 정상 로그인을 각각 확인한다.
+   (주 모니터 안 정상 로그인은 2026-08-31에 새 PC에서 여러 차례 확인됐다 — 남은 것은
+   **주 모니터 밖에서의 안전 중단**이다.)
 5. 남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
    재검증한 뒤 전체 회귀 1회 실행. `run-xipl-05`는 2026-08-28 확인 완료.
-   **`run-xipl-04`는 2026-08-28에 확인 완료했지만 2026-08-29에 촬영 대기 방식을
-   `wait_new_group`으로 바꿨으므로 재확인이 필요하다(위 1번과 같음).**
 
 ### P1
 
@@ -235,6 +303,26 @@ git branch -d agent/add-next-task-handoff
 git push origin --delete agent/add-next-task-handoff
 ```
 
+### ⑥ `close_examine` no-dialog 경로를 고칠지 (2026-08-31 신규)
+
+`WF_07` Step 5(검사 종료)가 1회 실패하고 재실행에서 PASS 했다(2-C절 마지막). 증상은
+`+` 클릭이 삼켜지는 것과 같은 계열이고, 고정 대기를 걷어내 Close 클릭이 약 10초
+앞당겨지면서 확률이 올라간 것으로 본다.
+
+고치려면 "아직 Examine 모드인가"를 판별해 **삼켜졌을 때만** 다시 눌러야 한다(팝업 없이
+정상 종료되는 경로가 있어 무조건 재클릭하면 다음 검사를 건드릴 수 있다). 판별 수단을
+실측해 본 결과 **Close 버튼(2204)은 Examine이 아닌 화면에서도 `visible=True`라 쓸 수
+없고**, 상태 배너(2202)는 커스텀 드로잉이라 **OCR이 필요**하다.
+
+`close_examine`은 여러 TC가 공유하는 코드이고 재현이 1/3이라 이번 세션에서는 건드리지
+않았다. 다음 중 무엇을 원하시는지 알려주시면 그대로 진행한다.
+
+1. **OCR로 배너(2202)를 읽어 Examine 모드일 때만 재시도**를 넣는다(권장). 전체 회귀
+   전에 `run-wf07`을 여러 번 돌려 재현율 변화를 확인한다.
+2. 그대로 두고 전체 회귀에서 재현되는지 먼저 본다(간헐 FAIL 1건을 감수).
+3. `WF_07` Step 4 뒤에만 짧은 고정 대기를 되살린다(단축 효과 일부 반납, 근거 약함 —
+   권장하지 않는다).
+
 ---
 
 ## 6. 다음 세션용 프롬프트
@@ -242,60 +330,63 @@ git push origin --delete agent/add-next-task-handoff
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
-이전 세션까지 자동화 구조 리팩터링(공용 DB 폴링 헬퍼 신설, WF_07/XIPL_04의 고정 대기를
-wait_new_group 상태 기반 대기로 전환)을 코드로 반영하고 정적 검사·단위시험까지는 통과
-확인했지만, **작업 PC 물리 접근 문제 때문에 아직 한 번도 라이브로 끝까지 검증하지
-못했다.** 이번 세션은 이어서 진행해줘.
+2026-08-31에 다른 PC로 옮겨(이식성 시험 겸) P0 #1을 끝냈다 — WF_07/XIPL_04의
+wait_new_group 전환을 라이브로 재검증해 **판정 동일 + 실측 단축**(WF_07 Step 4 -10.2초,
+XIPL_04 Step 6 -45.6초)을 확인했고, 그 과정에서 드러난 `_add_view_position_by_alias`
+재시도 누락을 `open_view_position_dialog` 공용화로 고쳤다. 이번 세션은 그 다음부터다.
 
-먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 2-B/3-D/4절)를
-읽어 지금까지 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
+먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 2-C/3-C/4/5절)를
+읽어 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
 `개정 TC` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를 무조건 탐색하지
 마라.
 
-**0단계 — 환경 확인 (가장 먼저, 매번)**
+**0단계 - 환경 확인 (가장 먼저, 매번)**
 python run.py portability-check 의 "관리자 권한"이 True 인지 확인해라. 그리고 물리
-콘솔 화면이 실제로 잠겨 있는지 확인해라 — GetForegroundWindow 타이틀이 "Windows 기본
-잠금 화면"인지, 또는 EnumWindows로 그 타이틀을 가진 창이 있는지 본다(타이틀이 비어
-있는 hwnd=0 만으로 "풀렸다"고 판단하지 마라 — 잠금 화면도 순간적으로 그렇게 보일 수
-있다는 것을 이전 세션에서 확인했다). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
-그 사실만 보고해라. 풀려 있어도 화면이 몇 분 이상 안정적으로 유지될지 장담할 수 없는
-PC다 — portability-check 직후 바로 다음 명령을 이어서 실행해라(사이에 시간을 끌지
-마라). 로그인 자체가 원인 불명으로 실패하면(가려진 창/팝업 흔적 없이 "로그인에 N회
-실패했습니다") 무리하게 반복 재시도하지 말고, PC를 실사용자가 동시에 쓰고 있을 수
-있다는 점을 사용자에게 보고해라.
+콘솔 화면이 잠겨 있는지 확인해라 - GetForegroundWindow 타이틀이 "Windows 기본 잠금
+화면"인지, 또는 EnumWindows로 그 타이틀을 가진 창이 있는지 본다(타이틀이 비어 있는
+hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
+그 사실만 보고해라. 08-31에 옮긴 PC(HOST=ADMIN)에서는 잠금 문제가 재현되지 않았지만,
+이전 PC로 돌아갔다면 NEXT_WORK.md 3-D가 다시 유효하다.
+
+**TC를 단독 실행할 때의 전제(08-31 실측)**
+reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(DICOM_STORAGE 0행).
+전체 회귀는 복원 직후 DICOM_Server_Setup이 이 전제를 만들지만 단독 실행에는 그 단계가
+없다. DICOM 전송을 쓰는 TC(run-wf07 등)를 단독으로 돌리기 전에 python run.py
+setup-storage 를 한 번 실행해라.
+
+**먼저 물어볼 것**
+NEXT_WORK.md 5절 6번(`close_examine` no-dialog 경로)에 대한 사용자 결정을 받아라.
+WF_07 Step 5가 1회 삼켜진 클릭으로 실패했다가 재실행에서 PASS 한 건이고, 고치려면
+상태 배너(2202) OCR로 "아직 Examine 모드인가"를 판별해야 한다. 공용 코드라 결정 없이
+바꾸지 마라.
 
 P0 (환경이 확인되면 이 순서로)
-1. python run.py run-wf07 과 python run.py run-xipl-04 를 실행해, 이전 세션에 바꾼
-   wait_new_group 전환이 판정 결과를 그대로 유지하면서(PASS/FAIL/MANUAL 동일) 실제로
-   더 빨라졌는지 확인해라. XIPL_04는 그 전에 이미 PASS였던 TC이니 회귀가 없는지
-   각별히 확인해라. 실패하면 원인이 이번 전환 때문인지, 아니면 로그인 단계 등 무관한
-   환경 문제인지 구분해서 보고해라.
-2. WF_14 간헐적 진입 실패 재현율 확인 — reset-environment 후 run-wf14 연속 3회
+1. WF_14 간헐적 진입 실패 재현율 확인 - reset-environment 후 run-wf14 연속 3회
    (NEXT_WORK.md 3-C).
-3. run-wf10에서 Hospital Code `HC`가 기본값 `Routine Mammography`가 아니라
+2. run-wf10에서 Hospital Code `HC`가 기본값 `Routine Mammography`가 아니라
    `Mammography (Rt)`에 실제 매핑되는지 DB HOSPITAL_CODE.MappingKey/STUDY.ProcedureKey,
    PROCEDURE_ITEMS Step 수, Examine Ready를 함께 확인해라. 기본 Procedure 대체로 생긴
    거짓 PASS를 허용하지 마라. 주석에 적힌 Key/Step 수를 검증 없이 사실로 가정하지 마라.
-4. Viewer가 주 모니터 밖일 때 cold_start가 창을 강제 이동하지 않고 안전 중단하는지,
-   주 모니터 안에서는 정상 로그인하는지 확인해라. `_login_check.py`를 좁은 스모크
-   점검에 사용할 수 있다.
-5. 나머지 수정도 재검증해라 —
-   run-wf04 → run-wf06 (close_view_study), run-wf13 (로그인 콤보), run-wf15
-   (Dose Overlay 전제). run-xipl-05 는 2026-08-28 확인 완료.
-6. XIPL_05 불합격 경계 검증(3절 #1) — Fiber 콤보 항목 구성을 다시 확인해라.
-7. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
-   완료 결과만 기록해라. 시작 전에 적용한 리팩터링·변경 전후 실행 시간·판정 동일성·
-   남은 위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
+3. Viewer가 주 모니터 밖일 때 cold_start가 창을 강제 이동하지 않고 안전 중단하는지
+   확인해라(주 모니터 안 정상 로그인은 08-31에 여러 차례 확인됐다). `_login_check.py`를
+   좁은 스모크 점검에 쓸 수 있다.
+4. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
+   run-wf15 (Dose Overlay 전제). run-xipl-05 는 2026-08-28, run-wf07/run-xipl-04 는
+   2026-08-31 확인 완료.
+5. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
+6. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
+   완료 결과만 기록해라. 시작 전에 적용한 변경·변경 전후 실행 시간·판정 동일성·남은
+   위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
 
 추가 리팩터링·속도 개선 (P0 항목이 안정적으로 통과한 뒤에)
 - run-sys3d/run-ui(회귀 밖 명령)에 남은 demo_acquire_step 고정 대기도 wait_new_group으로
-  바꿀지 판단해라 — 급하지 않다(P2).
-- python run.py probe-preset3d 로 3D-N/3D-W Preset 목록 컨트롤 실측 → XIPL_07에
+  바꿀지 판단해라 - 급하지 않다(P2). 바꾼다면 **대기 직후의 첫 UI 조작이 재시도를 갖고
+  있는지 반드시 함께 확인해라** - 08-31에 XIPL_04가 정확히 그 이유로 실패했다.
+- python run.py probe-preset3d 로 3D-N/3D-W Preset 목록 컨트롤 실측 -> XIPL_07에
   "새 Preset이 그 시점 Default를 물려받는가" 판정 추가.
 - 반복되는 로그인·화면 진입·환자 검색·정리 흐름 중 아직 안 합친 것이 있는지 조사하되,
   진짜 동일한 로직만 합쳐라(비슷해 보여도 completed 여부·option·wait 값이 TC마다 다르면
-  억지로 합치지 마라 — 이전 세션에 WF_02/system_compat의 정리 블록을 검토했다가 이
-  이유로 합치지 않은 전례가 있다).
+  억지로 합치지 마라).
 - 리팩터링은 작은 단위로 나누고 각 단위마다 정적 검사, 관련 개별 TC, 변경 전후 실행
   시간 비교를 수행해라. 동작을 바꾸지 않는 순수 기계적 중복 제거는 라이브 검증 없이
   정적 검사+단위시험만으로 커밋해도 되지만, 대기 방식처럼 실제 동작이 바뀌는 변경은
@@ -306,10 +397,10 @@ P0 (환경이 확인되면 이 순서로)
   tools/check_self_attrs.py, tools/check_cleanup_stop.py,
   tools/check_regression_names.py, tools/traceability.py,
   python -m unittest discover -s tests -p "test_*.py"
-  (`tests/install_package_flow.py:310` 경고는 기존 것이라 무시해도 된다 — 범위 밖 코드는
+  (`tests/install_package_flow.py:310` 경고는 기존 것이라 무시해도 된다 - 범위 밖 코드는
   근거 없이 건드리지 마라.)
-- 문서를 갱신해라. 순서: ..\프로젝트_상세.md(기본 문서 — 먼저 갱신) →
-  python tools/render_docs.py → README.md(포트폴리오 축약형) → NEXT_WORK.md → progress.md,
+- 문서를 갱신해라. 순서: ..\프로젝트_상세.md(기본 문서 - 먼저 갱신) ->
+  python tools/render_docs.py -> README.md(포트폴리오 축약형) -> NEXT_WORK.md -> progress.md,
   필요할 때만 automation_scope.json/traceability.json.
 - git status/diff/remote 검토 후 관련 파일만 commit 하고 같은 작업에서 별도 재승인 없이
   일반 push까지 수행해라. push한 브랜치와 commit SHA를 보고해라.

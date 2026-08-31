@@ -630,6 +630,47 @@ VIEW_POSITION_MODES = {
 }
 
 
+def open_view_position_dialog(ui, attempts=3):
+    """Procedure + 를 눌러 View Position 다이얼로그를 연다.
+
+    `+` 클릭이 삼켜지는 경우가 있어 **다이얼로그가 열렸는지 확인하고 재시도**한다.
+
+    2026-08-24 실측: Demo 촬영 직후(고정 대기 없이 DB 도착만 기다린 뒤) `+` 를
+    누르니 툴팁("Add View Position")만 뜨고 다이얼로그가 열리지 않았다. 캡처를
+    보니 마우스는 버튼 위에 있었다 — 즉 좌표는 맞고 **클릭이 삼켜졌다.** 제품이
+    촬영 후처리를 끝내는 중이었다. DB 행 도착은 "다음 UI 조작을 받을 준비"까지
+    보장하지 않는다. 앞에 눌린 것이 없는지 확인하고(모달 정리) 상한을 두어
+    다시 누른다.
+
+    2026-08-31 실측: 고정 대기(`demo_acquire_step(settle=14)`)를 `wait_new_group`
+    상태 기반 대기로 바꾸자, 같은 `+` 클릭을 **재시도 없이** 하던
+    `tests/xipl_flows._add_view_position_by_alias` 가
+    `TC_XIPL_compatibility_04` 에서 실제로 이 증상으로 실패했다(Step 5 직후).
+    고정 대기가 우연히 가려 주던 것이 드러난 것이라, 두 콜사이트가 같은 재시도를
+    쓰도록 이 함수로 합쳤다.
+
+    반환: 열린 다이얼로그.
+    """
+    add = [c for c in ui.by_id(1171) if c.visible
+           and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
+    if not add:
+        raise flows.FlowError("Procedure add button (1171) not found")
+    dlg = None
+    for _ in range(attempts):
+        if ui.dialog():
+            ui.dismiss_dialog(timeout=2)
+        ui.click(add[0], settle=1)
+        dlg = ui.wait_dialog(timeout=6)
+        if dlg:
+            break
+        time.sleep(1.5)
+    if not dlg:
+        raise flows.FlowError(
+            f"View Position dialog did not open after {attempts} attempts "
+            f"(button 1171 rect={add[0].rect})")
+    return dlg
+
+
 def add_view_position(ui, mode):
     """Register the LCC view position of *mode* through Procedure +.
 
@@ -641,32 +682,7 @@ def add_view_position(ui, mode):
             f"Unsupported View Position mode: {mode} "
             f"(expected one of {sorted(VIEW_POSITION_MODES)})")
     before = len(flows.step_items(ui))
-    add = [c for c in ui.by_id(1171) if c.visible
-           and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
-    if not add:
-        raise RuntimeError("Procedure add button (1171) not found")
-    # `+` 클릭이 삼켜지는 경우가 있어 **다이얼로그가 열렸는지 확인하고 재시도**한다.
-    #
-    # 2026-08-24 실측: Demo 촬영 직후(고정 대기 없이 DB 도착만 기다린 뒤) `+` 를
-    # 누르니 툴팁("Add View Position")만 뜨고 다이얼로그가 열리지 않았다. 캡처를
-    # 보니 마우스는 버튼 위에 있었다 — 즉 좌표는 맞고 **클릭이 삼켜졌다.** 제품이
-    # 촬영 후처리를 끝내는 중이었다. DB 행 도착은 "다음 UI 조작을 받을 준비"까지
-    # 보장하지 않는다. 앞에 눌린 것이 없는지 확인하고(모달 정리) 상한을 두어
-    # 다시 누른다.
-    dlg = None
-    attempts = 3
-    for attempt in range(1, attempts + 1):
-        if ui.dialog():
-            ui.dismiss_dialog(timeout=2)
-        ui.click(add[0], settle=1)
-        dlg = ui.wait_dialog(timeout=6)
-        if dlg:
-            break
-        time.sleep(1.5)
-    if not dlg:
-        raise RuntimeError(
-            f"View Position dialog did not open after {attempts} attempts "
-            f"(button 1171 rect={add[0].rect})")
+    dlg = open_view_position_dialog(ui)
     l, t, r, b = dlg.rect
     width, height = r - l, b - t
     if width < 500 or height < 450:

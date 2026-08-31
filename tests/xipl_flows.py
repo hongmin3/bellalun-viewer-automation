@@ -915,14 +915,10 @@ def _alias_preset_row(ctx, ui, name_text, alias, tag, param_filename=None):
 def _add_view_position_by_alias(ui, alias):
     """Procedure + 로 alias(2D Preset)를 촬영 Step으로 등록한다."""
     before = len(flows.step_items(ui))
-    add = [c for c in ui.by_id(1171) if c.visible
-           and c.rect[2] - c.rect[0] >= 12 and c.rect[3] - c.rect[1] >= 12]
-    if not add:
-        raise flows.FlowError("Procedure add button (1171) not found")
-    ui.click(add[0], settle=1)
-    dlg = ui.wait_dialog(timeout=6)
-    if not dlg:
-        raise flows.FlowError("View Position dialog did not open")
+    # `+` 클릭이 삼켜지는 경우가 있어 재시도를 포함한 공용 함수를 쓴다 —
+    # `vp.add_view_position` 과 **같은 클릭·같은 실패 모드**다(근거는
+    # `core/viewer_processing.open_view_position_dialog` docstring).
+    vp.open_view_position_dialog(ui)
     if not vp.click_viewer_text(ui, alias, settle=.5):
         raise flows.FlowError(f"View Position 목록에서 '{alias}' 타일을 찾지 못했습니다.")
     ok = [c for c in ui.by_id(1101) if c.visible]

@@ -433,6 +433,16 @@ DB 기준 스냅샷은 저장소 기준 상대경로로 찾아 `sys.master_files
 - 실물 장비 의존 항목은 자동화 대상이 아닙니다 — Detector/Gantry, 2430 패들(3D 촬영),
   ACR Phantom, 바코드/QR 스캐너.
 
+**개별 TC를 단독 실행할 때 챙겨야 하는 전제** (2026-08-31 다른 PC에서 실측):
+
+- `reset-environment`가 복원하는 기준 스냅샷에는 **DICOM 서버 등록이 들어 있지 않습니다**
+  (`CONFIGURATION.DICOM_STORAGE` 0행). 전체 회귀는 복원 직후 `DICOM_Server_Setup`
+  (`setup_all`)이 이 전제를 만들지만, TC를 단독 실행하면 그 단계가 빠집니다. DICOM
+  전송을 쓰는 TC(`run-wf07` 등)는 앞서 `python run.py setup-storage`를 한 번 돌리세요.
+  안 돌리면 Step 0 전제에서 `{'storage': None}`으로 FAIL 합니다.
+- 새 PC에 DB 데이터 파일이 없으면 `reset-environment`가 `.bak`에서 새로 만듭니다
+  (`sys.master_files` 기반 `WITH MOVE`). 드라이브 문자가 달라도 됩니다.
+
 ---
 
 ## 10. 문서
