@@ -118,9 +118,77 @@ def visible_rows(pane):
     return sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))
 
 
+#: 뷰포트 겹침 판정 허용 오차(px). 반올림 정도만 봐주고, 실제 클리핑
+#  (2026-09-01 실측 — 행 rect bottom=472 인데 뷰포트 bottom=460, 12px 튀어
+#  나옴)은 이보다 훨씬 크므로 정상 행을 잘못 빼는 일은 없다.
+ROW_CLIP_TOLERANCE_PX = 2
+
+
+def _list_viewport(pane, rows):
+    """행을 실제로 잘라내는 스크롤 뷰포트(`ScrollWnd`)의 rect.
+
+    (2026-09-01 실측) `core.ui.GetWindowRect`는 각 행 컨트롤의 **명목상**
+    크기를 준다 — 뷰포트 아래로 튀어나와 화면에서는 일부만 보이는 행도
+    다른 행과 똑같이 35px 로 보고된다(행 높이 비교로는 클리핑을 잡을 수
+    없다는 뜻, 실제로 첫 시도가 그래서 틀렸다). 대신 행들을 담는
+    `ScrollWnd`(좌우 경계가 행과 정확히 일치하는 것 — 폭이 다른
+    `ScrollWnd`는 옆의 다른 패널이다) 를 찾아 그 rect 와 행 rect 를 직접
+    대조해야 한다. 후보가 여럿이면(중첩된 `ScrollWnd`) 가장 좁은(=가장
+    안쪽) 것을 고른다.
+
+    못 찾으면 `None` — 그 페이지는 클리핑 판정을 생략한다(추측한 뷰포트로
+    정상 행을 잘못 빼는 것보다 낫다).
+    """
+    if not rows:
+        return None
+    left = min(r.rect[0] for r in rows)
+    right = max(r.rect[2] for r in rows)
+    best = None
+    for c in setting_values.pane_controls(pane, depth=6):
+        if c.text != "ScrollWnd":
+            continue
+        cl, _ct, cr, _cb = c.rect
+        if abs(cl - left) <= ROW_CLIP_TOLERANCE_PX and \
+                abs(cr - right) <= ROW_CLIP_TOLERANCE_PX:
+            if best is None or (c.rect[3] - c.rect[1]) < (best[3] - best[1]):
+                best = c.rect
+    return best
+
+
+def _confidently_visible(rows, viewport):
+    """뷰포트 밖으로 튀어나와 **일부만 보이는** 행을 뺀다.
+
+    `dicom.tag_mapping`/`qc.scheduler` 는 목록을 담는 `ScrollWnd` 뷰포트
+    높이가 행 높이의 정확한 배수가 아니다(2026-09-01 실측 — 뷰포트
+    bottom=460, 행 높이 35px, 7행이 딱 채워지고 8번째 행은 top=437부터
+    시작해 472까지, 즉 12px 가 뷰포트 밖으로 나간다). 그 잘린 조각을 OCR
+    하면 **끝에 잡음이 붙는 게 아니라 단어 중간 글자가 바뀐다**
+    (`"Age"`→`"Aae"`, `"Study"`→`"Studv"`, `"Bodypart"`→`"Bodvpart"`) —
+    `_rows_match()`의 접두사+길이차 fuzzy 매칭이 전제하는 잡음 패턴과
+    다른 종류라 걸러지지 않고 `overlap()`을 매번 0 으로 떨어뜨렸다.
+    `tool.predefined_text`처럼 뷰포트 높이가 행 높이의 배수인 페이지는 이
+    클리핑 자체가 없어 문제가 없었다(같은 세션 라이브 대조로 확인).
+
+    `viewport` 가 `None`(뷰포트를 못 찾음)이면 아무것도 빼지 않는다 —
+    추측으로 정상 행을 잘못 빼는 것보다 낫다.
+    """
+    if viewport is None or len(rows) <= 1:
+        return rows
+    vtop, vbottom = viewport[1], viewport[3]
+    return [r for r in rows
+            if r.rect[1] >= vtop - ROW_CLIP_TOLERANCE_PX
+            and r.rect[3] <= vbottom + ROW_CLIP_TOLERANCE_PX]
+
+
 def _screen(pane, tesseract_exe=None):
-    """현재 화면의 (행 컨트롤, 서명, OCR 로 읽은 행이 있는지) 목록."""
+    """현재 화면의 (행 컨트롤, 서명, OCR 로 읽은 행이 있는지) 목록.
+
+    뷰포트 밖으로 튀어나와 **일부만 보이는 행은 뺀다**
+    (`_confidently_visible`) — 그 행은 다음 스크롤에서 온전히 보일 때
+    다시 잡힌다.
+    """
     rows = visible_rows(pane)
+    rows = _confidently_visible(rows, _list_viewport(pane, rows))
     sigs = [row_signature(r, tesseract_exe) for r in rows]
     used_ocr = any(_child_signature(r) is None for r in rows)
     return rows, sigs, used_ocr

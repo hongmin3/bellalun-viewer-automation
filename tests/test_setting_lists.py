@@ -63,6 +63,112 @@ class RowClickPointTest(unittest.TestCase):
         self.assertLess(x, 130)
 
 
+class ConfidentlyVisibleTest(unittest.TestCase):
+    """2026-09-01 실측: `dicom.tag_mapping`/`qc.scheduler`는 목록을 담는
+    `ScrollWnd` 뷰포트 높이가 행 높이의 정확한 배수가 아니다(뷰포트
+    bottom=460, 행 높이 35px — 7행은 꽉 차고 8번째 행은 top=437부터
+    시작해 bottom=472, 즉 12px 가 뷰포트 밖으로 튀어나온다). **행 자체의
+    `rect`는 이 클리핑을 반영하지 않는다** — `GetWindowRect`가 명목상
+    크기(35px)를 그대로 주므로, 처음 시도한 "행 높이 비교"는 틀렸다(라이브
+    재검증에서 드러남). 뷰포트(부모 `ScrollWnd`) rect 와 행 rect 를 직접
+    대조해야 한다. 잘린 행을 OCR 하면 끝에 잡음이 붙는 게 아니라 단어
+    **중간** 글자가 바뀐다(`"Age"`→`"Aae"`, `"Study"`→`"Studv"`) —
+    `_rows_match()`의 접두사+길이차 fuzzy 매칭이 전제하는 패턴과 달라
+    걸러지지 않고 `overlap()`을 매번 0으로 떨어뜨렸다."""
+
+    def test_drops_the_row_that_overflows_the_viewport_bottom(self):
+        rows = [_FakeControl((420, 192 + i * 35, 1049, 192 + i * 35 + 35))
+                for i in range(8)]  # row7 rect bottom=472, 실측과 동일
+        viewport = (420, 192, 1049, 460)  # 실측 뷰포트
+        kept = setting_lists._confidently_visible(rows, viewport)
+        self.assertEqual(len(kept), 7)
+
+    def test_keeps_rows_fully_inside_the_viewport(self):
+        rows = [_FakeControl((0, i * 35, 400, i * 35 + 35)) for i in range(5)]
+        viewport = (0, 0, 400, 175)  # 정확히 5행만큼(배수) — 클리핑 없음
+        kept = setting_lists._confidently_visible(rows, viewport)
+        self.assertEqual(kept, rows)
+
+    def test_no_viewport_found_keeps_all_rows(self):
+        """뷰포트를 못 찾으면(`None`) 아무것도 빼지 않는다 — 추측으로 정상
+        행을 잘못 빼는 것보다 낫다."""
+        rows = [_FakeControl((0, 0, 400, 35))]
+        self.assertEqual(setting_lists._confidently_visible(rows, None), rows)
+
+    def test_single_row_is_never_dropped(self):
+        """뷰포트가 행 하나보다 작아 첫 행부터 잘려 보이는 극단적인 경우도
+        빈 목록으로 만들지 않는다 — 통째로 없는 것보다 낫다."""
+        rows = [_FakeControl((0, 0, 400, 35))]
+        viewport = (0, 0, 400, 17)
+        self.assertEqual(
+            setting_lists._confidently_visible(rows, viewport), rows)
+
+    def test_screen_excludes_clipped_row_from_signature(self):
+        """`_screen()` 전체가 뷰포트로 잘린 행을 서명 목록에서 빼는지 —
+        실제 라이브 캡처값(`"Patient Aae (0010.1010) (0010.1010) ~"`)과
+        실측 뷰포트/행 rect 로 확인한다."""
+        rows = [_FakeControl((420, 192 + i * 35, 1049, 192 + i * 35 + 35))
+                for i in range(8)]
+        clipped = rows[-1]
+        sig_by_id = {id(r): f"row{i}" for i, r in enumerate(rows)}
+        sig_by_id[id(clipped)] = "Patient Aae (0010.1010) (0010.1010) ~"
+        viewport_ctrl = _FakeControl((420, 192, 1049, 460))
+        viewport_ctrl.text = "ScrollWnd"
+        with mock.patch.object(setting_lists, "visible_rows",
+                              return_value=rows), \
+             mock.patch.object(setting_lists.setting_values, "pane_controls",
+                              return_value=[viewport_ctrl]), \
+             mock.patch.object(
+                 setting_lists, "row_signature",
+                 side_effect=lambda r, tess=None: sig_by_id[id(r)]), \
+             mock.patch.object(setting_lists, "_child_signature",
+                              return_value=None):
+            kept_rows, sigs, used_ocr = setting_lists._screen(mock.Mock())
+        self.assertEqual(len(kept_rows), 7)
+        self.assertNotIn("Patient Aae (0010.1010) (0010.1010) ~", sigs)
+        self.assertTrue(used_ocr)
+
+
+class ListViewportTest(unittest.TestCase):
+    """`_list_viewport()`가 행과 좌우 경계가 일치하는 `ScrollWnd`만 고르고,
+    후보가 여럿이면(중첩된 `ScrollWnd`) 가장 안쪽(좁은) 것을 고르는지 확인."""
+
+    def test_picks_the_scrollwnd_matching_row_bounds(self):
+        rows = [_FakeControl((420, 192, 1049, 227)),
+                _FakeControl((420, 227, 1049, 262))]
+        other_panel = _FakeControl((1030, 192, 1278, 382))
+        other_panel.text = "ScrollWnd"
+        viewport = _FakeControl((420, 192, 1049, 460))
+        viewport.text = "ScrollWnd"
+        with mock.patch.object(setting_lists.setting_values, "pane_controls",
+                              return_value=[other_panel, viewport]):
+            found = setting_lists._list_viewport(mock.Mock(), rows)
+        self.assertEqual(found, (420, 192, 1049, 460))
+
+    def test_picks_the_narrowest_nested_scrollwnd(self):
+        rows = [_FakeControl((420, 192, 1049, 227))]
+        outer = _FakeControl((419, 162, 1033, 460))
+        outer.text = "ScrollWnd"
+        inner = _FakeControl((420, 192, 1049, 460))
+        inner.text = "ScrollWnd"
+        with mock.patch.object(setting_lists.setting_values, "pane_controls",
+                              return_value=[outer, inner]):
+            found = setting_lists._list_viewport(mock.Mock(), rows)
+        self.assertEqual(found, inner.rect)
+
+    def test_returns_none_when_no_rows(self):
+        self.assertIsNone(setting_lists._list_viewport(mock.Mock(), []))
+
+    def test_returns_none_when_no_matching_scrollwnd(self):
+        rows = [_FakeControl((420, 192, 1049, 227))]
+        unrelated = _FakeControl((0, 0, 50, 50))
+        unrelated.text = "ScrollWnd"
+        with mock.patch.object(setting_lists.setting_values, "pane_controls",
+                              return_value=[unrelated]):
+            found = setting_lists._list_viewport(mock.Mock(), rows)
+        self.assertIsNone(found)
+
+
 class RowSignatureOCRTest(unittest.TestCase):
     """2026-08-31 실측: 일부 목록(예 `System > Account`)은 행이 owner-draw 라
     자식 창이 없다 - `row_signature()`가 그때만 화면 OCR 로 폴백하는지 확인한다.

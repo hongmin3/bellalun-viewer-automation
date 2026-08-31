@@ -15,7 +15,7 @@
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
 | **최신 전체 회귀** | 26차, 2026-08-26 18:52~20:28 — TC 27건: PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1, 검증 275개: PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3, 96.3분. 남은 FAIL 2건은 둘 다 제품 결함 | `Reports/Result_20260826_202818.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
-| **08-28 이후 회귀 미실행** | 08-28 회차와 08-29 리팩터링 회차(아래 2-B절)의 수정 사항 중 `WF_07`/`XIPL_04`만 라이브 검증이 끝났다(아래 2-C절). 나머지 개별 검증 후 전체 회귀 재실행 | — |
+| **08-28 이후 전체 회귀 미실행** | 08-28~09-01 수정 사항 중 `WF_07`/`XIPL_04`(2-C절)·`WF_10`(2-D절)·`cold_start` 모니터 가드(2-E절)·`WF_14` 목록 열거(9개 중 7개 해결, 2-D~2-F절)는 개별 라이브 검증 완료. `WF_04→06`/`WF_13`/`WF_15`/`display.overlay` 새 검증/교차 오염 3곳이 남아 그 뒤 전체 회귀 재실행 예정(4절 참고) | — |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
@@ -339,6 +339,35 @@ P0 "주 모니터 밖/안 조건에서 `cold_start` 안전 중단과 정상 로�
 
 ---
 
+## 2-F. 2026-09-01 회차 — `dicom.tag_mapping`/`qc.scheduler` 원인 확정(P0 #1)
+
+5절 ⑦에서 미해결로 남긴 두 페이지를 라이브로 재조사했다. 잡음 패턴을
+`tool.predefined_text`(해결됨)와 직접 비교하니 **다른 종류**였다 — 매 화면의
+**마지막 행**에서만 단어 **중간** 글자가 바뀌었다(`"Age"`→`"Aae"`). 첫 진단
+(행 높이 비교)은 라이브 재검증에서 곧바로 "변화 없음"으로 틀렸음이 드러났다 —
+`GetWindowRect`는 잘린 행도 명목상 크기 그대로 보고한다. 재진단으로 행을
+감싸는 `ScrollWnd`(뷰포트) rect와 행 rect를 직접 대조하니, 마지막 행이
+뷰포트 아래로 12px 튀어나와 있었다(뷰포트 bottom=460, 행 bottom=472) — 그
+튀어나온 부분을 OCR 하며 단어가 깨진 것이었다. 상세 경위·컨트롤 트리 실측은
+`../프로젝트_상세.md` B.28 참고.
+
+`core/setting_lists.py`에 `_list_viewport()`(행과 좌우 경계가 일치하는
+`ScrollWnd`를 찾는다)와 `_confidently_visible()`(뷰포트 밖으로 튀어나온 행을
+화면에서 뺀다)을 추가해 `_screen()`에 적용했다. 단위시험 9건 신설
+(`ConfidentlyVisibleTest`/`ListViewportTest`), 119 → **128건 OK**.
+
+**라이브 재검증(`Reports/Result_20260831_194615.json`, `run-wf14` 단독
+실행)** — `dicom.tag_mapping` **17/17 완전 일치**(불완전 목록에서 빠짐),
+`qc.scheduler` 20/23 → **21/23**(스크롤이 실제 바닥까지 도달 확인). 남은
+2행 격차는 DB 직접 조회로 확인했다 — Gantry 그룹이 DB엔 12개 코드(51~62)가
+있는데 화면엔 정확히 10개 행만 그려진다. 스크롤 결함이 아니라
+`display.overlay`와 같은 개념 불일치(유형③) 후보로 재분류했다 — 원인 확정은
+아직(P0 #1로 다음 세션에 넘김). 전체 판정은 여전히 FAIL(원인은 3-A UPS 제품
+결함, 회귀 없음), Step 7(c) "Setting 목록 행 상세값 복원"은 PASS(128행/1768
+항목, 달라진 항목 0)로 비교 폭도 넓어졌다(122→128행).
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -530,7 +559,7 @@ git push origin --delete agent/add-next-task-handoff
 |---|---|---|---|
 | ① 정상 — OCR 만으로 해결 — **2026-08-31 완료** | `system.account`(2/2 일치), `dicom.mwl`/`dicom.storage`/`dicom.print`(각 1/1 일치) | 자식 창이 없어 텍스트를 못 읽을 뿐, 화면 요소·개수는 이미 맞다 | `row_signature()` OCR 전환 + 스크롤 단축 + 위치 기반 키징으로 완료. 라이브 검증: 4곳 모두 "불완전" 목록에서 빠짐, 전체 판정 회귀 없음 |
 | ③-a `display.lut` — **2026-08-31 완료** | `display.lut`(3/12 → 3/3) | `../지식/` Service Manual 실측 + DB 직접 조회로 확정 — `LUT_ITEM`은 LUT **개수**가 아니라 LUT 곡선의 **제어점**을 저장한다(`LUTKey`+`Order`+`X`+`Y`, LUT 3개 × 점 4개 = 12행). 화면의 3행(ScreenLUT/StorageLUT/ProcessLUT)과 비교하려면 `COUNT(DISTINCT LUTKey)`를 써야 했다 | `ROW_COUNT_QUERIES["display.lut"]` 쿼리 수정. 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_153657.json`), 전체 판정 회귀 없음 |
-| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **`tool.predefined_text`·`study.reject_retake` 2026-08-31 완료, 나머지 2곳 부분 개선** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, `dicom.tag_mapping`(8→9/17, 부분), `qc.scheduler`(20/23, 무변화) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `qc.scheduler`는 DB `QCType` 코드를 직접 조회해 9+12+2=23개로 확인했고 사양서 요약표(21개, 2D/3D 화질 9 + Gantry 10 + Etc 2)의 상위 집합이다(Gantry 쪽에 사양서 요약표에 없는 코드 2개가 더 있다). **제품이 일부만 보여주는 게 아니라 자동화가 못 내려간 것이다** | `walk()`의 정지/연속 증명이 OCR 잡음 때문에 계속 조기 중단된다(아래 참고) — 스크롤이 실제로 작동하는지부터 라이브로 확인하고, 노이즈에 강한 증명 방식을 설계해야 한다 |
+| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **`tool.predefined_text`·`study.reject_retake`·`dicom.tag_mapping` 완료(2026-08-31/09-01), `qc.scheduler`는 스크롤 문제 아닌 것으로 재분류(아래 B.28/2-F절)** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, ~~`dicom.tag_mapping`(9/17)~~→**17/17**(2026-09-01, 뷰포트 클리핑 수정), `qc.scheduler`(20→21/23, 스크롤은 진짜 바닥까지 도달 확인 — 남은 격차는 유형③ 개념 불일치로 재분류) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `dicom.tag_mapping`은 근본 원인이 스크롤 잡음이 아니라 **뷰포트 클리핑**이었다(2-F절) — 고친 뒤 17/17 완전 일치. `qc.scheduler`는 스크롤이 실제로 더 이상 안 바뀌는 바닥까지 도달하는데도 DB `QCType`(9+12+2=23개, Gantry 12개) 중 화면 Gantry 그룹은 정확히 10개 행만 보여준다 — 스크롤 미완주가 아니라 `display.overlay`와 같은 개념 불일치(유형③) 후보로 재분류했다 | ~~`walk()`의 정지/연속 증명이 OCR 잡음 때문에 계속 조기 중단된다~~ → **2026-09-01 확정**: `tag_mapping`/`qc.scheduler`의 실제 원인은 유형②(잡음)가 아니라 **행 rect가 뷰포트 밖으로 튀어나오는 클리핑**이었다(아래 2-F절). `qc.scheduler`의 남은 2행 격차는 스크롤이 아니라 개념 불일치 후보 — DB 쪽 Gantry 12개 코드의 정체를 사양서/DB로 더 확인해야 한다 |
 | ③ DB 카운트가 화면과 다른 것을 센다(개념 불일치) | `display.overlay`(화면 28 vs DB 8) | `../지식/` Service Manual·Operation Manual에 **명시적으로 확인됨** — 화면은 "표시 가능 항목"(선택 가능한 DICOM 필드 카탈로그, 고정)이고 DB `OVERLAY_ITEM`은 "실제로 Top/Bottom에 추가한 것"만 저장한다(중복 추가도 허용). **같은 것을 세고 있지 않다 — 쿼리를 바꿔도 못 고친다** | 개수 대신 **각 후보 항목의 추가/미추가 상태**를 Import 전후로 비교하는 새 검증을 설계해야 한다(2026-08-31 사용자 승인 — 아래 참고) |
 | ④ 화면에 서로 다른 두 목록이 섞여 잡힘(교차 오염) | `procedure.procedure`(Procedure 카탈로그 14~15개 + 우측 View Position 약어 4개가 뒤섞여 19개로 잡힘), `dicom.print_overlay`(Overlay 이름 1개 + 우측 필드 후보 카탈로그 20개가 섞여 21개로 잡힘) | `visible_rows()` 가 페이지 전체에서 `ListItem` 텍스트만 보고 잡아, 같은 화면의 다른 목록(측면 패널)까지 함께 주워 담는다 | 좌표(rect)나 부모 컨테이너로 대상 목록만 골라내는 **범위 제한**이 필요 — OCR 전환과 별개 작업 |
 | ⑤ 화면 요소 자체가 틀림(오탐) | `patient.physician`(화면 3행이 MWL 역할 매핑 콤보 — Physician 명단이 아니다, DB 는 0행) | 대상 컨트롤을 처음부터 잘못 잡고 있다 | 진짜 Physician 목록 컨테이너를 찾거나, 못 찾으면(0행이라 표시할 목록 자체가 없을 수 있음) 이 페이지의 개수 증명은 빼야 한다 |
@@ -664,6 +693,40 @@ Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 �
 `qc.scheduler`가 왜 fuzzy 매칭으로도 완전히 안 풀렸는지는 **아직 조사하지
 않았다** — 다음에 할 것.
 
+#### `dicom.tag_mapping`/`qc.scheduler` 원인 확정 및 수정 (2026-09-01)
+
+라이브로 두 페이지를 스크롤하며 화면 서명을 전부 출력해 `tool.predefined_text`
+(해결됨)와 잡음 패턴을 직접 비교했다. **패턴 자체가 달랐다** —
+`tool.predefined_text`는 진짜 문구 **뒤**에 잡음이 붙었는데, 이 둘은 매
+화면의 **마지막 행**에서만 단어 **중간** 글자가 바뀌었다(`"Age"`→`"Aae"`,
+`"Study"`→`"Studv"`). 기존 fuzzy 매칭(접두사+길이차)이 전제하는 패턴과
+달라 안 걸러진 것이었다.
+
+첫 진단(행 높이 비교, 뷰포트 아래로 잘린 행은 짧게 보고될 것이라 추정)은
+라이브 재검증에서 **틀린 것으로 드러났다** — `core.ui.GetWindowRect`는
+잘린 행도 명목상 크기(35px) 그대로 보고한다. 컨트롤 트리를 덤프해 행을
+감싸는 `ScrollWnd`(뷰포트)를 찾아 그 rect와 행 rect를 직접 대조하니,
+마지막 행(rect top=437~bottom=472)이 뷰포트 bottom(460)보다 12px 튀어
+나와 있었다 — 이 튀어나온 부분(23px만 실제로 그려짐)을 OCR 하면서 단어
+중간이 깨진 것이다. 상세 경위는 `../프로젝트_상세.md` B.28 참고.
+
+`_list_viewport()`가 행과 좌우 경계가 일치하는 `ScrollWnd`를 찾고,
+`_confidently_visible()`이 뷰포트 상하 경계를 벗어나는 행을 화면에서 뺀다
+(`core/setting_lists.py`, `_screen()`에 적용). 뷰포트를 못 찾으면
+아무것도 빼지 않는다.
+
+**라이브 재검증(`Reports/Result_20260831_194615.json`) — `dicom.tag_mapping`
+17/17 완전 해결(gap 0), `qc.scheduler` 20/23 → 21/23 개선(gap 0, 스크롤이
+실제 바닥까지 도달 확인).** `qc.scheduler`의 남은 2행 격차는 DB
+`QC_SCHEDULE.QCType`을 직접 조회해 확인했다 — Gantry 그룹이 DB엔 12개
+코드(51~62)가 있는데 화면엔 정확히 10개 행만 그려진다. 스크롤 결함이
+아니라 `display.overlay`와 같은 개념 불일치(유형③) 후보로 재분류한다 —
+별도 조사가 더 필요하다(사양서/DB로 이 2개 코드의 정체 확인).
+
+전체 판정은 여전히 FAIL(원인은 3-A UPS 제품 결함, 회귀 없음), Step 7(c)
+"Setting 목록 행 상세값 복원"은 PASS(128행/1768항목, 달라진 항목 0)로
+비교 폭도 더 넓어졌다(122→128행). 단위시험 119 → **128건 OK**.
+
 ---
 
 ## 6. 다음 세션용 프롬프트
@@ -680,12 +743,16 @@ Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
 그 다음 "목록 전 행 열거 완주" 서브체크(WF_14 Step 7)를 깊게 팠다 — 사용자가
 "구조적 문제 중 정보를 주면 풀리는 게 있냐"고 물어 `../지식/` 사양서를 전수 조사하고
-DB를 직접 조회했다. 문제 있던 9개 페이지 중 **6개를 완전히 해결했다**(system.account,
+DB를 직접 조회했다. 문제 있던 9개 페이지 중 **7개를 완전히 해결했다**(system.account,
 dicom.mwl/storage/print — OCR 폴백 + 위치 기반 키징; display.lut — DB 쿼리가 곡선
-제어점을 세고 있던 버그 수정; tool.predefined_text, study.reject_retake — 스크롤 잡음
-내성 fuzzy 매칭). 매 단계 라이브로 재검증했고 전체 판정(19 PASS/4 FAIL, 원인은 이미
-알려진 UPS 제품 결함)은 한 번도 안 바뀌었다(회귀 없음). 자세한 경위는 NEXT_WORK.md
-5절 ⑦과 2-D~2-E절, `../프로젝트_상세.md` B.23~B.27을 참고해라.
+제어점을 세고 있던 버그 수정; tool.predefined_text, study.reject_retake, dicom.tag_mapping
+— tag_mapping 은 스크롤 잡음이 아니라 **뷰포트 클리핑**이 근본 원인이었다(2026-09-01,
+2-F절/`../프로젝트_상세.md` B.28), 17/17 완전 일치). `qc.scheduler`(20→21/23)는 스크롤이
+실제 바닥까지 도달하는데도 남은 2행 격차는 스크롤 문제가 아니라 `display.overlay`와 같은
+개념 불일치(DB Gantry 12개 코드 vs 화면 10개 행) 후보로 재분류했다 — 원인 확정은 아직.
+매 단계 라이브로 재검증했고 전체 판정(원인은 이미 알려진 UPS 제품 결함)은 한 번도 안
+바뀌었다(회귀 없음). 자세한 경위는 NEXT_WORK.md 5절 ⑦과 2-D~2-F절,
+`../프로젝트_상세.md` B.23~B.28을 참고해라.
 
 먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절 ⑦)를 읽어
 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
@@ -712,10 +779,11 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
 P0 (환경이 확인되면 이 순서로)
-1. **`dicom.tag_mapping`(9/17)·`qc.scheduler`(20/23) — fuzzy 매칭으로도 완전히 안 풀린
-   원인 조사.** 추정하지 말고 라이브로 확인해라(예: gap 재시도 로그를 남기게 임시로
-   찍어 보거나, 두 페이지의 노이즈 패턴이 tool.predefined_text와 다른지 직접 비교).
-   여기부터가 다음 세션의 첫 실행 항목이다.
+1. **`qc.scheduler`(21/23) 남은 2행 격차의 정체 확인.** DB `QC_SCHEDULE.QCType`
+   Gantry 그룹 12개 코드(51~62) 중 화면에 없는 2개가 정확히 무엇인지 `../지식/`
+   사양서·Service Manual로 대조해라 — `display.overlay`처럼 "화면에 노출 안 되는
+   설계"인지, 아니면 다른 자동화 결함인지 아직 미확정이다. 여기부터가 다음 세션의
+   첫 실행 항목이다.
 2. **`display.overlay` 새 검증 설계.** 사양서로 "카탈로그(28개) vs 활성화된 서브셋(8개
    DB 행)"임이 확정됐다(개수 비교로는 검증이 안 되는 설계) — 각 후보 항목의 추가/미추가
    상태를 Import 전후로 비교하는 새 검증 방식을 사용자가 승인했다(5절 ⑦). 아직 미구현.
@@ -724,7 +792,7 @@ P0 (환경이 확인되면 이 순서로)
    무관한 콤보)까지 함께 주워 담는 문제 — 좌표(rect)나 부모 컨테이너로 대상 목록만
    골라내는 범위 제한이 필요하다. 아직 미착수, 페이지별로 라이브 조사가 더 필요하다.
 4. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
-   run-wf15 (Dose Overlay 전제). run-xipl-05/wf07/xipl-04/wf10/wf14 는 2026-08-28~31
+   run-wf15 (Dose Overlay 전제). run-xipl-05/wf07/xipl-04/wf10/wf14 는 2026-08-28~09-01
    확인 완료.
 5. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
 6. 전부 통과하면 전체 회귀를 처음부터 1회 돌려 실제 완료 결과만 기록해라. 시작 전에
@@ -734,8 +802,19 @@ P0 (환경이 확인되면 이 순서로)
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행
   전에 마우스/키보드를 점유한다는 것을 알리고, 여러 개를 동시에 돌리지 마라(충돌한다).
+- **하나의 CLI 세션(프로세스)이 끝나면 그 안에서 띄운 백그라운드 작업도 함께 끊긴다.**
+  20~30분 걸리는 라이브 실행(run-wf14 등)은 `Start-Process -WindowStyle Hidden`으로
+  세션과 완전히 분리된 OS 프로세스로 띄우고, 표준출력/에러를 파일로 리다이렉트해라
+  (2026-09-01에 harness 자체의 백그라운드 추적이 세션 경계에서 한 번 끊긴 전례가 있다
+  — 로그가 프로세스 종료 시점에야 플러시되니 중간 확인은 프로세스 생존 여부/CPU 시간
+  변화로 판단해라).
 - "구조적 문제/원인 불명"에 부딪히면 추측보다 먼저 `../지식/`(Service Manual·Operation
-  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 6곳을 풀었다.
+  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 7곳을 풀었다.
+- **고친 뒤 바로 라이브로 재검증해라 — 첫 진단이 틀릴 수 있다.** 2026-09-01에
+  `dicom.tag_mapping`의 첫 수정(행 높이 비교)은 라이브 재검증에서 곧바로 "변화 없음"이
+  드러나 틀린 전제(Win32 rect는 클리핑을 반영하지 않는다)였음을 알게 됐다 — 재진단
+  (뷰포트 rect 대조)으로 다시 고쳐 해결했다. 코드만 보고 "이걸로 맞겠지"라고 다음
+  단계로 넘어가지 않는다.
 - 범위가 예상보다 커지면(이번 세션의 OCR 수정처럼) 중간에 멈추고 사용자에게 범위를
   확인해라 — 계속 "가능한 만큼" 넓히기보다 단계별로 승인받는 편이 나았다.
 
