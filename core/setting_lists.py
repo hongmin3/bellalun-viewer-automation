@@ -415,8 +415,13 @@ ROW_COUNT_QUERIES = {
     # Setting > Display > Overlay — Image Overlay 항목 (실측 8)
     "display.overlay": ("CONFIGURATION",
                         "SELECT COUNT(*) AS n FROM OVERLAY_ITEM"),
-    # Setting > Display > LUT (실측 12)
-    "display.lut": ("CONFIGURATION", "SELECT COUNT(*) AS n FROM LUT_ITEM"),
+    # Setting > Display > LUT — LUT **개수**(실측 3: ScreenLUT/StorageLUT/
+    # ProcessLUT). `LUT_ITEM`은 LUT 하나가 아니라 **LUT 곡선의 제어점**을
+    # 저장한다(`LUTKey`+`Order`+`X`+`Y`, 2026-08-31 실측 — LUT 3개 x 곡선점
+    # 4개 = 12행). `COUNT(*)`는 화면의 LUT 행 수가 아니라 곡선점 수를 세는
+    # 것이었다 — `COUNT(DISTINCT LUTKey)`로 고친다.
+    "display.lut": ("CONFIGURATION",
+                    "SELECT COUNT(DISTINCT LUTKey) AS n FROM LUT_ITEM"),
     # Setting > Tool > Predefined Text (실측 7)
     "tool.predefined_text": ("CONFIGURATION",
                              "SELECT COUNT(*) AS n FROM PREDEFINED_TEXT_ITEM"),
