@@ -530,7 +530,7 @@ git push origin --delete agent/add-next-task-handoff
 |---|---|---|---|
 | ① 정상 — OCR 만으로 해결 — **2026-08-31 완료** | `system.account`(2/2 일치), `dicom.mwl`/`dicom.storage`/`dicom.print`(각 1/1 일치) | 자식 창이 없어 텍스트를 못 읽을 뿐, 화면 요소·개수는 이미 맞다 | `row_signature()` OCR 전환 + 스크롤 단축 + 위치 기반 키징으로 완료. 라이브 검증: 4곳 모두 "불완전" 목록에서 빠짐, 전체 판정 회귀 없음 |
 | ③-a `display.lut` — **2026-08-31 완료** | `display.lut`(3/12 → 3/3) | `../지식/` Service Manual 실측 + DB 직접 조회로 확정 — `LUT_ITEM`은 LUT **개수**가 아니라 LUT 곡선의 **제어점**을 저장한다(`LUTKey`+`Order`+`X`+`Y`, LUT 3개 × 점 4개 = 12행). 화면의 3행(ScreenLUT/StorageLUT/ProcessLUT)과 비교하려면 `COUNT(DISTINCT LUTKey)`를 써야 했다 | `ROW_COUNT_QUERIES["display.lut"]` 쿼리 수정. 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_153657.json`), 전체 판정 회귀 없음 |
-| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **2026-08-31 원인 확정(사양서로 검증)** | `tool.predefined_text`(5/7), `dicom.tag_mapping`(8/17), `study.reject_retake`(5/7, ③에서 재분류), `qc.scheduler`(20/23) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `qc.scheduler`는 DB `QCType` 코드를 직접 조회해 9+12+2=23개로 확인했고 사양서 요약표(21개, 2D/3D 화질 9 + Gantry 10 + Etc 2)의 상위 집합이다(Gantry 쪽에 사양서 요약표에 없는 코드 2개가 더 있다). **제품이 일부만 보여주는 게 아니라 자동화가 못 내려간 것이다** | `walk()`의 정지/연속 증명이 OCR 잡음 때문에 계속 조기 중단된다(아래 참고) — 스크롤이 실제로 작동하는지부터 라이브로 확인하고, 노이즈에 강한 증명 방식을 설계해야 한다 |
+| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **`tool.predefined_text`·`study.reject_retake` 2026-08-31 완료, 나머지 2곳 부분 개선** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, `dicom.tag_mapping`(8→9/17, 부분), `qc.scheduler`(20/23, 무변화) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `qc.scheduler`는 DB `QCType` 코드를 직접 조회해 9+12+2=23개로 확인했고 사양서 요약표(21개, 2D/3D 화질 9 + Gantry 10 + Etc 2)의 상위 집합이다(Gantry 쪽에 사양서 요약표에 없는 코드 2개가 더 있다). **제품이 일부만 보여주는 게 아니라 자동화가 못 내려간 것이다** | `walk()`의 정지/연속 증명이 OCR 잡음 때문에 계속 조기 중단된다(아래 참고) — 스크롤이 실제로 작동하는지부터 라이브로 확인하고, 노이즈에 강한 증명 방식을 설계해야 한다 |
 | ③ DB 카운트가 화면과 다른 것을 센다(개념 불일치) | `display.overlay`(화면 28 vs DB 8) | `../지식/` Service Manual·Operation Manual에 **명시적으로 확인됨** — 화면은 "표시 가능 항목"(선택 가능한 DICOM 필드 카탈로그, 고정)이고 DB `OVERLAY_ITEM`은 "실제로 Top/Bottom에 추가한 것"만 저장한다(중복 추가도 허용). **같은 것을 세고 있지 않다 — 쿼리를 바꿔도 못 고친다** | 개수 대신 **각 후보 항목의 추가/미추가 상태**를 Import 전후로 비교하는 새 검증을 설계해야 한다(2026-08-31 사용자 승인 — 아래 참고) |
 | ④ 화면에 서로 다른 두 목록이 섞여 잡힘(교차 오염) | `procedure.procedure`(Procedure 카탈로그 14~15개 + 우측 View Position 약어 4개가 뒤섞여 19개로 잡힘), `dicom.print_overlay`(Overlay 이름 1개 + 우측 필드 후보 카탈로그 20개가 섞여 21개로 잡힘) | `visible_rows()` 가 페이지 전체에서 `ListItem` 텍스트만 보고 잡아, 같은 화면의 다른 목록(측면 패널)까지 함께 주워 담는다 | 좌표(rect)나 부모 컨테이너로 대상 목록만 골라내는 **범위 제한**이 필요 — OCR 전환과 별개 작업 |
 | ⑤ 화면 요소 자체가 틀림(오탐) | `patient.physician`(화면 3행이 MWL 역할 매핑 콤보 — Physician 명단이 아니다, DB 는 0행) | 대상 컨트롤을 처음부터 잘못 잡고 있다 | 진짜 Physician 목록 컨테이너를 찾거나, 못 찾으면(0행이라 표시할 목록 자체가 없을 수 있음) 이 페이지의 개수 증명은 빼야 한다 |
@@ -616,6 +616,53 @@ FAIL 로 동일(회귀 없음), "달라진 항목"/"한쪽에만 있는 페이�
 
 정적 검사 전부 통과, 단위시험 96 → **112건 OK**(OCR 폴백 3 + 스크롤 단축 4 + 키징
 2건).
+
+#### `display.lut` 완료 + 스크롤 잡음 내성(fuzzy 매칭) 구현 (2026-08-31, 이어진 세션)
+
+사용자가 "구조적 문제 중 정보를 주면 풀리는 게 있냐"고 물어 `../지식/` 사양서를
+전수 조사하고 DB를 직접 조회했다(결과는 5절 ⑦ "13개 페이지 전수 라이브 확인
+결과" 표 참고). **`display.lut`는 그 자리에서 바로 고쳤다**(`LUT_ITEM`이 LUT
+개수가 아니라 곡선 제어점을 저장 — `COUNT(DISTINCT LUTKey)`로 수정, 라이브
+검증 완료, "불완전" 목록에서 빠짐).
+
+**스크롤 미완주 4곳은 사양서로 "제품이 일부만 보여준다"가 아니라 "자동화가
+스크롤을 끝까지 못 한다"임이 확정됐다** — 라이브로 스크롤 메커니즘 자체를
+확인했다(`tool.predefined_text`). 같은 5개 HWND 가 **가상 목록으로 재사용**되며
+(2026-08-25 문서에 이미 기록된 패턴) 매 스크롤마다 정확히 1행씩 새 내용으로
+바뀐다(`L,R,LCC,RCC,LMLO` → `R,LCC,RCC,LMLO,RMLO` → `LCC,RCC,LMLO,RMLO,IMPLANT`).
+**스크롤 자체는 정상 작동한다** — 막힌 것은 순수하게 OCR 잡음이 정지/연속
+증명(완전 일치 요구)을 깨는 문제였다. 잡음 패턴도 확인했다 — **항상 진짜
+문구 뒤에 짧은 잡음이 붙는다**(`"LCC"`→`"LCC i"`, `"RCC"`→`"RCC (]"`, 대개
+1~2자, 정규화 후에는 더 짧아진다).
+
+**조치 — 접두사 관계 + 작은 길이 차이 상한으로 fuzzy 매칭.** `_rows_match(a, b,
+fuzzy)`를 추가해 `fuzzy=True`(OCR 기반)일 때만 정규화 후 한쪽이 다른 쪽의
+접두사이고 길이 차이가 `MAX_OCR_NOISE_CHARS`(=2) 이하면 같은 행으로 본다.
+`fuzzy=False`(자식 텍스트, 잡음 없음)는 기존처럼 완전 일치만 인정해 2026-08-25
+재발 방지 설계를 그대로 지킨다. **상한을 2로 낮게 잡은 이유** — `"ACR
+Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 다른 행**인
+경우(QC Scheduler에 있음)가 정규화 후 3자 차이라, 상한을 3 이상으로 잡으면
+이 둘을 같다고 오판해 진짜 건너뛴 행을 놓칠 위험이 있다. `overlap()`과
+"정지 증명"(스크린 비교) 양쪽에 적용했다. 단위시험 7건 신설
+(`RowsMatchFuzzyTest` 5건 — 실측 잡음 샘플이 전부 통과하는지, `"ACR Phantom"`
+류 오판이 없는지 포함, `WalkFuzzyIntegrationTest` 2건 — `tool.predefined_text`
+실측 시퀀스로 7개 전부 복원되는지, fuzzy 를 켜도 진짜 skip 은 여전히 잡히는지).
+정적 검사 전부 통과, 단위시험 112 → **119건 OK**.
+
+**라이브 재검증(`Reports/Result_20260831_161812.json`, 1937초) — 2곳 완료,
+2곳 부분 개선.**
+
+| 페이지 | 전 | 후 | 상태 |
+|---|---|---|---|
+| `tool.predefined_text` | 5/7 | **7/7** | 완료 |
+| `study.reject_retake` | 5/7 | **7/7** | 완료 |
+| `dicom.tag_mapping` | 8/17 | 9/17 | 부분 개선(원인 미확정) |
+| `qc.scheduler` | 20/23 | 20/23 | 무변화(원인 미확정) |
+
+전체 판정은 여전히 19 PASS/4 FAIL(회귀 없음), Step 7(c) 비교 행 수는
+117→**122행**으로 더 회복됐다(원래 기준 123행에 근접). `tag_mapping`/
+`qc.scheduler`가 왜 fuzzy 매칭으로도 완전히 안 풀렸는지는 **아직 조사하지
+않았다** — 다음에 할 것.
 
 ---
 

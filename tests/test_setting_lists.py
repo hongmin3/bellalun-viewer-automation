@@ -98,6 +98,81 @@ class RowSignatureOCRTest(unittest.TestCase):
         self.assertEqual(sig, "")
 
 
+class RowsMatchFuzzyTest(unittest.TestCase):
+    """2026-08-31 실측: `tool.predefined_text`(Setting > Tool > Predefined
+    Text)를 라이브로 스크롤하며 잡은 실제 OCR 잡음 사례로 `_rows_match()`가
+    노이즈는 봐주고 진짜 다른 행은 안 봐주는지 확인한다."""
+
+    def test_exact_match_without_fuzzy(self):
+        self.assertTrue(setting_lists._rows_match("LCC", "LCC", fuzzy=False))
+
+    def test_noisy_match_rejected_without_fuzzy(self):
+        """자식 텍스트 기반(잡음 없음) 목록은 여전히 완전 일치만 인정한다 —
+        2026-08-25 재발 방지 설계를 그대로 지킨다."""
+        self.assertFalse(setting_lists._rows_match("LCC", "LCC i", fuzzy=False))
+
+    def test_real_ocr_noise_samples_match_with_fuzzy(self):
+        """실측 잡음 — 진짜 문구 뒤에 짧은 잡음이 붙은 경우."""
+        samples = [("L", "L i"), ("R", "R f)"), ("LCC", "LCC i"),
+                  ("RCC", "RCC i"), ("RCC", "RCC (]"), ("LMLO", "LMLO v"),
+                  ("LMLO", "LMLO i"), ("IMPLANT", "IMPLANT .")]
+        for clean, noisy in samples:
+            with self.subTest(clean=clean, noisy=noisy):
+                self.assertTrue(setting_lists._rows_match(clean, noisy,
+                                                          fuzzy=True))
+
+    def test_different_rows_with_shared_prefix_are_not_confused(self):
+        """`"ACR Phantom"` 대 `"ACR Phantom (3D-N)"` 처럼 접두사 관계지만
+        **실제로 다른 행**은 fuzzy 를 켜도 같다고 보면 안 된다 — 정규화 후
+        차이가 3자("3dn")라 `MAX_OCR_NOISE_CHARS`(2)를 넘는다."""
+        self.assertFalse(setting_lists._rows_match(
+            "ACR Phantom", "ACR Phantom (3D-N)", fuzzy=True))
+
+    def test_completely_different_rows_are_not_confused(self):
+        self.assertFalse(setting_lists._rows_match("LCC", "RMLO", fuzzy=True))
+
+
+class WalkFuzzyIntegrationTest(unittest.TestCase):
+    """2026-08-31 `tool.predefined_text` 라이브 스크롤에서 그대로 캡처한 값으로
+    fuzzy 겹침 증명이 실제로 사양서 기본값 7개(L/R/LCC/RCC/LMLO/RMLO/IMPLANT)를
+    전부 복원하는지 확인한다 — 이 값은 실측이라 재현 가능한 회귀 시험이다.
+    이 시험은 fuzzy 없이(구 코드) 돌리면 1회차 스크롤에서 겹침 0으로 실패한다."""
+
+    def test_real_captured_ocr_sequence_completes_with_fuzzy_overlap(self):
+        rows5 = [_FakeControl((0, i * 35, 400, i * 35 + 35)) for i in range(5)]
+        screens = [
+            (rows5, ["L i", "R |", "LCC", "RCC", "LMLO v"], True),
+            (rows5, ["R f)", "LCC i", "RCC i", "LMLO", "RMLO v"], True),
+            (rows5, ["LCC", "RCC (]", "LMLO i", "RMLO", "IMPLANT ."], True),
+            (rows5, ["LCC", "RCC (]", "LMLO i", "RMLO", "IMPLANT ."], True),
+        ]
+        with mock.patch.object(setting_lists, "_screen", side_effect=screens):
+            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+                                        expected_count=7)
+        self.assertTrue(result["complete"], result["reasons"])
+        self.assertEqual(len(result["signatures"]), 7)
+
+    def test_a_real_skip_is_still_caught_despite_fuzzy_matching(self):
+        """2026-08-25 재발 방지 — fuzzy 를 켜도 진짜로 건너뛴 행은 겹침 0 으로
+        여전히 잡혀야 한다. `"ACR Phantom"` 뒤에 중간 행 없이 바로
+        `"ACR Phantom (3D-N)"` 이 나오면(실제로는 그 사이 다른 QC 항목들을
+        건너뛴 것) 접두사 관계라도 길이 차이가 커서 겹침으로 안 봐준다."""
+        rows2 = [_FakeControl((0, i * 35, 400, i * 35 + 35)) for i in range(2)]
+        # current_notches 는 3에서 시작하고 겹침이 0이면 1로 줄여 한 번 더
+        # 재시도한다(재시도는 step 으로 안 센다) — 그다음에야 진짜 gap 으로
+        # 본다. 재시도도 같은 내용을 읽는다고 가정해 3개를 준다.
+        screens = [
+            (rows2, ["ACR Phantom", "Artifact"], True),
+            (rows2, ["ACR Phantom (3D-N)", "MTF (3D-N)"], True),
+            (rows2, ["ACR Phantom (3D-N)", "MTF (3D-N)"], True),
+        ]
+        with mock.patch.object(setting_lists, "_screen", side_effect=screens):
+            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+                                        expected_count=23)
+        self.assertFalse(result["complete"])
+        self.assertTrue(any("겹치는 행이 없다" in r for r in result["reasons"]))
+
+
 class WalkOCRShortCircuitTest(unittest.TestCase):
     """2026-08-31 실측: OCR 로 읽은 서명은 같은 화면을 다시 캡처해도 완전히
     같다는 보장이 없어, 정지/연속 증명(완전 일치 요구)에 넣으면 잡음을 "행을

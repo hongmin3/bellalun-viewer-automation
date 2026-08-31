@@ -142,7 +142,41 @@ def scroll_point(pane, rows):
     return ((left + right) // 2, (top + bottom) // 2)
 
 
-def overlap(previous, current):
+#: OCR 서명 비교에서 "같은 행, 잡음만 더 붙었다"로 봐줄 최대 글자 차이
+#  (정규화 후). 2026-08-31 실측 노이즈(`"LCC"` -> `"LCC i"`, `"RCC"` ->
+#  `"RCC (]"` 등)는 1~3자였다. `"ACR Phantom"` 대 `"ACR Phantom (3D-N)"`
+#  (정규화 후 3자 차이 "3dn")처럼 **실제로 다른 행**과 헷갈리지 않도록 값을
+#  낮게 잡는다 — 이 상수를 늘릴 때는 그 목록에 실제로 그런 접두사 관계의
+#  서로 다른 행이 없는지 먼저 확인한다.
+MAX_OCR_NOISE_CHARS = 2
+
+
+def _rows_match(a, b, fuzzy):
+    """두 서명이 같은 행을 가리키는지.
+
+    `fuzzy=False`(자식 텍스트 기반, 잡음 없음)면 **완전 일치**만 인정한다 —
+    2026-08-25 재발 방지 설계를 그대로 지킨다.
+
+    `fuzzy=True`(OCR 기반)면 정규화 후 한쪽이 다른 쪽의 접두사이고 길이 차이가
+    `MAX_OCR_NOISE_CHARS` 이하일 때도 같은 행으로 본다 — OCR 이 진짜 문구 뒤에
+    짧은 잡음을 붙이는 패턴(2026-08-31 실측)만 봐주고, `"ACR Phantom"` 대
+    `"ACR Phantom (3D-N)"`처럼 의미가 다른 접두사 관계는 길이 차이로 걸러낸다.
+    """
+    if a == b:
+        return True
+    if not fuzzy:
+        return False
+    from core import uitext
+    na, nb = uitext.norm(a), uitext.norm(b)
+    if na == nb:
+        return True
+    short, long_ = (na, nb) if len(na) <= len(nb) else (nb, na)
+    if not short or not long_.startswith(short):
+        return False
+    return len(long_) - len(short) <= MAX_OCR_NOISE_CHARS
+
+
+def overlap(previous, current, fuzzy=False):
     """`previous` 의 꼬리와 `current` 의 머리가 겹치는 **최대 길이**.
 
     스크롤은 목록을 위로 밀어 올리므로, 새 화면의 첫 몇 행은 직전 화면의 마지막
@@ -150,10 +184,14 @@ def overlap(previous, current):
 
     가장 긴 겹침을 고른다. 반복 문구가 있는 목록에서 짧은 겹침이 우연히 맞는
     것보다, 긴 쪽이 실제 이동을 반영할 가능성이 높다.
+
+    `fuzzy=True`면 `_rows_match()`로 비교해 OCR 잡음을 허용한다(호출부가
+    OCR 로 읽은 화면일 때만 켠다).
     """
     limit = min(len(previous), len(current))
     for k in range(limit, 0, -1):
-        if previous[-k:] == current[:k]:
+        if all(_rows_match(p, c, fuzzy)
+               for p, c in zip(previous[-k:], current[:k])):
             return k
     return 0
 
@@ -216,12 +254,14 @@ def walk(ui, pane, on_row=None, expected_count=None,
     while step < max_steps:
         step += 1
         ui.wheel(wheel_at, -current_notches, settle=settle)
-        rows, sigs, _used_ocr = _screen(pane, tesseract_exe)
+        rows, sigs, screen_used_ocr = _screen(pane, tesseract_exe)
+        used_ocr = used_ocr or screen_used_ocr
         unreadable += sum(1 for s in sigs if not s)
-        if sigs == screens[-1]:
+        if len(sigs) == len(screens[-1]) and all(
+                _rows_match(a, b, used_ocr) for a, b in zip(screens[-1], sigs)):
             bottom = True
             break
-        k = overlap(screens[-1], sigs)
+        k = overlap(screens[-1], sigs, fuzzy=used_ocr)
         if k == 0:
             if current_notches > 1:
                 # 한 번에 너무 많이 굴렸다. 되돌리고 폭을 줄여 다시 시도한다.
