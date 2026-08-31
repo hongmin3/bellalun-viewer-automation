@@ -1175,6 +1175,37 @@ def _login_id_items(ui):
                   key=lambda c: c.rect[1])
 
 
+def require_primary_monitor(ui):
+    """Viewer 창이 주 모니터 밖에 있으면 **옮기지 않고** 중단한다.
+
+    좌표 기반 자동화는 주 모니터 해상도를 전제하므로, 다른 모니터(특히 세로로
+    긴 모니터)에서 열리면 이후 모든 클릭 좌표가 어긋난다. 2026-08-28 사용자
+    지적: 자동화가 창을 강제로 옮기려 했다가(멀티 모니터 DPI 가상화 탓으로
+    보임) 오히려 세로 모니터로 옮겨버렸다 — **강제로 옮기지 않고, 어긋나 있으면
+    그 사실을 그대로 알리고 멈춘다.**
+
+    2026-08-31 실측: 이 검사가 `cold_start` 안에서 **기동/로그인 경로에만** 있어서,
+    이미 떠 있는 Viewer 를 재사용하는 경로(`force_restart=False`, `config.json`
+    기본값)에서는 아예 평가되지 않았다. 창을 (-600, 100)으로 옮긴 뒤
+    `cold_start(force_restart=False)` 를 호출하니 중단 없이 정상 반환했다.
+    재사용 경로를 쓰는 TC(`WF_01`/`WF_05`/`run-ui` 등)는 창이 어긋나 있어도
+    그대로 진행했다는 뜻이라, 두 경로가 같은 검사를 쓰도록 함수로 뽑았다.
+    """
+    win = ui.main_window()
+    if not win:
+        return
+    from core.display import screen_size
+
+    left, top, _r, _b = win.rect
+    max_w, max_h = screen_size()
+    if not (0 <= left < max_w and 0 <= top < max_h):
+        raise FlowError(
+            f"Viewer 창이 주 모니터(1920x1080, 좌표 0,0~{max_w}x{max_h}) 밖에 "
+            f"있습니다(현재 rect={win.rect}). 자동화가 임의로 창을 옮기지 "
+            "않습니다 — 실제 모니터 배치/Windows 주 모니터 설정을 1920x1080 "
+            "모니터로 맞춘 뒤 다시 실행하십시오.")
+
+
 def cold_start(cfg, db, on_event=None, force_restart=None):
     """Viewer가 꺼져 있는 상태를 전제로 기동부터 수행한다.
 
@@ -1209,6 +1240,9 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
     if ui.pid and not force_restart:
         healthy = not ui.at_login_screen() and db.ping()
         if healthy:
+            # 재사용 경로도 기동 경로와 **같은 창 위치 검사**를 거친다.
+            # `guard.sweep` 이 팝업을 클릭하므로 클릭 전에 확인해야 한다.
+            require_primary_monitor(ui)
             say(f"실행 중인 Viewer(PID {ui.pid}) 재사용")
             guard = watchdog.DialogGuard(
                 ui, evidence_dir=cfg.get("evidence_ui_dir", "Evidence/ui"))
@@ -1269,23 +1303,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
             f"Viewer가 {startup_timeout}초 안에 로그인/준비 화면을 표시하지 않았습니다. "
             "기동 실패를 로그인 완료로 간주하지 않고 안전하게 중단합니다.")
 
-    # **Viewer가 주 모니터(1920x1080, 좌표 0,0 기준) 밖에 있으면 즉시 중단한다.**
-    # 좌표 기반 자동화는 주 모니터 해상도를 전제하므로, 다른 모니터(특히 세로로
-    # 긴 모니터)에서 열리면 이후 모든 클릭 좌표가 어긋난다. 2026-08-28 사용자
-    # 지적: 자동화가 창을 강제로 옮기려 했다가(멀티 모니터 DPI 가상화 탓으로
-    # 보임) 오히려 세로 모니터로 옮겨버렸다 — **강제로 옮기지 않고, 어긋나 있으면
-    # 그 사실을 그대로 알리고 멈춘다.**
-    win = ui.main_window()
-    if win:
-        from core.display import screen_size
-        left, top, _r, _b = win.rect
-        max_w, max_h = screen_size()
-        if not (0 <= left < max_w and 0 <= top < max_h):
-            raise FlowError(
-                f"Viewer 창이 주 모니터(1920x1080, 좌표 0,0~{max_w}x{max_h}) 밖에 "
-                f"있습니다(현재 rect={win.rect}). 자동화가 임의로 창을 옮기지 "
-                "않습니다 — 실제 모니터 배치/Windows 주 모니터 설정을 1920x1080 "
-                "모니터로 맞춘 뒤 다시 실행하십시오.")
+    require_primary_monitor(ui)
 
     login = cfg["viewer"]["login"]
     if ui.at_login_screen():
