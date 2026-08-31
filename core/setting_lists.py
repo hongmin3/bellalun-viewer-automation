@@ -287,6 +287,19 @@ def walk(ui, pane, on_row=None, expected_count=None,
     """
     rows, sigs, used_ocr = _screen(pane, tesseract_exe)
     if not rows:
+        # `pane`은 호출부가 이미 컨트롤로 찾아낸 뒤 넘긴 것이다(존재 자체는
+        # 확인됨) — 그런데도 행이 0개면 "못 찾았다"가 아니라 "진짜 빈
+        # 목록"일 수 있다. `expected_count`가 명시적으로 0(DB 원천도 0행)이면
+        # 완전한 빈 목록으로 인정한다(2026-09-01 실측 — `patient.physician`의
+        # Referring/Reading/Performing Physician 세 목록이 DB `PHYSICIAN`
+        # 0행과 정확히 일치하는데도 이 분기가 항상 실패로 오판했다). 기대
+        # 개수를 모르거나(`None`) 0이 아니면 기존처럼 실패로 본다 — 컨트롤을
+        # 찾았는데 아무 행도 안 보이는 것은 대개 진입 타이밍 문제이지 진짜
+        # 빈 목록이 아니기 때문이다.
+        if expected_count == 0:
+            return {"signatures": [], "screens": [], "steps": 0,
+                    "complete": True, "reasons": [],
+                    "expected_count": expected_count, "unreadable_rows": 0}
         return {"signatures": [], "screens": [], "steps": 0, "complete": False,
                 "reasons": ["목록 행이 보이지 않는다"],
                 "expected_count": expected_count, "unreadable_rows": 0}
@@ -707,6 +720,140 @@ def _collect_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHES,
     }
 
 
+#: `patient.physician` 전용 — 화면엔 독립된 목록이 **넷**(2x2 그리드) 있다
+#  (2026-09-01 실측): "Referring Physician"(id=2318)/"Reading Physician"
+#  (id=2319)/"Performing Physician"(id=2320)은 현재 모두 0행(DB `PHYSICIAN`
+#  도 0행과 일치), "Performing Physician Order"(id=2321)는 3행이지만
+#  MWL 역할 매핑 콤보이지 의사 명단이 아니다(B.24 에서 이미 확인). 라벨을
+#  OCR로 읽어 확정했다 — `visible_rows()`는 이 중 2321만 우연히 주웠다.
+PHYSICIAN_LIST_CONTROLS = (2318, 2319, 2320)
+
+#: `dicom.print_overlay` 전용 컨트롤 ID(2026-09-01 실측). Overlay 이름
+#  목록(좌)에서 행을 선택해야만 우측 Position 목록 셋이 채워진다 — 선택
+#  전엔 셋 다 0행이다. Position 셋을 합치면 DB `PRINT_OVERLAY_ITEM` 과
+#  정확히 같은 것을 센다(실측: Overlay 1개 × Position 0/1/2 각 2개 = 6행,
+#  선택 후 세 목록에 2/2/2로 정확히 나뉘어 나타난다). 가운데의 후보 필드
+#  카탈로그(`PRINT_OVERLAY_FIELD_CATALOGUE`)는 `display.overlay` 카탈로그와
+#  같은 성격이라 판정과 무관하다.
+PRINT_OVERLAY_NAME_LIST = 2485
+PRINT_OVERLAY_FIELD_CATALOGUE = 2489
+PRINT_OVERLAY_POSITION_LISTS = (2486, 2487, 2488)
+
+
+def _collect_multi_list(ui, ctrl_ids, expected_count=None, exclude_ids=(),
+                        notches=DEFAULT_SCROLL_NOTCHES, settle=0.6,
+                        tesseract_exe=None):
+    """서로 무관한 여러 독립 목록을 각각 훑어 합친다.
+
+    선택 등 사전 동작이 필요 없는 단순한 경우에 쓴다(`patient.physician`처럼
+    "진짜" 목록이 여럿이고 그걸 다 더해야 DB 행 수와 맞는 경우). 목록을
+    하나로 합치기만 하면 되는 `procedure.procedure`(하나만 남기면 됨)나
+    `display.overlay`(선택 없이 Top/Bottom 두 곳을 훑음)와 달리, 이건 그
+    중간 — "선택은 필요 없지만 합쳐야 할 목록이 여러 개"인 경우다.
+
+    `ctrl_ids`에 없는 컨트롤은 건너뛰고 사유만 남긴다 — 컨트롤 자체가 없는
+    것과 목록이 비어 있는 것은 다르므로 구분해서 기록한다.
+
+    합계 `expected_count`가 **0**이면 각 목록에도 0을 그대로 넘긴다(음수는
+    없으니 합이 0이면 개별도 전부 0이어야 한다) — `walk()`가 그때만 빈
+    목록을 실패가 아니라 완전한 열거로 인정한다. 합계를 모르거나(`None`)
+    0이 아니면(개별 분포를 알 수 없다) 개별에는 `None`을 넘긴다.
+    """
+    per_list_expected = 0 if expected_count == 0 else None
+    signatures, details, reasons = [], {}, []
+    complete = True
+    steps_total = 0
+    for ctrl_id in ctrl_ids:
+        hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+        if not hits:
+            reasons.append(f"목록 컨트롤(id={ctrl_id})을 찾지 못했다")
+            complete = False
+            continue
+        result = collect(ui, hits[0], expected_count=per_list_expected,
+                         exclude_ids=exclude_ids, notches=notches,
+                         settle=settle, tesseract_exe=tesseract_exe)
+        steps_total += result["steps"]
+        complete = complete and result["complete"]
+        reasons.extend(f"[{ctrl_id}] {r}" for r in result["reasons"])
+        signatures.extend(result["signatures"])
+        for sig, value in result["details"].items():
+            details[f"{ctrl_id}:{sig}"] = value
+    if expected_count is not None and len(signatures) != expected_count:
+        complete = False
+        reasons.append(
+            f"열거한 행 {len(signatures)}개가 DB 원천 행 {expected_count}개와 "
+            "다르다")
+    return {
+        "signatures": signatures, "screens": [], "steps": steps_total,
+        "complete": complete, "reasons": reasons,
+        "expected_count": expected_count, "unreadable_rows": 0,
+        "details": details, "duplicate_signatures": [], "stale_rows": [],
+    }
+
+
+def _collect_print_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHES,
+                           settle=0.6, tesseract_exe=None):
+    """`dicom.print_overlay` 전용 — Overlay 이름마다 Position 목록 셋을 훑는다.
+
+    Overlay 이름 목록(`PRINT_OVERLAY_NAME_LIST`)의 행을 하나씩 선택하며,
+    그 시점에 채워지는 Position 목록 셋(`PRINT_OVERLAY_POSITION_LISTS`)을
+    모아 합친다. 후보 필드 카탈로그(`PRINT_OVERLAY_FIELD_CATALOGUE`)는
+    `display.overlay` 카탈로그와 같은 성격이라 판정과 무관하므로 아예
+    보지 않는다. Overlay 가 여럿이면 전부 순회한다(2026-09-01 실측 시점엔
+    1개뿐이었다).
+    """
+    name_hits = [c for c in ui.by_id(PRINT_OVERLAY_NAME_LIST) if c.visible]
+    expected = expected_row_count(db, "dicom.print_overlay")
+    if not name_hits:
+        return {
+            "signatures": [], "screens": [], "steps": 0, "complete": False,
+            "reasons": [f"Overlay 이름 목록(id={PRINT_OVERLAY_NAME_LIST})을 "
+                       "찾지 못했다"],
+            "expected_count": expected, "unreadable_rows": 0,
+            "details": {}, "duplicate_signatures": [], "stale_rows": []}
+
+    names = sorted({c.hwnd: c for c in children(name_hits[0].hwnd, 5)
+                   if c.text == "ListItem" and c.visible}.values(),
+                  key=lambda c: c.rect[1])
+    signatures, details, reasons = [], {}, []
+    complete = True
+    steps_total = 0
+    if not names:
+        reasons.append("Overlay 이름 목록에 행이 없다")
+        complete = False
+    for idx, name_row in enumerate(names):
+        ui.click(name_row, settle=settle)
+        for ctrl_id in PRINT_OVERLAY_POSITION_LISTS:
+            hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+            if not hits:
+                reasons.append(
+                    f"[overlay#{idx}] Position 목록(id={ctrl_id})을 찾지 "
+                    "못했다")
+                complete = False
+                continue
+            result = collect(ui, hits[0], expected_count=None,
+                             exclude_ids=exclude_ids, notches=notches,
+                             settle=settle, tesseract_exe=tesseract_exe)
+            steps_total += result["steps"]
+            complete = complete and result["complete"]
+            reasons.extend(f"[overlay#{idx}/{ctrl_id}] {r}"
+                          for r in result["reasons"])
+            signatures.extend(result["signatures"])
+            for sig, value in result["details"].items():
+                details[f"overlay{idx}:{ctrl_id}:{sig}"] = value
+
+    if expected is not None and len(signatures) != expected:
+        complete = False
+        reasons.append(
+            f"열거한 행 {len(signatures)}개가 DB 원천 행 {expected}개와 다르다")
+    return {
+        "signatures": signatures, "screens": [], "steps": steps_total,
+        "complete": complete, "reasons": reasons, "expected_count": expected,
+        "unreadable_rows": 0, "details": details,
+        "duplicate_signatures": [], "stale_rows": [],
+    }
+
+
 def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
           settle=0.6, on_event=None, tesseract_exe=None):
     """후보 페이지들의 목록을 **행마다 상세값까지** 모아 한 번에 돌려준다.
@@ -746,6 +893,20 @@ def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
             result = _collect_overlay(ui, db, exclude_ids=exclude_ids,
                                       notches=notches, settle=settle,
                                       tesseract_exe=tesseract_exe)
+        elif key == "patient.physician":
+            # 화면에 독립된 목록이 넷(2x2 그리드) — 진짜 대상 셋(Referring/
+            # Reading/Performing Physician)만 합쳐 훑는다.
+            result = _collect_multi_list(
+                ui, PHYSICIAN_LIST_CONTROLS,
+                expected_count=expected_row_count(db, key),
+                exclude_ids=exclude_ids, notches=notches, settle=settle,
+                tesseract_exe=tesseract_exe)
+        elif key == "dicom.print_overlay":
+            # Overlay 이름을 선택해야 Position 목록 셋이 채워진다 —
+            # `_collect_print_overlay()`가 이름마다 선택하며 훑는다.
+            result = _collect_print_overlay(ui, db, exclude_ids=exclude_ids,
+                                            notches=notches, settle=settle,
+                                            tesseract_exe=tesseract_exe)
         elif key in SINGLE_LIST_CONTROL:
             # 같은 패널에 목적이 다른 목록이 섞여 있다 — 진짜 목록의 컨트롤
             # ID(실측)로 직접 찾아 그것만 `pane` 삼는다.

@@ -279,6 +279,39 @@ class WalkFuzzyIntegrationTest(unittest.TestCase):
         self.assertTrue(any("겹치는 행이 없다" in r for r in result["reasons"]))
 
 
+class WalkEmptyListTest(unittest.TestCase):
+    """2026-09-01 실측: `patient.physician`의 Referring/Reading/Performing
+    Physician 세 목록은 컨트롤을 찾았는데도(호출부가 이미 확인) 행이 0개다
+    — DB `PHYSICIAN`도 0행이라 이건 "못 찾았다"가 아니라 진짜 빈 목록이다.
+    그런데 `walk()`는 "행이 안 보이면 무조건 실패"로 처리해 항상 불완전으로
+    판정했다. `expected_count=0`일 때만 빈 목록을 완전한 열거로 인정하는지
+    확인한다."""
+
+    def test_empty_list_with_expected_zero_is_complete(self):
+        with mock.patch.object(setting_lists, "_screen",
+                               return_value=([], [], False)):
+            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+                                        expected_count=0)
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["reasons"], [])
+        self.assertEqual(result["signatures"], [])
+
+    def test_empty_list_with_unknown_expected_is_still_incomplete(self):
+        with mock.patch.object(setting_lists, "_screen",
+                               return_value=([], [], False)):
+            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+                                        expected_count=None)
+        self.assertFalse(result["complete"])
+        self.assertTrue(any("보이지 않는다" in r for r in result["reasons"]))
+
+    def test_empty_list_with_nonzero_expected_is_still_incomplete(self):
+        with mock.patch.object(setting_lists, "_screen",
+                               return_value=([], [], False)):
+            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+                                        expected_count=3)
+        self.assertFalse(result["complete"])
+
+
 class WalkOCRShortCircuitTest(unittest.TestCase):
     """2026-08-31 실측: OCR 로 읽은 서명은 같은 화면을 다시 캡처해도 완전히
     같다는 보장이 없어, 정지/연속 증명(완전 일치 요구)에 넣으면 잡음을 "행을
@@ -585,6 +618,202 @@ class SingleListControlTest(unittest.TestCase):
                                          [("procedure", "procedure")])
         self.assertNotIn("procedure.procedure", result["pages"])
         self.assertIn("procedure.procedure", result["skipped"])
+
+
+class CollectMultiListTest(unittest.TestCase):
+    """2026-09-01 실측: `patient.physician`은 독립된 목록이 넷(2x2 그리드) —
+    라벨을 OCR로 읽어 "Referring/Reading/Performing Physician"(id 2318/2319/
+    2320, 진짜 대상, 현재 모두 0행)과 "Performing Physician Order"(id 2321,
+    MWL 역할 매핑 콤보 — 의사 명단 아님)를 구분했다. `_collect_multi_list()`가
+    등록된 컨트롤들만 합치는지 확인한다."""
+
+    def _fake_control(self, hwnd):
+        c = _FakeControl((0, 0, 10, 10))
+        c.hwnd = hwnd
+        c.visible = True
+        return c
+
+    def test_merges_all_registered_controls(self):
+        ctrl_a, ctrl_b = self._fake_control(1), self._fake_control(2)
+
+        def fake_by_id(ctrl_id):
+            return {1: [ctrl_a], 2: [ctrl_b]}.get(ctrl_id, [])
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        def fake_collect(ui_arg, pane, expected_count=None, **kwargs):
+            if pane is ctrl_a:
+                return {"signatures": ["A1"], "steps": 0, "complete": True,
+                        "reasons": [], "details": {"A1": {}}}
+            if pane is ctrl_b:
+                return {"signatures": ["B1", "B2"], "steps": 1,
+                        "complete": True, "reasons": [],
+                        "details": {"B1": {}, "B2": {}}}
+            raise AssertionError("unexpected pane")
+
+        with mock.patch.object(setting_lists, "collect", side_effect=fake_collect):
+            result = setting_lists._collect_multi_list(ui, (1, 2),
+                                                        expected_count=3)
+
+        self.assertEqual(result["signatures"], ["A1", "B1", "B2"])
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["details"], {"1:A1": {}, "2:B1": {}, "2:B2": {}})
+
+    def test_expected_zero_propagates_to_each_sub_list(self):
+        """합계가 0이면 각 목록에도 0을 넘겨야 `walk()`가 빈 목록을 실패로
+        오판하지 않는다(2026-09-01 실측, `patient.physician`)."""
+        ctrl_a = self._fake_control(1)
+
+        def fake_by_id(ctrl_id):
+            return {1: [ctrl_a]}.get(ctrl_id, [])
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        with mock.patch.object(
+                setting_lists, "collect",
+                return_value={"signatures": [], "steps": 0, "complete": True,
+                              "reasons": [], "details": {}}) as co:
+            setting_lists._collect_multi_list(ui, (1,), expected_count=0)
+
+        self.assertEqual(co.call_args.kwargs.get("expected_count"), 0)
+
+    def test_missing_control_is_noted_but_others_still_collected(self):
+        ctrl_a = self._fake_control(1)
+
+        def fake_by_id(ctrl_id):
+            return {1: [ctrl_a]}.get(ctrl_id, [])
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        with mock.patch.object(
+                setting_lists, "collect",
+                return_value={"signatures": ["A1"], "steps": 0,
+                              "complete": True, "reasons": [],
+                              "details": {"A1": {}}}):
+            result = setting_lists._collect_multi_list(ui, (1, 2, 3))
+
+        self.assertEqual(result["signatures"], ["A1"])
+        self.assertFalse(result["complete"])
+        self.assertTrue(any("id=2" in r for r in result["reasons"]))
+        self.assertTrue(any("id=3" in r for r in result["reasons"]))
+
+    def test_expected_count_mismatch_marks_incomplete(self):
+        ui = mock.Mock()
+        ui.by_id.return_value = []
+        result = setting_lists._collect_multi_list(ui, (), expected_count=0)
+        self.assertTrue(result["complete"])  # 0개 기대, 0개 열거 — 일치
+        result2 = setting_lists._collect_multi_list(ui, (), expected_count=5)
+        self.assertFalse(result2["complete"])
+
+
+class CollectPrintOverlayTest(unittest.TestCase):
+    """2026-09-01 실측: `dicom.print_overlay`는 Overlay 이름 목록에서 행을
+    선택해야만 우측 Position 목록 셋(id 2486/2487/2488)이 채워진다(선택 전엔
+    셋 다 0행). 합치면 DB `PRINT_OVERLAY_ITEM`과 정확히 같은 것을 센다
+    (실측: Overlay 1개 x Position 0/1/2 각 2개 = 6행). `_collect_print_overlay()`
+    가 이름마다 선택하며 Position 목록을 모으는지 확인한다."""
+
+    def _fake_control(self, hwnd, rect=(0, 0, 10, 10)):
+        c = _FakeControl(rect)
+        c.hwnd = hwnd
+        c.visible = True
+        return c
+
+    def test_selects_each_name_row_and_merges_positions(self):
+        name_list_ctrl = self._fake_control(100)
+        name_row = self._fake_control(101)
+        name_row.text = "ListItem"
+        pos_ctrls = {2486: self._fake_control(2486),
+                    2487: self._fake_control(2487),
+                    2488: self._fake_control(2488)}
+
+        def fake_by_id(ctrl_id):
+            if ctrl_id == setting_lists.PRINT_OVERLAY_NAME_LIST:
+                return [name_list_ctrl]
+            return [pos_ctrls[ctrl_id]] if ctrl_id in pos_ctrls else []
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        def fake_collect(ui_arg, pane, expected_count=None, **kwargs):
+            for cid, ctrl in pos_ctrls.items():
+                if pane is ctrl:
+                    return {"signatures": [f"field{cid}"], "steps": 0,
+                            "complete": True, "reasons": [],
+                            "details": {f"field{cid}": {}}}
+            raise AssertionError("unexpected pane")
+
+        with mock.patch.object(setting_lists, "children",
+                              return_value=[name_row]), \
+             mock.patch.object(setting_lists, "collect", side_effect=fake_collect), \
+             mock.patch.object(setting_lists, "expected_row_count",
+                              return_value=3):
+            result = setting_lists._collect_print_overlay(ui, mock.Mock())
+
+        ui.click.assert_called_once()
+        self.assertEqual(sorted(result["signatures"]),
+                         ["field2486", "field2487", "field2488"])
+        self.assertTrue(result["complete"])
+
+    def test_no_name_list_control_is_incomplete(self):
+        ui = mock.Mock()
+        ui.by_id.return_value = []
+        with mock.patch.object(setting_lists, "expected_row_count",
+                              return_value=6):
+            result = setting_lists._collect_print_overlay(ui, mock.Mock())
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["signatures"], [])
+        self.assertTrue(any("찾지 못했다" in r for r in result["reasons"]))
+
+
+class SweepRoutesPhysicianAndPrintOverlayTest(unittest.TestCase):
+    """`sweep()`이 `patient.physician`/`dicom.print_overlay` 키에서 전용
+    함수를 쓰는지 확인한다."""
+
+    def _fake_control(self, hwnd):
+        c = _FakeControl((0, 0, 10, 10))
+        c.hwnd = hwnd
+        c.visible = True
+        return c
+
+    def test_sweep_routes_patient_physician(self):
+        pane = self._fake_control(1)
+        with mock.patch("core.flows.open_group_page", return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "setting_window",
+                              return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "pane_control",
+                              return_value=pane), \
+             mock.patch.object(setting_lists.time, "sleep"), \
+             mock.patch.object(setting_lists, "expected_row_count",
+                              return_value=0), \
+             mock.patch.object(
+                 setting_lists, "_collect_multi_list",
+                 return_value={"signatures": [], "complete": True}) as cm:
+            result = setting_lists.sweep(mock.Mock(), mock.Mock(),
+                                         [("patient", "physician")])
+        cm.assert_called_once()
+        self.assertEqual(cm.call_args.args[1],
+                         setting_lists.PHYSICIAN_LIST_CONTROLS)
+        self.assertIn("patient.physician", result["pages"])
+
+    def test_sweep_routes_dicom_print_overlay(self):
+        pane = self._fake_control(1)
+        with mock.patch("core.flows.open_group_page", return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "setting_window",
+                              return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "pane_control",
+                              return_value=pane), \
+             mock.patch.object(setting_lists.time, "sleep"), \
+             mock.patch.object(
+                 setting_lists, "_collect_print_overlay",
+                 return_value={"signatures": [], "complete": True}) as cpo:
+            result = setting_lists.sweep(mock.Mock(), mock.Mock(),
+                                         [("dicom", "print_overlay")])
+        cpo.assert_called_once()
+        self.assertIn("dicom.print_overlay", result["pages"])
 
 
 if __name__ == "__main__":
