@@ -626,6 +626,20 @@ def find_lists(ui, pages, min_rows=1, on_event=None):
 #  일반 단일 목록 경로 대신 `_collect_overlay()`를 쓴다.
 OVERLAY_PAGE_KEY = "display.overlay"
 
+#: 같은 패널에 목적이 다른 목록이 여러 개 있어 `visible_rows()`가 구분 못 하고
+#  섞는 페이지 — "진짜" 목록 하나의 컨트롤 ID(실측)를 적어 그 컨트롤만 `pane`
+#  삼아 훑는다(`display.overlay`처럼 둘 이상을 병합해야 하면 `_collect_overlay`
+#  같은 전용 함수를 따로 둔다 — 여긴 **하나만 남기면 되는** 단순한 경우다).
+SINGLE_LIST_CONTROL = {
+    # Setting > Procedure > Procedure. 이 페이지엔 독립된 목록이 둘 있다 —
+    # Procedure 카탈로그(id=2560, 2026-09-01 실측 15행 = DB `PROCEDURE_INFO`와
+    # 일치)와 우측의 View Position 약어 목록(id=2561, 실측 4행 — RCC/LCC/RMLO/
+    # LMLO, Procedure 목록과 무관). `visible_rows()`가 패널 전체를 훑어 둘을
+    # 섞어 19행(15+4)으로 잡았다 — `display.overlay`와 같은 교차 오염이었다
+    # (`../프로젝트_상세.md` B.29 참고).
+    "procedure.procedure": 2560,
+}
+
 
 def _collect_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHES,
                      settle=0.6, tesseract_exe=None):
@@ -732,6 +746,18 @@ def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
             result = _collect_overlay(ui, db, exclude_ids=exclude_ids,
                                       notches=notches, settle=settle,
                                       tesseract_exe=tesseract_exe)
+        elif key in SINGLE_LIST_CONTROL:
+            # 같은 패널에 목적이 다른 목록이 섞여 있다 — 진짜 목록의 컨트롤
+            # ID(실측)로 직접 찾아 그것만 `pane` 삼는다.
+            ctrl_id = SINGLE_LIST_CONTROL[key]
+            hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+            if not hits:
+                skipped[key] = f"목록 컨트롤(id={ctrl_id})을 찾지 못했다"
+                continue
+            result = collect(ui, hits[0], expected_count=expected_row_count(db, key),
+                             exclude_ids=exclude_ids,
+                             notches=notches, settle=settle,
+                             tesseract_exe=tesseract_exe)
         else:
             if not visible_rows(pane):
                 skipped[key] = "목록 없음"

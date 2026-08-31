@@ -404,6 +404,49 @@ FAIL(원인 3-A UPS, 회귀 없음). Step 7(c) 비교 행 수는 128→**108행*
 
 ---
 
+## 2-H. 2026-09-01 회차(이어짐) — 교차 오염 3곳 중 1곳(`procedure.procedure`) 완료, 2곳은 대응 관계 미확정으로 보류(P0 #3 일부)
+
+B.29 의 해법("대상 컨트롤을 `ui.by_id()`로 직접 찾아 `pane` 삼기")이 나머지
+교차 오염 페이지에도 통하는지 `procedure.procedure`/`dicom.print_overlay`/
+`patient.physician` 셋의 컨트롤 트리를 라이브로 덤프했다.
+
+**`procedure.procedure` — 같은 패턴으로 바로 풀렸다.** 독립된 `ListCtrl`이
+정확히 둘이다 — Procedure 카탈로그(id=2560, 실측 15행=DB `PROCEDURE_INFO`와
+일치)와 View Position 약어 목록(id=2561, 실측 4행 — RCC/LCC/RMLO/LMLO,
+Procedure 와 무관). `visible_rows()`가 둘을 섞어 15+4=19행으로 잡았다.
+`core/setting_lists.py`에 `SINGLE_LIST_CONTROL = {"procedure.procedure": 2560}`
+매핑과 `sweep()` 라우팅을 추가했다 — `_collect_overlay()`처럼 두 목록을
+병합할 필요가 없는 **단순한 경우**라 더 가벼운 전용 경로를 뒀다(대상
+컨트롤 하나만 찾아 기존 `collect()`에 그대로 넘긴다). 단위시험 2건 신설
+(`SingleListControlTest`), 131 → **133건 OK**.
+
+**라이브 검증(`Reports/Result_20260831_221745.json`)** — `procedure.procedure`
+열거 15 / DB 15 **완전 일치, 불완전 목록에서 빠짐.** 전체 판정 여전히
+FAIL(3-A UPS, 회귀 없음). Step 7(c) 비교 행 수 108→**104행**(줄어든 4행 =
+이 페이지에서 빠진 View Position 약어 행 — B.29 와 같은 이유로 회귀 아님).
+
+**`dicom.print_overlay`/`patient.physician` — 이번엔 보류.** 둘 다
+`procedure.procedure`보다 목록이 더 많고(넷) 어떤 목록이 DB 판정 대상과
+대응하는지 자체가 불확실했다.
+
+- `dicom.print_overlay`: 독립된 `ListCtrl` 넷 — Overlay 이름(id=2485, 현재
+  1행), 후보 필드 카탈로그(id=2489, 20행 이상), "추가된 필드" 슬롯으로
+  보이는 목록 셋(id=2486/2487/2488, 이번 실측에서 **셋 다 0행**). DB
+  `PRINT_OVERLAY_ITEM`이 이 셋 중 무엇과 대응하는지, 혹은 선택된 Overlay에
+  실제로 필드가 하나도 안 붙어 있어 셋 다 비어 보이는 것인지 미확정.
+- `patient.physician`: 2x2 그리드 `ListCtrl` 넷 중 셋이 비고, 하나(id=2321)만
+  3행(MWL 역할 매핑 콤보 — B.24 에서 이미 "실제 의사 명단이 아니다"로 확인된
+  것과 같은 컨트롤)을 담는다. DB `PHYSICIAN` 은 0행인데, 이 화면에 진짜
+  "의사 명단"에 대응하는 그리드가 있는지, 아니면 이 화면 자체가 역할
+  매핑만 다뤄 대응하는 목록이 원천적으로 없는지도 미확정이다.
+
+**추측으로 고치지 않고 조사 결과만 남긴다.** 다음 조사는 각 목록에 항목을
+하나씩 추가해 보며 DB 어느 테이블/컬럼이 바뀌는지 실측하는 방식
+(B.29 의 `_overlay_positions()`처럼)이 되어야 한다. 상세 경위는
+`../프로젝트_상세.md` B.30 참고.
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -597,16 +640,18 @@ git push origin --delete agent/add-next-task-handoff
 | ③-a `display.lut` — **2026-08-31 완료** | `display.lut`(3/12 → 3/3) | `../지식/` Service Manual 실측 + DB 직접 조회로 확정 — `LUT_ITEM`은 LUT **개수**가 아니라 LUT 곡선의 **제어점**을 저장한다(`LUTKey`+`Order`+`X`+`Y`, LUT 3개 × 점 4개 = 12행). 화면의 3행(ScreenLUT/StorageLUT/ProcessLUT)과 비교하려면 `COUNT(DISTINCT LUTKey)`를 써야 했다 | `ROW_COUNT_QUERIES["display.lut"]` 쿼리 수정. 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_153657.json`), 전체 판정 회귀 없음 |
 | ② 내용은 맞는데 스크롤이 끝까지 못 감 — **`tool.predefined_text`·`study.reject_retake`·`dicom.tag_mapping` 완료(2026-08-31/09-01), `qc.scheduler`는 스크롤 문제 아닌 것으로 재분류(아래 B.28/2-F절)** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, ~~`dicom.tag_mapping`(9/17)~~→**17/17**(2026-09-01, 뷰포트 클리핑 수정), `qc.scheduler`(20→21/23, 스크롤은 진짜 바닥까지 도달 확인 — 남은 격차는 유형③ 개념 불일치로 재분류) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `dicom.tag_mapping`은 근본 원인이 스크롤 잡음이 아니라 **뷰포트 클리핑**이었다(2-F절) — 고친 뒤 17/17 완전 일치. `qc.scheduler`는 스크롤이 실제로 더 이상 안 바뀌는 바닥까지 도달하는데도 DB `QCType`(9+12+2=23개, Gantry 12개) 중 화면 Gantry 그룹은 정확히 10개 행만 보여준다 — 스크롤 미완주가 아니라 `display.overlay`와 같은 개념 불일치(유형③) 후보로 재분류했다 | ~~`walk()`의 정지/연속 증명이 OCR 잡음 때문에 계속 조기 중단된다~~ → **2026-09-01 확정**: `tag_mapping`/`qc.scheduler`의 실제 원인은 유형②(잡음)가 아니라 **행 rect가 뷰포트 밖으로 튀어나오는 클리핑**이었다(아래 2-F절). `qc.scheduler`의 남은 2행 격차는 스크롤이 아니라 개념 불일치 후보 — DB 쪽 Gantry 12개 코드의 정체를 사양서/DB로 더 확인해야 한다 |
 | ~~③ DB 카운트가 화면과 다른 것을 센다(개념 불일치)~~ → **④로 재분류, 2026-09-01 완료** | ~~`display.overlay`(화면 28 vs DB 8)~~→**8/8** | ~~`../지식/` Service Manual·Operation Manual에 명시적으로 확인됨 — 화면은 "표시 가능 항목"(고정 카탈로그), DB `OVERLAY_ITEM`은 "실제로 추가한 것"만 저장 — 같은 것을 세고 있지 않다~~ **이 결론 자체가 틀렸다(2-G절/`../프로젝트_상세.md` B.29).** 라이브로 컨트롤 트리를 덤프해 보니 이 페이지엔 독립된 목록이 **셋**(카탈로그/Top/Bottom) 있고, `visible_rows()`가 셋을 안 가리고 섞은 것뿐이었다(실측 카탈로그 화면표시분 20 + Top 6 + Bottom 2 = 28 — "28"은 카탈로그 크기가 아니라 우연의 합). `../지식/` Service Manual 4.4.2 의 진짜 카탈로그는 34개라 애초에 28과도 안 맞았다 | `_collect_overlay()`가 카탈로그를 빼고 Top+Bottom만 훑도록 고쳤다(④와 동일한 "범위 제한" 해법). 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_204935.json`), 전체 판정 회귀 없음 |
-| ④ 화면에 서로 다른 두 목록이 섞여 잡힘(교차 오염) | `procedure.procedure`(Procedure 카탈로그 14~15개 + 우측 View Position 약어 4개가 뒤섞여 19개로 잡힘), `dicom.print_overlay`(Overlay 이름 1개 + 우측 필드 후보 카탈로그 20개가 섞여 21개로 잡힘) | `visible_rows()` 가 페이지 전체에서 `ListItem` 텍스트만 보고 잡아, 같은 화면의 다른 목록(측면 패널)까지 함께 주워 담는다. `display.overlay`(위 ③→④)도 같은 원인이었다 | 좌표(rect)나 부모 컨테이너로 대상 목록만 골라내는 **범위 제한**이 필요 — `_collect_overlay()`처럼 대상 컨트롤을 `ui.by_id()`로 직접 찾아 `pane` 삼는 방식을 재사용할 수 있는지 페이지별로 확인 |
-| ⑤ 화면 요소 자체가 틀림(오탐) | `patient.physician`(화면 3행이 MWL 역할 매핑 콤보 — Physician 명단이 아니다, DB 는 0행) | 대상 컨트롤을 처음부터 잘못 잡고 있다 | 진짜 Physician 목록 컨테이너를 찾거나, 못 찾으면(0행이라 표시할 목록 자체가 없을 수 있음) 이 페이지의 개수 증명은 빼야 한다 |
+| ④ 화면에 서로 다른 목록이 섞여 잡힘(교차 오염) — **`procedure.procedure` 2026-09-01 완료, `dicom.print_overlay`는 구조가 더 복잡해 보류** | ~~`procedure.procedure`(Procedure 카탈로그 14~15개 + 우측 View Position 약어 4개가 뒤섞여 19개로 잡힘)~~→**15/15**, `dicom.print_overlay`(독립된 `ListCtrl` 넷 — Overlay 이름 1개, 필드 후보 카탈로그 20개 이상, "추가된 필드" 슬롯 셋 중 이번 실측에선 셋 다 0행 — DB `PRINT_OVERLAY_ITEM`이 어느 것과 대응하는지 미확정) | `visible_rows()` 가 페이지 전체에서 `ListItem` 텍스트만 보고 잡아, 같은 화면의 다른 목록(측면 패널)까지 함께 주워 담는다. `display.overlay`(위 ③→④)도 같은 원인이었다. `procedure.procedure`는 목록이 둘뿐이고 역할이 명확해 바로 풀렸지만, `print_overlay`는 목록이 넷이라 어떤 것이 DB와 대응하는지부터 불확실하다(B.30) | `procedure.procedure`: `SINGLE_LIST_CONTROL = {"procedure.procedure": 2560}` + `sweep()` 라우팅으로 해결(`_collect_overlay()`처럼 병합이 필요 없는 단순한 경우라 더 가벼운 경로를 새로 뒀다). `print_overlay`: 각 목록에 항목을 하나씩 추가해 보며 DB 어느 컬럼이 바뀌는지 먼저 실측해야 한다 — 대응 관계를 확정하기 전에는 범위 제한을 섣불리 걸지 않는다 |
+| ⑤ 화면 요소 자체가 틀림(오탐) | `patient.physician`(2x2 그리드 `ListCtrl` 넷 중 셋은 비어 있고 하나만 3행 — 그 3행도 MWL 역할 매핑 콤보이지 Physician 명단이 아니다, DB `PHYSICIAN` 은 0행) | 대상 컨트롤을 처음부터 잘못 잡고 있다. 4개 그리드 중 실제 "의사 명단"에 대응하는 것이 있는지, 이 화면 자체가 역할 매핑만 다루고 대응하는 목록이 원천적으로 없는지 미확정(B.30) | 진짜 Physician 목록 컨테이너를 찾거나(각 그리드에 항목을 추가해 보며 DB 변화 확인), 못 찾으면(대응하는 목록 자체가 없을 수 있음) 이 페이지의 개수 증명은 빼야 한다 |
 
 **결론(2026-09-01 갱신)**: ①(4곳)·③-a(`display.lut`)·②의 3곳
-(`tool.predefined_text`/`study.reject_retake`/`dicom.tag_mapping`)·**구
-③(`display.overlay`, ④로 재분류)까지 완료됐다 — 9곳 중 **7곳 완료**.
-`qc.scheduler`(21/23)는 스크롤은 진짜 바닥까지 도달했지만 남은 2행 격차의
-정체가 아직 미확정(P0 #1로 다음 세션에 넘김 — `display.overlay`처럼
-"개념 불일치라 새 검증이 필요하다"고 성급히 결론짓지 않는다, B.29 교훈).
-④·⑤(2+1곳)는 화면 요소를 잘못 잡는 자동화 문제라 페이지별 UI 조사가 더 필요하다.
+(`tool.predefined_text`/`study.reject_retake`/`dicom.tag_mapping`)·구
+③(`display.overlay`, ④로 재분류)·**④ 중 `procedure.procedure`까지 완료됐다
+— 9곳 중 8곳 완료.** 남은 1곳은 각각 다른 이유로 미완료다: `qc.scheduler`
+(21/23, 스크롤은 진짜 바닥까지 도달했지만 남은 2행 격차의 정체 미확정),
+`dicom.print_overlay`(목록 넷 중 어느 것이 DB와 대응하는지 미확정),
+`patient.physician`(대응하는 목록 자체가 있는지 미확정). 셋 다 **추측으로
+고치지 않는다** — `display.overlay`처럼 "개념 불일치/구조 문제"로 성급히
+결론짓기 전에 실측으로 대응 관계부터 확정한다(B.29/B.30 교훈).
 
 #### 옵션 1 착수 — OCR 폴백 구현, 그런데 라이브 검증에서 새 문제를 만났다 (2026-08-31)
 
@@ -781,18 +826,22 @@ Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
 그 다음 "목록 전 행 열거 완주" 서브체크(WF_14 Step 7)를 깊게 팠다 — 사용자가
 "구조적 문제 중 정보를 주면 풀리는 게 있냐"고 물어 `../지식/` 사양서를 전수 조사하고
-DB를 직접 조회했다. 문제 있던 9개 페이지 중 **7개를 완전히 해결했다**(system.account,
+DB를 직접 조회했다. 문제 있던 9개 페이지 중 **8개를 완전히 해결했다**(system.account,
 dicom.mwl/storage/print — OCR 폴백 + 위치 기반 키징; display.lut — DB 쿼리가 곡선
 제어점을 세고 있던 버그 수정; tool.predefined_text, study.reject_retake, dicom.tag_mapping
 — tag_mapping 은 스크롤 잡음이 아니라 **뷰포트 클리핑**이 근본 원인이었다(2026-09-01,
-2-F절/`../프로젝트_상세.md` B.28), 17/17 완전 일치; **display.overlay — "카탈로그 vs
-서브셋 개념 불일치라 새 검증이 필요하다"는 예전 결론 자체가 틀렸다, 실제로는
-`procedure.procedure`/`dicom.print_overlay`와 같은 교차 오염이었다**(2026-09-01,
-2-G절/`../프로젝트_상세.md` B.29), 8/8 완전 일치). `qc.scheduler`(20→21/23)는 스크롤이
-실제 바닥까지 도달하는데도 남은 2행 격차의 정체가 아직 미확정이다 — B.29 교훈대로
-"개념 불일치"로 성급히 단정하지 않는다. 매 단계 라이브로 재검증했고 전체 판정(원인은
-이미 알려진 UPS 제품 결함)은 한 번도 안 바뀌었다(회귀 없음). 자세한 경위는
-NEXT_WORK.md 5절 ⑦과 2-D~2-G절, `../프로젝트_상세.md` B.23~B.29를 참고해라.
+2-F절/`../프로젝트_상세.md` B.28), 17/17 완전 일치; display.overlay — "카탈로그 vs
+서브셋 개념 불일치라 새 검증이 필요하다"는 예전 결론 자체가 틀렸다, 실제로는 교차
+오염이었다(2-G절/B.29), 8/8 완전 일치; **procedure.procedure — display.overlay와
+같은 교차 오염(Procedure 카탈로그 15행 + 무관한 View Position 약어 4행이 섞임)을
+같은 해법으로 완료**(2-H절/B.30), 15/15 완전 일치). `qc.scheduler`(20→21/23)는
+스크롤이 실제 바닥까지 도달하는데도 남은 2행 격차의 정체가 아직 미확정, `dicom.
+print_overlay`(독립된 목록 넷 중 DB와 대응하는 것이 불확실)와 `patient.physician`
+(대응하는 목록 자체가 있는지 불확실)도 구조가 더 복잡해 이번엔 조사만 하고
+보류했다 — B.29/B.30 교훈대로 대응 관계를 실측으로 확정하기 전엔 추측으로
+고치지 않는다. 매 단계 라이브로 재검증했고 전체 판정(원인은 이미 알려진 UPS 제품
+결함)은 한 번도 안 바뀌었다(회귀 없음). 자세한 경위는 NEXT_WORK.md 5절 ⑦과
+2-D~2-H절, `../프로젝트_상세.md` B.23~B.30을 참고해라.
 
 먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절 ⑦)를 읽어
 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
@@ -819,19 +868,16 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
 P0 (환경이 확인되면 이 순서로)
-1. **`qc.scheduler`(21/23) 남은 2행 격차의 정체 확인.** DB `QC_SCHEDULE.QCType`
+1. **`dicom.print_overlay`/`patient.physician` 대응 관계 실측.** 둘 다 독립된
+   목록이 넷씩 있고 어느 것이 DB 판정 대상과 대응하는지부터 불확실하다(2-H절/B.30
+   에 컨트롤 ID·rect 다 남겨 뒀다). 각 목록에 항목을 하나씩 UI로 추가해 보며
+   DB 어느 테이블/컬럼이 바뀌는지 실측해라(`_overlay_positions()`처럼) — 대응
+   관계가 확정된 뒤에만 범위 제한을 건다. 여기부터가 다음 세션의 첫 실행 항목이다.
+2. **`qc.scheduler`(21/23) 남은 2행 격차의 정체 확인.** DB `QC_SCHEDULE.QCType`
    Gantry 그룹 12개 코드(51~62) 중 화면에 없는 2개가 정확히 무엇인지 `../지식/`
    사양서·Service Manual로 대조해라 — **`display.overlay`가 "개념 불일치"로
    잘못 결론 났던 전례가 있으니(B.29), 추정하지 말고 라이브로 컨트롤 트리부터
-   덤프해 진짜 원인(교차 오염/스크롤/진짜 설계 차이 등)을 확인해라.** 여기부터가
-   다음 세션의 첫 실행 항목이다.
-2. **교차 오염 2곳(`procedure.procedure`, `dicom.print_overlay`).**
-   `visible_rows()`가 같은 화면의 다른 목록(측면 패널이나 무관한 콤보)까지 함께
-   주워 담는 문제 — `display.overlay`(2-G절)와 정확히 같은 종류의 버그였고 그때는
-   대상 컨트롤을 `ui.by_id()`로 직접 찾아 `pane` 삼는 방식으로 풀었다. 이 두
-   페이지도 같은 해법이 통하는지 확인해라(대상 목록의 컨트롤 ID를 먼저 실측해야
-   한다). 완전 오탐 1곳(`patient.physician`)도 같이 처리 — 진짜 Physician 목록
-   컨테이너를 찾거나, 없으면 개수 증명 자체를 뺀다.
+   덤프해 진짜 원인(교차 오염/스크롤/진짜 설계 차이 등)을 확인해라.**
 3. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
    run-wf15 (Dose Overlay 전제). run-xipl-05/wf07/xipl-04/wf10/wf14 는 2026-08-28~09-01
    확인 완료.
@@ -850,7 +896,7 @@ P0 (환경이 확인되면 이 순서로)
   — 로그가 프로세스 종료 시점에야 플러시되니 중간 확인은 프로세스 생존 여부/CPU 시간
   변화로 판단해라).
 - "구조적 문제/원인 불명"에 부딪히면 추측보다 먼저 `../지식/`(Service Manual·Operation
-  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 8곳을 풀었다.
+  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 9곳을 풀었다.
 - **고친 뒤 바로 라이브로 재검증해라 — 첫 진단이 틀릴 수 있다.** 2026-09-01에
   `dicom.tag_mapping`의 첫 수정(행 높이 비교)은 라이브 재검증에서 곧바로 "변화 없음"이
   드러나 틀린 전제(Win32 rect는 클리핑을 반영하지 않는다)였음을 알게 됐다 — 재진단

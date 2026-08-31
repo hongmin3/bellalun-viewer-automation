@@ -527,5 +527,65 @@ class CollectOverlayTest(unittest.TestCase):
         self.assertIn("display.overlay", result["pages"])
 
 
+class SingleListControlTest(unittest.TestCase):
+    """2026-09-01 실측: `procedure.procedure`는 Procedure 카탈로그(id=2560,
+    15행=DB 일치)와 무관한 View Position 약어 목록(id=2561, 4행)이 한 패널에
+    섞여 19행(15+4)으로 잡혔다 — `display.overlay`와 같은 교차 오염
+    (`../프로젝트_상세.md` B.29). `sweep()`이 `SINGLE_LIST_CONTROL`에 있는
+    키를 만나면 그 컨트롤 ID만 `pane` 삼는지 확인한다."""
+
+    def _fake_control(self, hwnd):
+        c = _FakeControl((0, 0, 10, 10))
+        c.hwnd = hwnd
+        c.visible = True
+        return c
+
+    def test_sweep_scopes_to_the_registered_control_id(self):
+        catalogue_pane = self._fake_control(999)     # 일반 pane(=섞인 패널)
+        real_list_ctrl = self._fake_control(2560)    # SINGLE_LIST_CONTROL 대상
+
+        def fake_by_id(ctrl_id):
+            if ctrl_id == 2560:
+                return [real_list_ctrl]
+            return []
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        with mock.patch("core.flows.open_group_page", return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "setting_window",
+                              return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "pane_control",
+                              return_value=catalogue_pane), \
+             mock.patch.object(setting_lists.time, "sleep"), \
+             mock.patch.object(setting_lists, "expected_row_count",
+                              return_value=15), \
+             mock.patch.object(
+                 setting_lists, "collect",
+                 return_value={"signatures": [], "complete": True}) as co:
+            result = setting_lists.sweep(ui, mock.Mock(),
+                                         [("procedure", "procedure")])
+
+        co.assert_called_once()
+        # `collect()`의 두 번째 위치 인자(`pane`)가 섞인 패널이 아니라
+        # 등록된 컨트롤이어야 한다.
+        self.assertIs(co.call_args.args[1], real_list_ctrl)
+        self.assertIn("procedure.procedure", result["pages"])
+
+    def test_sweep_skips_page_when_registered_control_missing(self):
+        ui = mock.Mock()
+        ui.by_id.return_value = []
+        with mock.patch("core.flows.open_group_page", return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "setting_window",
+                              return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "pane_control",
+                              return_value=self._fake_control(1)), \
+             mock.patch.object(setting_lists.time, "sleep"):
+            result = setting_lists.sweep(ui, mock.Mock(),
+                                         [("procedure", "procedure")])
+        self.assertNotIn("procedure.procedure", result["pages"])
+        self.assertIn("procedure.procedure", result["skipped"])
+
+
 if __name__ == "__main__":
     unittest.main()
