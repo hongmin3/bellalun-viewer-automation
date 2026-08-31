@@ -2,89 +2,88 @@
 
 > 장시간/대규모 작업 후 현재 상태만 갱신한다. 완료 이력을 누적하지 않는다.
 
-- 현재 목표: `NEXT_WORK.md` P0 #1(`wait_new_group` 전환 라이브 재검증)을 **다른 PC에서**
-  끝내고, 나머지 P0 개별 검증으로 넘어간다.
+- 현재 목표: `NEXT_WORK.md` P0 순서대로 계속한다. 바로 다음 할 일은 이번 세션에서
+  고친 `KeyError: 'changed'` 픽스를 `run-wf14` 라이브 재실행으로 검증하는 것이다.
 
-- 실행 환경(이번 세션에 바뀐 것): 이식성 시험을 겸해 **다른 PC**로 옮겨 수행했다
-  (`HOST=ADMIN`, 프로필 `C:\Users\ksj74`, Python 3.12.10). 이전 PC를 막던
-  **화면 잠금·원인 불명 로그인 실패는 이 PC에서 재현되지 않았다.**
-  `portability-check` PASS(관리자 True / 1920x1080 / 96DPI / 필수 경로 4종 /
-  `MSSQL$BELLALUN` RUNNING), `EnumWindows`에 잠금 화면 창 없음, DICOM 서버
-  5개 포트(11116/5003/5000/8000/11113) 모두 도달, `cold_start` 로그인 정상.
+- 이번 세션의 특수 사정: Claude Desktop에서 진행 중이던 세션이 세션 한도로 끊겼다.
+  **끊긴 세션의 대화 내용 자체는 이 세션에서 접근할 수 없어서**, git 커밋 이력·
+  커밋되지 않은 `README.md` diff·`Reports/`의 파일 타임스탬프만으로 어디까지
+  했는지를 역추적해 재구성했다. 재구성 결과가 실제 작업 의도와 다르면 정정이
+  필요할 수 있다.
 
-- 완료한 작업(이번 세션):
-  - **P0 #1 라이브 재검증 완료.** 26차 회귀와 **판정이 동일**하고 바뀐 구간만 빨라졌다.
-    - `WF_07`: PASS 11/11 (`Reports/Result_20260831_085640.json`).
-      Step 4 **23.1초 → 12.9초 (−10.2초)**.
-    - `TC_XIPL_compatibility_04`: 전 Step PASS (`Reports/Result_20260831_085032.json`).
-      Step 6 **144.7초 → 99.1초 (−45.6초)**. `wait_new_group` 실측 대기 2.8초로
-      2026-08-24 실측치(2.8~2.9초)와 일치.
-  - **전환이 드러낸 결함 1건을 고쳤다.** `XIPL_04`가 Step 5 직후
-    `View Position dialog did not open`으로 재현성 있게 실패했다. 원인은
-    `core/viewer_processing.add_view_position`에 2026-08-24부터 있던 재시도(촬영 직후
-    `+` 클릭이 삼켜지는 증상)가 **같은 클릭을 재시도 없이 하던
-    `tests/xipl_flows._add_view_position_by_alias`** 에는 없었던 것이다. 고정 대기 14초가
-    우연히 가려 주고 있었다. 재시도를
-    `core/viewer_processing.open_view_position_dialog`로 뽑아 두 콜사이트가 같은 것을
-    쓰도록 합쳤고, 재실행에서 두 TC 모두 PASS를 확인했다.
-  - **(사용자 승인 후 추가 작업) `close_examine` 삼켜진 클릭을 고쳤다.** 화면 판별 수단을
-    실측으로 둘 다 배제했다 — Close 버튼(2204)은 Examine이 아닌 화면에서도 `visible=True`였고,
-    상태 배너(2202) 픽셀 OCR은 종료 직후 다른 창에 가려 `'icine —'` 같은 쓰레기를 읽었다
-    (문구도 `Ready`/`Xray Block`/`Not Examine Mode`로 여럿). 그래서 **제품 상태 변경은
-    UI(Close 클릭)로, 성공 판별만 DB(`STUDY.StudyStatus`, 열림=1 실측)로** 하는
-    `flows.close_examine_confirmed`를 만들어 `WF_07` Step 5에 붙였다. 재시도는 **팝업이 안 뜨고
-    `StudyStatus`도 안 바뀐 경우에만**(상한 3회). 단위시험 5건 신설
-    (`tests/test_close_examine_confirm.py`), `run-wf07` 3회 연속 PASS(모두 `attempts: 1`).
-  - 이식성 관찰: `reset-environment`가 복원하는 기준 스냅샷에 **DICOM 서버 등록이 없다**
-    (`DICOM_STORAGE` 0행). 전체 회귀는 복원 직후 `DICOM_Server_Setup`이 이 전제를
-    만들지만 **TC 단독 실행에는 그 단계가 없어** 복원 직후 `run-wf07`이
-    `{'storage': None}`으로 FAIL 했다 — `setup-storage` 선행이 필요하다. `README.md`
-    "다른 PC로 옮길 때"에 반영했다. DB 데이터 파일이 없는 PC에서도 `.bak`의
-    `WITH MOVE` 복원이 정상 동작했다.
-  - 문서 갱신: `../프로젝트_상세.md`(6.4절 실측 표 + "클릭이 삼켜짐" 교훈, 13.1 표 8·13번)
-    → `tools/render_docs.py` 재생성 → `README.md`(단독 실행 전제) → `NEXT_WORK.md`
-    (1절/2-C절 신설/3절 #4·#12/4절 P0/5절 ⑥/P2 9번/6절 프롬프트).
+- 재구성으로 확인한, 마지막 커밋(`1b44250`, 09:27) 이후 있었던 일(전부
+  `Reports/Result_20260831_*.json`의 `meta.command`/`verdict`로 재확인함):
+  1. `run-wf07` 3회 연속 PASS(09:15~09:23) — 직전 커밋의 `close_examine_confirmed`
+     확인 실행으로 보인다(이미 커밋에 반영됨, 재확인만 된 상태).
+  2. `setup-storage` → `run-wf10` FAIL(09:33~09:36) — Step 3 Hospital Code Mapping
+     콤보(2453)가 비활성이라 열리지 않음. MWL이 없어서였다.
+  3. `setup-dicom` → `run-wf10` **PASS 11/11**(09:39~09:43) — `HC`가
+     `Mammography (Rt)`에 매핑되고 MWL 처방 등록·조회·`STUDY.ProcedureKey` 반영·
+     Examine Step 등록까지 전부 확인됨. **P0 #3(`run-wf10` 매핑 검증) 완료.**
+  4. `setup-dicom` 재실행(09:48) 후 `run-wf14` 연속 3회(10:09/10:40/11:13) —
+     원래 찾던 "`my_settings`(193) 진입 실패"(3-C)는 재현되지 않았다. 대신:
+     - 1차: Step 7 "설정 테이블 전수 대조" 13개 섹션 불일치로 조기 중단.
+     - 2·3차: Step 7 "목록 전 행 열거 완주"에서 다수 페이지 행 수 불일치 발생 후
+       `KeyError: 'changed'`로 TC 자체가 중단됨.
+  5. `README.md`가 위 2·3번 결과를 반영해 수정됐지만(`setup-storage`→`setup-dicom`
+     정정, 증상별 표 추가) **커밋되지 않은 채로 남아 있었다** — 이번 세션에서 diff를
+     확인해 그대로 유지·커밋 대상에 포함시켰다.
 
-- 진행 중 작업: 없음.
+- 이번 세션에 새로 한 작업:
+  - **`KeyError: 'changed'` 원인 규명 및 수정.** `tests/workflow14.py:547~559`가
+    `core/setting_lists.compare_sweep()`의 반환값에서 존재하지 않는 `"changed"` 키를
+    참조했다 — 실제로는 집계용 `"changed_total"`(정수)과 페이지별
+    `"pages"[페이지]["changed"]`(목록)뿐이다. `compare()`(단일 페이지, 행→상세값)에는
+    `"changed"` 키가 있어서 두 함수를 혼동한 것으로 보인다. Step 7(a)("설정 테이블
+    전수 대조")가 먼저 FAIL 해 TC가 조기 중단되는 경로(1차 실행)에서는 이 줄에
+    도달하지 않아 지금까지 드러나지 않았다. `lc["changed"]` → `lc["changed_total"]`로,
+    `lc["changed"][:20]` → 페이지별 `changed`를 펼친 목록(`lc_changed`)으로 고쳤다.
+  - 회귀 방지 단위시험 2건 신설(`tests/test_setting_lists.py::CompareSweepTest`) —
+    `compare_sweep()` 반환에 `"changed"` 키가 없음을 명시적으로 확인하고, 픽스와 같은
+    방식(페이지 순회로 펼치기)으로 값이 올바르게 나오는지 검증한다.
+  - 정적 검사 전부 통과(`check_module_attrs`의 `tests/install_package_flow.py:310`
+    경고는 기존 것 — `NEXT_WORK.md` 6절에 이미 무시 대상으로 기록돼 있다),
+    단위시험 94 → **96건 OK**.
+  - `NEXT_WORK.md`를 2-D절 신설로 갱신(위 1~4번 재구성 내용 + 결함 원인·수정 내용),
+    3절 #9/#10, 4절 P0 목록, 6절 프롬프트를 현재 상태로 정정.
+
+- 진행 중 작업: 없음. 코드 수정과 단위시험은 끝났고 **라이브 재검증은 아직**이다.
 
 - 남은 작업(다음 세션 시작점):
-  1. `WF_14` 간헐 진입 실패 재현율 — `reset-environment` 후 `run-wf14` 연속 3회(3-C).
-  2. `run-wf10` 비기본 Procedure 매핑 실측(DB `HOSPITAL_CODE.MappingKey` /
-     `STUDY.ProcedureKey` / `PROCEDURE_ITEMS` 교차 확인).
-  3. 주 모니터 **밖**에서 `cold_start` 안전 중단 확인(안쪽 정상 로그인은 이번에 확인됨).
+  1. `run-wf14`를 다시 돌려 `KeyError` 픽스가 실제로 통하는지 확인한다 — 예외 없이
+     Step 7까지 판정이 나와야 한다. 그 뒤 목록 행 수 불일치·설정 테이블 13개 섹션
+     불일치가 재현되면, 재현되는 섹션이 DICOM 관련뿐인지(→ 09:48 `setup-dicom` 재실행과
+     타이밍이 겹친 환경 오염일 가능성) 아니면 `reset-environment`로 완전히 새로
+     시작해도 재현되는지(→ 진짜 Import 복원 결함) 구분해야 한다.
+  2. 위가 안정되면 원래 3-C(`my_settings` 진입 실패) 재현율도 계속 지켜본다.
+  3. 주 모니터 **밖**에서 `cold_start` 안전 중단 확인(안쪽 정상 로그인은 확인됨).
   4. `WF_04→06`·`WF_13`·`WF_15`·`XIPL_05` 개별 재검증.
-  5. 전체 회귀 재실행(위가 모두 끝난 뒤). 결과에서 `WF_07` Step 5 판정의
-     `closed.attempts` 가 1보다 큰지 확인한다 — 그러면 삼켜진 클릭을 실제로 복구한 것이다.
+  5. 전체 회귀 재실행(위가 모두 끝난 뒤).
 
 - 중요한 설계 결정:
-  - **DB 행 도착은 "다음 UI 조작을 받을 준비"까지 보장하지 않는다.** 고정 대기를 상태
-    기반 대기로 바꿀 때는 대기 직후의 첫 UI 조작이 재시도를 갖고 있는지 함께 봐야 한다
-    — 이번에 `XIPL_04`가 정확히 그 이유로 실패했다.
-  - 재시도 공용화는 **진짜 같은 클릭·같은 실패 모드**일 때만 했다(`+` 버튼 1171 두
-    콜사이트). `close_examine`은 팝업 없이 정상 종료되는 경로가 따로 있어 합치지 않았다.
-  - `close_examine`은 **추측으로 고치지 않고, 판별 수단을 먼저 실측해 골랐다.** 처음
-    제안했던 배너(2202) OCR은 실측 결과 종료 직후 다른 창에 가려 깨져 쓸 수 없었고
-    (Close 버튼 2204도 비-Examine 화면에서 `visible=True`라 탈락), 같은 목적을 더 확실한
-    신호인 `STUDY.StudyStatus`로 달성했다. 사용자가 고른 방식(OCR)을 그대로 쓰지 못한
-    이유는 보고했다. **제품 상태 변경은 UI로, DB는 검증에만** 쓴다는 저장소 규칙을 지켰다.
-  - 재시도 범위를 넓히지 않았다. `close_examine` 호출부는 여러 TC에 있지만, 실패가
-    관측된 `WF_07` 에만 확인 경로를 붙였다. 나머지로 넓힐지는 전체 회귀에서 재시도가
-    실제로 걸리는지 본 뒤 판단한다.
+  - **원래 목표 증상(3-C)을 재현하려는 시도가 다른 결함을 드러냈을 때, 원래 목표를
+    억지로 재현하려 하지 않고 드러난 결함부터 원인을 규명한다.** `KeyError`는 TC
+    자체를 중단시켜 그 뒤의 어떤 판정도 신뢰할 수 없게 만들므로, 이걸 먼저 고치지
+    않으면 3-C 재현율 측정 자체가 의미가 없다.
+  - **DB 등록 상태(`setup-storage` vs `setup-dicom`)가 TC마다 다른 전제를 요구할 수
+    있다.** `run-wf07`은 Storage만 있으면 충분했지만 `run-wf10`은 MWL이 반드시
+    필요했다 — "DICOM 서버 등록이 필요하다"를 한 종류로 뭉뚱그리지 않고 TC별로
+    실측했다.
+  - 세션이 끊겼을 때 **대화 내용을 추측으로 재구성하지 않고**, git 커밋·미커밋 diff·
+    산출물 타임스탬프처럼 검증 가능한 근거만으로 재구성한 뒤 그 사실을 문서에 명시했다
+    (재구성이 틀렸을 가능성을 사용자가 확인할 수 있도록).
 
-- 변경 파일: `core/flows.py`(`STUDY_STATUS_EXAMINING`/`study_status`/`wait_study_closed`/`close_examine_confirmed` 추가), `tests/workflow07.py`(Step 5 가 확인 경로 사용), `tests/test_close_examine_confirm.py`(신설),
-  `core/viewer_processing.py`(`open_view_position_dialog` 신설,
-  `add_view_position`이 위임), `tests/xipl_flows.py`(`_add_view_position_by_alias`가
-  공용 함수 사용), `../프로젝트_상세.md`(+렌더링 `.html`), `README.md`, `NEXT_WORK.md`,
-  `progress.md`.
+- 변경 파일: `tests/workflow14.py`(`compare_sweep` 반환 키 수정),
+  `tests/test_setting_lists.py`(`CompareSweepTest` 신설), `NEXT_WORK.md`(2-D절 신설,
+  3절/4절/6절 갱신), `README.md`(직전 세션이 수정한 것을 그대로 유지 — `setup-dicom`
+  선행 조건 정정 + MWL/Storage 증상별 표), `progress.md`.
 
 - 알려진 문제:
-  - **`close_examine` 재시도 경로는 라이브로 타 보지 못했다.** 위 수정 뒤 `run-wf07`을
-    3회 돌렸지만 전부 정상 경로(`attempts: 1`)여서 간헐 실패가 재현되지 않았다. 정상
-    경로가 영향을 받지 않는다는 것만 확인했고, 재시도 판단 자체는 단위시험 5건으로만
-    고정돼 있다. 전체 회귀에서 `closed.attempts` 를 관찰해야 한다.
-  - 이 PC에는 UPS 장치가 없어 Viewer 상태바에 `Failed to communication with UPS.`가
-    상시 표시된다. TC 판정에는 영향이 없었다.
-  - `WF_07` Step 7(전송 영상 수신 확인)이 7.6초 → 40.2초로 늘었다(네트워크·Storage SCP
-    응답 차이로 보임, 판정은 PASS 동일).
-  - 이전 PC의 화면 잠금 문제(`NEXT_WORK.md` 3-D)는 **해소가 아니라 PC를 옮겨 회피**한
-    것이다. 그 PC로 돌아가면 다시 유효하다.
+  - `run-wf14`의 `KeyError` 픽스는 **정적 검사·단위시험만 통과했고 라이브로는 아직
+    확인 못 했다.** 다음 세션 첫 실행 항목이다.
+  - Step 7 "설정 테이블 전수 대조" 13개 섹션 불일치와 "목록 전 행 열거 완주" 다수
+    페이지 행 수 불일치가 **진짜 제품/자동화 결함인지, `setup-dicom` 재실행 타이밍과
+    겹친 환경 오염인지 아직 나누지 못했다.**
+  - 이 세션은 Claude Code(CLI)에서 진행됐고 직전은 Claude Desktop이었다 — 세션 간
+    대화 인계 수단이 없어 이번처럼 리포트·git 이력 역추적에 의존해야 했다. 앞으로도
+    같은 상황이 생기면 이 checkpoint 파일이 얼마나 최신인지가 인계 품질을 좌우한다.

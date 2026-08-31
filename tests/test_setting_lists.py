@@ -101,5 +101,33 @@ class CompareTest(unittest.TestCase):
         self.assertEqual(out["only_after"], ["A:2@0,20"])
 
 
+def _pages(page_rows):
+    return {"pages": {page: _details(rows) for page, rows in page_rows.items()}}
+
+
+class CompareSweepTest(unittest.TestCase):
+    """`compare_sweep()` 반환 키가 호출부(`tests/workflow14.py`)의 가정과
+    맞는지 확인한다. `"changed"` 는 없고 `"changed_total"`(정수)만 있다 —
+    2026-08-31 라이브 실행에서 이 불일치로 `KeyError: 'changed'`가 났다."""
+
+    def test_no_change_reports_zero_total_and_no_flattened_items(self):
+        before = _pages({"STORAGE": {"A": {"2240@10,10": "11116"}}})
+        after = _pages({"STORAGE": {"A": {"2240@10,10": "11116"}}})
+        out = setting_lists.compare_sweep(before, after)
+        self.assertNotIn("changed", out)
+        self.assertEqual(out["changed_total"], 0)
+        flattened = [item for v in out["pages"].values() for item in v["changed"]]
+        self.assertEqual(flattened, [])
+
+    def test_changed_value_is_reachable_through_pages(self):
+        before = _pages({"STORAGE": {"A": {"2240@10,10": "11116"}}})
+        after = _pages({"STORAGE": {"A": {"2240@10,10": "104"}}})
+        out = setting_lists.compare_sweep(before, after)
+        self.assertEqual(out["changed_total"], 1)
+        flattened = [item for v in out["pages"].values() for item in v["changed"]]
+        self.assertEqual(len(flattened), 1)
+        self.assertEqual(flattened[0]["row"], "A")
+
+
 if __name__ == "__main__":
     unittest.main()

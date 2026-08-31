@@ -436,10 +436,16 @@ DB 기준 스냅샷은 저장소 기준 상대경로로 찾아 `sys.master_files
 **개별 TC를 단독 실행할 때 챙겨야 하는 전제** (2026-08-31 다른 PC에서 실측):
 
 - `reset-environment`가 복원하는 기준 스냅샷에는 **DICOM 서버 등록이 들어 있지 않습니다**
-  (`CONFIGURATION.DICOM_STORAGE` 0행). 전체 회귀는 복원 직후 `DICOM_Server_Setup`
-  (`setup_all`)이 이 전제를 만들지만, TC를 단독 실행하면 그 단계가 빠집니다. DICOM
-  전송을 쓰는 TC(`run-wf07` 등)는 앞서 `python run.py setup-storage`를 한 번 돌리세요.
-  안 돌리면 Step 0 전제에서 `{'storage': None}`으로 FAIL 합니다.
+  (`CONFIGURATION`의 MWL/Storage/Print 모두 0행). 전체 회귀는 복원 직후
+  `DICOM_Server_Setup`(`setup_all`)이 MWL·Storage·Print를 전부 등록해 이 전제를
+  만들지만, TC를 단독 실행하면 그 단계가 빠집니다. **복원 뒤에는
+  `python run.py setup-dicom`을 한 번 돌리세요**(`setup-storage`는 Storage만 등록합니다).
+  빠졌을 때 실제로 본 증상은 다음과 같습니다.
+
+  | 빠진 등록 | 증상 |
+  |---|---|
+  | Storage | `run-wf07` Step 0 전제가 `{'storage': None}`으로 FAIL |
+  | MWL | `run-wf10` Step 3에서 **Hospital Code Mapping 콤보(2453)가 비활성**이라 목록이 열리지 않고 FAIL — SCP List가 비어 있으면 이 콤보를 못 씁니다 |
 - 새 PC에 DB 데이터 파일이 없으면 `reset-environment`가 `.bak`에서 새로 만듭니다
   (`sys.master_files` 기반 `WITH MOVE`). 드라이브 문자가 달라도 됩니다.
 

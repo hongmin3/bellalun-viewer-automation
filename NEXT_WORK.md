@@ -180,6 +180,55 @@
 
 ---
 
+## 2-D. 2026-08-31 회차(이어짐) — `run-wf10` 완료 확인, `WF_14` 재검증에서 자동화 결함 발견
+
+Claude Desktop 세션이 세션 한도로 중단된 뒤 이어받았다. **대화 내용 자체는 복구할 수
+없어**, git 커밋 이력·커밋 안 된 `README.md` diff·`Reports/`의 타임스탬프만으로
+직전 세션이 어디까지 했는지 재구성했다(아래 내용은 전부 리포트 JSON으로 재확인함).
+
+### `run-wf10`(P0 #3) 완료 — 선행 조건 정정
+
+`setup-storage` 뒤 `run-wf10` 시도(09:36)는 Step 3 Hospital Code Mapping 콤보(2453)가
+비활성이라 열리지 않고 FAIL 했다(`Reports/Result_20260831_093609.json`) — Storage만
+등록되고 **MWL이 없어서** 이 콤보를 못 쓴 것이다. `setup-dicom`(MWL+Storage+Print 전부
+등록)으로 바꿔 재실행하자 **PASS 11/11**(`Reports/Result_20260831_094332.json`) —
+HC 저장, `Mammography (Rt)` 매핑, MWL Hospital Code Mapping 태그 `(0032,1064)` 설정,
+MWL 처방 등록·Patient List 조회, `STUDY.ProcedureKey` 반영, Examine Step 등록·촬영
+준비까지 전부 확인됐다. `README.md` "다른 PC로 옮길 때"를 `setup-storage`→`setup-dicom`
+기준으로 정정했다(2-C절 서술은 구식이 됐다 — TC 단독 실행 전 `setup-dicom`을 쓴다).
+
+### `run-wf14`(P0 #2) 연속 3회 — 목표 증상 미재현, 다른 결함 2건 발견
+
+`reset-environment` 없이(직전 `run-wf10`이 이미 DB를 건드린 상태에서) `run-wf14`를
+연속 3회 실행했다(10:09/10:40/11:13, 각 1251~1925초). **3-C가 찾던 "`my_settings`(193)
+미발견" 진입 실패는 3회 모두 재현되지 않았다** — 대신 매번 Step 7에서 다른 이유로
+FAIL 했다.
+
+| 회차 | Step 7 FAIL 내용 | 원인 |
+|---|---|---|
+| 1차 | "설정 테이블 전수 대조" — 13개 섹션 불일치(`dicom_common`/`dicom_mwl`/`dicom_print_dicom`/`dicom_storage`/`export_cfg`/`overlay_item`/`print_overlay`/`print_overlay_item`/`procedure_common`/`qc_common`/`system_common`/`tool_button`/`view_position_preset`) | **미확정.** DICOM 관련 섹션이 다수 포함돼 있는데, 직전 09:48에 `setup-dicom`을 다시 돌렸다 — Export 기준점과 Import 후 대조 사이에 별개 원인으로 DICOM 설정이 바뀌었을 가능성과, 진짜 Import 복원 결함일 가능성을 아직 못 나눴다. 라이브 재검증 필요 |
+| 2·3차 | "목록 전 행 열거 완주" — `patient.physician`/`display.overlay`/`display.lut`/`procedure.procedure`/`dicom.print_overlay`/`dicom.tag_mapping`/`qc.scheduler` 등 다수 페이지에서 열거한 행 수가 DB 원천 행 수와 다름. 이어서 `KeyError: 'changed'` 로 TC 자체가 중단됨(3-B와 다른, **자동화 코드 결함**) | 아래 참고 |
+
+**`KeyError: 'changed'` 원인을 찾아 고쳤다(이번 세션).** `tests/workflow14.py:547~559`가
+`core/setting_lists.compare_sweep()`의 반환값에서 존재하지 않는 `"changed"` 키를
+참조하고 있었다 — 실제 반환 키는 집계용 `"changed_total"`(정수)과 페이지별
+`"pages"[페이지]["changed"]`(목록)뿐이다(`compare()`는 `"changed"`가 있지만
+`compare_sweep()`은 없다 — 두 함수를 혼동한 것으로 보인다). 2026-08-27에 이
+Step 7(c)를 자동화하면서 들어간 결함으로 보이며, Step 7(a)("설정 테이블 전수 대조")가
+먼저 FAIL 해 TC가 조기 중단되는 경로에서는 이 줄에 도달하지 않아 지금까지 드러나지
+않았다. `lc["changed"]` → `lc["changed_total"]`로, `lc["changed"][:20]` →
+페이지별 `changed`를 펼친 목록으로 고쳤다. 회귀 방지용 단위시험 2건을
+`tests/test_setting_lists.py`에 추가했다(`CompareSweepTest`). 정적 검사 전부 통과,
+단위시험 96건 OK. **이 픽스 자체는 아직 라이브로 재검증하지 못했다** — 다음 `run-wf14`
+실행에서 Step 7(c)까지 정상적으로 판정(PASS/FAIL 무엇이든 예외 없이)이 나오는지 확인해야
+한다.
+
+**다음에 할 것**: `run-wf14`를 다시 돌려 (1) `KeyError`가 사라졌는지, (2) 목록 행 수
+불일치·설정 테이블 불일치가 재현되는지(진짜 결함인지 `setup-dicom` 타이밍 오염인지),
+(3) 원래 3-C 증상(`my_settings` 진입 실패)이 나오는지를 함께 본다.
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -192,8 +241,8 @@
 | 6 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
 | 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
 | 8 | **Setting 페이지 순회 중 Viewer 가 종료되는 경우가 있다**(간헐) — 아래 3-B | 조사 계속 |
-| 9 | **`WF_14` 진입이 간헐적으로 실패한다**(`my_settings` ID 193 미발견) — 아래 3-C | P0 |
-| 10 | **`WF_10`의 `HC` → `Mammography (Rt)` 비기본 Procedure 매핑 변경이 미검증** — DB MappingKey/ProcedureKey, Step 수, Examine Ready를 함께 확인해야 한다 | P0 |
+| 9 | **`WF_14` 진입이 간헐적으로 실패한다**(`my_settings` ID 193 미발견) — 아래 3-C. **연속 3회 재실행(2026-08-31)으로도 이 증상 자체는 재현되지 않았다** — 대신 다른 결함 2건이 나왔다(아래 2-D절) | P0 |
+| 10 | ~~`WF_10`의 `HC` → `Mammography (Rt)` 비기본 Procedure 매핑 변경이 미검증~~ — **2026-08-31 완료.** `run-wf10` PASS 11/11(`Reports/Result_20260831_094332.json`) — HC 저장, `Mammography (Rt)` 매핑, MWL Hospital Code Mapping 태그 `(0032,1064)`, MWL 처방 등록·조회, `STUDY.ProcedureKey` 반영, Examine Step 등록·촬영 준비까지 전부 확인됐다. **선행 조건 정정**: `setup-storage`만으로는 부족하다 — MWL이 없으면 Step 3의 Hospital Code Mapping 콤보(2453)가 비활성이라 열리지 않고 FAIL 한다(`Result_20260831_093609.json`). `setup-dicom`(MWL+Storage+Print)으로 바꾸자 PASS 했다. `README.md`에 반영 | 완료 |
 | 11 | **`cold_start` 주 모니터 이탈 중단 로직이 미검증** — 밖에서는 안전 중단하고 안에서는 정상 로그인이 계속돼야 한다 | P0 |
 | 12 | ~~작업 PC 물리 접근 문제(08-30~31)~~ — **2026-08-31에 다른 PC로 옮겨 해소.** 새 PC에서는 화면 잠금·로그인 실패가 재현되지 않았고 `portability-check`와 `cold_start` 로그인이 정상이었다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다 | 해소(환경 이전) |
 
@@ -215,8 +264,10 @@
 같은 코드로 19분 전 실행은 PASS(18/18)했는데 다음 실행이 진입에서
 `System 설정 'my_settings'(ID 193)을 찾지 못했습니다`로 실패했다(정리/원복은 정상 수행).
 3-B와 같은 계열(Setting 진입 직후 화면 불안정)일 수 있으나 진입과 순회-중은 다르므로
-단정하지 않는다. **다음에 할 것**: `reset-environment` 후 `run-wf14` 연속 3회로 재현율을
-잰다.
+단정하지 않는다.
+
+**2026-08-31 연속 3회 재실행 결과 — 이 증상 자체는 재현되지 않았다.** 대신 아래
+2-D절의 결함 2건이 나왔다. 진입 실패 재현율은 여전히 미확정이므로 3-C는 열어 둔다.
 
 ### 3-D. 작업 PC 물리 접근 문제 (신규, 2026-08-30~31 관측)
 
@@ -247,13 +298,20 @@
    화면이 아닌지 + `EnumWindows`로 잠금 화면 창이 없는지 확인한다(타이틀이 빈 hwnd=0
    만으로 "풀렸다"고 판단하지 않는다). 2026-08-31에 옮긴 PC(`HOST=ADMIN`)에서는 잠금
    문제가 재현되지 않았다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다.
-   TC 단독 실행에서 DICOM 전송을 쓰면 **`setup-storage`를 먼저 한 번 돌린다**(2-C절).
+   TC 단독 실행에서 DICOM 전송·MWL을 쓰면 **`setup-dicom`을 먼저 한 번 돌린다**(2-D절 —
+   `setup-storage`만으로는 MWL이 빠져 `run-wf10`류가 FAIL 한다).
 1. ~~`run-wf07`/`run-xipl-04` `wait_new_group` 전환 재검증~~ — **2026-08-31 완료**
    (2-C절: 판정 동일, WF_07 Step 4 −10.2초 / XIPL_04 Step 6 −45.6초).
-2. `WF_14` 간헐적 진입 실패 재현율 확인(3-C). **다음 세션의 첫 실행 항목.**
-3. `run-wf10`으로 `HC`가 비기본 Procedure `Mammography (Rt)`에 실제 매핑되고 해당
-   Procedure Step이 등록되는지 검증한다. 기본 Procedure로 조용히 대체된 결과를 PASS로
-   인정하지 않는다.
+2. `WF_14` 재검증(2-D절). 2026-08-31 연속 3회 실행에서 3-C가 찾던 진입 실패 증상은
+   재현되지 않았지만, Step 7에서 매번 다른 이유로 FAIL 했다 — 그중
+   `tests/workflow14.py`의 `KeyError: 'changed'`는 이번 세션에 원인을 찾아 고쳤다(정적
+   검사·단위시험 96건 통과, **라이브 재검증 전**). **다음 세션 첫 실행 항목**: `run-wf14`를
+   다시 돌려 (1) 예외 없이 Step 7까지 판정이 나오는지, (2) 목록 행 수·설정 테이블
+   불일치가 재현되는지(진짜 결함인지 `setup-dicom` 타이밍 오염인지 구분), (3) 원래 3-C
+   증상이 나오는지 확인한다.
+3. ~~`run-wf10`으로 `HC`가 비기본 Procedure `Mammography (Rt)`에 실제 매핑되고 해당
+   Procedure Step이 등록되는지 검증한다.~~ — **2026-08-31 완료**(2-D절). PASS 11/11.
+   선행 조건은 `setup-storage`가 아니라 `setup-dicom`이다.
 4. 주 모니터 밖/안 조건에서 `cold_start` 안전 중단과 정상 로그인을 각각 확인한다.
    (주 모니터 안 정상 로그인은 2026-08-31에 새 PC에서 여러 차례 확인됐다 — 남은 것은
    **주 모니터 밖에서의 안전 중단**이다.)
@@ -332,7 +390,17 @@ Bellalun Viewer QA 자동화를 이어서 진행해줘.
 2026-08-31에 다른 PC로 옮겨(이식성 시험 겸) P0 #1을 끝냈다 — WF_07/XIPL_04의
 wait_new_group 전환을 라이브로 재검증해 **판정 동일 + 실측 단축**(WF_07 Step 4 -10.2초,
 XIPL_04 Step 6 -45.6초)을 확인했고, 그 과정에서 드러난 `_add_view_position_by_alias`
-재시도 누락을 `open_view_position_dialog` 공용화로 고쳤다. 이번 세션은 그 다음부터다.
+재시도 누락을 `open_view_position_dialog` 공용화로 고쳤다. 이어서 P0 #3(`run-wf10` 매핑
+검증)도 끝냈다 — `setup-storage`만으로는 MWL이 없어 Step 3 콤보(2453)가 비활성이라
+FAIL 했고, `setup-dicom`으로 바꾸자 PASS 11/11 했다(2-D절).
+
+그 다음 세션이 세션 한도로 중단됐다 — `run-wf14`(P0 #2)를 연속 3회 실행했지만 원래
+찾던 3-C 증상(진입 실패)은 재현되지 않았고, 대신 Step 7에서 매번 다른 이유로 FAIL 했다.
+그중 `tests/workflow14.py`가 `setting_lists.compare_sweep()`의 없는 키(`"changed"`)를
+참조하던 **자동화 코드 결함**(`KeyError: 'changed'`)은 원인을 찾아 고쳤지만(정적 검사·
+단위시험 96건 통과) **아직 라이브로 재검증하지 못했다** — 이 세션은 그 다음부터다.
+(참고: 이 인계는 중단된 세션의 대화 내용이 아니라 git 커밋·Reports 타임스탬프로
+재구성한 것이다 — 재구성이 실제와 다르면 사용자에게 정정을 요청해라.)
 
 먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 2-C/3-C/4/5절)를
 읽어 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
@@ -348,10 +416,11 @@ hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동
 이전 PC로 돌아갔다면 NEXT_WORK.md 3-D가 다시 유효하다.
 
 **TC를 단독 실행할 때의 전제(08-31 실측)**
-reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(DICOM_STORAGE 0행).
-전체 회귀는 복원 직후 DICOM_Server_Setup이 이 전제를 만들지만 단독 실행에는 그 단계가
-없다. DICOM 전송을 쓰는 TC(run-wf07 등)를 단독으로 돌리기 전에 python run.py
-setup-storage 를 한 번 실행해라.
+reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print
+모두 0행). 전체 회귀는 복원 직후 DICOM_Server_Setup이 이 전제를 만들지만 단독 실행에는
+그 단계가 없다. DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기
+전에 python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해
+MWL이 필요한 TC가 FAIL 한다 — 2-D절).
 
 **관찰을 이어갈 것**
 close_examine 의 삼켜진 클릭은 2026-08-31에 flows.close_examine_confirmed 로 고쳤지만
@@ -360,20 +429,21 @@ close_examine 의 삼켜진 클릭은 2026-08-31에 flows.close_examine_confirme
 closed.attempts 값을 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
 P0 (환경이 확인되면 이 순서로)
-1. WF_14 간헐적 진입 실패 재현율 확인 - reset-environment 후 run-wf14 연속 3회
-   (NEXT_WORK.md 3-C).
-2. run-wf10에서 Hospital Code `HC`가 기본값 `Routine Mammography`가 아니라
-   `Mammography (Rt)`에 실제 매핑되는지 DB HOSPITAL_CODE.MappingKey/STUDY.ProcedureKey,
-   PROCEDURE_ITEMS Step 수, Examine Ready를 함께 확인해라. 기본 Procedure 대체로 생긴
-   거짓 PASS를 허용하지 마라. 주석에 적힌 Key/Step 수를 검증 없이 사실로 가정하지 마라.
-3. Viewer가 주 모니터 밖일 때 cold_start가 창을 강제 이동하지 않고 안전 중단하는지
+1. `run-wf14`를 다시 돌려 이번 세션에서 고친 `KeyError: 'changed'` 픽스를 라이브로
+   검증해라(NEXT_WORK.md 2-D). 확인할 것: (a) 예외 없이 Step 7까지 판정이 나오는가,
+   (b) 목록 행 수 불일치·설정 테이블 13개 섹션 불일치가 재현되는가 — 재현되면 직전
+   `setup-dicom` 타이밍 오염인지 진짜 Import 복원 결함인지 원인을 나눠라(단서: 재현되는
+   섹션이 DICOM 관련뿐인지, `reset-environment` 로 완전히 새로 시작해도 재현되는지),
+   (c) 원래 3-C 증상(`my_settings`(193) 진입 실패)이 나오는가. 재현율을 보려면
+   `reset-environment` 후 연속 3회가 이상적이다.
+2. Viewer가 주 모니터 밖일 때 cold_start가 창을 강제 이동하지 않고 안전 중단하는지
    확인해라(주 모니터 안 정상 로그인은 08-31에 여러 차례 확인됐다). `_login_check.py`를
    좁은 스모크 점검에 쓸 수 있다.
-4. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
-   run-wf15 (Dose Overlay 전제). run-xipl-05 는 2026-08-28, run-wf07/run-xipl-04 는
-   2026-08-31 확인 완료.
-5. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
-6. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
+3. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
+   run-wf15 (Dose Overlay 전제). run-xipl-05 는 2026-08-28, run-wf07/run-xipl-04/
+   run-wf10 은 2026-08-31 확인 완료.
+4. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
+5. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
    완료 결과만 기록해라. 시작 전에 적용한 변경·변경 전후 실행 시간·판정 동일성·남은
    위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
 

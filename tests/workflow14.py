@@ -545,14 +545,15 @@ def run(ctx):
 
         # (c) 본 판정 — 행 상세값이 Export 시점으로 복원되었는가.
         lc = setting_lists.compare_sweep(before_lists, after_lists)
-        lists_restored = (not lc["changed"] and not lc["only_before_pages"]
+        lc_changed = [item for v in lc["pages"].values() for item in v["changed"]]
+        lists_restored = (not lc["changed_total"] and not lc["only_before_pages"]
                           and not lc["only_after_pages"])
         r.add(7, "Setting 목록 행 상세값 복원(스크롤 아래 숨은 행 포함)",
               PASS if lists_restored else FAIL,
               expected=f"{lc['compared_rows']}개 행 / {lc['compared_items']}개 "
                        f"항목 값이 Export 시점과 동일",
               actual={"행": lc["compared_rows"], "항목": lc["compared_items"],
-                      "달라진 항목": lc["changed"][:20],
+                      "달라진 항목": lc_changed[:20],
                       "한쪽에만 있는 페이지": (lc["only_before_pages"]
                                      + lc["only_after_pages"]),
                       "페이지별 차이": {k: v["changed"] for k, v in
