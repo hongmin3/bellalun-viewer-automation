@@ -671,23 +671,24 @@ Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 �
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
-2026-08-31에 다른 PC로 옮겨(이식성 시험 겸) P0 #1을 끝냈다 — WF_07/XIPL_04의
-wait_new_group 전환을 라이브로 재검증해 **판정 동일 + 실측 단축**(WF_07 Step 4 -10.2초,
-XIPL_04 Step 6 -45.6초)을 확인했고, 그 과정에서 드러난 `_add_view_position_by_alias`
-재시도 누락을 `open_view_position_dialog` 공용화로 고쳤다. 이어서 P0 #3(`run-wf10` 매핑
-검증)도 끝냈다 — `setup-storage`만으로는 MWL이 없어 Step 3 콤보(2453)가 비활성이라
-FAIL 했고, `setup-dicom`으로 바꾸자 PASS 11/11 했다(2-D절).
+이전 세션(2026-08-31)에서 P0 #1~#4를 전부 끝냈다:
+- #1 WF_07/XIPL_04 wait_new_group 전환 (판정 동일 + 실측 단축, 2-C절)
+- #2 run-wf14의 KeyError 자동화 결함 수정 (2-D절)
+- #3 run-wf10 비기본 Procedure 매핑 검증 (PASS 11/11, 2-D절)
+- #4 cold_start 주 모니터 가드 — 재사용 경로가 가드를 아예 평가하지 않던 결함 발견·수정
+  (2-E절)
 
-그 다음 세션이 세션 한도로 중단됐다 — `run-wf14`(P0 #2)를 연속 3회 실행했지만 원래
-찾던 3-C 증상(진입 실패)은 재현되지 않았고, 대신 Step 7에서 매번 다른 이유로 FAIL 했다.
-그중 `tests/workflow14.py`가 `setting_lists.compare_sweep()`의 없는 키(`"changed"`)를
-참조하던 **자동화 코드 결함**(`KeyError: 'changed'`)은 원인을 찾아 고쳤지만(정적 검사·
-단위시험 96건 통과) **아직 라이브로 재검증하지 못했다** — 이 세션은 그 다음부터다.
-(참고: 이 인계는 중단된 세션의 대화 내용이 아니라 git 커밋·Reports 타임스탬프로
-재구성한 것이다 — 재구성이 실제와 다르면 사용자에게 정정을 요청해라.)
+그 다음 "목록 전 행 열거 완주" 서브체크(WF_14 Step 7)를 깊게 팠다 — 사용자가
+"구조적 문제 중 정보를 주면 풀리는 게 있냐"고 물어 `../지식/` 사양서를 전수 조사하고
+DB를 직접 조회했다. 문제 있던 9개 페이지 중 **6개를 완전히 해결했다**(system.account,
+dicom.mwl/storage/print — OCR 폴백 + 위치 기반 키징; display.lut — DB 쿼리가 곡선
+제어점을 세고 있던 버그 수정; tool.predefined_text, study.reject_retake — 스크롤 잡음
+내성 fuzzy 매칭). 매 단계 라이브로 재검증했고 전체 판정(19 PASS/4 FAIL, 원인은 이미
+알려진 UPS 제품 결함)은 한 번도 안 바뀌었다(회귀 없음). 자세한 경위는 NEXT_WORK.md
+5절 ⑦과 2-D~2-E절, `../프로젝트_상세.md` B.23~B.27을 참고해라.
 
-먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 2-C/3-C/4/5절)를
-읽어 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
+먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절 ⑦)를 읽어
+상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
 `개정 TC` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를 무조건 탐색하지
 마라.
 
@@ -696,42 +697,47 @@ python run.py portability-check 의 "관리자 권한"이 True 인지 확인해�
 콘솔 화면이 잠겨 있는지 확인해라 - GetForegroundWindow 타이틀이 "Windows 기본 잠금
 화면"인지, 또는 EnumWindows로 그 타이틀을 가진 창이 있는지 본다(타이틀이 비어 있는
 hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
-그 사실만 보고해라. 08-31에 옮긴 PC(HOST=ADMIN)에서는 잠금 문제가 재현되지 않았지만,
-이전 PC로 돌아갔다면 NEXT_WORK.md 3-D가 다시 유효하다.
+그 사실만 보고해라.
 
-**TC를 단독 실행할 때의 전제(08-31 실측)**
+**TC를 단독 실행할 때의 전제(2026-08-31 실측)**
 reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print
-모두 0행). 전체 회귀는 복원 직후 DICOM_Server_Setup이 이 전제를 만들지만 단독 실행에는
-그 단계가 없다. DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기
-전에 python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해
-MWL이 필요한 TC가 FAIL 한다 — 2-D절).
+모두 0행). DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기 전에
+python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해 MWL이
+필요한 TC가 FAIL 한다).
 
 **관찰을 이어갈 것**
-close_examine 의 삼켜진 클릭은 2026-08-31에 flows.close_examine_confirmed 로 고쳤지만
-(팝업이 안 뜨고 StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되지 않아
-재시도 경로 자체는 라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의
-closed.attempts 값을 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
+close_examine 의 삼켜진 클릭은 flows.close_examine_confirmed 로 고쳤지만(팝업이 안 뜨고
+StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되지 않아 재시도 경로 자체는
+라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의 closed.attempts 값을
+확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
 P0 (환경이 확인되면 이 순서로)
-1. ~~`run-wf14`를 다시 돌려 `KeyError: 'changed'` 픽스를 라이브로 검증한다~~ —
-   **2026-08-31 완료.** 예외 없이 Step 7(c)까지 PASS로 판정됐다(2-D절). TC 전체 FAIL은
-   이미 알려진 UPS 제품 결함(3-A/B.22)이라 정상이다. 원래 3-C 증상(`my_settings` 진입
-   실패)은 연속 4회 모두 재현 안 됨 — 열어는 두되 급하지 않다.
-2. **"목록 전 행 열거 완주" 서브체크** — 근본 원인은 확정됐다(2-D절). 고치는 방향은
-   **사용자 합의가 필요해 5절 ⑦로 올려 뒀다** — 먼저 물어보고 진행해라. 급하지 않다
-   (`stop=False`라 다른 판정을 오염시키지 않는다).
-3. ~~Viewer가 주 모니터 밖일 때 cold_start가 안전 중단하는지 확인~~ —
-   **2026-08-31 완료 및 결함 수정(2-E절).** 검증 중 **재사용 경로
-   (force_restart=False, config 기본값)가 가드를 아예 평가하지 않는다**는 것이 드러나
-   flows.require_primary_monitor() 로 공용화해 고쳤다. 밖(중단+창 유지)/안(정상 로그인)/
-   기동 경로 세 조건 모두 라이브 확인, 단위시험 7건 신설.
+1. **`dicom.tag_mapping`(9/17)·`qc.scheduler`(20/23) — fuzzy 매칭으로도 완전히 안 풀린
+   원인 조사.** 추정하지 말고 라이브로 확인해라(예: gap 재시도 로그를 남기게 임시로
+   찍어 보거나, 두 페이지의 노이즈 패턴이 tool.predefined_text와 다른지 직접 비교).
+   여기부터가 다음 세션의 첫 실행 항목이다.
+2. **`display.overlay` 새 검증 설계.** 사양서로 "카탈로그(28개) vs 활성화된 서브셋(8개
+   DB 행)"임이 확정됐다(개수 비교로는 검증이 안 되는 설계) — 각 후보 항목의 추가/미추가
+   상태를 Import 전후로 비교하는 새 검증 방식을 사용자가 승인했다(5절 ⑦). 아직 미구현.
+3. **교차 오염 2곳(`procedure.procedure`, `dicom.print_overlay`) + 완전 오탐 1곳
+   (`patient.physician`).** `visible_rows()`가 같은 화면의 다른 목록(측면 패널이나
+   무관한 콤보)까지 함께 주워 담는 문제 — 좌표(rect)나 부모 컨테이너로 대상 목록만
+   골라내는 범위 제한이 필요하다. 아직 미착수, 페이지별로 라이브 조사가 더 필요하다.
 4. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
-   run-wf15 (Dose Overlay 전제). run-xipl-05 는 2026-08-28, run-wf07/run-xipl-04/
-   run-wf10/run-wf14 는 2026-08-31 확인 완료. **여기부터가 다음 세션의 첫 실행 항목이다.**
+   run-wf15 (Dose Overlay 전제). run-xipl-05/wf07/xipl-04/wf10/wf14 는 2026-08-28~31
+   확인 완료.
 5. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
-6. 전부 통과하면 중단됐던 실행을 이어받지 말고 전체 회귀를 처음부터 1회 돌려 실제
-   완료 결과만 기록해라. 시작 전에 적용한 변경·변경 전후 실행 시간·판정 동일성·남은
-   위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
+6. 전부 통과하면 전체 회귀를 처음부터 1회 돌려 실제 완료 결과만 기록해라. 시작 전에
+   적용한 변경·변경 전후 실행 시간·판정 동일성·남은 위험·예상 소요 시간·Viewer/화면
+   준비 조건을 먼저 보고하고 진행해라.
+
+**작업 방식 참고**
+- 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행
+  전에 마우스/키보드를 점유한다는 것을 알리고, 여러 개를 동시에 돌리지 마라(충돌한다).
+- "구조적 문제/원인 불명"에 부딪히면 추측보다 먼저 `../지식/`(Service Manual·Operation
+  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 6곳을 풀었다.
+- 범위가 예상보다 커지면(이번 세션의 OCR 수정처럼) 중간에 멈추고 사용자에게 범위를
+  확인해라 — 계속 "가능한 만큼" 넓히기보다 단계별로 승인받는 편이 나았다.
 
 추가 리팩터링·속도 개선 (P0 항목이 안정적으로 통과한 뒤에)
 - run-sys3d/run-ui(회귀 밖 명령)에 남은 demo_acquire_step 고정 대기도 wait_new_group으로
