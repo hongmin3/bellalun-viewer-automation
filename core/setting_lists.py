@@ -68,12 +68,12 @@ class ListWalkError(RuntimeError):
     pass
 
 
-def row_signature(row):
-    """행 하나의 식별 문구. 자식 컨트롤의 텍스트를 이어 붙인다.
+def _child_signature(row):
+    """자식 컨트롤의 텍스트만으로 구한 서명. 자식 텍스트가 없으면 `None`.
 
-    빈 문자열이면 **그 행은 식별할 수 없다.** 호출부는 그 목록을 열거 불가로
-    보고해야 한다 — 식별할 수 없는 행으로 겹침을 계산하면 2026-08-25 과 같은
-    오인이 다시 난다.
+    `None` 은 "이 행은 owner-draw 라 자식 창이 없다"는 뜻이다(2026-08-31 실측 —
+    `System > Account` 의 행은 `core.ui.children` 으로 자식이 0개인데, 같은
+    rect 를 화면 OCR 하면 `service`/`admin` 계정이 실제로 그려져 있다).
     """
     parts = []
     for c in children(row.hwnd, 3):
@@ -82,7 +82,30 @@ def row_signature(row):
         text = (c.text or "").strip()
         if text and text not in setting_values.GENERIC_TEXTS:
             parts.append(text)
-    return " | ".join(parts)
+    return " | ".join(parts) if parts else None
+
+
+def row_signature(row, tesseract_exe=None):
+    """행 하나의 식별 문구. 자식 컨트롤의 텍스트를 이어 붙인다.
+
+    자식 텍스트가 없을 때만 화면 픽셀을 OCR 로 읽는다 — 자식 텍스트가 있는
+    (=이미 빠르고 확실한) 페이지는 OCR 을 타지 않는다. **OCR 로 읽은 서명은
+    같은 화면을 다시 캡처해도 완전히 같다는 보장이 없다**(안티에일리어싱·
+    하이라이트 등으로 캡처마다 미세하게 달라질 수 있음 — 2026-08-31 실측,
+    `walk()` 가 스크롤이 필요 없는 목록에만 OCR 결과를 신뢰하는 이유다).
+
+    빈 문자열이면 **그 행은 정말 식별할 수 없다**(OCR 도 실패했다). 호출부는
+    그 목록을 열거 불가로 보고해야 한다 — 식별할 수 없는 행으로 겹침을
+    계산하면 2026-08-25 과 같은 오인이 다시 난다.
+    """
+    sig = _child_signature(row)
+    if sig is not None:
+        return sig
+    from core import uitext
+    try:
+        return uitext.ocr(row, tesseract_exe).strip()
+    except Exception:                                      # noqa: BLE001
+        return ""
 
 
 def visible_rows(pane):
@@ -95,10 +118,12 @@ def visible_rows(pane):
     return sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))
 
 
-def _screen(pane):
-    """현재 화면의 (행 컨트롤, 서명) 목록."""
+def _screen(pane, tesseract_exe=None):
+    """현재 화면의 (행 컨트롤, 서명, OCR 로 읽은 행이 있는지) 목록."""
     rows = visible_rows(pane)
-    return rows, [row_signature(r) for r in rows]
+    sigs = [row_signature(r, tesseract_exe) for r in rows]
+    used_ocr = any(_child_signature(r) is None for r in rows)
+    return rows, sigs, used_ocr
 
 
 def scroll_point(pane, rows):
@@ -135,7 +160,7 @@ def overlap(previous, current):
 
 def walk(ui, pane, on_row=None, expected_count=None,
          notches=DEFAULT_SCROLL_NOTCHES, settle=0.6,
-         max_steps=MAX_SCROLL_STEPS):
+         max_steps=MAX_SCROLL_STEPS, tesseract_exe=None):
     r"""목록을 위에서 아래까지 훑는다.
 
     `on_row(row_control, signature, index)` 를 **새로 등장한 행마다 한 번씩**
@@ -154,7 +179,7 @@ def walk(ui, pane, on_row=None, expected_count=None,
     **완주하지 못하면 예외를 던지지 않는다.** 판정은 호출부(TC)가 하고, 이
     함수는 무엇을 보았고 무엇을 증명하지 못했는지만 돌려준다.
     """
-    rows, sigs = _screen(pane)
+    rows, sigs, used_ocr = _screen(pane, tesseract_exe)
     if not rows:
         return {"signatures": [], "screens": [], "steps": 0, "complete": False,
                 "reasons": ["목록 행이 보이지 않는다"],
@@ -168,6 +193,21 @@ def walk(ui, pane, on_row=None, expected_count=None,
         for offset, (row, sig) in enumerate(zip(rows, sigs)):
             on_row(row, sig, offset)
 
+    # OCR 로 읽은 서명은 같은 화면을 다시 캡처해도 완전히 같다는 보장이 없다
+    # (2026-08-31 실측 — `System > Account` 를 두 번 읽으니 'service ... O' 가
+    # 'service ... O | ea' 로 잡음이 붙었다). 그런데 정지/연속 증명은 **완전
+    # 일치**를 요구하므로, 이런 목록에 스크롤 재확인을 시키면 잡음을 "행을
+    # 건너뛰었다"로 오판한다(2026-08-25 재발 방지 설계와 정면으로 부딪힌다).
+    # 이미 첫 화면에서 DB 원천 행 수와 정확히 같은 개수를 다 봤다면(=스크롤이
+    # 필요 없다는 뜻) 잡음투성이 재확인 스크롤을 하지 않는다. 그 외(개수가
+    # 안 맞거나 자식 텍스트로 읽어 잡음이 없는 목록)는 아래 3중 증명을 그대로
+    # 다 거친다.
+    if (used_ocr and not unreadable and expected_count is not None
+            and len(rows) == expected_count):
+        return {"signatures": collected, "screens": screens, "steps": 0,
+                "complete": True, "reasons": [],
+                "expected_count": expected_count, "unreadable_rows": 0}
+
     step = 0
     bottom = False
     gap = False
@@ -176,7 +216,7 @@ def walk(ui, pane, on_row=None, expected_count=None,
     while step < max_steps:
         step += 1
         ui.wheel(wheel_at, -current_notches, settle=settle)
-        rows, sigs = _screen(pane)
+        rows, sigs, _used_ocr = _screen(pane, tesseract_exe)
         unreadable += sum(1 for s in sigs if not s)
         if sigs == screens[-1]:
             bottom = True
@@ -245,20 +285,43 @@ def read_details(ui, pane, row, exclude_ids=(), settle=0.6):
 
 
 def collect(ui, pane, expected_count=None, exclude_ids=(),
-            notches=DEFAULT_SCROLL_NOTCHES, settle=0.6):
+            notches=DEFAULT_SCROLL_NOTCHES, settle=0.6, tesseract_exe=None):
     """목록을 훑으며 **행마다 상세값까지** 모은다.
 
-    반환: `walk()` 의 결과에 `"details": {서명: {키: {...}}}` 를 더한 것.
+    반환: `walk()` 의 결과에 `"details": {서명 또는 위치: {키: {...}}}` 를
+    더한 것.
 
     같은 서명이 두 번 나오면 뒤엣것에 `#2` 를 붙인다 — 값을 덮어써 한 행이
     조용히 사라지는 것보다 낫다. 그런 목록은 서명만으로 행을 가릴 수 없다는
     뜻이므로 `duplicate_signatures` 에 남겨 호출부가 알 수 있게 한다.
+
+    **OCR 로 읽은 행은 서명 대신 위치(`<OCR 행 #N>`)를 키로 쓴다.** OCR 은
+    같은 화면을 다시 캡처해도 완전히 같은 문구를 준다는 보장이 없어서
+    (2026-08-31 실측), 서명을 키로 쓰면 Export 전/후 두 번의 `collect()` 호출
+    사이에서 **값이 안 바뀐 행도 문구가 미세하게 달라 서로 다른 행으로
+    보여 짝이 안 맞을 수 있다** — 조용히 대조 대상에서 빠지는 것이지 FAIL 로
+    드러나지도 않는다. 식별 컬럼이 없는 행을 행 순서로 짝짓는 기존 관례
+    (`../프로젝트_상세.md` B.14)와 같은 해법이다 — 목록 순서가 Export/Import
+    사이에 바뀌지 않는다는 전제이고, 이 전제가 깨지면(행이 늘거나 줄면) 위
+    "목록 전 행 열거 완주" 서브체크가 별도로 잡는다.
     """
     details = {}
     duplicates = []
     stale = []
 
     def on_row(row, signature, index):
+        ocr_based = _child_signature(row) is None
+        if ocr_based:
+            # 위치가 곧 식별자다 — 노이즈가 낀 문구를 키로 쓰지 않는다.
+            key = f"<OCR 행 #{index}>"
+            try:
+                details[key] = read_details(ui, pane, row,
+                                            exclude_ids=exclude_ids,
+                                            settle=settle)
+            except Exception as exc:                       # noqa: BLE001
+                details[key] = {"<읽기 실패>": {
+                    "kind": "error", "value": f"{type(exc).__name__}: {exc}"}}
+            return
         key = signature or f"<빈 문구 #{index}>"
         if key in details:
             duplicates.append(key)
@@ -269,8 +332,9 @@ def collect(ui, pane, expected_count=None, exclude_ids=(),
         # 앞 행을 선택하면서 목록이 움직였을 수 있다. 그러면 들고 있는 행
         # 컨트롤이 **다른 행을 가리킨다.** 누르기 직전에 문구를 다시 읽어
         # 확인한다 — 엉뚱한 행의 상세값을 그 행의 것으로 기록하면 대조가
-        # 조용히 거짓이 된다.
-        fresh = row_signature(row)
+        # 조용히 거짓이 된다. (OCR 기반 행은 문구 자체가 불안정해 이 재확인이
+        # 안 통하므로 위에서 걸러진다 — 결정은 위치만으로 한다.)
+        fresh = row_signature(row, tesseract_exe)
         if fresh != signature:
             stale.append({"expected": signature, "actual": fresh,
                           "index": index})
@@ -283,7 +347,7 @@ def collect(ui, pane, expected_count=None, exclude_ids=(),
                                         "value": f"{type(exc).__name__}: {exc}"}}
 
     result = walk(ui, pane, on_row=on_row, expected_count=expected_count,
-                  notches=notches, settle=settle)
+                  notches=notches, settle=settle, tesseract_exe=tesseract_exe)
     result["details"] = details
     result["duplicate_signatures"] = duplicates
     result["stale_rows"] = stale
@@ -443,7 +507,7 @@ def find_lists(ui, pages, min_rows=1, on_event=None):
 
 
 def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
-          settle=0.6, on_event=None):
+          settle=0.6, on_event=None, tesseract_exe=None):
     """후보 페이지들의 목록을 **행마다 상세값까지** 모아 한 번에 돌려준다.
 
     반환: `{"pages": {"dicom.storage": collect결과, ...},
@@ -478,7 +542,8 @@ def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
         result = collect(ui, pane, expected_count=expected_row_count(db, key),
                          exclude_ids=setting_values.VOLATILE_CONTROLS.get(
                              key, ()),
-                         notches=notches, settle=settle)
+                         notches=notches, settle=settle,
+                         tesseract_exe=tesseract_exe)
         out[key] = result
         if not result["complete"]:
             incomplete.append(key)

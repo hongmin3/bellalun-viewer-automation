@@ -244,7 +244,8 @@ def run(ctx):
                    "판정력은 DB 전수 대조가 보증한다.")
 
         # --- Step 7 보강의 1회차: 목록 행 상세값 판독 -------------------
-        before_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES)
+        before_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES,
+                                          tesseract_exe=tess)
         r.add(0, "[근거 수집] Setting 목록 행 상세값 판독(1회차)", PASS,
               expected="스크롤 아래 숨은 행을 포함한 목록 전 행의 상세값",
               actual=_list_summary(before_lists),
@@ -506,7 +507,8 @@ def run(ctx):
         # 제거하면서 끝 행 도달을 보장하는 전용 탐색기 + 전후 DB 무변경 시험" 이었고,
         # `core/setting_lists.py` 가 그것이다.
         db_before_lists = snapshot.take(ctx.db)
-        after_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES)
+        after_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES,
+                                         tesseract_exe=tess)
         db_after_lists = snapshot.take(ctx.db)
         lists_readonly, lists_diff = snapshot.config_identical(
             db_before_lists, db_after_lists)
