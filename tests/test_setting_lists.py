@@ -441,5 +441,91 @@ class CompareSweepTest(unittest.TestCase):
         self.assertEqual(flattened[0]["row"], "A")
 
 
+class CollectOverlayTest(unittest.TestCase):
+    """2026-09-01 실측: `display.overlay` 는 카탈로그/Top/Bottom 세 목록이
+    한 패널에 섞여 있어 일반 `visible_rows()`가 셋을 구분하지 못한다(실측
+    28행 = 카탈로그 화면표시분 20 + Top 6 + Bottom 2 — DB `OVERLAY_ITEM`
+    8행과는 무관한 합이었다). `_collect_overlay()`가 Top/Bottom 두 컨트롤만
+    각각 `collect()`에 넘기고 결과를 병합하는지 확인한다."""
+
+    def _fake_control(self, hwnd):
+        c = _FakeControl((0, 0, 10, 10))
+        c.hwnd = hwnd
+        c.visible = True
+        return c
+
+    def test_splits_by_control_id_and_merges_results(self):
+        top_ctrl = self._fake_control(111)
+        bottom_ctrl = self._fake_control(222)
+
+        def fake_by_id(ctrl_id):
+            from core import viewer_processing as vp
+            if ctrl_id == vp.OVERLAY_LIST_TOP:
+                return [top_ctrl]
+            if ctrl_id == vp.OVERLAY_LIST_BOTTOM:
+                return [bottom_ctrl]
+            return []
+
+        ui = mock.Mock()
+        ui.by_id.side_effect = fake_by_id
+
+        def fake_collect(ui_arg, pane, expected_count=None, **kwargs):
+            if pane is top_ctrl:
+                return {"signatures": ["A", "B"], "screens": [], "steps": 1,
+                        "complete": True, "reasons": [],
+                        "expected_count": expected_count,
+                        "unreadable_rows": 0,
+                        "details": {"A": {}, "B": {}},
+                        "duplicate_signatures": [], "stale_rows": []}
+            if pane is bottom_ctrl:
+                return {"signatures": ["C"], "screens": [], "steps": 0,
+                        "complete": True, "reasons": [],
+                        "expected_count": expected_count,
+                        "unreadable_rows": 0, "details": {"C": {}},
+                        "duplicate_signatures": [], "stale_rows": []}
+            raise AssertionError("unexpected pane")
+
+        db = mock.Mock()
+        with mock.patch("core.viewer_processing._overlay_positions",
+                       return_value={1: (0, 0), 2: (0, 1), 3: (1, 0)}), \
+             mock.patch.object(setting_lists, "collect", side_effect=fake_collect):
+            result = setting_lists._collect_overlay(ui, db)
+
+        self.assertEqual(result["signatures"], ["A", "B", "C"])
+        self.assertEqual(result["expected_count"], 3)  # top 2개 + bottom 1개
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["details"], {"top:A": {}, "top:B": {},
+                                             "bottom:C": {}})
+
+    def test_missing_control_marks_incomplete(self):
+        ui = mock.Mock()
+        ui.by_id.return_value = []  # top/bottom 둘 다 못 찾음
+        db = mock.Mock()
+        with mock.patch("core.viewer_processing._overlay_positions",
+                       return_value={}):
+            result = setting_lists._collect_overlay(ui, db)
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["signatures"], [])
+        self.assertTrue(any("찾지 못했다" in r for r in result["reasons"]))
+
+    def test_sweep_routes_display_overlay_through_collect_overlay(self):
+        """`sweep()`이 `display.overlay` 키에서 일반 `collect(pane, ...)`
+        대신 `_collect_overlay()`를 쓰는지 — 페이지 진입 자체는 목(mock)한다."""
+        pane = self._fake_control(999)
+        with mock.patch("core.flows.open_group_page", return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "setting_window",
+                              return_value=mock.Mock()), \
+             mock.patch.object(setting_lists.setting_values, "pane_control",
+                              return_value=pane), \
+             mock.patch.object(setting_lists.time, "sleep"), \
+             mock.patch.object(
+                 setting_lists, "_collect_overlay",
+                 return_value={"signatures": [], "complete": True}) as co:
+            result = setting_lists.sweep(mock.Mock(), mock.Mock(),
+                                         [("display", "overlay")])
+        co.assert_called_once()
+        self.assertIn("display.overlay", result["pages"])
+
+
 if __name__ == "__main__":
     unittest.main()

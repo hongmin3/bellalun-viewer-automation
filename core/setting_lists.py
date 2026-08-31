@@ -520,7 +520,10 @@ def compare(before, after):
 ROW_COUNT_QUERIES = {
     # Setting > System > Account — 계정 목록 (실측 2)
     "system.account": ("ACCOUNT", "SELECT COUNT(*) AS n FROM ACCOUNT"),
-    # Setting > Display > Overlay — Image Overlay 항목 (실측 8)
+    # Setting > Display > Overlay — Image Overlay 항목 (실측 8). 이 페이지는
+    # `_collect_overlay()`가 Top/Bottom 개수를 `_overlay_positions()`로 직접
+    # 계산해 쓰므로 이 쿼리 자체는 `sweep()` 경로에서 참조되지 않는다 —
+    # `expected_row_count()`를 직접 쓰는 다른 호출부를 위해 남겨 둔다.
     "display.overlay": ("CONFIGURATION",
                         "SELECT COUNT(*) AS n FROM OVERLAY_ITEM"),
     # Setting > Display > LUT — LUT **개수**(실측 3: ScreenLUT/StorageLUT/
@@ -619,6 +622,77 @@ def find_lists(ui, pages, min_rows=1, on_event=None):
     return found
 
 
+#: `display.overlay` 전용 특례가 필요한 페이지 키. `sweep()`이 이 값을 만나면
+#  일반 단일 목록 경로 대신 `_collect_overlay()`를 쓴다.
+OVERLAY_PAGE_KEY = "display.overlay"
+
+
+def _collect_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHES,
+                     settle=0.6, tesseract_exe=None):
+    """`display.overlay` 전용 — Top/Bottom(현재 활성 상태) 두 목록만 훑는다.
+
+    (2026-09-01 실측) 이 페이지는 화면에 **세 개의 독립된 목록**이 나란히
+    있다 — 카탈로그(`OVERLAY_LIST_AVAILABLE`, 표시 가능한 후보 전체, DB와
+    무관한 고정 참조용), 그리고 실제로 켜진 항목만 담는 `OVERLAY_LIST_TOP`/
+    `OVERLAY_LIST_BOTTOM`(둘을 합치면 `CONFIGURATION.OVERLAY_ITEM` 행 수와
+    정확히 같다 — 실측 Top 6 + Bottom 2 = DB 8). 일반 `visible_rows()`는
+    패널 전체를 훑어 이 셋을 구분 없이 섞어버린다(실측: 카탈로그 화면에
+    보이는 20행 + Top 6 + Bottom 2 = 28 — 예전에 "화면 28 vs DB 8" 로 기록된
+    수치는 **카탈로그 크기가 아니라 세 목록이 섞인 것**이었다. Service
+    Manual 4.4.2 의 실제 후보 카탈로그는 34개 항목이라 28과도 안 맞는다).
+
+    카탈로그는 판정과 무관하므로 아예 빼고, Top/Bottom 컨트롤(`ui.by_id`)을
+    직접 찾아 **각각을 `pane` 삼아** 기존 `collect()`를 그대로 두 번 돌린다
+    (`setting_values.pane_controls()`가 `children(pane.hwnd, depth)`일
+    뿐이라 어떤 컨트롤을 넘기든 그 하위 트리로 자동으로 좁혀진다 — 새 스캔
+    로직이 필요 없다). 결과를 병합해 `collect()`와 같은 모양으로 돌려준다.
+    """
+    from core import viewer_processing as vp
+
+    positions = vp._overlay_positions(db)
+    expected = {0: 0, 1: 0}
+    for _fid, (pos, _order) in positions.items():
+        expected[pos] = expected.get(pos, 0) + 1
+
+    parts = {}
+    for label, ctrl_id, pos in (("top", vp.OVERLAY_LIST_TOP, 0),
+                               ("bottom", vp.OVERLAY_LIST_BOTTOM, 1)):
+        hits = [c for c in ui.by_id(ctrl_id) if c.visible]
+        if not hits:
+            parts[label] = {
+                "signatures": [], "screens": [], "steps": 0,
+                "complete": False,
+                "reasons": [f"{label} 목록 컨트롤(id={ctrl_id})을 찾지 못했다"],
+                "expected_count": expected.get(pos, 0), "unreadable_rows": 0,
+                "details": {}, "duplicate_signatures": [], "stale_rows": []}
+            continue
+        parts[label] = collect(ui, hits[0], expected_count=expected.get(pos, 0),
+                               exclude_ids=exclude_ids, notches=notches,
+                               settle=settle, tesseract_exe=tesseract_exe)
+
+    details = {}
+    for label in ("top", "bottom"):
+        for sig, value in parts[label]["details"].items():
+            details[f"{label}:{sig}"] = value
+    reasons = [f"[{label}] {reason}" for label in ("top", "bottom")
+              for reason in parts[label]["reasons"]]
+    return {
+        "signatures": parts["top"]["signatures"] + parts["bottom"]["signatures"],
+        "screens": {"top": parts["top"]["screens"],
+                   "bottom": parts["bottom"]["screens"]},
+        "steps": parts["top"]["steps"] + parts["bottom"]["steps"],
+        "complete": parts["top"]["complete"] and parts["bottom"]["complete"],
+        "reasons": reasons,
+        "expected_count": expected.get(0, 0) + expected.get(1, 0),
+        "unreadable_rows": (parts["top"]["unreadable_rows"]
+                           + parts["bottom"]["unreadable_rows"]),
+        "details": details,
+        "duplicate_signatures": (parts["top"]["duplicate_signatures"]
+                                + parts["bottom"]["duplicate_signatures"]),
+        "stale_rows": parts["top"]["stale_rows"] + parts["bottom"]["stale_rows"],
+    }
+
+
 def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
           settle=0.6, on_event=None, tesseract_exe=None):
     """후보 페이지들의 목록을 **행마다 상세값까지** 모아 한 번에 돌려준다.
@@ -647,16 +721,25 @@ def sweep(ui, db, pages, notches=DEFAULT_SCROLL_NOTCHES,
             skipped[key] = "콘텐츠 패널을 찾지 못했다"
             continue
         time.sleep(0.3)
-        if not visible_rows(pane):
-            skipped[key] = "목록 없음"
-            continue
         # 장치 상태 칸은 설정이 아니라 실시간 값이라 뺀다 — 페이지별로 다르므로
         # 그 페이지의 것만 넘긴다(`setting_values.VOLATILE_CONTROLS` 주석 참고).
-        result = collect(ui, pane, expected_count=expected_row_count(db, key),
-                         exclude_ids=setting_values.VOLATILE_CONTROLS.get(
-                             key, ()),
-                         notches=notches, settle=settle,
-                         tesseract_exe=tesseract_exe)
+        exclude_ids = setting_values.VOLATILE_CONTROLS.get(key, ())
+        if key == OVERLAY_PAGE_KEY:
+            # 이 페이지는 카탈로그/Top/Bottom 세 목록이 한 패널에 섞여 있어
+            # 일반 경로(`visible_rows(pane)`)가 셋을 구분 못 한다 —
+            # `_collect_overlay()`가 Top/Bottom(=DB 와 같은 것을 세는 목록)만
+            # 골라 훑는다.
+            result = _collect_overlay(ui, db, exclude_ids=exclude_ids,
+                                      notches=notches, settle=settle,
+                                      tesseract_exe=tesseract_exe)
+        else:
+            if not visible_rows(pane):
+                skipped[key] = "목록 없음"
+                continue
+            result = collect(ui, pane, expected_count=expected_row_count(db, key),
+                             exclude_ids=exclude_ids,
+                             notches=notches, settle=settle,
+                             tesseract_exe=tesseract_exe)
         out[key] = result
         if not result["complete"]:
             incomplete.append(key)
