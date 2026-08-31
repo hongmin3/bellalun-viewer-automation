@@ -251,8 +251,13 @@ def run(ctx):
                  "`demo_acquire_step` 이 Ready 를 확인한 뒤에만 촬영한다.")
 
         # --- Step 5: 검사 종료 -> 자동 전송 --------------------------------
-        closed = flows.close_examine(ui, option="close", wait=10,
-                                     tesseract_exe=tess)
+        # Close 클릭이 삼켜져 검사가 열린 채 남는 경우가 있어(2026-08-31 실측,
+        # 재현율 1/3) 종료를 **DB 로 확인**하고 삼켜졌을 때만 다시 누른다.
+        # 판별을 화면으로 못 하는 이유와 재시도 조건은
+        # `core/flows.close_examine_confirmed` docstring 에 적었다.
+        closed = flows.close_examine_confirmed(
+            ui, ctx.db, study_key, option="close", wait=10,
+            tesseract_exe=tess)
         time.sleep(3)
         path = os.path.join(evidence, "04_closed.png")
         screen.grab(ui.main_window().rect, path=path)

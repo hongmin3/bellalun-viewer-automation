@@ -147,23 +147,36 @@
 - `WF_07` Step 7(전송 영상 수신 확인)이 7.6초 → 40.2초로 늘었다. 네트워크·Storage SCP
   응답 차이로 보이며 판정은 PASS로 동일하다.
 
-### 남긴 것 (사용자 판단 대기) — `close_examine` no-dialog 경로
+### 이어서 고친 것 — `close_examine` no-dialog 경로 (사용자 승인 후 진행)
 
-`WF_07`은 첫 실행에서 Step 5(검사 종료)가 1회 실패했고 **재실행에서는 PASS**했다(간헐).
-증거 캡처(`Evidence/Flow/07_Emergency/04_closed.png`)에 Close 버튼 위 툴팁
-("Send & Close")만 뜨고 검사는 Examine에 남아 있었으며 `STUDY.StudyStatus=1`이 유지됐다 —
-위 `+` 클릭과 **같은 "클릭이 삼켜짐" 증상**이다. 고정 대기를 걷어내 Close 클릭이 약 10초
-앞당겨지면서 확률이 올라간 것으로 본다(단정 아님 — 1/3 재현).
+`WF_07`은 첫 실행에서 Step 5(검사 종료)가 1회 실패했고 재실행 2회는 PASS 했다(재현율 1/3).
+증거 캡처에 Close 버튼 위 툴팁("Send & Close")만 뜨고 검사는 Examine 에 남아
+`STUDY.StudyStatus=1` 이 유지됐다 — 위 `+` 클릭과 **같은 "클릭이 삼켜짐" 계열**이다.
 
-고치려면 "아직 Examine 모드인가"를 판별해야 한다(팝업 없이 정상 종료되는 경로가 있어
-무조건 재클릭하면 다음 검사를 건드릴 수 있다). 판별 수단을 실측해 봤다:
+사용자 승인(2026-08-31)으로 고쳤다. 다만 `close_examine` 은 **팝업 없이 정상 종료되는
+경로가 따로 있어**(미촬영 Step 이 없을 때) 무조건 다시 누르면 다음 검사를 건드릴 수 있다.
+그래서 "아직 Examine 인가"를 판별해야 하는데, **화면 판별 수단 두 가지를 실측으로 배제**했다.
 
-- **Close 버튼(2204)은 Examine이 아닌 화면에서도 `visible=True`** 라 판별에 쓸 수 없다(실측).
-- 상태 배너(2202)는 `AfxWnd140u` 커스텀 드로잉이라 텍스트가 `'TextButton'`으로만 잡힌다
-  → OCR이 필요하다.
+| 후보 | 실측 결과 | 판정 |
+|---|---|---|
+| Close 버튼(2204) 가시성 | Examine 이 **아닌** 화면에서도 `visible=True` | 쓸 수 없음 |
+| 상태 배너(2202) 픽셀 OCR | 종료 직후 다른 창이 배너를 가려 `'icine —'` 같은 쓰레기를 읽음. 문구도 `Ready` / `Xray Block` / `Not Examine Mode` 로 여럿 | 쓸 수 없음 |
 
-`close_examine`은 여러 TC가 공유하는 코드고 재현이 1/3이라, **재현 불가한 상태에서 공용
-종료 로직을 추측으로 바꾸지 않았다.** 5절 ⑥으로 올린다.
+→ **제품 상태 변경은 UI(Close 클릭)로, 성공 판별만 DB(`STUDY.StudyStatus`)로** 한다
+(저장소 규칙: DB 로 제품 동작을 모사하지 않고 검증에 쓴다). `core/flows.py` 에
+`STUDY_STATUS_EXAMINING`(=1, 실측) / `study_status` / `wait_study_closed` /
+`close_examine_confirmed` 를 추가하고 `WF_07` Step 5 를 여기에 붙였다.
+
+**재시도 조건은 두 가지를 모두 만족할 때뿐이다** — 종료 옵션 팝업이 안 떴고(`dialog=False`),
+확인 시간 안에 `StudyStatus` 가 1 에서 벗어나지 않았을 때. 상한 3회.
+
+검증: 단위시험 5건 신설(`tests/test_close_examine_confirm.py` — 삼켜짐 재클릭 / 팝업 경로
+비재시도 / 팝업 없이 정상 종료 비재시도 / 상한 / 행 없음을 "닫힘"으로 오인 안 함),
+`run-wf07` **3회 연속 PASS**(모두 `attempts: 1`, 확인 비용 0.3초).
+
+> **정직한 한계: 간헐 실패가 재현되지 않아 재시도 경로 자체는 라이브로 타 보지 못했다.**
+> 정상 경로가 영향을 받지 않는다는 것만 라이브로 확인했다. 전체 회귀에서 `closed.attempts`
+> 값을 관찰해 실제로 재시도가 걸리는지 계속 본다(판정 `actual` 에 그대로 실린다).
 
 ---
 
@@ -261,7 +274,7 @@
 
 ### P2
 
-9. `flows.close_examine` 의 no-dialog 경로 상태 신호화.
+9. ~~`flows.close_examine` 의 no-dialog 경로 상태 신호화~~ — **2026-08-31 완료**(2-C절). `WF_07` 외 다른 `close_examine` 호출부(`WF_04`/`WF_10`/`XIPL` 등)도 같은 `close_examine_confirmed` 로 옮길지는 전체 회귀에서 재시도가 실제로 걸리는지 본 뒤 판단한다 — 지금은 근거 없이 넓히지 않는다.
 10. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
 11. `XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1) — 급하지 않다.
 
@@ -303,25 +316,11 @@ git branch -d agent/add-next-task-handoff
 git push origin --delete agent/add-next-task-handoff
 ```
 
-### ⑥ `close_examine` no-dialog 경로를 고칠지 (2026-08-31 신규)
+### ⑥ ~~`close_examine` no-dialog 경로를 고칠지~~ — 2026-08-31 승인·완료
 
-`WF_07` Step 5(검사 종료)가 1회 실패하고 재실행에서 PASS 했다(2-C절 마지막). 증상은
-`+` 클릭이 삼켜지는 것과 같은 계열이고, 고정 대기를 걷어내 Close 클릭이 약 10초
-앞당겨지면서 확률이 올라간 것으로 본다.
-
-고치려면 "아직 Examine 모드인가"를 판별해 **삼켜졌을 때만** 다시 눌러야 한다(팝업 없이
-정상 종료되는 경로가 있어 무조건 재클릭하면 다음 검사를 건드릴 수 있다). 판별 수단을
-실측해 본 결과 **Close 버튼(2204)은 Examine이 아닌 화면에서도 `visible=True`라 쓸 수
-없고**, 상태 배너(2202)는 커스텀 드로잉이라 **OCR이 필요**하다.
-
-`close_examine`은 여러 TC가 공유하는 코드이고 재현이 1/3이라 이번 세션에서는 건드리지
-않았다. 다음 중 무엇을 원하시는지 알려주시면 그대로 진행한다.
-
-1. **OCR로 배너(2202)를 읽어 Examine 모드일 때만 재시도**를 넣는다(권장). 전체 회귀
-   전에 `run-wf07`을 여러 번 돌려 재현율 변화를 확인한다.
-2. 그대로 두고 전체 회귀에서 재현되는지 먼저 본다(간헐 FAIL 1건을 감수).
-3. `WF_07` Step 4 뒤에만 짧은 고정 대기를 되살린다(단축 효과 일부 반납, 근거 약함 —
-   권장하지 않는다).
+사용자가 "① OCR 판별 후 재시도"를 골랐고, 실측해 보니 OCR(배너 2202)이 종료 직후 다른 창에
+가려 깨져 쓸 수 없었다. 같은 목적(삼켜졌을 때만 재시도)을 더 확실한 신호인
+`STUDY.StudyStatus` 로 달성했다 — 2-C절 참고. 판별 수단을 바꾼 이유를 함께 보고했다.
 
 ---
 
@@ -354,11 +353,11 @@ reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 
 없다. DICOM 전송을 쓰는 TC(run-wf07 등)를 단독으로 돌리기 전에 python run.py
 setup-storage 를 한 번 실행해라.
 
-**먼저 물어볼 것**
-NEXT_WORK.md 5절 6번(`close_examine` no-dialog 경로)에 대한 사용자 결정을 받아라.
-WF_07 Step 5가 1회 삼켜진 클릭으로 실패했다가 재실행에서 PASS 한 건이고, 고치려면
-상태 배너(2202) OCR로 "아직 Examine 모드인가"를 판별해야 한다. 공용 코드라 결정 없이
-바꾸지 마라.
+**관찰을 이어갈 것**
+close_examine 의 삼켜진 클릭은 2026-08-31에 flows.close_examine_confirmed 로 고쳤지만
+(팝업이 안 뜨고 StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되지 않아
+재시도 경로 자체는 라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의
+closed.attempts 값을 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
 P0 (환경이 확인되면 이 순서로)
 1. WF_14 간헐적 진입 실패 재현율 확인 - reset-environment 후 run-wf14 연속 3회

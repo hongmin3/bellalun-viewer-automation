@@ -334,6 +334,13 @@ EXAMINED_SOURCE_ITEMS = {
 # RejectType / RejectReason / RejectUserID 를 기록한다(2026-08-20).
 STUDY_STATUS_REJECTED = 5
 
+# 검사가 **Examine 에 열려 있는 동안**의 값(2026-08-31 실측). `WF_07` 이
+# Emergency 검사를 시작한 직후 1 이었고, Close 클릭이 삼켜져 열린 채 남았을 때도
+# 1 이 유지됐다. 정상 종료된 같은 TC 의 검사들은 3 이었다(위 주석의 "Reject 는
+# 3 -> 5" 와도 일관된다 — 3 이 종료된 검사의 값이다).
+# `close_examine_confirmed` 가 "Close 가 실제로 먹혔는가" 판별에 쓴다.
+STUDY_STATUS_EXAMINING = 1
+
 # Study Reject 도 Image Reject 와 **같은 사유 팝업**(701~707)을 쓴다(실측).
 
 
@@ -2104,6 +2111,72 @@ def close_examine(ui, option="close", wait=8, evidence_path=None,
             f"종료 옵션 '{option}' 선택 후에도 팝업이 남아 있습니다."
             + (f" (검사 삭제 확인 처리: {confirm})" if confirm else ""))
     return {"dialog": True, "option": option, "evidence": evidence_path}
+
+
+def study_status(db, study_key):
+    """`STUDY.StudyStatus` 를 읽는다(없으면 None)."""
+    row = db.one("DATA", "SELECT StudyStatus FROM STUDY WHERE [Key]=@k",
+                 {"k": int(study_key)})
+    if not row or row.get("StudyStatus") is None:
+        return None
+    return int(row["StudyStatus"])
+
+
+def wait_study_closed(db, study_key, timeout=20, poll=1.0):
+    """검사가 Examine 에서 실제로 빠져나갔는지 DB 로 기다린다.
+
+    반환: {"status": 마지막으로 읽은 StudyStatus, "closed": bool, "waited": 초}
+    """
+    end = time.time() + timeout
+    started = time.time()
+    status = None
+    while True:
+        status = study_status(db, study_key)
+        closed = status is not None and status != STUDY_STATUS_EXAMINING
+        if closed or time.time() >= end:
+            return {"status": status, "closed": bool(closed),
+                    "waited": round(time.time() - started, 1)}
+        time.sleep(poll)
+
+
+def close_examine_confirmed(ui, db, study_key, option="close", attempts=3,
+                            verify_timeout=20, **kwargs):
+    r"""`close_examine` 을 부르고 **DB 로 실제 종료를 확인**한다.
+
+    Close 클릭이 삼켜져 검사가 열린 채 남는 경우가 있다 — `+` 클릭이 삼켜지는 것과
+    같은 계열이다(근거: `core/viewer_processing.open_view_position_dialog`
+    docstring). 2026-08-31 `WF_07` Step 5 에서 실측했다: Close 버튼 위에 툴팁
+    ("Send & Close")만 뜨고 검사는 Examine 에 남아 `StudyStatus=1` 이 유지됐으며,
+    같은 코드의 재실행 2회는 정상이었다(재현율 1/3).
+
+    **화면만 보고는 판별할 수 없다는 것을 실측으로 확인했다(2026-08-31).**
+
+    - 상태 배너(2202)는 커스텀 드로잉이라 텍스트가 `'TextButton'` 으로만 잡히고,
+      픽셀 OCR 은 종료 직후 다른 창이 배너를 가려 `'icine —'` 같은 쓰레기를 읽었다.
+      문구도 `Ready` / `Xray Block` / `Not Examine Mode` 로 여러 가지다.
+    - Close 버튼(2204)은 **Examine 이 아닌 화면에서도 `visible=True`** 였다.
+
+    그래서 제품 상태 변경은 UI(Close 클릭)로 하고 **성공 판별만 DB 로** 한다
+    (이 저장소 규칙: DB 로 제품 동작을 모사하지 않고 검증에 쓴다).
+
+    **삼켜졌을 때만 다시 누른다.** 재시도 조건은 두 가지를 모두 만족할 때다 —
+    종료 옵션 팝업이 안 떴고(`dialog` 가 False), `verify_timeout` 안에
+    `StudyStatus` 가 `STUDY_STATUS_EXAMINING` 에서 벗어나지 않았을 때. 팝업 없이
+    정상 종료되는 경로(미촬영 Step 이 없을 때)가 따로 있어 무조건 다시 누르면
+    다음 검사를 건드릴 수 있기 때문에, 이 두 조건을 함께 본다.
+
+    반환: `close_examine` 의 반환값 + `{"attempts": n, "verify": {...}}`
+    """
+    closed, verify = None, None
+    for attempt in range(1, attempts + 1):
+        closed = close_examine(ui, option=option, **kwargs)
+        verify = wait_study_closed(db, study_key, timeout=verify_timeout)
+        if verify["closed"] or closed.get("dialog"):
+            break
+    result = dict(closed or {})
+    result["attempts"] = attempt
+    result["verify"] = verify
+    return result
 
 
 def save_new_patient(ui, wait=3):
