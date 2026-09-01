@@ -525,6 +525,37 @@ FAIL(3-A UPS, 회귀 없음), Step 7(c) 비교 행 수 89행 그대로(개수 �
 
 ---
 
+## 2-K. 2026-09-01 회차(이어짐) — `setup-dicom`이 이미 꺼진 Storage 항목을 실수로 다시 켜던 결함 발견·수정
+
+"목록 전 행 열거 완주" 9/9 완료 뒤 `run-wf04→06`/`run-wf13`/`run-wf15` 재검증에
+앞서 `setup-dicom`을 돌렸는데 `[FAIL] Storage Use 단일 선택:
+[{'Name': 'BUNNY_TEST', 'Use': 1}, {'Name': 'STORAGE', 'Use': 1}]` — 새로
+등록한 `STORAGE`뿐 아니라 예전에 꺼 둔 `BUNNY_TEST`까지 다시 켜져 있었다.
+
+**원인.** `core/dicom_settings.py`의 `_sync_use()`가 Storage 목록을 DB와
+맞출 때 `SELECT Name,[Use] FROM DICOM_STORAGE`를 `SCPUseType` 필터 없이
+읽고 있었다. `DICOM_STORAGE`는 전송이 한 번 일어나면 같은 이름의 **전송
+작업 사본 행**(`SCPUseType<>0`, 늘 `Use=1`)이 새로 생기는데, 이 값이
+설정 행(`SCPUseType=0`)의 진짜 상태를 딕셔너리에서 덮어써 "이미 켜져
+있다"로 오판했다 — 화면 체크박스(실제로는 꺼진 상태)를 "꺼야 하니
+누른다"는 반대 논리로 클릭해 오히려 켜 버렸다. 같은 파일에 이미 같은
+필터를 쓰는 곳이 셋(`active_storage_rows()`, "Use 단일 선택" 판정,
+`WF_06` Storage 복구 로직)이나 있었는데 `_sync_use()`만 빠져 있었다.
+
+**조치.** `_sync_use()`의 Storage 조회에 `SCPUseType=0` 필터를 추가했다.
+단위시험 4건 신설(`tests/test_dicom_settings.py`), 146 → **150건 OK**.
+
+**라이브 검증** — 고치기 전 DB가 정확히 버그 재현 조건(`BUNNY_TEST` 설정
+행 `Use=0`, 사본 행 `Use=1`)이었음을 먼저 확인하고, 그 상태 그대로
+`setup-dicom`을 재실행했다. "Storage Use 단일 선택"이 `STORAGE`만 나와
+**PASS**(`Reports/Result_20260901_135839.json`), `BUNNY_TEST` 설정 행도
+`Use=0`으로 유지됨을 DB로 재확인했다. `DICOM_Server_Setup` 전체 판정
+FAIL → **PASS**.
+
+상세 경위는 `../프로젝트_상세.md` B.33 참고.
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -917,8 +948,26 @@ dicom.print_overlay/patient.physician — 넷 다 "개념 불일치"나 "오탐"
 "일부 QC 항목은 연결 모델/실행 모드에 따라 의도적으로 숨겨진다"고 명시 — 라이브로
 교차 오염 없음도 먼저 확인한 뒤 사양서로 최종 확정, 2-J절/B.32), 개수 증명만 뺐다).
 매 단계 라이브로 재검증했고 전체 판정(원인은 이미 알려진 UPS 제품 결함)은 한 번도
-안 바뀌었다(회귀 없음). 자세한 경위는 NEXT_WORK.md 5절 ⑦과 2-D~2-J절,
-`../프로젝트_상세.md` B.23~B.32를 참고해라.
+안 바뀌었다(회귀 없음).
+
+이어서 `run-wf04→06`/`run-wf13`/`run-wf15` 재검증을 시도하다가 별개 결함을 하나
+더 찾았다 — `setup-dicom`이 이미 꺼 둔 Storage 항목(`BUNNY_TEST`)을 실수로 다시
+켜고 있었다. `core/dicom_settings.py`의 `_sync_use()`가 Storage 목록을 DB와
+맞출 때 `SCPUseType` 필터 없이 읽어서, 전송 작업 사본 행(늘 `Use=1`)이 설정
+행의 진짜 상태를 덮어써 "이미 켜져 있다"로 오판, 화면 체크박스를 반대로 클릭한
+것이었다(같은 파일에 이미 같은 필터를 쓰는 곳이 셋이나 있었는데 이 함수만
+빠졌다). 필터를 추가해 고쳤고, 고치기 전 정확한 버그 재현 조건에서 다시
+`setup-dicom`을 돌려 PASS로 바뀌는 것까지 라이브로 확인했다(2-K절/B.33).
+
+그 다음 `run-wf04`/`run-wf06`/`run-wf15`가 전부 `PatientID=DATA_FLOW_MWL_01`
+검사를 못 찾아 FAIL했다 — **이건 자동화 결함이 아니다.** `WF_04`의 체크리스트
+Precondition에 "TC_Basic_WorkFlow_03~04가 Pass이다"라고 명시돼 있다. 즉 그
+환자·영상은 `WF_03`(그 이전 체인)이 촬영으로 미리 만들어 둬야 하는 데이터인데,
+이번엔 그 선행 체인 없이 `WF_04/06/15`만 단독으로 돌려서 데이터 자체가 없었다.
+`run-wf13`은 이런 선행 데이터가 필요 없어 정상 PASS했다.
+
+자세한 경위는 NEXT_WORK.md 5절 ⑦과 2-D~2-K절, `../프로젝트_상세.md` B.23~B.33을
+참고해라.
 
 먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절 ⑦)를 읽어
 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
@@ -932,11 +981,14 @@ python run.py portability-check 의 "관리자 권한"이 True 인지 확인해�
 hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
 그 사실만 보고해라.
 
-**TC를 단독 실행할 때의 전제(2026-08-31 실측)**
+**TC를 단독 실행할 때의 전제(2026-08-31 실측, 2026-09-01 추가 확인)**
 reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print
 모두 0행). DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기 전에
 python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해 MWL이
-필요한 TC가 FAIL 한다).
+필요한 TC가 FAIL 한다. 이 커맨드 자체의 Storage Use 단일 선택 버그는 2026-09-01에
+고쳤다 — 2-K절 참고). **`run-wf04`/`run-wf06`/`run-wf15`는 setup-dicom만으로는
+부족하다** — 체크리스트 Precondition대로 `run-wf01→wf02→wf03`(또는 최소 `wf03`까지)를
+먼저 실행해 `DATA_FLOW_MWL_01` 환자와 2D 영상(`IMG_FLOW_2D_01`)을 만들어 둬야 한다.
 
 **관찰을 이어갈 것**
 close_examine 의 삼켜진 클릭은 flows.close_examine_confirmed 로 고쳤지만(팝업이 안 뜨고
@@ -946,9 +998,11 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 
 P0 (환경이 확인되면 이 순서로 — "목록 전 행 열거 완주" 서브체크는 9개 페이지
 전부 끝났으니 이제 나머지 재검증으로 넘어간다)
-1. 나머지 재검증 - run-wf04 -> run-wf06 (close_view_study), run-wf13 (로그인 콤보),
-   run-wf15 (Dose Overlay 전제). 여기부터가 다음 세션의 첫 실행 항목이다.
-   run-xipl-05/wf07/xipl-04/wf10/wf14 는 2026-08-28~09-01 확인 완료.
+1. **`run-wf01→wf02→wf03` 먼저 실행해 `DATA_FLOW_MWL_01` 데이터를 만든 뒤**
+   `run-wf04→run-wf06`(close_view_study), `run-wf13`(로그인 콤보, 이미 2026-09-01
+   PASS 확인됨 — 재확인만 필요), `run-wf15`(Dose Overlay 전제)를 재검증해라.
+   여기부터가 다음 세션의 첫 실행 항목이다. run-xipl-05/wf07/xipl-04/wf10/wf14 는
+   2026-08-28~09-01 확인 완료.
 2. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
 3. 전부 통과하면 전체 회귀를 처음부터 1회 돌려 실제 완료 결과만 기록해라. 시작 전에
    적용한 변경·변경 전후 실행 시간·판정 동일성·남은 위험·예상 소요 시간·Viewer/화면

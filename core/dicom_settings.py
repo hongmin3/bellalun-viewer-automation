@@ -333,7 +333,14 @@ def repair_storage_use(ctx, ui, target_name, timeout=10):
 
 def _sync_use(ui, db, kind, target_name):
     table = {"MWL": "DICOM_MWL", "Storage": "DICOM_STORAGE", "Print": "DICOM_PRINT"}[kind]
-    rows = db.query("CONFIGURATION", f"SELECT Name,[Use] FROM {table}")
+    # Storage 는 전송 작업 사본 행(`SCPUseType<>0`)도 설정 행과 같은 Name 을
+    # 쓰고 항상 `Use=1` 이다 — 필터 없이 읽으면 그 값이 설정 행의 진짜 상태를
+    # 덮어써 `state` 딕셔너리가 오염된다(2026-09-01 실측: `BUNNY_TEST` 설정
+    # 행은 Use=0 인데 사본 행이 Use=1 이라 "이미 켜져 있다"로 오판해 화면
+    # 체크박스를 잘못 클릭 — 꺼야 할 항목을 오히려 켰다). `active_storage_rows()`
+    # /"Use 단일 선택" 판정과 같은 `SCPUseType=0` 필터를 여기도 적용한다.
+    where = f" WHERE SCPUseType={STORAGE_SCP_USE_TYPE}" if kind == "Storage" else ""
+    rows = db.query("CONFIGURATION", f"SELECT Name,[Use] FROM {table}{where}")
     state = {str(x.get("Name")): int(x.get("Use") or 0) for x in rows}
     changed = False
     for item in _server_items(ui):
