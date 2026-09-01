@@ -451,7 +451,11 @@ def run(ctx):
                                          and all_done(dose_rows())):
             time.sleep(2)
         identity = sv.db_identity(ctx, PATIENT_ID)
-        received = sv.received(ctx) or []
+        # patient_id 를 안 주면 공유 Storage SCP 서버의 전체 목록을 받아
+        # 다른 TC(예: Emergency 검사)의 무관한 환자까지 섞인다 — WF_06(sv.received
+        # 호출부)은 이미 patient_id 를 주는데 이 파일만 빠져 있었다(2026-09-01 실측:
+        # "EM-260831-*" 등 완전히 다른 환자의 RDSR 이 Step 7 판정에 섞여 FAIL).
+        received = sv.received(ctx, PATIENT_ID) or []
 
         r.assert_true(
             5, "전송 대상 영상이 Queue에 등록", bool(new_queue),
@@ -549,24 +553,36 @@ def run(ctx):
 
         # --- Step 7-b: 수신한 RDSR 의 식별 Tag ------------------------------
         if send_dose_sr:
-            bad_rdsr = [o for o in rdsr_objects
-                        if o.get("PatientID") != PATIENT_ID
-                        or o.get("StudyInstanceUID") not in identity["study_uids"]]
+            # 공유 Storage SCP 서버는 지우지 않는다 — `PATIENT_ID` 는 이 시험이
+            # 고정으로 재사용하는 값이라 여러 날 실행한 과거 RDSR 이 서버에 남는다
+            # (2026-09-01 실측: WF_06과 같은 원인). 그 과거 Study 는 로컬 DB
+            # (`identity["study_uids"]`)에서 이미 사라졌으니 이번 시험 대상이
+            # 아니다 — 로컬 DB에 지금 있는 Study로 먼저 좁힌 뒤에만 판정한다.
+            current_rdsr = [o for o in rdsr_objects
+                            if o.get("StudyInstanceUID") in identity["study_uids"]]
+            bad_rdsr = [o for o in current_rdsr
+                        if o.get("PatientID") != PATIENT_ID]
             r.assert_true(
                 7, "수신한 Dose SR(RDSR)의 Patient ID·Study Instance UID 일치",
-                bool(rdsr_objects) and not bad_rdsr,
+                bool(current_rdsr) and not bad_rdsr,
                 expected={"SOP Class UID": sv.SOP_CLASS_RDSR,
                           "PatientID": PATIENT_ID,
                           "StudyInstanceUID": sorted(identity["study_uids"])},
                 actual={"rdsr": [{k: o.get(k) for k in
                                   ("PatientID", "StudyInstanceUID",
                                    "SOPInstanceUID")} for o in rdsr_objects],
+                        "current_rdsr": [{k: o.get(k) for k in
+                                          ("PatientID", "StudyInstanceUID",
+                                           "SOPInstanceUID")}
+                                         for o in current_rdsr],
                         "mismatch": bad_rdsr},
                 note="사양서1 288쪽 SRS 03-50-250 이 이 경로의 Dose SR 전송을 "
                      "요구하므로 Queue 등록·완료에 이어 **실제 수신 객체**까지 "
                      "확인한다. SOP Class UID 는 개정본 WF_06 Test Data 가 명시한 "
                      f"{sv.SOP_CLASS_RDSR}(X-Ray Radiation Dose SR Storage, DICOM "
-                     "Conformance Statement V1.3W1 선언)이다.")
+                     "Conformance Statement V1.3W1 선언)이다. `rdsr` 은 서버 수신 "
+                     "전체(과거분 포함)를 참고용으로 남기고, 판정은 로컬 DB에 지금 "
+                     "있는 Study로 좁힌 `current_rdsr` 로만 한다.")
 
         # --- Step 4: View 화면과 대조 ---------------------------------------
         # 2026-08-21 구현. 그전에는 "View 화면 패널을 크롭·OCR 하는 헬퍼가 없다"는

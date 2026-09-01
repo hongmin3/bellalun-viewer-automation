@@ -1,5 +1,19 @@
 # Progress Checkpoint
 
+## 2026-09-01 Codex 인계 완료
+
+- Claude 세션 한도 직전 실행한 `setup-dicom -> run-wf06 -> run-wf15` 결과를 복구했다.
+  `WF_15`는 PASS였고, `WF_06`은 Queue 4건이 모두 Done인데도 공유 Storage SCP의
+  기존 SOP UID를 전부 제외해 수신 0건으로 오판했다.
+- `core/send_verify.py`에서 정확한 신규 개수를 요구하는 WF_04/WF_05만 전송 전 UID를
+  제외하고, WF_06은 Queue Done을 이번 전송 근거로 삼아 현재 로컬 DB에 존재하는
+  Study의 수신 영상/RDSR만 판정하도록 수정했다.
+- `tests/workflow06.py`와 `tests/workflow15.py`의 RDSR 판정도 현재 로컬 Study로
+  범위를 좁혀, 고정 Patient ID로 누적된 과거 실행 결과가 섞이지 않게 했다.
+- 검증: `py_compile` 통과, 단위시험 150건 통과, `run-wf06` 라이브 PASS
+  (영상 3건 + RDSR 1건, Queue 4건 Done, 식별 Tag 불일치 0건).
+- 다음 작업: `XIPL_05` 경계 검증 후 전체 회귀 1회.
+
 > 장시간/대규모 작업 후 현재 상태만 갱신한다. 완료 이력을 누적하지 않는다.
 
 - 현재 목표: `WF_14` Step 7 "목록 전 행 열거 완주" 서브체크(9개 문제 페이지)는

@@ -410,9 +410,23 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     states = wait_queue_settled(ctx, new_queue, wait=max(30, int(wait)))
     arrived = wait_received_stable(ctx, patient_id, wait=wait)
     # 초기화를 껐다면 이전 회차 객체가 섞여 있다. 이번 전송분만 남긴다.
+    # `expect_count`가 없는 WF_06은 같은 검사를 같은 SOP Instance UID로
+    # 재전송한다. 공유 SCP가 기존 파일을 갱신하면 UID 집합은 늘지 않으므로 이를
+    # 무조건 `before_uids`로 빼면 Queue가 모두 Done이어도 수신 0건으로 오판한다
+    # (2026-09-01 라이브 재현). 정확한 신규 개수를 검증하는 WF_04/WF_05만
+    # 전송 전 UID를 제외하고, WF_06은 Queue Done으로 이번 전송을 확인한 뒤 현재
+    # 수신 객체 자체의 태그와 RDSR을 판정한다.
     objects = ([o for o in arrived
                 if o.get("SOPInstanceUID") not in before_uids]
-               if before_uids else arrived)
+               if before_uids and expect_count is not None else arrived)
+
+    identity = db_identity(ctx, patient_id)
+    if expect_count is None:
+        # WF_06의 고정 Patient ID에는 공유 SCP에 과거 실행 Study도 누적된다.
+        # 이번 로컬 DB에 존재하는 Study만 판정해야 과거 영상/RDSR이 현재 전송의
+        # 식별 Tag 비교에 섞이지 않는다. Queue Done은 위에서 별도로 확인한다.
+        objects = [o for o in objects
+                   if o.get("StudyInstanceUID") in identity["study_uids"]]
 
     # --- Step 3: Queue 등록과 Done 상태 --------------------------------
     added_states = {k: states.get(k) for k in new_queue}
@@ -427,7 +441,6 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
         note="DATA.DICOM_STORAGE_QUEUE.State로 대조. 개정본 Expected 3.")
 
     # --- Step 4: 수신 객체 개수 ----------------------------------------
-    identity = db_identity(ctx, patient_id)
     detail = {
         "received_objects": len(objects),
         "received_patient_ids": sorted({o.get("PatientID") for o in objects}),

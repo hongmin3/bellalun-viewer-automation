@@ -178,23 +178,34 @@ def workflow_06(ctx):
             note="개정본 Expected 4. 수신 파일을 파싱해 SOP Class로 구분한다"
                  f"(RDSR = {sv.SOP_CLASS_RDSR}, 체크리스트 Test Data). Queue "
                  "상태가 아니라 실제 수신 객체로 판정한다.")
-        bad = [o for o in rdsr
-               if o.get("PatientID") != patient_id
-               or o.get("StudyInstanceUID") not in identity["study_uids"]]
+        # 공유 Storage SCP 서버는 지우지 않는다(다른 PC/TC 도 함께 쓰는 서버라
+        # 우리가 임의로 못 지운다) — `patient_id` 는 이 시험이 고정으로 재사용하는
+        # 값이라, 여러 날 실행한 과거 RDSR 이 서버에 계속 남는다(2026-09-01 실측:
+        # 8/28 자 Study 의 RDSR 이 함께 수신됨). 그 과거 Study 는 이미 로컬 DB
+        # (`identity["study_uids"]`)에서 사라졌으니 이번 시험 대상이 아니다 — 먼저
+        # 로컬 DB 에 지금 존재하는 Study 로 범위를 좁힌 뒤에만 Patient ID 를 본다.
+        current_rdsr = [o for o in rdsr
+                        if o.get("StudyInstanceUID") in identity["study_uids"]]
+        bad = [o for o in current_rdsr if o.get("PatientID") != patient_id]
         r.assert_true(
             5, "RDSR의 Patient ID와 Study Instance UID 비교",
-            bool(rdsr) and not bad,
+            bool(current_rdsr) and not bad,
             expected=f"RDSR의 Patient ID={patient_id}, Study Instance UID가 "
                      "원본 검사와 일치",
             actual={"rdsr": [{k: o.get(k) for k in
                               ("PatientID", "StudyInstanceUID")}
                              for o in rdsr],
+                    "current_rdsr": [{k: o.get(k) for k in
+                                      ("PatientID", "StudyInstanceUID")}
+                                     for o in current_rdsr],
                     "mismatch": bad},
             note="개정본 Expected 5. DATA.PATIENT/STUDY와 대조. RDSR 은 영상이 "
                  "아니라 검사 단위 보고서라 `INSTANCE` 에 행이 없으므로 SOP "
                  "Instance UID 는 대조하지 않는다 — 사양서1 이 \"Dose SR 에서 "
                  "사용 시, 내부적으로 영상의 Instance UID 마지막에 '.1.1' 을 "
-                 "붙인다\" 고 한다.")
+                 "붙인다\" 고 한다. `rdsr` 은 서버 수신 전체(과거분 포함)를 참고용으로 "
+                 "남기고, 판정은 로컬 DB에 지금 있는 Study로 좁힌 `current_rdsr` "
+                 "로만 한다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_06 실행", exc)
     return r
