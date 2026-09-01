@@ -18,6 +18,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import setting_lists                            # noqa: E402
 
 
+class QcSchedulerNoCountProofTest(unittest.TestCase):
+    """2026-09-01 실측: `qc.scheduler`는 DB `QC_SCHEDULE`(23행) 중 일부를
+    제품이 의도적으로 화면 목록에서 숨긴다(사양서2 8492~8511행 — 일반/-d
+    모드에서 Geometry Calibration(Tomo) 항목이 안 보임, Service Manual
+    3749행 — 연결된 VDMS 모델이 지원하지 않는 항목은 표시 안 함). 라이브로
+    컨트롤 트리를 덤프해 교차 오염이 없음도 확인했다 — `display.overlay`류
+    문제가 아니라 진짜 설계 차이다. `ROW_COUNT_QUERIES`에서 뺐는지 확인한다
+    (다시 넣으려면 이 히스토리를 먼저 확인해야 한다)."""
+
+    def test_qc_scheduler_has_no_row_count_mapping(self):
+        self.assertNotIn("qc.scheduler", setting_lists.ROW_COUNT_QUERIES)
+
+    def test_expected_row_count_returns_none_for_qc_scheduler(self):
+        self.assertIsNone(
+            setting_lists.expected_row_count(mock.Mock(), "qc.scheduler"))
+
+
 class OverlapTest(unittest.TestCase):
     def test_full_overlap_when_screen_did_not_move(self):
         rows = ["a", "b", "c"]

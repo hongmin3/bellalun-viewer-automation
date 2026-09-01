@@ -580,8 +580,24 @@ ROW_COUNT_QUERIES = {
     # Setting > DICOM > Tag Mapping (실측 17)
     "dicom.tag_mapping": ("CONFIGURATION",
                           "SELECT COUNT(*) AS n FROM DICOM_MAPPING"),
-    # Setting > Q.C. > Scheduler (실측 23 — 화면 한 장에 다 들어가지 않는다)
-    "qc.scheduler": ("CONFIGURATION", "SELECT COUNT(*) AS n FROM QC_SCHEDULE"),
+    # Setting > Q.C. > Scheduler — DB 는 23행이지만 **매핑을 일부러 뺐다**
+    # (2026-09-01). 라이브로 컨트롤 트리를 덤프해 교차 오염이 없음을 먼저
+    # 확인했다(이 페이지의 다른 6개 `ListCtrl`은 전부 비어 있고, 열거된
+    # 20~21행은 전부 진짜 QC 항목명이다 — `display.overlay`류의 "엉뚱한
+    # 목록을 줍는" 문제가 아니다). 그런데도 화면 항목 수가 DB 보다 적은 건
+    # **제품이 의도적으로 일부 QC 항목을 목록에서 숨기기 때문**이다 — 사양서2
+    # (SRS) 8492~8511행이 "Setting > Q.C. > Scheduler — 일반/-d 모드에서는
+    # Geometry Calibration(Tomo) 항목이 안 보이고 내부 `-m` 플래그로 실행할
+    # 때만 보인다"고 명시하고, Service Manual 3749행도 "연결된 VDMS 모델이
+    # 지원하지 않는 Q.C 항목은 목록에 표시되지 않는다"고 확인해 준다(둘째
+    # 빠진 항목은 사양서 개정 이력상 한 항목이 삭제된 흔적만 있고 이름은
+    # 특정하지 못했다). 즉 DB `QC_SCHEDULE` 은 "이 기종이 지원할 수 있는
+    # 모든 QC 유형의 카탈로그"이고 화면은 "이 연결·모드에서 실제로 켤 수
+    # 있는 것"만 보여준다 — `display.overlay`(B.29)와 겉보기엔 비슷하지만
+    # 이번엔 그 결론이 실제로 맞았다(사양서로 확정, 추측이 아니다). 개수
+    # 증명은 화면과 무관한 항목을 억지로 요구하게 되므로 빼고, 정지·연속
+    # 증명(스크롤 완주)만으로 판정한다 — 매핑 없는 다른 페이지와 같은 처리.
+    # "qc.scheduler": 매핑 없음(의도적으로 뺌, 위 설명 참고).
     # Setting > Patient > Physician (실측 0)
     "patient.physician": ("CONFIGURATION",
                           "SELECT COUNT(*) AS n FROM PHYSICIAN"),
