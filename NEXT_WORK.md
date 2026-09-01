@@ -15,7 +15,7 @@
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
 | **최신 전체 회귀** | 26차, 2026-08-26 18:52~20:28 — TC 27건: PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1, 검증 275개: PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3, 96.3분. 남은 FAIL 2건은 둘 다 제품 결함 | `Reports/Result_20260826_202818.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
-| **08-28 이후 전체 회귀 미실행** | 08-28~09-01 수정 사항 중 `WF_07`/`XIPL_04`(2-C절)·`WF_10`(2-D절)·`cold_start` 모니터 가드(2-E절)·`WF_14` 목록 열거(9개 페이지 전부 해결, 2-D~2-J절)는 개별 라이브 검증 완료. `WF_04→06`/`WF_13`/`WF_15` 재검증이 남아 그 뒤 전체 회귀 재실행 예정(4절 참고) | — |
+| **08-28 이후 전체 회귀 미실행** | 08-28~09-01 수정 사항(`WF_07`/`XIPL_04`(2-C절)·`WF_10`(2-D절)·`cold_start` 모니터 가드(2-E절)·`WF_14` 목록 열거 9개 페이지(2-D~2-J절)·`setup-dicom` Storage 버그(2-K절)·`WF_06` RDSR 오염(커밋 `42cc1b2`)·`XIPL_05` Fiber 콤보 스크롤)는 전부 개별 라이브 검증 완료. 남은 것은 전체 회귀 1회뿐(6절 P0 #3) | — |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
@@ -29,7 +29,7 @@
 | `WF_04` 종료 시 View 닫기 | `flows.close_view_study` 추가. `WF_04`가 View 로 연 검사를 닫지 않고 끝나 뒤따른 `WF_06`이 Examined 검색 컨트롤(2177/2178/2179)을 못 찾던 문제 | 코드 반영. `run-wf04`→`run-wf06` 연쇄 재검증 대기 |
 | 로그인 ID 콤보 견고화 | `flows.select_login_id` — OCR 선택 실패 시 항목을 하나씩 눌러 `current_login_id()`로 확인하며 재시도(`_click_general_param_combo`와 같은 방식) | 코드 반영. `run-wf13` 재검증 대기 |
 | `XIPL_04` 2D Default Parameter 원복 | Step 1 이 바꾼 `PROCEDURE_COMMON.DefaultImgProcess` 를 `finally`에서 UI로 원복(`_restore_default_2d_param`) | **`run-xipl-04` 전 Step PASS, 원복도 `Standard_Default_M.pim`으로 확인(2026-08-28)** |
-| `XIPL_05` Q.C 채점을 좌표 대신 임계값으로 | 화면 절대좌표 대신 `CONFIGURATION.QC_COMMON`의 합격 기준을 DB로 읽어 OCR로 경계값을 고르고, 합격/불합격 경계 양쪽을 검증(5절 ① 판단 반영 — Result는 별도 항목으로 분리) | **PASS(MANUAL 1) 확인(2026-08-28 재검증).** Step 3~5 전부 PASS. Fiber 콤보에 기준(4.0) 미만 항목 자체가 없어 불합격 경계 하나만 MANUAL — 자동화 결함이 아니라 콤보 항목 구성의 한계(3절 #1) |
+| `XIPL_05` Q.C 채점을 좌표 대신 임계값으로 | 화면 절대좌표 대신 `CONFIGURATION.QC_COMMON`의 합격 기준을 DB로 읽어 OCR로 경계값을 고르고, 합격/불합격 경계 양쪽을 검증(5절 ① 판단 반영 — Result는 별도 항목으로 분리) | **2026-09-01 전 Step PASS로 해결.** 08-28엔 Fiber 콤보에 기준(4.0) 미만 항목이 "없다"고 결론지었으나 오판이었다 — 콤보가 14개 항목인데 팝업 뷰포트엔 6~7개만 보이고 나머지는 스크롤해야 나온다(`ItemWnd`가 자식을 클리핑, B.10과 같은 종류). `_qc_pick_score`가 `_pick_combo_item`처럼 못 찾으면 스크롤하며 재시도하도록 고치자 Fiber=3.5(기준 미만)를 찾아 `run-xipl-05` 라이브로 "불합격 경계값 입력 시 Fail"까지 PASS 확인(`QC_STUDY.Result=0`). 3절 #1 해소 |
 | `WF_15` Dose Overlay 전제 자체 보장 | 단독 실행 시 `WF_03`을 거치지 않으면 선량 Overlay(115/118)가 없어 Step 3 이 전제 미충족으로 FAIL 하던 것을, `vp.add_image_overlay_items`로 멱등하게 준비 | 코드 반영. `run-wf15` 단독 실행 재검증 대기 |
 | `core/ui.py` 포그라운드 잠금 타임아웃 | `force_foreground`가 `SPI_FOREGROUNDLOCKTIMEOUT`을 0으로 낮췄다가 복원 — 잠금이 남아 있으면 `AttachThreadInput`을 붙여도 전환이 거부됨 | 코드 반영 |
 | `core/ui.py` 클릭 가드 — 다중 모니터 겹침 인식 | `require_front_for_pointer`가 "다른 창이 최전면"이라는 사실만으로 막던 것을, **그 창이 클릭 좌표를 실제로 화면에서 덮고 있는지**까지 확인하도록 바꿈(`_rect_contains_point`). 다른 모니터의 창은 Viewer를 가리지 않으므로 막지 않는다(2026-08-28 사용자 지시) | `run-xipl-05` 재검증으로 확인 |
@@ -560,7 +560,7 @@ FAIL → **PASS**.
 
 | # | 문제 | 우선순위 |
 |---|---|---|
-| 1 | `TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다(TC 전체는 정상적으로 MANUAL 판정까지 끝난다 — 크래시 아님, 2026-08-28 재검증) | P2 |
+| ~~1~~ | ~~`TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다~~ — **2026-09-01 해결**(2절 XIPL_05 행 참고). 콤보 항목이 없던 게 아니라 뷰포트 클리핑으로 못 읽은 것이었다 | 완료 |
 | 2 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
 | 3 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
 | 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — **2026-08-31 라이브 재검증 완료(2-C절).** 회귀에 남아 있던 두 콜사이트(`tests/workflow07.py` WF_07 Step 4, `tests/xipl_flows.py::compatibility_04` XIPL_04)를 `core/viewer_processing.wait_new_group` 상태 기반 대기로 바꿨고, 실제 UI 실행에서 **판정 동일(WF_07 PASS 11/11, XIPL_04 전 Step PASS) + WF_07 Step 4 −10.2초 / XIPL_04 Step 6 −45.6초**를 실측했다. 전환 과정에서 드러난 `_add_view_position_by_alias` 재시도 누락은 `open_view_position_dialog` 공용화로 고쳤다. `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀 밖 별도 명령이라 후순위(P2)로 남긴다 | 완료(P2 잔여) |
@@ -662,7 +662,7 @@ FAIL → **PASS**.
 
 9. ~~`flows.close_examine` 의 no-dialog 경로 상태 신호화~~ — **2026-08-31 완료**(2-C절). `WF_07` 외 다른 `close_examine` 호출부(`WF_04`/`WF_10`/`XIPL` 등)도 같은 `close_examine_confirmed` 로 옮길지는 전체 회귀에서 재시도가 실제로 걸리는지 본 뒤 판단한다 — 지금은 근거 없이 넓히지 않는다.
 10. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
-11. `XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1) — 급하지 않다.
+11. ~~`XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1)~~ — **2026-09-01 완료.**
 
 ---
 
@@ -996,17 +996,17 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의 closed.attempts 값을
 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
-P0 (환경이 확인되면 이 순서로 — "목록 전 행 열거 완주" 서브체크는 9개 페이지
-전부 끝났으니 이제 나머지 재검증으로 넘어간다)
-1. **`run-wf01→wf02→wf03` 먼저 실행해 `DATA_FLOW_MWL_01` 데이터를 만든 뒤**
-   `run-wf04→run-wf06`(close_view_study), `run-wf13`(로그인 콤보, 이미 2026-09-01
-   PASS 확인됨 — 재확인만 필요), `run-wf15`(Dose Overlay 전제)를 재검증해라.
-   여기부터가 다음 세션의 첫 실행 항목이다. run-xipl-05/wf07/xipl-04/wf10/wf14 는
-   2026-08-28~09-01 확인 완료.
-2. XIPL_05 불합격 경계 검증(3절 #1) - Fiber 콤보 항목 구성을 다시 확인해라.
-3. 전부 통과하면 전체 회귀를 처음부터 1회 돌려 실제 완료 결과만 기록해라. 시작 전에
-   적용한 변경·변경 전후 실행 시간·판정 동일성·남은 위험·예상 소요 시간·Viewer/화면
-   준비 조건을 먼저 보고하고 진행해라.
+P0 (환경이 확인되면 이 순서로)
+1. ~~`run-wf01→wf02→wf03` 먼저 실행해 `DATA_FLOW_MWL_01` 데이터를 만든 뒤
+   run-wf04→run-wf06/run-wf13/run-wf15 재검증~~ — **2026-09-01 완료.** `run-wf06`
+   (RDSR 오염 수정, 커밋 `42cc1b2`)과 `run-wf15` 모두 라이브 PASS 확인됨. `run-wf13`은
+   이미 확인 완료. 개별 TC 단위 재검증은 이것으로 끝 — 남은 확인은 전체 회귀 안에서
+   `run-regression`이 `WF01→WF02→WF03→...`를 정식 순서로 다시 돌며 자연스럽게
+   포함한다.
+2. ~~XIPL_05 불합격 경계 검증(3절 #1)~~ — **2026-09-01 완료**(2절 XIPL_05 행 참고).
+3. **다음 세션의 시작점.** 개별 TC 재검증이 전부 끝났으니 전체 회귀를 처음부터 1회
+   돌려 실제 완료 결과를 기록해라. 시작 전에 적용한 변경·변경 전후 실행 시간·판정
+   동일성·남은 위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
 
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행

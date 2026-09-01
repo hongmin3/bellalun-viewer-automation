@@ -1360,13 +1360,21 @@ def _qc_score_items(ui, combo_id, tesseract_exe=None):
     return out
 
 
-def _qc_pick_score(ui, key, threshold, want_pass, tesseract_exe=None):
+def _qc_pick_score(ui, key, threshold, want_pass, tesseract_exe=None, max_scroll=10):
     """Q.C 점수 콤보에서 **경계값**을 골라 누른다.
 
     `want_pass=True` 면 기준 **이상** 중 가장 낮은 값(= 합격 경계),
     `False` 면 기준 **미만** 중 가장 높은 값(= 불합격 경계)을 고른다.
     경계를 고르는 이유: "기준 이상이면 Pass, 미만이면 Fail" 이라는 제품 로직을
     가장 좁은 간격에서 확인하기 위해서다.
+
+    Fiber 콤보는 항목이 14개인데 팝업(`ItemWnd`) 뷰포트에는 6개 정도만
+    보인다 — 나머지는 `IsWindowVisible`은 참이지만 뷰포트 밖이라 OCR이
+    깨진 문구를 읽는다(`_qc_score_items`가 `value=None`으로 걸러낸다). 첫
+    화면만 보면 기준 미만 항목(예: Fiber 4.0 미만인 3.5)이 "없다"고 오판한다
+    (2026-09-01 실측: `run.py`로 열어 보니 스크롤 전엔 6.0~4.0만 읽히고,
+    `_pick_combo_item`과 같은 방식으로 한 칸씩 굴리자 3.5가 나타났다). 그래서
+    처음 화면에서 못 찾으면 `_pick_combo_item`처럼 한 칸씩 굴리며 다시 읽는다.
 
     반환: {"picked": float, "items": [...], "boundary": "pass"|"fail"}
     """
@@ -1375,27 +1383,40 @@ def _qc_pick_score(ui, key, threshold, want_pass, tesseract_exe=None):
     if not hits:
         raise flows.FlowError(f"Q.C 결과 콤보 '{key}'(ID {combo_id})를 찾지 못했습니다.")
     ui.click(hits[0], settle=1.0)
-    items = _qc_score_items(ui, combo_id, tesseract_exe)
-    readable = [(ctrl, value, text) for ctrl, value, text in items
-                if value is not None]
-    if not readable:
-        raise flows.FlowError(
-            f"Q.C '{key}' 콤보 항목을 숫자로 읽지 못했습니다: "
-            f"{[t for _, _, t in items]}")
-    if want_pass:
-        candidates = [x for x in readable if x[1] >= threshold]
-        chosen = min(candidates, key=lambda x: x[1]) if candidates else None
-    else:
+
+    def pick(readable):
+        if want_pass:
+            candidates = [x for x in readable if x[1] >= threshold]
+            return min(candidates, key=lambda x: x[1]) if candidates else None
         candidates = [x for x in readable if x[1] < threshold]
-        chosen = max(candidates, key=lambda x: x[1]) if candidates else None
+        return max(candidates, key=lambda x: x[1]) if candidates else None
+
+    items = _qc_score_items(ui, combo_id, tesseract_exe)
+    seen_values = {v for _, v, _ in items if v is not None}
+    chosen = pick([(c, v, t) for c, v, t in items if v is not None])
+    if chosen is None:
+        cx, cy = hits[0].center
+        previous_texts = None
+        for _ in range(max_scroll):
+            ui.wheel((cx, cy + 60), -3, settle=.4)
+            items = _qc_score_items(ui, combo_id, tesseract_exe)
+            readable = [(c, v, t) for c, v, t in items if v is not None]
+            seen_values.update(v for _, v, _ in readable)
+            chosen = pick(readable)
+            if chosen is not None:
+                break
+            texts = tuple(t for _, _, t in items)
+            if texts == previous_texts:
+                break                   # 더 굴러도 목록이 같으면 끝까지 본 것
+            previous_texts = texts
     if chosen is None:
         raise flows.FlowError(
             f"Q.C '{key}' 콤보에 기준 {threshold} "
             f"{'이상' if want_pass else '미만'}인 항목이 없습니다: "
-            f"{[v for _, v, _ in readable]}")
+            f"{sorted(seen_values)}")
     ui.click(chosen[0], settle=1.0)
     return {"picked": chosen[1], "threshold": threshold,
-            "items": [v for _, v, _ in readable],
+            "items": sorted(seen_values),
             "boundary": "pass" if want_pass else "fail"}
 
 
