@@ -92,7 +92,26 @@ def _wait_visible(ui, ctrl_id, timeout, predicate=None, poll=.3):
         time.sleep(poll)
 
 
-def _film_from_selected_study(ui, timeout=25):
+def _film_panes(film):
+    """Film 창에 실제로 채워진 영상 칸(ctrl_id 203)들."""
+    managers = [c for c in children(film.hwnd, 4) if c.ctrl_id == 203 and c.visible]
+    return list({c.hwnd: c for c in managers}.values())
+
+
+def _film_from_selected_study(ui, timeout=25, select_images_verify=False):
+    """Print(2188) -> Selected(501) 로 Film 창까지 연다.
+
+    검사에 3D(Narrow/Wide) 영상이 있으면 Film 대신 "Select Images" 창이
+    먼저 뜬다(2D 는 프레임이 하나뿐이라 뜨지 않는다 - `flows.select_images_window`
+    가 짧게 기다려 보고 없으면 바로 넘어간다). 뜨면 Raw/Recon/Syn 프레임을
+    각 1장씩 전송 목록에 담아(사양서1 SRS 02-40-60, Operation Manual 10.1.2)
+    Film 로 넘긴다 - 3장이 실제로 필름에 오르는 것까지가 3D Print 의 정상
+    절차다.
+
+    `select_images_verify=True` 면 Raw/Recon/Syn 3장을 담기 전에 임시 항목을
+    하나 더 추가했다 휴지통으로 지워(4 -> 3) 삭제 버튼 자체도 왕복 검증한다.
+    3D 패스 중 한 번만 켜면 충분하다(반복 비용 방지).
+    """
     buttons = _wait_visible(ui, 2188, 8)
     if not buttons:
         raise RuntimeError("Examined Print button (2188) not found")
@@ -101,39 +120,81 @@ def _film_from_selected_study(ui, timeout=25):
     if not selected:
         raise RuntimeError("Print Selected button (501) not found")
     ui.click(selected[0], settle=1)
+
+    select_images_result = None
+    si_win = flows.select_images_window(ui, timeout=5)
+    if si_win is not None:
+        checks = {}
+        # 같은 View Position 을 다시 열면 이전에 담아 둔 항목이 남아 있을 수
+        # 있다 - 항상 비우고 시작해 "이미 존재함" 경고를 원천적으로 피한다.
+        flows.select_images_clear(ui, si_win)
+        checks["add_raw"] = flows.select_images_add(ui, si_win, kind="raw")
+        checks["add_recon"] = flows.select_images_add(ui, si_win, kind="recon")
+        checks["add_syn"] = flows.select_images_add(ui, si_win, kind="syn")
+        if select_images_verify:
+            # 마지막에 임시 항목을 하나 더 얹었다가 곧바로 지운다 -
+            # Raw/Recon/Syn 세 장은 그대로 두고 휴지통만 왕복 검증한다.
+            # frame_index=1 로 **다른** Raw 프레임을 골라야 한다 - add_raw 가
+            # 이미 고른 프레임(index 0)을 또 고르면 제품이 "This item already
+            # exists." 경고로 막아 뒤이은 OK 클릭이 어긋난다(2026-09-02 실측).
+            checks["add_extra"] = flows.select_images_add(
+                ui, si_win, kind="raw", frame_index=1)
+            checks["delete_extra"] = flows.select_images_delete_last(ui, si_win)
+        flows.select_images_confirm(ui, si_win)
+        select_images_result = checks
+
     film = _wait_visible(ui, 158, timeout,
                          lambda c: c.text == "CWndFilmManager")
     if not film:
         raise RuntimeError("Film window did not open")
-    one_by_one = _wait_visible(ui, 1141, 8, lambda c: c.rect[0] > 1400)
-    if not one_by_one:
-        raise RuntimeError("Film 1x1 layout button (1141) not found")
-    ui.click(one_by_one[0], settle=1)
-    # 레이아웃 전환도 상태로 기다린다 — 칸이 실제로 필름 전체를 덮을 때까지.
-    film_area = ((film[0].rect[2] - film[0].rect[0]) *
-                 (film[0].rect[3] - film[0].rect[1]))
+
+    if select_images_result is None:
+        # 2D: 이미지 1장 - 기존 1x1 단일 이미지 레이아웃/판정 그대로.
+        one_by_one = _wait_visible(ui, 1141, 8, lambda c: c.rect[0] > 1400)
+        if not one_by_one:
+            raise RuntimeError("Film 1x1 layout button (1141) not found")
+        ui.click(one_by_one[0], settle=1)
+        film_area = ((film[0].rect[2] - film[0].rect[0]) *
+                     (film[0].rect[3] - film[0].rect[1]))
+        end = time.time() + 12
+        largest, pane_area = None, 0
+        while True:
+            unique = _film_panes(film[0])
+            largest = max(unique, key=lambda c: ((c.rect[2] - c.rect[0]) *
+                                                 (c.rect[3] - c.rect[1])), default=None)
+            pane_area = 0 if largest is None else (
+                (largest.rect[2] - largest.rect[0]) * (largest.rect[3] - largest.rect[1]))
+            if pane_area >= film_area * .85:
+                break
+            if time.time() >= end:
+                break
+            time.sleep(.3)
+        if not largest:
+            raise RuntimeError("Film 1x1 image pane not found")
+        if pane_area < film_area * .85:
+            raise RuntimeError(
+                f"Film layout did not change to 1x1: pane={largest.rect}, film={film[0].rect}")
+        return film[0], {"button_id": 1141, "pane": largest.rect,
+                         "film": film[0].rect, "pane_ratio": pane_area / film_area,
+                         "select_images": None}
+
+    # 3D: Raw/Recon/Syn 3장 - 2x2 로 명시 전환하고 채워진 칸 3개를 기다린다.
+    layout_btn = _wait_visible(ui, 1143, 8, lambda c: c.rect[0] > 1400)
+    if not layout_btn:
+        raise RuntimeError("Film 2x2 layout button (1143) not found")
+    ui.click(layout_btn[0], settle=1)
     end = time.time() + 12
-    largest, pane_area = None, 0
-    while True:
-        managers = [c for c in children(film[0].hwnd, 4)
-                    if c.ctrl_id == 203 and c.visible]
-        unique = {c.hwnd: c for c in managers}.values()
-        largest = max(unique, key=lambda c: ((c.rect[2] - c.rect[0]) *
-                                             (c.rect[3] - c.rect[1])), default=None)
-        pane_area = 0 if largest is None else (
-            (largest.rect[2] - largest.rect[0]) * (largest.rect[3] - largest.rect[1]))
-        if pane_area >= film_area * .85:
-            break
-        if time.time() >= end:
-            break
+    panes = _film_panes(film[0])
+    while len(panes) < 3 and time.time() < end:
         time.sleep(.3)
-    if not largest:
-        raise RuntimeError("Film 1x1 image pane not found")
-    if pane_area < film_area * .85:
+        panes = _film_panes(film[0])
+    if len(panes) != 3:
         raise RuntimeError(
-            f"Film layout did not change to 1x1: pane={largest.rect}, film={film[0].rect}")
-    return film[0], {"button_id": 1141, "pane": largest.rect,
-                     "film": film[0].rect, "pane_ratio": pane_area / film_area}
+            f"2x2 Film 에서 채워진 칸을 3개 찾지 못했습니다(찾은 개수={len(panes)}, "
+            f"rects={[p.rect for p in panes]}).")
+    return film[0], {"button_id": 1143,
+                     "panes": [p.rect for p in sorted(panes, key=lambda c: c.rect[1])],
+                     "film": film[0].rect, "select_images": select_images_result}
 
 
 # ---------------------------------------------------------------------------
@@ -216,16 +277,39 @@ def _ensure_thumbnails(ctx, ui, target, tesseract_exe, expected=2, wait=8):
 
 
 def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known,
-                     job_timeout=90):
+                     job_timeout=90, select_images_verify=False):
     """썸네일 한 장을 Selected 로 필름에 올려 인쇄하고 서버 프리뷰까지 받는다.
 
     반환: `{"film": 필름 캡처 경로, "web": 서버 프리뷰 경로, "job": job, ...}`
     """
     ui.click(thumb["control"], settle=1.0)
-    film, layout = _film_from_selected_study(ui)
+    film, layout = _film_from_selected_study(
+        ui, select_images_verify=select_images_verify)
     Path(evidence_dir).mkdir(parents=True, exist_ok=True)
     film_path = os.path.join(evidence_dir, f"07_film_{tag}.png")
     ImageGrab.grab(bbox=film.rect, all_screens=True).save(film_path)
+
+    pane_check = None
+    if layout.get("panes"):
+        # Raw/Recon/Syn 이 실제로 **서로 다른** 영상인지 - 필름에 채워진 세
+        # 칸을 각각 잘라 셋을 서로 비교한다(2D/3D-N/3D-W 필름끼리 비교하는
+        # `_cross_match`와 같은 목적을, 한 필름 안의 세 칸 사이에서 본다).
+        film_img = Image.open(film_path)
+        ox, oy = film.rect[0], film.rect[1]
+        crops = []
+        for idx, rect in enumerate(layout["panes"]):
+            left, top, right, bottom = rect
+            crop_path = os.path.join(evidence_dir, f"07_film_{tag}_pane{idx}.png")
+            film_img.crop((left - ox, top - oy, right - ox, bottom - oy)).save(crop_path)
+            crops.append(crop_path)
+        pairs, distinct = {}, True
+        for a in range(len(crops)):
+            for b in range(a + 1, len(crops)):
+                sim = _image_similarity(crops[a], crops[b])
+                pairs[f"{a}-{b}"] = sim
+                if sim["mean_delta"] < 1.0:   # 사실상 동일 = 같은 프레임이 중복 선택됨
+                    distinct = False
+        pane_check = {"crops": crops, "pairs": pairs, "distinct": distinct}
 
     print_buttons = [c for c in ui.by_id(1149) if c.visible]
     if not print_buttons:
@@ -246,7 +330,8 @@ def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known,
     web_path = os.path.join(evidence_dir, f"07_print_job_{tag}_{job['id']}.png")
     Path(web_path).write_bytes(server.preview(job["id"]))
     return {"film": film_path, "web": web_path, "job": job, "layout": layout,
-            "similarity": _image_similarity(film_path, web_path)}
+            "similarity": _image_similarity(film_path, web_path),
+            "pane_check": pane_check}
 
 
 def _cross_match(prints):
@@ -468,7 +553,7 @@ def run(ctx):
         prints = {"2D": {"film": film_path, "web": web_path, "job": job,
                          "similarity": similarity}}
         known.add(str(job.get("id")))
-        for kind in want[1:]:
+        for i, kind in enumerate(want[1:]):
             flows.close_film(ui, tess)
             thumbs = _ensure_thumbnails(ctx, ui, target, tess, expected=len(want))
             picked = next((t for t in thumbs if t["kind"] == kind), None)
@@ -479,7 +564,9 @@ def run(ctx):
                            note="필름을 닫고 돌아온 뒤 썸네일을 다시 찾지 못했다.")
                 continue
             tag = kind.replace("-", "").lower()
-            done = _print_thumbnail(ui, server, picked, tag, evidence_dir, known)
+            verify_select_images = (i == 0)
+            done = _print_thumbnail(ui, server, picked, tag, evidence_dir, known,
+                                    select_images_verify=verify_select_images)
             known.add(str(done["job"].get("id")))
             prints[kind] = done
             result.attach(done["film"])
@@ -495,6 +582,62 @@ def run(ctx):
                 note="Print SCP job 메타데이터는 Film 단위라 어떤 영상이 실렸는지 "
                      "알려 주지 않는다 — 필름 프리뷰와 서버 프리뷰의 픽셀 일치로 "
                      "본다. 어느 영상인지는 다음 교차 대조가 증명한다.")
+
+            si = done["layout"].get("select_images")
+            select_ok = (si is not None
+                         and si["add_raw"]["after"] == si["add_raw"]["before"] + 1
+                         and si["add_recon"]["after"] == si["add_recon"]["before"] + 1
+                         and si["add_syn"]["after"] == si["add_syn"]["before"] + 1)
+            note = ("3D 검사는 Print > Selected 이후 Select Images 창에서 View "
+                    "Position 의 프레임을 Raw/Recon/Syn Type 별로 각 1장씩 전송 "
+                    "목록에 담아야 Film 에 3장이 함께 오른다(사양서1 SRS 02-40-60, "
+                    "Operation Manual 10.1.2).")
+            if verify_select_images:
+                select_ok = (select_ok and si["add_extra"]["after"]
+                             == si["add_extra"]["before"] + 1
+                             and si["delete_extra"]["after"]
+                             == si["delete_extra"]["before"] - 1)
+                note += (" 이 창을 처음 다루는 3D 패스에서는 임시 항목을 하나 더 "
+                         "얹었다 휴지통으로 지워(2026-09-02 실측) 삭제 버튼도 "
+                         "왕복 검증하고, Raw/Recon/Syn 세 장은 그대로 둔다.")
+            result.assert_true(
+                7, f"{kind} Select Images 창에서 Raw/Recon/Syn 추가"
+                   + (" 및 휴지통 삭제" if verify_select_images else "")
+                   + " (커버리지 확장)",
+                select_ok,
+                expected="Raw/Recon/Syn 추가마다 전송 목록 +1"
+                         + ("(임시 항목 삭제는 -1)" if verify_select_images else ""),
+                actual=si, note=note)
+
+            pc = done.get("pane_check")
+            if pc:
+                for path in pc["crops"]:
+                    result.attach(path)
+                result.assert_true(
+                    7, f"{kind} Film 의 Raw/Recon/Syn 세 칸이 서로 다른 영상 "
+                       "(커버리지 확장)",
+                    len(pc["crops"]) == 3 and pc["distinct"],
+                    expected="세 칸의 픽셀이 서로 달라야 한다(같은 프레임 중복 선택 아님)",
+                    actual=pc,
+                    note="Print SCP job 메타데이터는 Film 단위라 어떤 프레임이 "
+                         "실렸는지 알려 주지 않는다 — 필름에 채워진 세 칸을 각각 "
+                         "잘라 서로 비교해 실제로 다른 영상임을 증명한다.")
+
+            film_img = Image.open(done["film"])
+            header_texts = _ocr_areas(film_img, os.path.splitext(done["film"])[0]
+                                       + "_header", tess, result)
+            header_ok = _judge_areas(header_texts, expect).get("header", {})
+            result.assert_true(
+                7, f"{kind} Film 프리뷰에 Print Overlay Header 표시 (커버리지 확장)",
+                _all_ok({"header": header_ok}),
+                expected={"header": sorted(label for label, _ in
+                                           print_overlay.PRINT_ITEMS_BY_AREA["header"])},
+                actual={"ocr": header_texts.get("header"), "areas": header_ok},
+                note="Header 는 필름 전체 상단에 한 번만 표시되는 공용 영역이라 "
+                     "칸 배치(1x1/2x2)와 무관하게 그대로 확인할 수 있다. Top/Bottom "
+                     "은 2D 처럼 한 이미지 전체를 가정한 위치라 다중 칸 필름에서는 "
+                     "따로 판정하지 않는다 — 서버 프리뷰와의 픽셀 일치(위 Print SCP "
+                     "검증)가 그 영역들까지 포함해 손실 없이 전송됐음을 증명한다.")
 
         if len(prints) >= 2:
             matched, table = _cross_match(prints)

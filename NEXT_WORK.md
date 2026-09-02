@@ -15,7 +15,7 @@
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
 | **최신 전체 회귀** | 26차, 2026-08-26 18:52~20:28 — TC 27건: PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1, 검증 275개: PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3, 96.3분. 남은 FAIL 2건은 둘 다 제품 결함 | `Reports/Result_20260826_202818.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
-| **08-28 이후 전체 회귀 미실행** | 08-28~09-01 수정 사항(`WF_07`/`XIPL_04`(2-C절)·`WF_10`(2-D절)·`cold_start` 모니터 가드(2-E절)·`WF_14` 목록 열거 9개 페이지(2-D~2-J절)·`setup-dicom` Storage 버그(2-K절)·`WF_06` RDSR 오염(커밋 `42cc1b2`)·`XIPL_05` Fiber 콤보 스크롤)는 전부 개별 라이브 검증 완료. 남은 것은 전체 회귀 1회뿐(6절 P0 #3) | — |
+| **27차 전체 회귀 완료, WF_08 수정 반영판 재검증 남음** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 XIPL_05는 PASS 확인됐으나 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 `run-wf08` 단독 라이브 전 Step PASS 확인 완료(2절 WF_08 행). 남은 것은 이 수정 반영판 전체 회귀 1회뿐(6절 P0 #4) | — |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
@@ -31,6 +31,7 @@
 | `XIPL_04` 2D Default Parameter 원복 | Step 1 이 바꾼 `PROCEDURE_COMMON.DefaultImgProcess` 를 `finally`에서 UI로 원복(`_restore_default_2d_param`) | **`run-xipl-04` 전 Step PASS, 원복도 `Standard_Default_M.pim`으로 확인(2026-08-28)** |
 | `XIPL_05` Q.C 채점을 좌표 대신 임계값으로 | 화면 절대좌표 대신 `CONFIGURATION.QC_COMMON`의 합격 기준을 DB로 읽어 OCR로 경계값을 고르고, 합격/불합격 경계 양쪽을 검증(5절 ① 판단 반영 — Result는 별도 항목으로 분리) | **2026-09-01 전 Step PASS로 해결.** 08-28엔 Fiber 콤보에 기준(4.0) 미만 항목이 "없다"고 결론지었으나 오판이었다 — 콤보가 14개 항목인데 팝업 뷰포트엔 6~7개만 보이고 나머지는 스크롤해야 나온다(`ItemWnd`가 자식을 클리핑, B.10과 같은 종류). `_qc_pick_score`가 `_pick_combo_item`처럼 못 찾으면 스크롤하며 재시도하도록 고치자 Fiber=3.5(기준 미만)를 찾아 `run-xipl-05` 라이브로 "불합격 경계값 입력 시 Fail"까지 PASS 확인(`QC_STUDY.Result=0`). 3절 #1 해소 |
 | `WF_15` Dose Overlay 전제 자체 보장 | 단독 실행 시 `WF_03`을 거치지 않으면 선량 Overlay(115/118)가 없어 Step 3 이 전제 미충족으로 FAIL 하던 것을, `vp.add_image_overlay_items`로 멱등하게 준비 | 코드 반영. `run-wf15` 단독 실행 재검증 대기 |
+| `WF_08` 3D Print의 "Select Images" 창 처리 | 3D(Narrow/Wide) 검사를 Print > Selected 로 열면 Film 대신 뜨는 "Select Images" 창(좌=View Position, 중=Raw/Recon/Syn 라디오+프레임, 우=전송 목록, 휴지통=삭제 — 사양서1 SRS 02-40-60·Operation Manual 10.1.2)을 자동화가 전혀 다루지 않아 3D Print가 항상 "Film window did not open"으로 실패했다. `core/flows.py`에 `select_images_*` 함수 신설, `tests/workflow08.py`가 3D 패스마다 Raw/Recon/Syn 각 1장씩 인쇄하고 휴지통 삭제·pane 구분·Header Overlay까지 검증하도록 개편 | **2026-09-02 전 Step PASS로 해결.** 라이브 재검증 중 (1)삭제 방향 오류(최근 항목이 아니라 첫 항목을 지움) (2)이전 세션 잔존 선택 미처리 (3)`ui.dialog()`가 Select Images 창 자체를 "이미 있음" 경고로 오탐지해 정상 추가도 매번 실패 처리 — 세 버그를 순서대로 찾아 고쳤다. `run-wf08` 라이브로 3D-N/3D-W 모두 Raw+Recon+Syn 3장 인쇄·pane distinct·Header Overlay·Print SCP 픽셀 일치(0.97~0.98) 확인 |
 | `core/ui.py` 포그라운드 잠금 타임아웃 | `force_foreground`가 `SPI_FOREGROUNDLOCKTIMEOUT`을 0으로 낮췄다가 복원 — 잠금이 남아 있으면 `AttachThreadInput`을 붙여도 전환이 거부됨 | 코드 반영 |
 | `core/ui.py` 클릭 가드 — 다중 모니터 겹침 인식 | `require_front_for_pointer`가 "다른 창이 최전면"이라는 사실만으로 막던 것을, **그 창이 클릭 좌표를 실제로 화면에서 덮고 있는지**까지 확인하도록 바꿈(`_rect_contains_point`). 다른 모니터의 창은 Viewer를 가리지 않으므로 막지 않는다(2026-08-28 사용자 지시) | `run-xipl-05` 재검증으로 확인 |
 | `core/ui.py` `bring_to_front`가 항상 메인 프레임만 올리던 문제 | Q.C 테스트 창처럼 메인 프레임과 다른 최상위 창을 조작 중일 때, 최전면 복구가 메인 프레임을 올려 오히려 그 창을 가리는 문제를 고침 — 클릭 좌표를 실제로 담고 있는 창(`_window_at_point`)을 우선 올린다 | `run-xipl-05` 재검증으로 확인 |
@@ -1004,9 +1005,16 @@ P0 (환경이 확인되면 이 순서로)
    `run-regression`이 `WF01→WF02→WF03→...`를 정식 순서로 다시 돌며 자연스럽게
    포함한다.
 2. ~~XIPL_05 불합격 경계 검증(3절 #1)~~ — **2026-09-01 완료**(2절 XIPL_05 행 참고).
-3. **다음 세션의 시작점.** 개별 TC 재검증이 전부 끝났으니 전체 회귀를 처음부터 1회
-   돌려 실제 완료 결과를 기록해라. 시작 전에 적용한 변경·변경 전후 실행 시간·판정
-   동일성·남은 위험·예상 소요 시간·Viewer/화면 준비 조건을 먼저 보고하고 진행해라.
+3. ~~전체 회귀 1회~~ — **2026-09-02 27차 완료**(`Reports/Result_20260902_021817.json`,
+   116.1분, PASS22/FAIL3/MANUAL2). XIPL_05는 정상 PASS로 확인됐으나, 이 회귀에서
+   손대지 않은 `TC_Basic_WorkFlow_08`(2D/3D Film Print)이 예상 밖으로 FAIL했다 —
+   3D Print가 여는 "Select Images" 창을 자동화가 전혀 다루지 않아 매번
+   "Film window did not open"으로 실패. 원인·수정은 2절 WF_08 행 참고.
+4. **다음 세션의 시작점.** WF_08 수정을 반영해 `run-wf08` 라이브 전 Step PASS까지
+   확인했다(3D-N/3D-W 모두 Raw/Recon/Syn 3장 인쇄, 휴지통 삭제, pane 구분, Header
+   Overlay). 이 수정을 반영한 **전체 회귀를 1회 더 돌려** 최종 완료 결과를 기록해라
+   (예상: PASS 23 / FAIL 2(3-A UPS, XIPL_03 제품 결함, 둘 다 자동화 결함 아님) /
+   MANUAL 2(Install_01, WF_16)).
 
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행

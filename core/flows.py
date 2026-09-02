@@ -587,6 +587,162 @@ def close_film(ui, tesseract_exe=None, timeout=15):
 
 
 # ---------------------------------------------------------------------------
+# "Select Images" 창 (WF_08 3D Print). 2026-09-02 실측.
+#
+# Print(2188) -> Selected(501) 이후, 검사에 3D(Narrow/Wide) 영상이 있으면
+# Film 창 대신 이 창이 먼저 뜬다. 2D 는 프레임이 하나뿐이라 이 창 자체가
+# 뜨지 않고 바로 Film 으로 간다 - 예전 코드가 이 창을 전혀 다루지 않아
+# 3D Print 가 "Film window did not open"(25초 타임아웃)으로 항상 실패했다.
+#
+# 네이티브 타이틀이 없는 커스텀 창(자식 ctrl_id로만 식별). 실측한 구성:
+#   좌 = View Position 목록(현재 선택한 검사의 썸네일 하나)
+#   중 = 좌에서 고른 View Position 의 프레임. 3D 는 위에 Raw/Recon/Syn
+#        라디오(2112/2113/2114)가 있어 Type 을 바꾸면 프레임 목록이 바뀐다.
+#   우 = 전송(=인쇄) 목록. 중앙에서 프레임을 고르고 `+`(2116)를 누르면
+#        `<View Position>: <Type>` 라벨(예: `LCC (3D-N): Recon`)로 여기 담긴다.
+#        `Add All`(2117, 아이콘만이라 OCR 불가)은 현재 Type 프레임을 한 번에
+#        전부 담고, 휴지통(2115)은 우측에서 고른 항목을 뺀다.
+#   하단 OK(1101)/Cancel(1102).
+#
+# 좌/중/우 경계는 해상도에 따라 달라질 수 있어 픽셀 값을 박지 않는다 -
+# 우측 목록 컨테이너(2111)의 실측 rect 를 매번 다시 읽어 그 왼쪽 끝을
+# 경계로 삼는다(AGENTS.md 5절, B.14 와 같은 이유).
+SELECT_IMAGES = {
+    "raw": 2112, "recon": 2113, "syn": 2114,
+    "add": 2116, "add_all": 2117, "delete": 2115,
+    "ok": 1101, "cancel": 1102, "dest_list": 2111,
+}
+
+
+def select_images_window(ui, timeout=5):
+    """`Select Images` 창을 찾는다. 2D 처럼 뜨지 않으면 `None`을 돌려준다."""
+    end = time.time() + timeout
+    while time.time() < end:
+        for w in ui.windows():
+            ids = {c.ctrl_id for c in children(w.hwnd, 6)}
+            if SELECT_IMAGES["ok"] in ids and SELECT_IMAGES["add"] in ids:
+                return w
+        time.sleep(.3)
+    return None
+
+
+def _si_children(win):
+    return list({c.hwnd: c for c in children(win.hwnd, 8)}.values())
+
+
+def _si_dest_boundary(win):
+    dest = [c for c in _si_children(win) if c.ctrl_id == SELECT_IMAGES["dest_list"]]
+    return min((c.rect[0] for c in dest), default=None)
+
+
+def select_images_dest_count(win):
+    """전송(우측) 목록에 담긴 프레임 수."""
+    boundary = _si_dest_boundary(win)
+    if boundary is None:
+        return 0
+    return len([c for c in _si_children(win)
+                if c.text == "FrameItem" and c.rect[0] >= boundary])
+
+
+def select_images_clear(ui, win, max_rounds=20):
+    """전송(우측) 목록을 비운다.
+
+    Print > Selected 로 같은 View Position 을 다시 열면 **이전에 담아 뒀던
+    항목이 그대로 남아 있을 수 있다**(2026-09-02 실측 - 이전 세션이 끝까지
+    확인/취소되지 않은 채 남긴 선택이 다음에도 보였다). 이미 담긴 프레임을
+    다시 고르면 제품이 "This item already exists."로 막으므로, 새로 담기
+    전에 항상 먼저 비워서 시작 상태를 결정적으로 만든다."""
+    for _ in range(max_rounds):
+        if select_images_dest_count(win) == 0:
+            return
+        select_images_delete_last(ui, win)
+    if select_images_dest_count(win) != 0:
+        raise FlowError("Select Images 전송 목록을 비우지 못했습니다.")
+
+
+def select_images_add(ui, win, kind=None, frame_index=0, max_attempts=20):
+    """`kind`(raw/recon/syn)가 있으면 그 라디오를 먼저 고르고, 중앙 목록에서
+    `frame_index` 번째부터 시작해 담을 수 있는 프레임을 전송 목록에 추가한다.
+
+    **이미 담긴 프레임을 다시 고르면** 제품이 "This item already exists."
+    경고로 막는다(2026-09-02 실측). **`ui.dialog()`로 이 경고를 구분할 수
+    없다** - Select Images 창 자체도 작은 `#32770`이라 창이 열려 있기만
+    해도 `ui.dialog()`가 그 창 자체를 "떠 있는 대화상자"로 오탐지한다(같은
+    rect). 그래서 경고 여부는 **전송 목록 개수가 실제로 늘었는지**로만
+    판정하고, 늘지 않았을 때만 - 그리고 그 "대화상자"의 rect 가 Select
+    Images 창 rect 와 다를 때만 - 진짜 경고로 보고 닫은 뒤 다음 프레임으로
+    재시도한다.
+
+    반환: `{"kind", "before", "after", "frame_index"}`."""
+    if kind is not None:
+        radios = [c for c in _si_children(win) if c.ctrl_id == SELECT_IMAGES[kind]]
+        if not radios:
+            raise FlowError(f"Select Images '{kind}' 라디오를 찾지 못했습니다.")
+        ui.click(radios[0], settle=1.0)
+    before = select_images_dest_count(win)
+    boundary = _si_dest_boundary(win)
+    frames = sorted(
+        (c for c in _si_children(win)
+         if c.text == "FrameItem" and (boundary is None or c.rect[0] < boundary)),
+        key=lambda c: (c.rect[1], c.rect[0]))
+    add_btn = [c for c in _si_children(win) if c.ctrl_id == SELECT_IMAGES["add"]]
+    if not add_btn:
+        raise FlowError("Select Images '+' 버튼을 찾지 못했습니다.")
+    idx = frame_index
+    tried = 0
+    while tried < max_attempts:
+        if idx >= len(frames):
+            break
+        ui.click(frames[idx], settle=.8)
+        ui.click(add_btn[0], settle=1.0)
+        after = select_images_dest_count(win)
+        if after == before + 1:
+            return {"kind": kind, "before": before, "after": after, "frame_index": idx}
+        dup = ui.dialog()
+        if dup is not None and dup.rect != win.rect:
+            buttons = ui.dialog_buttons(dup)
+            if len(buttons) == 1:
+                ui.click(buttons[0], settle=1.0)
+        idx += 1
+        tried += 1
+    raise FlowError(
+        f"Select Images '{kind or '현재 Type'}' 프레임을 추가하지 못했습니다"
+        f"(index {frame_index}~{idx - 1} 모두 실패, 프레임 {len(frames)}개).")
+
+
+def select_images_delete_last(ui, win):
+    """전송 목록에서 가장 최근에 추가된 항목을 눌러 휴지통으로 뺀다.
+
+    새 항목은 전송 목록 **아래쪽에 이어 붙는다**(2026-09-02 실측 - 먼저 넣은
+    항목이 위로 밀려 스크롤된다). 그래서 y 오름차순으로 정렬했을 때
+    **마지막(가장 아래)** 이 최근 항목이다.
+
+    반환: `{"before", "after"}`."""
+    boundary = _si_dest_boundary(win)
+    dest_items = sorted(
+        (c for c in _si_children(win)
+         if c.text == "FrameItem" and boundary is not None and c.rect[0] >= boundary),
+        key=lambda c: (c.rect[1], c.rect[0]))
+    if not dest_items:
+        raise FlowError("Select Images 전송 목록이 비어 있어 삭제할 항목이 없습니다.")
+    ui.click(dest_items[-1], settle=.8)
+    del_btn = [c for c in _si_children(win) if c.ctrl_id == SELECT_IMAGES["delete"]]
+    if not del_btn:
+        raise FlowError("Select Images 휴지통(삭제) 버튼을 찾지 못했습니다.")
+    before = select_images_dest_count(win)
+    ui.click(del_btn[0], settle=1.0)
+    return {"before": before, "after": select_images_dest_count(win)}
+
+
+def select_images_confirm(ui, win):
+    """OK 를 눌러 전송 목록을 확정하고 Film 창으로 넘어간다."""
+    ok = [c for c in _si_children(win) if c.ctrl_id == SELECT_IMAGES["ok"]]
+    if not ok:
+        raise FlowError("Select Images OK 버튼을 찾지 못했습니다.")
+    ui.click(ok[0], settle=2.0)
+
+
+# ---------------------------------------------------------------------------
 # Setting > Procedure > Hospital Code (WF_10 Step 1~2). 2026-08-20 실측.
 #
 # 목록 컬럼이 `Code / Procedure·View Position / Type / Description` 이라서
