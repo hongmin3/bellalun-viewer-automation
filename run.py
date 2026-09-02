@@ -880,8 +880,22 @@ def main():
         # 이후 판정은 제품에 대해 아무것도 말해 주지 않는다.
         PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
         aborted_precondition = None
-        for fn, tc_id, title in chain:
+        # TC 단위 진행률을 work/regression_state.json 에 남긴다. 외부(Hub/Worker)가
+        # Claude 를 깨우지 않고도 "지금 몇 번째 TC" 를 값싸게 읽을 수 있게 하기
+        # 위함이다(2026-09-03 요청). 기록 실패가 회귀 자체를 막으면 안 된다.
+        from core import automation_health as health
+        total_tc = len(chain)
+        for index, (fn, tc_id, title) in enumerate(chain, start=1):
             tc_started = time.time()
+            try:
+                health.write_state(
+                    ctx.root, "running", regression_pid=os.getpid(),
+                    current_tc=tc_id, current_title=title,
+                    index=index, total=total_tc,
+                    tc_started=datetime.now().astimezone()
+                    .isoformat(timespec="seconds"))
+            except OSError:
+                pass
             produced = guarded(fn, ctx, tc_id, title)
             results.extend(produced)
             recover_viewer_after_termination(

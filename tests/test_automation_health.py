@@ -45,6 +45,17 @@ class AutomationHealthTests(unittest.TestCase):
             health.write_state(folder, "running", regression_pid=123)
             self.assertEqual(123, health.read_state(folder)["regression_pid"])
 
+    def test_state_write_carries_tc_progress(self):
+        with tempfile.TemporaryDirectory() as folder:
+            health.write_state(
+                folder, "running", regression_pid=123,
+                current_tc="TC_Basic_WorkFlow_07", current_title="Emergency 검사",
+                index=7, total=32, tc_started="2026-09-03T00:00:00+09:00")
+            state = health.read_state(folder)
+            self.assertEqual("TC_Basic_WorkFlow_07", state["current_tc"])
+            self.assertEqual(7, state["index"])
+            self.assertEqual(32, state["total"])
+
     def test_dump_filter_uses_start_time(self):
         with tempfile.TemporaryDirectory() as folder:
             old = os.path.join(folder, "VIEWER.exe.1.dmp")
