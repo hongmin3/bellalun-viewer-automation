@@ -13,9 +13,10 @@
 |---|---|---|
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — TC 37건 | `WF_14` Step 3 문구는 2026-08-28 사용자 승인으로 수정(원본은 `..\Baseline\Checklist_개정본_20260828_WF14Step3수정전.xlsx`) |
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
-| **최신 전체 회귀** | 26차, 2026-08-26 18:52~20:28 — TC 27건: PASS 22 / FAIL 2 / MANUAL 2 / BLOCKED 1, 검증 275개: PASS 261 / FAIL 7 / MANUAL 3 / SKIP 1 / BLOCKED 3, 96.3분. 남은 FAIL 2건은 둘 다 제품 결함 | `Reports/Result_20260826_202818.json` |
+| **최신 전체 회귀** | **28차, 2026-09-02 20:58~22:53 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 302개: PASS 292 / FAIL 7 / MANUAL 2 / SKIP 1, 115.3분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건** | `Reports/Result_20260902_225334.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
-| **27차 전체 회귀 완료, WF_08 수정 반영판 재검증 남음** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 XIPL_05는 PASS 확인됐으나 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 `run-wf08` 단독 라이브 전 Step PASS 확인 완료(2절 WF_08 행). 남은 것은 이 수정 반영판 전체 회귀 1회뿐(6절 P0 #4) | — |
+| **27차→28차: `WF_08` 수정 반영판 회귀로 최종 확인 완료** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 28차(`Result_20260902_225334.json`, 115.3분, PASS23/FAIL2/MANUAL2)에서 PASS로 확정됐다(2절 WF_08 행, 아래 2-L절) | `Reports/Result_20260902_225334.json` |
+| **09-03: 회귀 진행률을 `work/regression_state.json`에 기록하는 Hub/Worker 연동 착수** | `run.py` 회귀 루프가 TC마다 `core/automation_health.write_state()`를 호출해 진행률을 남긴다 — 외부 `AI-Remote-Control`의 `background_watch.py`가 Claude 세션을 깨우지 않고 진행 상황을 읽게 하기 위함(아래 2-M절). 이 저장소 밖 소비 측(Hub/Worker) 상태는 미확인 | 커밋 `65d44d5` |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
@@ -31,7 +32,7 @@
 | `XIPL_04` 2D Default Parameter 원복 | Step 1 이 바꾼 `PROCEDURE_COMMON.DefaultImgProcess` 를 `finally`에서 UI로 원복(`_restore_default_2d_param`) | **`run-xipl-04` 전 Step PASS, 원복도 `Standard_Default_M.pim`으로 확인(2026-08-28)** |
 | `XIPL_05` Q.C 채점을 좌표 대신 임계값으로 | 화면 절대좌표 대신 `CONFIGURATION.QC_COMMON`의 합격 기준을 DB로 읽어 OCR로 경계값을 고르고, 합격/불합격 경계 양쪽을 검증(5절 ① 판단 반영 — Result는 별도 항목으로 분리) | **2026-09-01 전 Step PASS로 해결.** 08-28엔 Fiber 콤보에 기준(4.0) 미만 항목이 "없다"고 결론지었으나 오판이었다 — 콤보가 14개 항목인데 팝업 뷰포트엔 6~7개만 보이고 나머지는 스크롤해야 나온다(`ItemWnd`가 자식을 클리핑, B.10과 같은 종류). `_qc_pick_score`가 `_pick_combo_item`처럼 못 찾으면 스크롤하며 재시도하도록 고치자 Fiber=3.5(기준 미만)를 찾아 `run-xipl-05` 라이브로 "불합격 경계값 입력 시 Fail"까지 PASS 확인(`QC_STUDY.Result=0`). 3절 #1 해소 |
 | `WF_15` Dose Overlay 전제 자체 보장 | 단독 실행 시 `WF_03`을 거치지 않으면 선량 Overlay(115/118)가 없어 Step 3 이 전제 미충족으로 FAIL 하던 것을, `vp.add_image_overlay_items`로 멱등하게 준비 | 코드 반영. `run-wf15` 단독 실행 재검증 대기 |
-| `WF_08` 3D Print의 "Select Images" 창 처리 | 3D(Narrow/Wide) 검사를 Print > Selected 로 열면 Film 대신 뜨는 "Select Images" 창(좌=View Position, 중=Raw/Recon/Syn 라디오+프레임, 우=전송 목록, 휴지통=삭제 — 사양서1 SRS 02-40-60·Operation Manual 10.1.2)을 자동화가 전혀 다루지 않아 3D Print가 항상 "Film window did not open"으로 실패했다. `core/flows.py`에 `select_images_*` 함수 신설, `tests/workflow08.py`가 3D 패스마다 Raw/Recon/Syn 각 1장씩 인쇄하고 휴지통 삭제·pane 구분·Header Overlay까지 검증하도록 개편 | **2026-09-02 전 Step PASS로 해결.** 라이브 재검증 중 (1)삭제 방향 오류(최근 항목이 아니라 첫 항목을 지움) (2)이전 세션 잔존 선택 미처리 (3)`ui.dialog()`가 Select Images 창 자체를 "이미 있음" 경고로 오탐지해 정상 추가도 매번 실패 처리 — 세 버그를 순서대로 찾아 고쳤다. `run-wf08` 라이브로 3D-N/3D-W 모두 Raw+Recon+Syn 3장 인쇄·pane distinct·Header Overlay·Print SCP 픽셀 일치(0.97~0.98) 확인 |
+| `WF_08` 3D Print의 "Select Images" 창 처리 | 3D(Narrow/Wide) 검사를 Print > Selected 로 열면 Film 대신 뜨는 "Select Images" 창(좌=View Position, 중=Raw/Recon/Syn 라디오+프레임, 우=전송 목록, 휴지통=삭제 — 사양서1 SRS 02-40-60·Operation Manual 10.1.2)을 자동화가 전혀 다루지 않아 3D Print가 항상 "Film window did not open"으로 실패했다. `core/flows.py`에 `select_images_*` 함수 신설, `tests/workflow08.py`가 3D 패스마다 Raw/Recon/Syn 각 1장씩 인쇄하고 휴지통 삭제·pane 구분·Header Overlay까지 검증하도록 개편 | **2026-09-02 전 Step PASS로 해결.** 라이브 재검증 중 (1)삭제 방향 오류(최근 항목이 아니라 첫 항목을 지움) (2)이전 세션 잔존 선택 미처리 (3)`ui.dialog()`가 Select Images 창 자체를 "이미 있음" 경고로 오탐지해 정상 추가도 매번 실패 처리 — 세 버그를 순서대로 찾아 고쳤다. `run-wf08` 라이브로 3D-N/3D-W 모두 Raw+Recon+Syn 3장 인쇄·pane distinct·Header Overlay·Print SCP 픽셀 일치(0.97~0.98) 확인. **28차 전체 회귀(`Result_20260902_225334.json`)에서도 PASS로 재확인 완료** |
 | `core/ui.py` 포그라운드 잠금 타임아웃 | `force_foreground`가 `SPI_FOREGROUNDLOCKTIMEOUT`을 0으로 낮췄다가 복원 — 잠금이 남아 있으면 `AttachThreadInput`을 붙여도 전환이 거부됨 | 코드 반영 |
 | `core/ui.py` 클릭 가드 — 다중 모니터 겹침 인식 | `require_front_for_pointer`가 "다른 창이 최전면"이라는 사실만으로 막던 것을, **그 창이 클릭 좌표를 실제로 화면에서 덮고 있는지**까지 확인하도록 바꿈(`_rect_contains_point`). 다른 모니터의 창은 Viewer를 가리지 않으므로 막지 않는다(2026-08-28 사용자 지시) | `run-xipl-05` 재검증으로 확인 |
 | `core/ui.py` `bring_to_front`가 항상 메인 프레임만 올리던 문제 | Q.C 테스트 창처럼 메인 프레임과 다른 최상위 창을 조작 중일 때, 최전면 복구가 메인 프레임을 올려 오히려 그 창을 가리는 문제를 고침 — 클릭 좌표를 실제로 담고 있는 창(`_window_at_point`)을 우선 올린다 | `run-xipl-05` 재검증으로 확인 |
@@ -557,6 +558,42 @@ FAIL → **PASS**.
 
 ---
 
+## 2-L. 2026-09-02 회차 — `WF_08`(3D Print) 수정 반영판 전체 회귀로 확정(28차)
+
+27차(02:18, `Result_20260902_021817.json`)에서 예상 밖으로 새로 나온 `WF_08` FAIL —
+3D(Narrow/Wide) 검사를 Print > Selected로 열면 Film 창 대신 뜨는 "Select Images" 창을
+자동화가 전혀 다루지 않아 매번 "Film window did not open"으로 실패하던 문제(2절 WF_08
+행, `../프로젝트_상세.md` B.34)를 고친 뒤, 그 수정을 반영한 전체 회귀를 다시 돌렸다.
+
+같은 날 20:40에 한 번(`Result_20260902_204006.json`, 수정 커밋 `d4ee8a3` 반영 전 코드로
+돈 것이라 `WF_08` FAIL이 그대로 재현됨)을 거쳐, 커밋 반영 후 20:58에 다시 돌린 28차
+(`Result_20260902_225334.json`, 115.3분)에서 **PASS 23 / FAIL 2 / MANUAL 2**로 확정됐다.
+남은 FAIL 2건(`WF_14` UPS, `XIPL_03` 3D 파라미터)은 전부 이미 알려진 제품 결함이고
+**자동화 결함은 0건**이다. 6절 P0 #5(남은 미검증 항목 재검증 후 전체 회귀 1회)가 이것으로
+완료됐다.
+
+## 2-M. 2026-09-03 회차 — 회귀 진행률을 `work/regression_state.json`에 남기는 Hub/Worker 연동 착수
+
+QA 체크리스트 자동화 자체는 28차로 "자동화 결함 0건" 상태에 도달했다. 이 프로젝트의
+더 큰 목표는 회귀를 포함한 전체 실행이 사람은 물론 상시 Claude 세션도 없이 돌아가는
+것이라, 그 방향의 첫 코드를 커밋했다(`65d44d5`).
+
+`run.py`의 회귀 루프가 각 TC를 시작할 때마다 `core/automation_health.write_state(ctx.root,
+"running", regression_pid=..., current_tc=..., current_title=..., index=..., total=...,
+tc_started=...)`를 호출해 `work/regression_state.json`에 원자적으로(임시 파일 후
+rename) 쓴다. 기록 실패(`OSError`)가 회귀 자체를 막지 않는다.
+
+**목적** — 외부 "Hub/Worker" 구조(`AI-Remote-Control`의 `background_watch.py`)가 "지금
+27개 TC 중 몇 번째가 도는가"를 Claude 세션을 깨우지 않고 값싸게 읽을 수 있게 하기 위함
+(2026-09-03 요청). `work/`는 Git 추적 대상이 아니라 이 상태 파일 자체는 저장소에 들어가지
+않는다. 회귀 방지 단위시험 1건 추가(`tests/test_automation_health.py`), 150 → **151건 OK**.
+
+**미확인 — 다음에 이어질 것.** `AI-Remote-Control` 쪽이 이 상태 파일을 실제로 소비해
+무엇을 하는지(재시작 판단·알림·다음 세션 트리거 등)는 이 저장소 밖 코드라 이번 세션에서
+확인하지 못했다. 상세 경위는 `../프로젝트_상세.md` B.35 참고.
+
+---
+
 ## 3. 남은 문제
 
 | # | 문제 | 우선순위 |
@@ -644,8 +681,12 @@ FAIL → **PASS**.
    (`force_restart=False`, `config.json` 기본값)가 가드를 아예 평가하지 않는다**는 것이
    드러나 `flows.require_primary_monitor()` 로 공용화해 고쳤고, 밖/안/기동 경로 세 조건을
    모두 라이브로 확인했다.
-5. 남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
-   재검증한 뒤 전체 회귀 1회 실행. `run-xipl-05`는 2026-08-28 확인 완료.
+5. ~~남은 미검증 항목(`run-wf04`→`run-wf06` 연쇄, `run-wf13`, `run-wf15` 단독 실행)을
+   재검증한 뒤 전체 회귀 1회 실행.~~ — **2026-09-02 완료(28차, 2-L절).** `run-xipl-05`는
+   2026-08-28, 나머지 개별 TC는 2026-09-01(6절 참고) 확인 완료. 28차 전체 회귀에서
+   `WF_08` 수정까지 반영해 PASS 23 / FAIL 2(제품 결함) / MANUAL 2로 확정, **자동화
+   결함은 0건**이다. **P0가 전부 완료됐다** — 다음은 P1/P2와 5절 사용자 판단 대기
+   항목, 그리고 2-M절의 Hub/Worker 연동이다.
 
 ### P1
 
@@ -927,50 +968,35 @@ Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 �
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
-이전 세션(2026-08-31)에서 P0 #1~#4를 전부 끝냈다:
-- #1 WF_07/XIPL_04 wait_new_group 전환 (판정 동일 + 실측 단축, 2-C절)
-- #2 run-wf14의 KeyError 자동화 결함 수정 (2-D절)
-- #3 run-wf10 비기본 Procedure 매핑 검증 (PASS 11/11, 2-D절)
-- #4 cold_start 주 모니터 가드 — 재사용 경로가 가드를 아예 평가하지 않던 결함 발견·수정
-  (2-E절)
+**P0가 전부 끝났다 — 28차 전체 회귀(2026-09-02 20:58~22:53,
+`Reports/Result_20260902_225334.json`, 115.3분)에서 PASS 23 / FAIL 2 / MANUAL 2를
+확정했다. 남은 FAIL 2건(`WF_14` Step 7 UPS 설정 미복원, `XIPL_03` Step 9 3D 파라미터
+기본값 복귀)은 전부 이미 알려진 제품 결함이고, 자동화 결함은 0건이다.**
 
-그 다음 "목록 전 행 열거 완주" 서브체크(WF_14 Step 7)를 깊게 팠다 — 사용자가
-"구조적 문제 중 정보를 주면 풀리는 게 있냐"고 물어 `../지식/` 사양서를 전수 조사하고
-DB를 직접 조회했다. **문제 있던 9개 페이지를 전부 완전히 해결했다**(system.account,
-dicom.mwl/storage/print — OCR 폴백 + 위치 기반 키징; display.lut — DB 쿼리가 곡선
-제어점을 세고 있던 버그 수정; tool.predefined_text, study.reject_retake, dicom.tag_mapping
-— tag_mapping 은 스크롤 잡음이 아니라 **뷰포트 클리핑**이 근본 원인이었다(2026-09-01,
-2-F절/`../프로젝트_상세.md` B.28), 17/17 완전 일치; display.overlay/procedure.procedure/
-dicom.print_overlay/patient.physician — 넷 다 "개념 불일치"나 "오탐"으로 처음
-결론지었다가 실제로는 **같은 종류의 교차 오염**(화면에 목적이 다른 목록 여러 개가
-섞여 `visible_rows()`가 구분 못 함)이었음이 라이브 컨트롤 트리 조사로 드러났다
-(2-G~2-I절/B.29~B.31), 각각 8/8·15/15·6/6·0/0 완전 일치; **qc.scheduler — 넷과
-달리 이번엔 진짜 제품 설계 차이였다**(사양서2 8492~8511행·Service Manual 3749행이
-"일부 QC 항목은 연결 모델/실행 모드에 따라 의도적으로 숨겨진다"고 명시 — 라이브로
-교차 오염 없음도 먼저 확인한 뒤 사양서로 최종 확정, 2-J절/B.32), 개수 증명만 뺐다).
-매 단계 라이브로 재검증했고 전체 판정(원인은 이미 알려진 UPS 제품 결함)은 한 번도
-안 바뀌었다(회귀 없음).
+거기까지 온 경위: 2026-08-31에 P0 #1~#4(wait_new_group 전환, WF_14 KeyError 수정,
+WF_10 매핑 검증, cold_start 주모니터 가드 수정)를 끝냈고, 이어서 WF_14 Step 7 "목록
+전 행 열거 완주" 서브체크의 문제 있던 9개 페이지를 전부 해결했다(owner-draw 컨트롤
+OCR 폴백, display.lut DB 쿼리 버그, dicom.tag_mapping 뷰포트 클리핑, 3곳의 목록
+교차 오염, qc.scheduler만 사양서로 확정된 진짜 제품 설계차이 — 2-D~2-J절).
+2026-09-01엔 `setup-dicom`이 이미 꺼둔 Storage를 실수로 다시 켜던 버그(2-K절)와
+`WF_06`의 공유 Storage RDSR 오염 버그를 고쳤다. 2026-09-02엔 `XIPL_05` Fiber 콤보
+스크롤 클리핑 수정에 이어, 27차 회귀에서 예상 밖으로 새로 나온 `WF_08`(3D Print)
+FAIL을 발견·수정했다 — 3D 검사를 Print > Selected로 열면 뜨는 "Select Images" 창을
+자동화가 전혀 다루지 않던 것이 원인이었다(2절 WF_08 행, 2-L절, B.34). 그 수정을
+반영한 28차로 최종 확정했다.
 
-이어서 `run-wf04→06`/`run-wf13`/`run-wf15` 재검증을 시도하다가 별개 결함을 하나
-더 찾았다 — `setup-dicom`이 이미 꺼 둔 Storage 항목(`BUNNY_TEST`)을 실수로 다시
-켜고 있었다. `core/dicom_settings.py`의 `_sync_use()`가 Storage 목록을 DB와
-맞출 때 `SCPUseType` 필터 없이 읽어서, 전송 작업 사본 행(늘 `Use=1`)이 설정
-행의 진짜 상태를 덮어써 "이미 켜져 있다"로 오판, 화면 체크박스를 반대로 클릭한
-것이었다(같은 파일에 이미 같은 필터를 쓰는 곳이 셋이나 있었는데 이 함수만
-빠졌다). 필터를 추가해 고쳤고, 고치기 전 정확한 버그 재현 조건에서 다시
-`setup-dicom`을 돌려 PASS로 바뀌는 것까지 라이브로 확인했다(2-K절/B.33).
+**2026-09-03에 다음 단계로 넘어갔다 — QA 내용 자동화를 넘어선 메타 자동화 착수.**
+이 프로젝트의 진짜 목표는 회귀뿐 아니라 실행 자체가 상시 Claude 세션 없이 돌아가는
+것이다. 그 첫 코드로 `run.py` 회귀 루프가 TC마다 `work/regression_state.json`에
+진행률을 남기게 했다(커밋 `65d44d5`) — 외부 "Hub/Worker"(`AI-Remote-Control`의
+`background_watch.py`)가 Claude를 깨우지 않고 진행 상황을 읽게 하기 위함이다(2-M절).
+이 상태 파일을 실제로 소비하는 Hub/Worker 쪽 코드는 이 저장소 밖이라 아직 확인하지
+못했다 — 그쪽 진행 상황과 맞춰 다음에 무엇이 필요한지 봐야 한다.
 
-그 다음 `run-wf04`/`run-wf06`/`run-wf15`가 전부 `PatientID=DATA_FLOW_MWL_01`
-검사를 못 찾아 FAIL했다 — **이건 자동화 결함이 아니다.** `WF_04`의 체크리스트
-Precondition에 "TC_Basic_WorkFlow_03~04가 Pass이다"라고 명시돼 있다. 즉 그
-환자·영상은 `WF_03`(그 이전 체인)이 촬영으로 미리 만들어 둬야 하는 데이터인데,
-이번엔 그 선행 체인 없이 `WF_04/06/15`만 단독으로 돌려서 데이터 자체가 없었다.
-`run-wf13`은 이런 선행 데이터가 필요 없어 정상 PASS했다.
-
-자세한 경위는 NEXT_WORK.md 5절 ⑦과 2-D~2-K절, `../프로젝트_상세.md` B.23~B.33을
+자세한 경위는 NEXT_WORK.md 5절과 2-D~2-M절, `../프로젝트_상세.md` B.23~B.35를
 참고해라.
 
-먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절 ⑦)를 읽어
+먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절)를 읽어
 상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
 `개정 TC` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를 무조건 탐색하지
 마라.
@@ -997,24 +1023,18 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의 closed.attempts 값을
 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
-P0 (환경이 확인되면 이 순서로)
-1. ~~`run-wf01→wf02→wf03` 먼저 실행해 `DATA_FLOW_MWL_01` 데이터를 만든 뒤
-   run-wf04→run-wf06/run-wf13/run-wf15 재검증~~ — **2026-09-01 완료.** `run-wf06`
-   (RDSR 오염 수정, 커밋 `42cc1b2`)과 `run-wf15` 모두 라이브 PASS 확인됨. `run-wf13`은
-   이미 확인 완료. 개별 TC 단위 재검증은 이것으로 끝 — 남은 확인은 전체 회귀 안에서
-   `run-regression`이 `WF01→WF02→WF03→...`를 정식 순서로 다시 돌며 자연스럽게
-   포함한다.
-2. ~~XIPL_05 불합격 경계 검증(3절 #1)~~ — **2026-09-01 완료**(2절 XIPL_05 행 참고).
-3. ~~전체 회귀 1회~~ — **2026-09-02 27차 완료**(`Reports/Result_20260902_021817.json`,
-   116.1분, PASS22/FAIL3/MANUAL2). XIPL_05는 정상 PASS로 확인됐으나, 이 회귀에서
-   손대지 않은 `TC_Basic_WorkFlow_08`(2D/3D Film Print)이 예상 밖으로 FAIL했다 —
-   3D Print가 여는 "Select Images" 창을 자동화가 전혀 다루지 않아 매번
-   "Film window did not open"으로 실패. 원인·수정은 2절 WF_08 행 참고.
-4. **다음 세션의 시작점.** WF_08 수정을 반영해 `run-wf08` 라이브 전 Step PASS까지
-   확인했다(3D-N/3D-W 모두 Raw/Recon/Syn 3장 인쇄, 휴지통 삭제, pane 구분, Header
-   Overlay). 이 수정을 반영한 **전체 회귀를 1회 더 돌려** 최종 완료 결과를 기록해라
-   (예상: PASS 23 / FAIL 2(3-A UPS, XIPL_03 제품 결함, 둘 다 자동화 결함 아님) /
-   MANUAL 2(Install_01, WF_16)).
+**다음 할 일 — 순서대로가 아니라 성격이 다른 세 갈래다.**
+1. **P1/P2(자동화 리팩터링·속도 개선, 4절)** — `probe-preset3d` 3D Preset 실측,
+   `run-sys3d`/`run-ui`의 고정 대기 전환. **급하지 않고 실물 UI를 오래 점유하는
+   작업이라, 착수 전에 사용자에게 지금 진행해도 되는지 먼저 물어라** — 2026-09-03에
+   사용자가 이렇게 요청했다.
+2. **5절 사용자 판단 대기 항목** — `Install_01`/`Install_02`는 사용자가 자료를 줄 때만
+   진행(그 전엔 Install TC를 건드리지 말고 MANUAL/SKIP 그대로 둔다), `WF_13` 로그인
+   계정 전환 자동화 여부와 stale 브랜치 삭제는 승인 문구 그대로 사용자에게 다시
+   확인해라.
+3. **2-M절 Hub/Worker 연동 후속** — `AI-Remote-Control` 쪽 진행 상황을 사용자에게
+   물어보고, 그쪽이 필요로 하는 다음 정보(예: 완료/실패 시그널, 재시작 트리거 등)를
+   함께 설계해라. 이 저장소만 보고 추측하지 마라.
 
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행
