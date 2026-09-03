@@ -201,11 +201,12 @@ def workflow_03_demo_acquire(ctx, session):
     q_grp = f"SELECT COUNT(*) FROM INSTANCE_GROUP WHERE StudyKey={study_key}"
 
     # Step 2~3. 가상 촬영
+    # 고정 대기(settle_seconds, 기본 14초) 대신 각 촬영마다 그 Study의
+    # INSTANCE 행 수가 늘어날 때까지 기다린다(2026-09-03 — 3D 콜사이트들의
+    # `wait_new_group` 전환과 같은 방향, `core.flows.demo_acquire` docstring 참고).
     acq = []
     with watchdog.guarded("Demo 가상 촬영", r, 3, guard) as g:
-        acq = flows.demo_acquire(ui, count=want,
-                                 settle=int(ctx.cfg.get("demo", {})
-                                            .get("settle_seconds", 14)))
+        acq = flows.demo_acquire(ui, count=want, db=ctx.db, study_key=study_key)
     if not g.ok:
         return r
 

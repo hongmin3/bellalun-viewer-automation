@@ -193,9 +193,17 @@ def run_mode(ctx, mode):
         # --- Step 3: 해당 3D 영상 촬영 --------------------------------
         # Demo(F8)는 선택된 Step 1개만 촬영한다. select_step은 카드가 패널
         # 밖으로 잘려 있으면 스크롤해서 실제로 선택되도록 보장한다.
-        info = flows.demo_acquire_step(ui, target_step, settle=20)
+        # 고정 대기(settle=20) 대신 WF_07/XIPL_04/07 과 같은
+        # `viewer_processing.wait_new_group` 상태 기반 대기로 통일한다
+        # (2026-09-03) — F8 전에 이미 획득된 Group Key 를 기록해 두고, 그
+        # 집합에 없는 새 Group 에 Raw/Recon/Syn 세 InstanceType 이 모두
+        # 들어올 때까지만 기다린다.
+        known = set(vp.acquired_groups(ctx.db, study["Key"]))
+        info = flows.demo_acquire_step(ui, target_step, settle=0)
         if info.get("skipped"):
             raise RuntimeError(f"Ready 상태가 아니어서 촬영하지 않았습니다: {info}")
+        vp.wait_new_group(ctx.db, study["Key"], known,
+                          required_types=vp.INSTANCE_TYPES_3D, timeout=180)
         counts = _wait_types(ctx, study["Key"], {1: 1, 2: 1, 3: 1})
         groups = ctx.db.query(
             "DATA", "SELECT [Key],Type,ExposureMode FROM INSTANCE_GROUP "

@@ -16,7 +16,8 @@
 | **최신 전체 회귀** | **28차, 2026-09-02 20:58~22:53 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 302개: PASS 292 / FAIL 7 / MANUAL 2 / SKIP 1, 115.3분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건** | `Reports/Result_20260902_225334.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
 | **27차→28차: `WF_08` 수정 반영판 회귀로 최종 확인 완료** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 28차(`Result_20260902_225334.json`, 115.3분, PASS23/FAIL2/MANUAL2)에서 PASS로 확정됐다(2절 WF_08 행, 아래 2-L절) | `Reports/Result_20260902_225334.json` |
-| **09-03: 회귀 진행률을 `work/regression_state.json`에 기록하는 Hub/Worker 연동 착수** | `run.py` 회귀 루프가 TC마다 `core/automation_health.write_state()`를 호출해 진행률을 남긴다 — 외부 `AI-Remote-Control`의 `background_watch.py`가 Claude 세션을 깨우지 않고 진행 상황을 읽게 하기 위함(아래 2-M절). 이 저장소 밖 소비 측(Hub/Worker) 상태는 미확인 | 커밋 `65d44d5` |
+| **09-03: 회귀 진행률을 `work/regression_state.json`에 기록하는 Hub/Worker 연동 착수** | `run.py` 회귀 루프가 TC마다 `core/automation_health.write_state()`를 호출해 진행률을 남긴다 — 외부 `AI-Remote-Control`(GitHub `hongmin3/AI-Remote-Control`)의 `background_watch.py`가 Claude 세션을 깨우지 않고 진행 상황을 읽게 하기 위함(아래 2-M절). 이 저장소 밖 소비 측 구현은 미확인 | 커밋 `65d44d5` |
+| **09-03(이어짐): WF_13 문서 정정, P1/P2 완료** | WF_13 계정 권한별 Setting 노출은 2026-08-20에 이미 완전 자동화돼 있었다(문서만 stale) — `run-wf13` 재확인 PASS. P1(`probe-preset3d` 3D Preset 실측 → XIPL_07 Default 상속 판정)과 P2(`run-sys3d`/`run-ui` 고정 대기 → 상태 기반 전환) 모두 구현·라이브 검증 완료(2-N절). stale 브랜치 `agent/add-next-task-handoff`는 이미 존재하지 않음 확인 | 2-N절, `run-xipl-07`/`run-sys3d`/`run-ui` 재검증 리포트 |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 
 ---
@@ -592,6 +593,74 @@ rename) 쓴다. 기록 실패(`OSError`)가 회귀 자체를 막지 않는다.
 무엇을 하는지(재시작 판단·알림·다음 세션 트리거 등)는 이 저장소 밖 코드라 이번 세션에서
 확인하지 못했다. 상세 경위는 `../프로젝트_상세.md` B.35 참고.
 
+**후속(같은 날 다른 세션) — 저장소 위치 확인.** `AI-Remote-Control`은
+`hongmin3/AI-Remote-Control`(GitHub, private) — "GitHub Issue 하나만 작성하면
+회사 PC의 Claude Code/Codex CLI가 그 지시를 실제로 실행하고 결과를 Issue 댓글로
+돌려주는" Hub/Worker 시스템이다. 이 세션 자체도 그 Issue(#24, WORKER=`qa-test-02`,
+PROJECT=`bellalun`)로 디스패치된 것이었다. 내부 구현(`background_watch.py`가
+`regression_state.json`을 어떻게 쓰는지)은 아직 열어보지 않았다.
+
+## 2-N. 2026-09-03 회차(이어짐) — WF_13 문서 오류 정정, P1(XIPL_07 3D Preset
+Default 상속)·P2(run-sys3d/run-ui 고정 대기 전환) 완료
+
+**WF_13 문서 오류 정정.** 사용자가 "계정 권한별 Setting 노출 확인"을 요구해
+조사하다가, 이 기능이 **2026-08-20 커밋 `9fa0274`로 이미 완전 자동화돼 있었음**을
+발견했다 — `automation_scope.json`은 정확히 FULL로 기록하고 있었는데,
+`tests/workflow13.py` 상단 docstring(2026-08-19 날짜, "4~6단계는 MANUAL")과
+`run.py --help` 문구가 그 이후 갱신되지 않아 코드와 반대로 말하고 있었다.
+`run-wf13` 라이브 재확인 — PASS, 사양서1 78~80쪽 권한 그룹별 메뉴 표(SRS 01-30-20)
+56개 항목 전부 일치, 시험 계정 원복·삭제까지 정상. 문서만 코드와 일치하도록
+정정했다(5절 ④, docstring, `--help`).
+
+**stale 브랜치.** `agent/add-next-task-handoff`는 `git fetch --prune` 후 확인해
+보니 로컬·`origin` 어디에도 이미 없었다(5절 ⑤). 삭제할 대상이 없다.
+
+**P1 — `probe-preset3d` 실측 + XIPL_07 Default 상속 판정.** `python run.py
+probe-preset3d`를 실행하려다 기존 코드의 `sorted(rows)` 정렬 버그(같은
+`(top,left)` 좌표를 가진 행이 있으면 `Control` 객체끼리 비교하려다
+`TypeError`)를 먼저 고쳤다. 실측 결과 — 2D 열(2554/2548/2549, 기존 확정)과
+나란히 있는 3D-N(2555/2550/2551)/3D-W(2556/2552/2553) 열은 **완전히 같은
+View Position 추가 다이얼로그**(Type/Laterality/Prefix/View Position/Implant/
+Roll 6컬럼, OK=1101/Cancel=1102)를 공유하고, 2D의 `_PRESET_ROLL_X=1357`도
+그대로 재사용된다. 이를 바탕으로 `core/flows.py`에 `PRESET_3D_N_*`/
+`PRESET_3D_W_*` 상수를 추가하고, `tests/xipl_flows.py`에 `_add_preset_3d_pair`/
+`_delete_last_preset_3d_pair`/`_verify_preset_inherits_default`를 신설해
+`TC_XIPL_compatibility_07`에 보강 체크로 붙였다 — CC+Roll=RL 조합을 3D-N/3D-W
+각각 추가한 직후 `VIEW_POSITION_PRESET.XIPLParamName`이 그 시점
+`PROCEDURE_COMMON.Default{Narrow,Wide}Recon`과 같은지 DB로 확인하고 UI로
+지워 원상복구한다. `run-xipl-07` 라이브 재검증 — Step 1~9 전부 PASS, 새
+체크도 3D-N/3D-W 둘 다 PASS(`stamped` 값이 그 시점 시험용 Default,
+예: `TEST_3D_NARROW.xtp`, 와 정확히 일치). `automation_scope.json`의 gap을
+해소로 정정했다.
+
+> **라이브 조사 중 자동화가 만든 실수와 복구.** 다이얼로그 조사·시험 행
+> 추가/삭제를 라이브로 반복하다 삭제 클릭이 의도한 시험 행이 아니라 3D-N의
+> 캔버스 행("AT" 쌍)을 함께 지운 적이 있다(고정 픽셀 좌표를 추정해 쓴 탓 —
+> 다이얼로그가 세션마다 다른 위치에 뜬다는 것을 놓쳤다). 3D-W(손대지 않은
+> 대조군)와 구조를 전수 대조해 무엇이 없어졌는지 확인한 뒤, 같은 Add
+> 다이얼로그로 그 View Position을 다시 만들어 **구조가 3D-W와 완전히
+> 일치할 때까지** 복구했다. 이 경험으로 실제 구현(`_delete_last_preset_3d_pair`)은
+> 고정 좌표를 전혀 쓰지 않고 `list_ctrl.rect`를 매번 다시 읽어 계산한다.
+> 삭제 뒤에는 항상 DB로 재대조해, 실패하면 `cleanup_error`로 보고하고
+> TC를 FAIL 시킨다(조용히 넘기지 않는다).
+
+**P2 — `run-sys3d`/`run-ui` 고정 대기 전환.** `run-sys3d`
+(`tests/system_compat.py` Step 3)의 `demo_acquire_step(settle=20)`을
+`settle=0` + `viewer_processing.wait_new_group`으로 바꿨다(WF_07/XIPL_04/07과
+같은 패턴). `run-ui`(`tests/ui_flows.py`)의 `flows.demo_acquire(settle=14)`는
+2D라 3D처럼 "Group + 세 타입"을 기다릴 대상이 없어 `wait_new_group`을 그대로
+못 쓴다 — 대신 `core.flows.demo_acquire`에 `db`/`study_key`를 선택적으로 받는
+경로를 추가해, 주면 그 Study의 `INSTANCE` 행 수 증가로 기다리고 안 주면 기존
+고정 대기 그대로 동작한다(하위 호환, `demo_acquire_step`에도 같은 방식의
+`wait_fn` 콜백을 추가). 라이브 재검증 — `run-sys3d`: 3D-N/3D-W 모두 Step 3
+PASS(판정 동일, 처리시간은 2026-08-24 실측치인 29.5초/39.7초 그대로 반영되고
+불필요한 고정 20초 패딩만 빠짐). `run-ui`: `TC_Basic_WorkFlow_01`/`_03` 모두
+PASS(F8 2회 → 영상 2건·그룹 2건 정확히 일치, 판정 동일).
+
+검증: 정적 검사 4종·`py_compile` 통과, 단위시험 151건 통과(새 UI 헬퍼는 라이브
+UI에 의존해 별도 단위시험을 추가하지 않았다 — 기존 `_add_preset_2d_pair` 류와
+같은 관례).
+
 ---
 
 ## 3. 남은 문제
@@ -690,21 +759,31 @@ rename) 쓴다. 기록 실패(`OSError`)가 회귀 자체를 막지 않는다.
 
 ### P1
 
-6. **자동화 리팩터링과 속도 개선을 계속 다음 개발의 중심으로 둔다.** WF_07/XIPL_04
-   전환의 라이브 재검증(위 P0 #1)이 끝나면, `run-sys3d`/`run-ui`(회귀 밖 명령)에 남은
-   `demo_acquire_step` 고정 대기도 `wait_new_group`으로 바꿀지 판단한다. 판정 기준·
-   Workflow 순서·제품 상태 변경 방식은 유지하고, 변경 전후 실행 시간과 동일 판정 결과를
-   함께 검증한다.
-7. `python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 → `core/flows.py`
-   상수로 기록.
-8. 그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual 근거)를
-   `XIPL_07` 에 추가.
+6. ~~`python run.py probe-preset3d` 로 3D-N/3D-W Preset 목록 컨트롤 실측 →
+   `core/flows.py` 상수로 기록.~~ — **2026-09-03 완료**(2-N절). `PRESET_3D_N_LIST`
+   (2555)/`PRESET_3D_N_ADD`(2550)/`PRESET_3D_N_DELETE`(2551),
+   `PRESET_3D_W_LIST`(2556)/`PRESET_3D_W_ADD`(2552)/`PRESET_3D_W_DELETE`(2553).
+   실측 중 `_probe_preset3d`(조회 전용)의 `sorted(rows)` 정렬 버그(같은
+   `(top,left)` 행이 있으면 `Control` 객체끼리 비교하다 죽음)도 고쳤다.
+7. ~~그 위에 "새 3D Preset 이 그 시점 Default 를 물려받는가"(Service Manual
+   근거)를 `XIPL_07` 에 추가.~~ — **2026-09-03 완료**(2-N절). `run-xipl-07`
+   라이브 재검증 Step 1~9 전부 PASS + 새 보강 체크 3D-N/3D-W 둘 다 PASS.
+   `automation_scope.json` 의 gap 도 해소로 정정.
 
 ### P2
 
-9. ~~`flows.close_examine` 의 no-dialog 경로 상태 신호화~~ — **2026-08-31 완료**(2-C절). `WF_07` 외 다른 `close_examine` 호출부(`WF_04`/`WF_10`/`XIPL` 등)도 같은 `close_examine_confirmed` 로 옮길지는 전체 회귀에서 재시도가 실제로 걸리는지 본 뒤 판단한다 — 지금은 근거 없이 넓히지 않는다.
-10. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
-11. ~~`XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1)~~ — **2026-09-01 완료.**
+8. ~~`flows.close_examine` 의 no-dialog 경로 상태 신호화~~ — **2026-08-31 완료**(2-C절). `WF_07` 외 다른 `close_examine` 호출부(`WF_04`/`WF_10`/`XIPL` 등)도 같은 `close_examine_confirmed` 로 옮길지는 전체 회귀에서 재시도가 실제로 걸리는지 본 뒤 판단한다 — 지금은 근거 없이 넓히지 않는다.
+9. 추적성 미확정 중 `Install_01` — 검증 대상 Release Note 를 받으면 확보 가능.
+10. ~~`XIPL_05` Fiber 콤보 항목 구성 재검토(3절 #1)~~ — **2026-09-01 완료.**
+11. ~~`run-sys3d`/`run-ui`(회귀 밖 명령)에 남은 `demo_acquire_step` 고정 대기를
+    `wait_new_group`/DB 행 수 대기로 전환~~ — **2026-09-03 완료**(2-N절).
+    `run-sys3d`: `system_compat.py` Step 3 에 `wait_new_group` 적용, 라이브
+    재검증 판정 동일(Step 3 PASS, 3D-N/3D-W 각 실측 처리시간 그대로 반영되고
+    불필요한 고정 20초 패딩만 제거). `run-ui`: 2D 는 3D 처럼 "Group+세 타입"을
+    기다릴 대상이 없어 `wait_new_group`을 그대로 못 쓴다 — `core.flows.demo_acquire`
+    에 `db`/`study_key`를 주면 그 Study의 `INSTANCE` 행 수 증가로 기다리는
+    경로를 새로 추가했다(안 주면 기존 고정 대기 그대로, 하위 호환). 라이브
+    재검증 판정 동일(F8 2회 → 영상 2건·그룹 2건 정확히 일치).
 
 ---
 
@@ -727,22 +806,28 @@ FAIL 이 나면 그 TC 를 중단하므로 첫 FAIL 뒤의 판정 정보는 수�
 원하시면 `config.json > regression.stop_tc_on_fail` 을 `false` 로 두면 예전처럼 끝까지
 수행한다.
 
-### ④ `TC_Basic_WorkFlow_13` Step 4~6 — 로그인 계정 전환을 자동화할지
+### ④ ~~`TC_Basic_WorkFlow_13` Step 4~6 — 로그인 계정 전환을 자동화할지~~ — **2026-08-20에 이미 구현·승인·완료됨. 이 항목은 문서 누락이었다(2026-09-03 정정)**
 
-로그오프 후 시험 계정으로 로그인하면 회귀의 나머지 TC 가 권한이 제한된 계정으로
-실행된다. 중간에 실패하면 로그인 상태를 복구하지 못해 뒤따르는 TC 가 연쇄로 무너진
-전례가 있다(회귀 7·13·14차). 복구 절차를 합의한 뒤에만 붙인다.
+이 항목은 실제로 **2026-08-20 커밋 `9fa0274`("WF_13 완전 자동화 — 사양서 권한 표
+56개 항목 전부 판정")로 이미 해결됐다.** 사용자가 사양서1 78~80쪽 계정 그룹별
+사용 가능 메뉴 표(SRS 01-30-20)를 확인해 줘서, **로그인 시도 전에 복구 플래그를
+세우고 `finally`에서 반드시 원래 계정으로 `cold_start` 복구 + 시험 계정 삭제**하는
+방식으로 자동화했다 — 이 TC 안에서만 계정이 바뀌고 회귀의 다른 TC(모두 service
+계정)는 영향받지 않는다. 2026-08-20 실측 56/56 일치(User는 Software Info./
+Account/CS/Image Tool/Hospital Code만 보이고 나머지 49개는 미표시). `automation_scope.json`도
+이 TC를 FULL로 정확히 기록하고 있었다.
 
-### ⑤ 스테일 브랜치 `agent/add-next-task-handoff` 삭제
+이 항목이 5절에 계속 남아 있던 것과 `tests/workflow13.py` 상단 docstring(2026-08-19
+날짜, "4~6단계는 MANUAL로 남긴다")·`run.py --help` 문구가 08-20 구현 이후에도
+갱신되지 않은 것은 **순수한 문서 누락**이었다 — 코드는 그 이후로도 계속 정상 동작해
+왔고(2-D절 등 여러 회차에서 "run-wf13은 이미 확인 완료"로 재확인됨), 2026-09-03에
+docstring/도움말/이 항목을 코드와 일치하도록 정정했다.
 
-2026-08-11 에 판 작업용 브랜치이고 `main`의 조상(고유 커밋 0개, `git diff` 비어 있음
-— 2026-08-25 실측)이라 지워도 내용은 잃지 않는다. 로컬·`origin` 양쪽에 남아 있다.
-승인하시면:
+### ⑤ ~~스테일 브랜치 `agent/add-next-task-handoff` 삭제~~ — **2026-09-03 확인: 이미 없음**
 
-```bash
-git branch -d agent/add-next-task-handoff
-git push origin --delete agent/add-next-task-handoff
-```
+사용자가 삭제를 승인했으나, `git fetch origin --prune` 후 확인해 보니 로컬·`origin`
+어디에도 이 브랜치가 존재하지 않았다(`git branch -a`에 `main`만 남음). 언제
+없어졌는지는 이 세션에서 추적하지 못했다 — 지울 대상이 이미 없으므로 조치는 끝났다.
 
 ### ⑥ ~~`close_examine` no-dialog 경로를 고칠지~~ — 2026-08-31 승인·완료
 
@@ -1023,18 +1108,23 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
 라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의 closed.attempts 값을
 확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
 
-**다음 할 일 — 순서대로가 아니라 성격이 다른 세 갈래다.**
-1. **P1/P2(자동화 리팩터링·속도 개선, 4절)** — `probe-preset3d` 3D Preset 실측,
-   `run-sys3d`/`run-ui`의 고정 대기 전환. **급하지 않고 실물 UI를 오래 점유하는
-   작업이라, 착수 전에 사용자에게 지금 진행해도 되는지 먼저 물어라** — 2026-09-03에
-   사용자가 이렇게 요청했다.
-2. **5절 사용자 판단 대기 항목** — `Install_01`/`Install_02`는 사용자가 자료를 줄 때만
-   진행(그 전엔 Install TC를 건드리지 말고 MANUAL/SKIP 그대로 둔다), `WF_13` 로그인
-   계정 전환 자동화 여부와 stale 브랜치 삭제는 승인 문구 그대로 사용자에게 다시
-   확인해라.
-3. **2-M절 Hub/Worker 연동 후속** — `AI-Remote-Control` 쪽 진행 상황을 사용자에게
-   물어보고, 그쪽이 필요로 하는 다음 정보(예: 완료/실패 시그널, 재시작 트리거 등)를
-   함께 설계해라. 이 저장소만 보고 추측하지 마라.
+**다음 할 일 — P1/P2 는 2026-09-03에 전부 끝났다(2-N절). 남은 건 두 갈래다.**
+1. ~~P1/P2(자동화 리팩터링·속도 개선, 4절)~~ — **완료.** `probe-preset3d` 3D Preset
+   실측 → XIPL_07 Default 상속 판정, `run-sys3d`/`run-ui`의 고정 대기 전환 모두
+   구현하고 라이브로 재검증했다(판정 동일). WF_13 계정 권한 확인도 이미
+   2026-08-20에 구현돼 있던 것으로 확인됨(문서만 정정). stale 브랜치는 이미
+   없음을 확인했다.
+2. **개별 TC 검증이 전부 끝났으니, 전체 회귀(`run-regression`)를 돌리기 전에
+   반드시 사용자에게 "지금 수행해도 되냐"고 먼저 물어라** — 2026-09-03에 사용자가
+   명시적으로 이렇게 요청했다. 그전에는 돌리지 마라.
+3. **2-M절 Hub/Worker 연동 후속** — `AI-Remote-Control`은 `hongmin3/AI-Remote-Control`
+   (GitHub, private, Issue 기반 원격 실행)로 위치를 확인했다. 그 저장소의
+   `background_watch.py`가 `work/regression_state.json`을 실제로 어떻게 쓰는지는
+   아직 안 봤다 — 필요하면 그 저장소를 열어 직접 확인해라(사용자에게 물을 필요
+   없이 이 세션에서 `gh repo view`/`gh issue` 등으로 조회 가능했다).
+4. **5절 사용자 판단 대기 항목(남은 것)** — `Install_01`/`Install_02`는 사용자가
+   자료를 줄 때만 진행(그 전엔 Install TC를 건드리지 말고 MANUAL/SKIP 그대로
+   둔다). ④(WF_13)·⑤(stale 브랜치)는 이미 해소됐다.
 
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행

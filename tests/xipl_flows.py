@@ -855,10 +855,11 @@ def _add_preset_2d_pair(ui, roll_row):
         raise flows.FlowError("Preset(2D) 추가 실패(이미 존재하거나 오류)")
 
 
-def _scroll_preset_list_to_bottom(ui, rounds=20):
-    list_ctrl = [c for c in ui.by_id(flows.PRESET_2D_LIST) if c.visible]
+def _scroll_preset_list_to_bottom(ui, rounds=20, list_id=None):
+    list_id = list_id or flows.PRESET_2D_LIST
+    list_ctrl = [c for c in ui.by_id(list_id) if c.visible]
     if not list_ctrl:
-        raise flows.FlowError("Preset(2D) 목록(2554)을 찾지 못했습니다.")
+        raise flows.FlowError(f"Preset 목록({list_id})을 찾지 못했습니다.")
     l, t, rr, b = list_ctrl[0].rect
     center = ((l + rr) // 2, (t + b) // 2)
     for _ in range(rounds):
@@ -867,14 +868,20 @@ def _scroll_preset_list_to_bottom(ui, rounds=20):
     return list_ctrl[0]
 
 
-def _find_preset_row_y(ctx, ui, name_text, tag):
-    """Preset(2D) 목록을 스크롤해 name_text 행을 OCR로 찾고 절대 y좌표를 반환한다."""
-    list_ctrl = _scroll_preset_list_to_bottom(ui)
-    shot = _ev(ctx, f"TC_XIPL_compatibility_04_{tag}_list.png")
+def _find_preset_row_y(ctx, ui, name_text, tag, list_id=None,
+                       evidence_prefix="TC_XIPL_compatibility_04"):
+    """Preset 목록을 스크롤해 name_text 행을 OCR로 찾고 절대 y좌표를 반환한다.
+
+    `list_id`를 주면 2D(기본)가 아니라 3D-N/3D-W 목록(`flows.PRESET_3D_N_LIST`/
+    `PRESET_3D_W_LIST`)에서 찾는다 — 셋 다 같은 레이아웃을 쓴다(2026-09-03 실측).
+    """
+    list_ctrl = _scroll_preset_list_to_bottom(ui, list_id=list_id)
+    shot = _ev(ctx, f"{evidence_prefix}_{tag}_list.png")
     vp.capture_viewer_window(ui, shot)
     boxes = vp.find_text_boxes(shot, name_text)
     if not boxes:
-        raise flows.FlowError(f"Preset(2D) 목록에서 '{name_text}' 행을 찾지 못했습니다.")
+        raise flows.FlowError(f"Preset 목록({list_id or flows.PRESET_2D_LIST})에서"
+                              f" '{name_text}' 행을 찾지 못했습니다.")
     win = ui.main_window()
     x, y, w, h, _ = max(boxes, key=lambda b: b[4])
     row_y = win.rect[1] + y + h / 2
@@ -1035,6 +1042,119 @@ def _delete_test_presets(ctx, ui):
         raise flows.FlowError(
             f"시험 Preset이 남아 있습니다: {[_preset_row_name(r) for r in left]}")
     return {"deleted": sorted(gone), "clicked_rows": removed}
+
+
+def _add_preset_3d_pair(ui, add_id, label, roll_row=1):
+    """Preset(3D-N/3D-W)에 CC+Roll 조합(R/L 쌍)을 추가한다.
+
+    2D의 `_add_preset_2d_pair`와 완전히 같은 View Position 다이얼로그를 쓴다
+    (2026-09-03 `probe-preset3d` 실측: OK=1101/Cancel=1102, Roll 컬럼
+    x=1357(`_PRESET_ROLL_X`)도 그대로 재사용된다. Laterality=Both/Prefix=None/
+    View Position=CC/Implant=None은 다이얼로그의 기본 선택값이라 손대지 않는다
+    — Type만 누른 Add 버튼(2550=3D-N/2552=3D-W)에 따라 이미 고정돼 있다).
+    """
+    add_btn = [c for c in ui.by_id(add_id) if c.visible]
+    if not add_btn:
+        raise flows.FlowError(f"Preset({label}) Add 버튼({add_id})을 찾지 못했습니다.")
+    ui.click(add_btn[0], settle=1.2)
+    dlg = ui.wait_dialog(timeout=6)
+    if not dlg:
+        raise flows.FlowError("View Position 다이얼로그가 열리지 않았습니다.")
+    _select_preset_column_item(ui, _PRESET_ROLL_X, roll_row)
+    ok = [c for c in ui.by_id(1101) if c.visible]
+    if not ok:
+        raise flows.FlowError("View Position 추가 OK 버튼을 찾지 못했습니다.")
+    ui.click(ok[0], settle=1.5)
+    err_ok = [c for c in ui.by_id(flows.SETTING_CONFIRM_OK) if c.visible]
+    if err_ok:
+        ui.click(err_ok[0], settle=1)
+        raise flows.FlowError(f"Preset({label}) 추가 실패(이미 존재하거나 오류)")
+
+
+def _delete_last_preset_3d_pair(ui, list_id, delete_id):
+    """Preset(3D-N/3D-W) 목록의 **맨 마지막 행**을 UI Delete로 지운다
+    (R/L 쌍이 함께 지워진다).
+
+    `_add_preset_3d_pair`가 만드는 행은 항상 Key 최댓값이라 화면에도 항상
+    마지막에 표시된다(`_preset_recon_rows`의 `ORDER BY p.[Key]`와 화면 표시
+    순서가 실측으로 일치함을 확인했다) — 그래서 2D의 `_find_preset_row_y`처럼
+    이름을 OCR로 찾지 않고 **위치로만** 지운다.
+
+    2026-09-03 라이브 실측(`run-xipl-07`): `RCCRL`/`LCCRL` 같은 6글자 텍스트는
+    OCR이 찾지 못했다(2D의 5글자 별칭에는 없던 문제) — 그래서 이 경로만 위치
+    기반으로 바꿨다. 목록 맨 아래에는 가로 스크롤바가 있어 `rect`의 실제
+    바닥(`rect[3]`)과 마지막 행 사이에 여백이 있다 — 마지막 행 중심은
+    `rect[3] - 36`(행 높이 35 + 여백, 스크롤 끝까지 내린 상태에서 실측 확정).
+    """
+    list_ctrl = _scroll_preset_list_to_bottom(ui, list_id=list_id)
+    l, t, r, b = list_ctrl.rect
+    row_y = b - 36
+    ui.click((l + 60, row_y), settle=.4)
+    delete = [c for c in ui.by_id(delete_id) if c.visible]
+    if not delete:
+        raise flows.FlowError(f"Preset Delete 버튼({delete_id})을 찾지 못했습니다.")
+    ui.click(delete[0], settle=.8)
+    flows.confirm_setting_dialog(ui, timeout=3)
+
+
+def _verify_preset_inherits_default(ctx, ui):
+    """Preset에 새로 추가하는 View Position이 그 시점 General Default를
+    물려받는지 3D-N/3D-W 각각 확인한다(automation_scope.json 의
+    `TC_XIPL_compatibility_07` gap, 2026-09-03 `probe-preset3d` 실측으로 해소).
+
+    근거 — Service Manual 'Procedure 그룹 > General 메뉴': "Preset에 새로
+    추가하는 View Position이나 영상 처리 파라미터 및 Recon 파라미터가 등록되어
+    있지 않은 View Position을 촬영할 때, Default로 설정한 파라미터를
+    적용합니다." 3D-N/3D-W Preset 목록의 추가·삭제 컨트롤 ID가 실측되지
+    않아(2D만 확정돼 있었다) 지금까지 이 경로를 판정하지 못했다.
+
+    실제 촬영까지는 하지 않는다 — 이 TC의 Step 5~8이 이미 **기존** Preset
+    행으로 "Recon Parameter 가 영상에 실제로 적용된다"는 경로를 .img 교차
+    검증까지 마쳤다(사양서1 SRS 03-50-230). 이 보강 체크는 "새 행이 생기는
+    순간 그 시점 General Default 를 물려받는가"만 확인한다 — CC+Roll=RL 조합을
+    추가한 직후 `VIEW_POSITION_PRESET.XIPLParamName`이 그 순간의
+    `PROCEDURE_COMMON.Default{Narrow,Wide}Recon`과 같은지 DB로 대조하고,
+    UI로 지워 원상복구한다(2026-09-03 라이브로 add→즉시 DB 반영, delete→즉시
+    DB 반영을 직접 확인했다 — Update 버튼이 따로 필요 없다).
+    """
+    result = {}
+    for mode in XIPL07_MODES:
+        current_default = _procedure_defaults(ctx).get(mode["db_column"])
+        flows.open_procedure_setting(ui, "preset")
+        _add_preset_3d_pair(ui, mode["preset_add"], mode["label"], roll_row=1)
+        cleanup_error = None
+        stamped = {}
+        try:
+            rows = ctx.db.query(
+                "PROCEDURE",
+                "SELECT Laterality,XIPLParamName FROM VIEW_POSITION_PRESET "
+                "WHERE Type=@t AND Roll='RL' AND PositioningKey=1",
+                {"t": int(mode["preset_type"])})
+            stamped = {int(row["Laterality"]): row["XIPLParamName"] for row in rows}
+        finally:
+            try:
+                flows.open_procedure_setting(ui, "preset")
+                _delete_last_preset_3d_pair(
+                    ui, mode["preset_list"], mode["preset_delete"])
+                left = ctx.db.query(
+                    "PROCEDURE",
+                    "SELECT [Key] FROM VIEW_POSITION_PRESET "
+                    "WHERE Type=@t AND Roll='RL' AND PositioningKey=1",
+                    {"t": int(mode["preset_type"])})
+                if left:
+                    raise flows.FlowError(
+                        f"시험 행이 삭제되지 않았습니다(남은 Key={sorted(int(r['Key']) for r in left)}) "
+                        f"- Setting > Procedure > Preset ({mode['label']}) 에서 수동 삭제 필요")
+            except Exception as exc:                     # noqa: BLE001
+                cleanup_error = str(exc)
+        result[mode["label"]] = {
+            "default_at_add_time": current_default,
+            "stamped": stamped,
+            "ok": len(stamped) == 2
+            and all(value == current_default for value in stamped.values()),
+            "cleanup_error": cleanup_error,
+        }
+    return result
 
 
 def compatibility_04(ctx):
@@ -2017,10 +2137,14 @@ XIPL07_MODES = (
     {"key": "3d", "label": "3D-N", "preset_type": 1, "exposure_mode": 1,
      "combo": flows.PROCEDURE_GENERAL_PARAM_3D_N, "param": vp.PARAM_3D_NARROW,
      "db_column": "DefaultReconNarrow",
+     "preset_list": flows.PRESET_3D_N_LIST, "preset_add": flows.PRESET_3D_N_ADD,
+     "preset_delete": flows.PRESET_3D_N_DELETE,
      "caption": "3D-N", "rotation": "-7.5~7.5도"},
     {"key": "3d-w", "label": "3D-W", "preset_type": 2, "exposure_mode": 2,
      "combo": flows.PROCEDURE_GENERAL_PARAM_3D_W, "param": vp.PARAM_3D_WIDE,
      "db_column": "DefaultReconWide",
+     "preset_list": flows.PRESET_3D_W_LIST, "preset_add": flows.PRESET_3D_W_ADD,
+     "preset_delete": flows.PRESET_3D_W_DELETE,
      "caption": "3D-W", "rotation": "-15~15도"},
 )
 
@@ -2122,10 +2246,12 @@ def _preset_page_words(shot):
 def _preset_page_captions(ctx, ui, r):
     """Setting > Procedure > Preset 화면이 모드별 목록을 표시하는지 OCR 로 읽는다.
 
-    3D-N/3D-W 목록의 **컨트롤 ID 는 실측되지 않았다**(2D 목록만 2554 로 확정돼
-    있다). 그래서 목록을 조작하지 않고, 화면에 그 두 항목과 **문서에 적힌 열
-    이름**이 표시되는지만 확인한다. 조작이 필요 없는 이유는 판정 대상이
-    Setting > Procedure > General 의 모드별 Default 이기 때문이다(체크리스트 Step 1~2).
+    (2026-09-03 `probe-preset3d` 로 3D-N/3D-W 목록·추가·삭제 컨트롤 ID도 실측해
+    `flows.PRESET_3D_N_*`/`PRESET_3D_W_*` 로 확정했다 — `_verify_preset_inherits_
+    default` 가 그것으로 새 행을 추가·삭제한다. 이 함수 자체는 여전히 목록을
+    조작하지 않는다 — 판정 대상이 Setting > Procedure > General 의 모드별
+    Default 이기 때문이다(체크리스트 Step 1~2)). 화면에 두 목록과 **문서에
+    적힌 열 이름**이 표시되는지만 OCR 로 확인한다.
 
     반환: {"ocr": {단어: 횟수}, "ok": bool, "shot": 경로}
     """
@@ -2330,6 +2456,25 @@ def compatibility_07(ctx):
                  "Recon Param(3D)`)와 같다. 구성은 "
                  "PROCEDURE.VIEW_POSITION_PRESET × VIEW_POSITION_POSITIONING "
                  "전수 대조. " + specs.cite(ctx, r"설정 가능한 3D Viewposition"))
+
+        # --- 보강: Preset 에 새로 추가하는 View Position 이 Default 를
+        # 물려받는가(automation_scope.json gap, 2026-09-03 해소) -------------
+        inherit = _verify_preset_inherits_default(ctx, ui)
+        inherit_ok = all(value["ok"] for value in inherit.values())
+        cleanup_ok = all(value["cleanup_error"] is None for value in inherit.values())
+        r.add(0, "Preset 에 새로 추가한 View Position 이 그 시점 General "
+                 "Default 를 물려받는지 확인",
+              PASS if (inherit_ok and cleanup_ok) else FAIL,
+              expected="CC+Roll=RL 로 3D-N/3D-W 각각 새 행을 추가한 직후 "
+                       "VIEW_POSITION_PRESET.XIPLParamName 이 추가 시점의 "
+                       "General Default 와 같다",
+              actual=inherit,
+              note="Service Manual 'Procedure 그룹 > General 메뉴' — \"Preset "
+                   "에 새로 추가하는 View Position 이나 ... 등록되어 있지 않은 "
+                   "View Position 을 촬영할 때, Default 로 설정한 파라미터를 "
+                   "적용합니다.\" 시험 행은 확인 즉시 UI Delete 로 원상복구한다"
+                   + ("" if cleanup_ok else " — 복구 실패, cleanup_error 확인 후"
+                                            " 수동 정리 필요"))
 
         close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700
                  and c.rect[1] < 100]

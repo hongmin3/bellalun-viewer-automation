@@ -508,7 +508,7 @@ def _probe_preset3d(ctx):
         if right - left < 8 or bottom - top < 8:
             continue
         rows.append((top, left, c))
-    for _, _, c in sorted(rows):
+    for _, _, c in sorted(rows, key=lambda row: (row[0], row[1])):
         left, top, right, bottom = c.rect
         rel = (left - pane[0], top - pane[1], right - pane[0], bottom - pane[1])
         print(f"{c.ctrl_id:>8}  {c.cls:<28} {str(rel):<28} {c.text!r}")
@@ -551,7 +551,7 @@ def main():
     sub.add_parser("run-wf12",
                    help="TC_Basic_WorkFlow_12 Study Reject 및 Restore")
     sub.add_parser("run-wf13",
-                   help="TC_Basic_WorkFlow_13 계정 추가·수정 (1~3단계 자동)")
+                   help="TC_Basic_WorkFlow_13 계정 추가·수정 및 로그인 (1~6단계 완전자동)")
     sub.add_parser("run-wf10",
                    help="TC_Basic_WorkFlow_10 MWL Hospital Code와 Procedure 매핑")
     sub.add_parser("run-wf11",

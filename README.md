@@ -98,7 +98,7 @@ Bellalun Viewer\
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
-| 규모 | Python **32,500줄** / 모듈 86개 — core 15,881(37) · tests 13,983(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-02 재실측 |
+| 규모 | Python **32,700줄** / 모듈 86개 — core 15,925(37) · tests 14,139(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-03 재실측 |
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
 | 최신 전체 회귀 | 2026-09-02 20:58~22:53 (28차) — TC 27건 : PASS 23 / FAIL 2 / MANUAL 2 (115.3분)<br>그 안의 검증 302개 : PASS 292 / FAIL 7 / MANUAL 2 / SKIP 1 |

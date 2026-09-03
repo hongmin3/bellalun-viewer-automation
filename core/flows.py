@@ -1009,10 +1009,19 @@ PROCEDURE_GENERAL_PARAM_2D = 2542
 PROCEDURE_GENERAL_PARAM_3D_N = 2543
 PROCEDURE_GENERAL_PARAM_3D_W = 2544
 
-# Setting > Procedure > Preset 페이지 (2D 열만 사용)
+# Setting > Procedure > Preset 페이지 — 3열(2D/3D-N/3D-W)이 나란히 있다.
+# 2026-09-03 `probe-preset3d`(조회 전용) 실측: 세 열의 목록·Add·Delete가
+# 정확히 6씩 이어지는 대칭 구조다. View Position 추가 다이얼로그(OK=1101/
+# Cancel=1102)는 2D/3D 공통이며 Type만 누른 Add 버튼에 따라 고정된다.
 PRESET_2D_LIST = 2554
 PRESET_2D_ADD = 2548
 PRESET_2D_DELETE = 2549
+PRESET_3D_N_LIST = 2555
+PRESET_3D_N_ADD = 2550
+PRESET_3D_N_DELETE = 2551
+PRESET_3D_W_LIST = 2556
+PRESET_3D_W_ADD = 2552
+PRESET_3D_W_DELETE = 2553
 
 # Update 후 뜨는 결과 팝업(성공/오류 공통)의 OK 버튼
 SETTING_CONFIRM_OK = 500
@@ -2528,12 +2537,19 @@ def select_step(ui, index, scroll_tries=8):
     return items[index - 1]
 
 
-def demo_acquire_step(ui, index, settle=14, ready_timeout=20):
+def demo_acquire_step(ui, index, settle=14, ready_timeout=20, wait_fn=None):
     """index번째 Step을 선택하고 Ready를 확인한 뒤 1회 가상 촬영한다.
 
     반환: {"step": index, "ready": bool|None, "green_ratio": float}
     Ready가 아니면 촬영하지 않는다 (미등록 상태에서 F8을 눌러도 영상이
     생기지 않아 '촬영했는데 실패'로 오판정되는 것을 막는다).
+
+    `wait_fn`을 주면 F8 뒤 고정 대기(`settle`) 대신 그 콜백으로 완료를
+    기다린다(예: DB 영상 도착 확인). 콜백은 완료될 때까지 내부에서 블로킹
+    하는 것이 책임이다 — 반환값은 쓰지 않는다. `settle`은 다른 모든 콜사이트가
+    이미 `settle=0` + 자체 DB 대기(`viewer_processing.wait_new_group`)로
+    전환했고(2026-08-31), `wait_fn`은 `run-ui`처럼 한 호출 안에서 여러 Step을
+    순회하며 매번 다른 대기 조건을 걸어야 하는 경우를 위한 것이다.
     """
     select_step(ui, index)
     st = wait_ready(ui, timeout=ready_timeout)
@@ -2544,12 +2560,16 @@ def demo_acquire_step(ui, index, settle=14, ready_timeout=20):
         return info
     ui.activate()
     ui.key("F8", settle=0.5)
-    time.sleep(settle)
+    if wait_fn is not None:
+        wait_fn()
+    else:
+        time.sleep(settle)
     info["skipped"] = False
     return info
 
 
-def demo_acquire(ui, count=1, settle=14):
+def demo_acquire(ui, count=1, settle=14, db=None, study_key=None,
+                 poll=0.5, timeout=60):
     """Demo 모드 가상 촬영 (F8)을 count회 수행한다.
 
     근거: Service Manual 5.2.3. 실제 X-ray·팬텀 없이 영상이 획득된다.
@@ -2560,6 +2580,14 @@ def demo_acquire(ui, count=1, settle=14):
       - 이미 촬영된 Step은 상태 배너가 Ready가 되지 않으므로 건너뛴다.
       따라서 Step을 순회하며 Ready인 것만 촬영한다.
 
+    `db`/`study_key`를 주면 각 촬영 뒤 고정 대기(`settle`) 대신 그 Study의
+    `INSTANCE` 행 수가 늘어날 때까지 기다린다(2026-09-03, `run-ui` 전환).
+    3D 콜사이트들처럼 `viewer_processing.wait_new_group`(Group + 세 타입
+    Raw/Recon/Syn 을 기다림)을 그대로 쓰지 못하는 이유는 2D 촬영은 Step 하나당
+    `InstanceType` 1개만 만들어 "세 타입이 다 들어옴"을 기다릴 대상이 없기
+    때문이다 — 그래서 이 함수 전용으로 "행 수 증가"만 기다리는 더 단순한
+    조건을 쓴다. 둘 다 없으면(기존 호출부와 동일) 고정 대기로 동작한다.
+
     반환: 시도한 Step별 결과 리스트.
     """
     ui.activate()
@@ -2568,7 +2596,23 @@ def demo_acquire(ui, count=1, settle=14):
     for idx in range(1, len(step_items(ui)) + 1):
         if shot >= count:
             break
-        info = demo_acquire_step(ui, idx, settle=settle)
+        wait_fn = None
+        if db is not None and study_key is not None:
+            before = db.scalar(
+                "DATA", "SELECT COUNT(*) FROM INSTANCE WHERE StudyKey="
+                         f"{int(study_key)}") or 0
+
+            def wait_fn(before=before):
+                end = time.time() + timeout
+                while time.time() < end:
+                    now = db.scalar(
+                        "DATA", "SELECT COUNT(*) FROM INSTANCE WHERE "
+                                 f"StudyKey={int(study_key)}") or 0
+                    if now > before:
+                        return
+                    time.sleep(poll)
+
+        info = demo_acquire_step(ui, idx, settle=settle, wait_fn=wait_fn)
         results.append(info)
         if not info.get("skipped"):
             shot += 1
