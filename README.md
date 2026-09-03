@@ -4,7 +4,7 @@
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
 사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 수행하고 판정 근거까지
-남기는** 자동화로 만들었습니다. 최신 전수 회귀는 115.3분이 걸렸습니다.
+남기는** 자동화로 만들었습니다. 최신 전수 회귀는 119.9분이 걸렸습니다.
 
 ```bash
 python run.py run-regression
@@ -101,8 +101,8 @@ Bellalun Viewer\
 | 규모 | Python **32,700줄** / 모듈 86개 — core 15,925(37) · tests 14,139(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-03 재실측 |
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
-| 최신 전체 회귀 | 2026-09-02 20:58~22:53 (28차) — TC 27건 : PASS 23 / FAIL 2 / MANUAL 2 (115.3분)<br>그 안의 검증 302개 : PASS 292 / FAIL 7 / MANUAL 2 / SKIP 1 |
-| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import 로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). **자동화 결함은 0건.** 직전 27차에서 새로 발견된 `TC_Basic_WorkFlow_08`(3D Print "Select Images" 창 미처리) 자동화 결함은 이 28차에서 수정 확인됨 |
+| 최신 전체 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건 : PASS 23 / FAIL 2 / MANUAL 2 (119.9분)<br>그 안의 검증 303개 : PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1 |
+| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import 로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). **자동화 결함은 0건.** 28차 이후 추가한 XIPL_07 3D Preset Default 상속 판정, run-sys3d/run-ui 상태 기반 대기 전환도 이 29차에서 회귀 없이 확인됨 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 73건, 위반 0 |
 | 자체 검사 | `tools/` 도구 11개 + 단위 시험 **151건** |

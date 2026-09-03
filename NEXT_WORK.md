@@ -13,7 +13,7 @@
 |---|---|---|
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — TC 37건 | `WF_14` Step 3 문구는 2026-08-28 사용자 승인으로 수정(원본은 `..\Baseline\Checklist_개정본_20260828_WF14Step3수정전.xlsx`) |
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
-| **최신 전체 회귀** | **28차, 2026-09-02 20:58~22:53 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 302개: PASS 292 / FAIL 7 / MANUAL 2 / SKIP 1, 115.3분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건** | `Reports/Result_20260902_225334.json` |
+| **최신 전체 회귀** | **29차, 2026-09-03 20:45~22:45 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1, 119.9분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건 — 이번 회차의 P1/P2(XIPL_07 보강, run-sys3d/run-ui 대기 전환)·WF_13 문서 정정 반영판으로도 회귀 없음 확인** | `Reports/Result_20260903_224518.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
 | **27차→28차: `WF_08` 수정 반영판 회귀로 최종 확인 완료** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 28차(`Result_20260902_225334.json`, 115.3분, PASS23/FAIL2/MANUAL2)에서 PASS로 확정됐다(2절 WF_08 행, 아래 2-L절) | `Reports/Result_20260902_225334.json` |
 | **09-03: 회귀 진행률을 `work/regression_state.json`에 기록하는 Hub/Worker 연동 착수** | `run.py` 회귀 루프가 TC마다 `core/automation_health.write_state()`를 호출해 진행률을 남긴다 — 외부 `AI-Remote-Control`(GitHub `hongmin3/AI-Remote-Control`)의 `background_watch.py`가 Claude 세션을 깨우지 않고 진행 상황을 읽게 하기 위함(아래 2-M절). 이 저장소 밖 소비 측 구현은 미확인 | 커밋 `65d44d5` |
@@ -660,6 +660,14 @@ PASS(F8 2회 → 영상 2건·그룹 2건 정확히 일치, 판정 동일).
 검증: 정적 검사 4종·`py_compile` 통과, 단위시험 151건 통과(새 UI 헬퍼는 라이브
 UI에 의존해 별도 단위시험을 추가하지 않았다 — 기존 `_add_preset_2d_pair` 류와
 같은 관례).
+
+**같은 날 이어서 — 29차 전체 회귀로 최종 확인.** 개별 TC 검증이 끝난 뒤
+사용자 승인을 받아 `tools/run_regression.py`(외부 감시 래퍼)를 완전히 분리된
+백그라운드 프로세스로 띄워 전체 회귀를 돌렸다(2026-09-03 20:45~22:45,
+119.9분). **PASS 23 / FAIL 2 / MANUAL 2**(`Reports/Result_20260903_224518.json`)
+— 28차와 TC 판정 동일, 자동화 결함 0건. 이번 회차에 바꾼 XIPL_07 보강 체크·
+run-sys3d/run-ui 대기 전환·WF_13 문서 정정이 전체 회귀 경로에서도 회귀를
+만들지 않았음을 확인했다. 남은 FAIL 2건은 여전히 3-A(UPS)·XIPL_03 제품 결함뿐이다.
 
 ---
 
