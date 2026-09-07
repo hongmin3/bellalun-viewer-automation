@@ -15,10 +15,14 @@
 **왜 그대로 RESTORE하지 않고 복사하는가 (실측 근거)**
   SQL Server는 `.bak`을 자동화 실행 계정이 아니라 **자기 서비스 계정**으로 읽는다.
   이 PC의 `SQL Server (BELLALUN)`은 `NT AUTHORITY\\LOCALSERVICE`로 실행되어
-  사용자 프로필/OneDrive 아래를 읽을 수 없다. 실제로 원본 경로를 그대로 주면
+  사용자 프로필 아래를 읽을 수 없다. 실제로 원본 경로를 그대로 주면
   `Cannot open backup device ... Operating system error 5(액세스가 거부되었습니다)`로
-  실패한다(2026-08-18 실측). 게다가 OneDrive 폴더는 파일이 클라우드 전용
-  placeholder일 수 있어 서비스 계정이 실체를 못 볼 위험도 있다.
+  실패한다(2026-08-18 실측 — 당시 저장소가 `%USERPROFILE%\\OneDrive\\Desktop`
+  아래 있었다).
+  2026-09-07에 OneDrive 동기화를 해지하고 저장소를 `C:\\자동화`(프로필 밖)로
+  옮겨, 이 PC에서는 서비스 계정이 `Baseline\\`을 직접 읽을 수 있게 됐다. 그래도
+  복사 단계는 그대로 둔다 — 기준 스냅샷 위치는 PC마다 다시 프로필 아래일 수
+  있고(위 `기준 스냅샷 위치` 참고), 그때 조용히 실패하는 쪽이 더 나쁘다.
   따라서 복원 직전에 `<data_dir>\\Backup\\Baseline`(앱 데이터 루트, 서비스 계정이
   읽을 수 있는 위치)로 복사한 뒤 그 사본에서 RESTORE한다.
 """
