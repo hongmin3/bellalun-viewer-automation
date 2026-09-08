@@ -524,6 +524,249 @@ def _probe_preset3d(ctx):
     return 0
 
 
+# ---------------------------------------------------------------------
+# Windows Update 호환성 검증 체크리스트(`run-winupdate`)
+#
+# **신규 TC를 만들지 않는다.** 이미 검증된 기본기능/XIPL 자동화를 재사용하고,
+# 그 결과를 WU 체크리스트로 매핑하는 얇은 계층이다(`tests/winupdate.py`).
+# 두 진입점(전용 체인 / `--from-regression`)이 `winupdate.build_wu_results()`
+# 하나를 공유한다 — 매핑 로직을 복제하지 않는다.
+# ---------------------------------------------------------------------
+
+WINUPDATE_CHECKLIST_NAME = "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx"
+
+
+def _winupdate_source_path(ctx):
+    """WU 체크리스트 원본을 PC 독립적으로 찾는다(`core/checklist.source_path`와 같은 방식)."""
+    override = (ctx.cfg.get("winupdate_checklist_xlsx") or "").strip()
+    if override and os.path.isfile(override):
+        return override
+    here = os.path.abspath(ctx.root)
+    for _ in range(4):
+        here = os.path.dirname(here)
+        if not here:
+            break
+        candidate = os.path.join(here, WINUPDATE_CHECKLIST_NAME)
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def _winupdate_env(ctx):
+    """WU 체크리스트 상단 1~4행(OS/OS Version/OS Build Version/Viewer Version)에 실을 실측값."""
+    from core import sysinfo
+    try:
+        pc = sysinfo.pc_info()
+        upd = sysinfo.os_update_info()
+        caption = str(pc.get("os_caption") or "")
+        os_label = ("Win11" if "Windows 11" in caption else
+                    "Win10" if "Windows 10" in caption else caption)
+        return {
+            "os": os_label,
+            "os_version": upd.get("display_version") or "",
+            "os_build": upd.get("build_full") or str(pc.get("os_build") or ""),
+            "viewer_version": sysinfo.file_version(ctx.cfg["viewer"]["exe"]) or "",
+        }
+    except Exception as exc:
+        print(f"  winupdate-env: 실측 실패 — {exc}")
+        return {}
+
+
+def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note=""):
+    """WU 판정을 xlsx(K열 삽입 + Issues 탭)와 JSON/CSV/HTML 리포트로 남긴다."""
+    from core import winupdate_report
+    for r in wu_results:
+        r.finalize()
+    env = _winupdate_env(ctx)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    result_paths = {}
+    source = _winupdate_source_path(ctx)
+    if not source:
+        expected = os.path.join("..", WINUPDATE_CHECKLIST_NAME)
+        print(f"  winupdate: 원본 xlsx를 찾지 못해 기록을 건너뜁니다 "
+              f"(config.json > winupdate_checklist_xlsx 또는 {expected}).")
+    else:
+        out = os.path.join(ctx.reports_root,
+                           f"WindowsUpdate_Checklist_Result_{stamp}.xlsx")
+        try:
+            info = winupdate_report.write_results(source, wu_results, env=env, out_path=out)
+            result_paths["xlsx"] = info["path"]
+            print(f"  winupdate xlsx: {info['path']} "
+                  f"(기록 {len(info['written'])}건, 미매칭 {len(info['unmatched'])}건, "
+                  f"issues {info['issues']}건)")
+        except Exception as exc:
+            print(f"  winupdate: xlsx 기록 실패 — {exc}")
+
+    command = "python " + " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "python run.py"
+    json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
+                              meta={"command": command, "env": env})
+    result_paths.update(json_paths)
+
+    for r in wu_results:
+        print(f"[{r.verdict}] {r.tc_id} - {r.title}")
+        for c in r.checks:
+            print(f"  [{c.status}] Step {c.step} {c.title}: {c.actual}")
+    print("Reports:")
+    for k, v in result_paths.items():
+        print(f"  {k}: {v}")
+    if source_note:
+        print(f"  근거: {source_note}")
+    announce_done(wu_results, elapsed_minutes, result_paths)
+    return 1 if any(r.verdict == "FAIL" for r in wu_results) else 0
+
+
+def _run_winupdate_from_regression(ctx, path):
+    """이미 끝난 전체 회귀 JSON을 재실행 없이 WU 체크리스트로 변환한다."""
+    import json as _json
+    from tests import winupdate
+
+    if not os.path.isfile(path):
+        print(f"[run-winupdate] 회귀 결과 파일을 찾지 못했습니다: {path}")
+        return 1
+    with open(path, encoding="utf-8") as f:
+        data = _json.load(f)
+    lookup = winupdate.lookup_from_regression_json(data)
+    wu_results = winupdate.build_wu_results(lookup)
+    return _finish_winupdate(ctx, wu_results, source_note=f"--from-regression {path}")
+
+
+def _run_winupdate_chain(ctx):
+    """WU 체크리스트에 필요한 TC만 순서대로 실제 실행하는 전용 체인.
+
+    `run-regression`과 같은 전제 게이트·guarded 실행 방식을 쓰되, WU 매핑에
+    없는 WF_07/10/11/12/13/15/16, XIPL_01/05는 건너뛴다. WF_03은 WU 매핑에는
+    없지만 WF_08(Print)이 만드는 Print Overlay의 전제라 그대로 포함한다
+    (run-regression과 같은 이유 — `run.py` chain 주석 참고).
+    """
+    from tests.install import install_01, install_02
+    from tests.workflow01 import run as run_workflow01
+    from tests.workflow02 import run as run_workflow02
+    from tests.workflow03 import run as run_overlay
+    from tests.workflow04 import run as run_send
+    from tests.workflow05 import run as run_3d
+    from tests.workflow06 import run as run_all_images
+    from tests.workflow08 import run as run_film_print
+    from tests.workflow09 import run as run_export
+    from tests.workflow14 import run as run_setting_transfer
+    from tests.xipl_flows import (_prepare, compatibility_02, compatibility_03,
+                                  compatibility_04, compatibility_06, compatibility_07)
+    from core.dbreset import has_baseline, restore_baseline, baseline_state
+    from core.result import TCResult, FAIL
+    from core import flows
+    from tests import winupdate
+
+    started = datetime.now()
+    print(f"[run-winupdate] 시작 {started:%Y-%m-%d %H:%M:%S} — "
+          "WU 체크리스트에 필요한 TC만 순서대로 실행합니다.")
+
+    results = []
+    reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "WU 체인 전 기준 상태 복원")
+    reset.stop_on_fail = False
+    if has_baseline(ctx):
+        try:
+            outcome = restore_baseline(ctx)
+            services = outcome.get("services") or {}
+            down = {k: v for k, v in services.items() if v != "RUNNING"}
+            reset.assert_true(
+                0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원 및 "
+                   "제품 서비스 재기동",
+                not down, expected="restore 완료 + 제품 서비스 RUNNING",
+                actual={"restore": "완료", "services": services})
+        except Exception as exc:
+            reset.add(0, "기준 스냅샷 복원", FAIL, actual=str(exc))
+    else:
+        reset.manual(0, "DB 기준 스냅샷 복원",
+                     "기준 스냅샷(.bak)을 찾지 못해 복원을 건너뛰었습니다.",
+                     expected="기준 스냅샷 존재", actual=baseline_state(ctx))
+    results.append(reset)
+
+    def _run_xipl_subset(ctx):
+        try:
+            session = _prepare(ctx)
+        except Exception as exc:
+            out = []
+            for tc, title in [("TC_XIPL_compatibility_02", "Viewer 2D Image Processing"),
+                              ("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction")]:
+                rr = TCResult(tc, title)
+                rr.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
+                out.append(rr)
+            r6 = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
+            r6.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
+            out.extend([compatibility_04(ctx), r6, compatibility_07(ctx)])
+            return out
+        return [compatibility_02(ctx, session), compatibility_03(ctx, session),
+               compatibility_04(ctx), compatibility_06(ctx, session),
+               compatibility_07(ctx)]
+
+    chain = [
+        (install_01, "TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인"),
+        (install_02, "TC_Basic_Install_02", "Viewer 실행 전 필수 환경 확인"),
+        (setup_all, "DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결"),
+        (run_workflow01, "TC_Basic_WorkFlow_01", "MWL 및 Local 검사 생성"),
+        (run_workflow02, "TC_Basic_WorkFlow_02", "공통 2D/3D 검사 촬영 및 Tool 적용"),
+        (run_overlay, "TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정"),
+        (run_send, "TC_Basic_WorkFlow_04", "2D 수동 DICOM Send"),
+        (run_3d, "TC_Basic_WorkFlow_05", "3D 수동 DICOM Send"),
+        (run_all_images, "TC_Basic_WorkFlow_06", "All Images 및 Dose SR 전송"),
+        (_run_xipl_subset, "TC_XIPL_compatibility_subset", "XIPL 연동 02/03/04/06/07"),
+        (run_film_print, "TC_Basic_WorkFlow_08", "2D/3D Film Print"),
+        (run_export, "TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export"),
+        (run_setting_transfer, "TC_Basic_WorkFlow_14", "Setting Export 및 Import"),
+    ]
+
+    PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
+    aborted_precondition = reset if reset.verdict == "FAIL" else None
+    for fn, tc_id, title in chain:
+        tc_started = time.time()
+        produced = guarded(fn, ctx, tc_id, title)
+        results.extend(produced)
+        recover_viewer_after_termination(ctx, tc_id, produced, tc_started)
+        if tc_id in PRECONDITIONS:
+            broken = [x for x in produced if x.verdict == "FAIL"]
+            if broken:
+                aborted_precondition = broken[0]
+                break
+
+    if aborted_precondition is not None:
+        print("!" * 74)
+        print(f"  전제 준비 실패 — run-winupdate 를 중단합니다: "
+              f"{aborted_precondition.tc_id}")
+        print("!" * 74)
+        shutdown = shutdown_viewer("전제 준비 실패로 run-winupdate 중단")
+        print(f"  viewer-shutdown: {shutdown}")
+        elapsed = (datetime.now() - started).total_seconds() / 60
+        lookup = winupdate.lookup_from_results(results)
+        wu_results = winupdate.build_wu_results(lookup)
+        return _finish_winupdate(ctx, wu_results, elapsed,
+                                 source_note="전용 체인(전제 실패로 조기 중단)")
+
+    usb_outcome, wu10_result = None, None
+    try:
+        ui, _startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)
+        try:
+            usb_outcome = winupdate.run_usb_export_import(ctx, ui)
+        except Exception as exc:
+            usb_outcome = {"drive": None, "error": str(exc)}
+            print(f"  [run-winupdate] USB Export/Import 예외: {exc}")
+        wu10_result = winupdate.run_setting_display(ctx, ui)
+    except Exception as exc:
+        print(f"  [run-winupdate] WU_09/WU_10 준비 중 예외: {exc}")
+        if wu10_result is None:
+            wu10_result = TCResult("TC_WindowsUpdate_10",
+                                   winupdate.WU_TITLES["TC_WindowsUpdate_10"])
+            wu10_result.abort(0, "TC_WindowsUpdate_10 실행", exc)
+
+    shutdown = shutdown_viewer("run-winupdate 종료")
+    print(f"  viewer-shutdown: {shutdown}")
+
+    elapsed = (datetime.now() - started).total_seconds() / 60
+    lookup = winupdate.lookup_from_results(results)
+    wu_results = winupdate.build_wu_results(
+        lookup, live_extra={"usb": usb_outcome, "wu10": wu10_result})
+    return _finish_winupdate(ctx, wu_results, elapsed, source_note=f"전용 체인, {elapsed:.1f}분")
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -574,6 +817,15 @@ def main():
                    help="촬영 모드별 3D Default Recon Parameter TC07만 실행")
     sub.add_parser("run-sys3d", help="System 연동 3D-Narrow/3D-Wide 촬영 TC03/04 실행")
     sub.add_parser("run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
+    winupdate_parser = sub.add_parser(
+        "run-winupdate",
+        help="Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화. "
+             "인자 없이 실행하면 필요한 TC만 순서대로 실제 실행하는 전용 체인이다.")
+    winupdate_parser.add_argument(
+        "--from-regression", default=None, metavar="PATH",
+        help="이미 끝난 전체 회귀 결과(Reports/Result_YYYYMMDD_HHMMSS.json)를 "
+             "재실행 없이 WU 체크리스트로 변환한다. run-winupdate 전용 체인과 "
+             "같은 매핑 표(tests/winupdate.py)를 공유한다.")
     sub.add_parser("run-auto", help="비파괴 정적 점검 + DICOM + UI Demo 흐름")
     sub.add_parser("portability-check", help="해상도/DPI/필수 경로 이식성 사전 점검")
     sub.add_parser("probe-preset3d",
@@ -622,6 +874,13 @@ def main():
     from core.result import TCResult as _TCResult
     _TCResult.stop_on_fail = bool(
         (ctx.cfg.get("regression") or {}).get("stop_tc_on_fail", True))
+
+    # `--from-regression` 은 UI/DB 를 전혀 건드리지 않는다 — 이미 끝난 전체
+    # 회귀 JSON 을 읽어 WU 체크리스트로 변환만 한다. 그래서 아래 `ui_commands`
+    # 게이트(해상도/DPI/관리자 권한 점검) 이전에 여기서 처리하고 끝낸다.
+    if args.cmd == "run-winupdate" and getattr(args, "from_regression", None):
+        return _run_winupdate_from_regression(ctx, args.from_regression)
+
     results = []
     if args.cmd == "list":
         scope_path = os.path.join(ctx.root, "automation_scope.json")
@@ -681,7 +940,8 @@ def main():
                    "run-wf14", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-xipl-07", "run-sys3d", "run-auto",
-                   "run-regression", "portability-check", "probe-preset3d"}
+                   "run-regression", "portability-check", "probe-preset3d",
+                   "run-winupdate"}
     if args.cmd in ui_commands:
         from core.display import normalize
         from core.result import TCResult, PASS, FAIL
@@ -946,6 +1206,8 @@ def main():
         code = finish(ctx, results)
         announce_done(results, elapsed, LAST_REPORT_PATHS)
         return code
+    if args.cmd == "run-winupdate":
+        return _run_winupdate_chain(ctx)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
     elif args.cmd == "setup-storage":

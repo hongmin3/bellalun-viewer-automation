@@ -1,4 +1,4 @@
-# 다음 작업 (2026-08-31 후반 기준)
+# 다음 작업 (2026-09-07 Windows Update 체크리스트 자동화 회차 기준)
 
 > **문서 지도 — 이 문서의 역할과 다른 3개 문서와의 관계**
 > 이 문서는 **현재 상태와 다음에 할 일**만 담는다 — 최신 회귀 결과, 이번 회차에 바꾼 것, 남은 문제, P0/P1/P2, **사용자 판단이 필요한 항목(5절)**, 다음 세션용 프롬프트(6절).
@@ -20,6 +20,7 @@
 | **09-03(이어짐): WF_13 문서 정정, P1/P2 완료** | WF_13 계정 권한별 Setting 노출은 2026-08-20에 이미 완전 자동화돼 있었다(문서만 stale) — `run-wf13` 재확인 PASS. P1(`probe-preset3d` 3D Preset 실측 → XIPL_07 Default 상속 판정)과 P2(`run-sys3d`/`run-ui` 고정 대기 → 상태 기반 전환) 모두 구현·라이브 검증 완료(2-N절). stale 브랜치 `agent/add-next-task-handoff`는 이미 존재하지 않음 확인 | 2-N절, `run-xipl-07`/`run-sys3d`/`run-ui` 재검증 리포트 |
 | **저장소 경로 이전(09-07)** | OneDrive 동기화를 해지하고 알려진 폴더 리디렉션(`Desktop`→`%USERPROFILE%\OneDrive\Desktop`)을 해제하면서, 프로젝트 루트를 `C:\Users\ksj74\OneDrive\Desktop\자동화\Bellalun Viewer` → **`C:\자동화\Bellalun Viewer`**로 옮겼다. 저장소 안의 산출물·기준 문서 경로는 모두 `ctx.root`/`__file__` 상대라 **기능 코드 변경은 없었다**. 부수 효과 2건: (1) 프로필 밖으로 나가 `core/dbreset.py`가 기록한 SQL Server `LOCALSERVICE` 접근 제약이 이 PC에서는 사라졌다(복사 단계는 PC 독립성 때문에 유지), (2) `tests/install_package_flow.py`의 `~\Desktop` 후보가 리디렉션 때문에 **실존하지 않는 경로**를 보고 있었고 이제 정상화됐다. `config.json > checklist_xlsx`에 남아 있던 다른 PC 경로도 비웠다 | 아래 2-C절, `..\프로젝트_상세.md` 1절 |
 | **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
+| **09-07: Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화 신설·완료** | `..\Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx`(시트 `Checklist`)를 신규 TC 없이 기존 기본기능/XIPL 자동화 재사용 + 매핑 계층(`tests/winupdate.py`, `core/winupdate_report.py`)으로 자동화. CLI 둘: `run-winupdate`(전용 체인)/`run-winupdate --from-regression <json>`(회귀 결과 변환, 둘 다 매핑 표 공유). **라이브 전체 체인 완주(99.8분): TC 13건 PASS 9 / FAIL 0 / MANUAL 4(01/09/12/13, 전부 설계대로), 자동화·제품 결함 0건.** WU_09는 실제 USB(D:\)로 Export 완전 자동 PASS, Import 되읽기만 트리거 미해결로 MANUAL. WU_10(Setting 화면 표시)은 신규 구현 첫 라이브 실행에서 PASS(탭 빠른 클릭 24/24). WU_02 Age 대조를 WF_01 자체에도 추가(기본기능 TC 고도화), Select/Rotate CW·CCW(1120/1121, 신규 실측)를 `apply_tool_sequence`에 추가해 WF_02도 함께 고도화. 남은 것: WU_02 Scheduled Date/Time 표시 위치 미확인(SKIP), WU_09 USB Import 트리거 미확정(MANUAL) — 아래 5절 | `progress.md` 2026-09-07 절, `Reports/WindowsUpdate_Checklist_Result_20260907_205703.xlsx`, `Reports/winupdate_live_20260907.out.log` |
 
 ---
 
@@ -1054,6 +1055,55 @@ Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 �
 전체 판정은 여전히 FAIL(원인은 3-A UPS 제품 결함, 회귀 없음), Step 7(c)
 "Setting 목록 행 상세값 복원"은 PASS(128행/1768항목, 달라진 항목 0)로
 비교 폭도 더 넓어졌다(122→128행). 단위시험 119 → **128건 OK**.
+
+### ⑧ WU_02 "Scheduled Date/Time" 화면 표시 위치 (2026-09-07, 조사했으나 미확인)
+
+Windows Update 체크리스트 TC_WindowsUpdate_02 Expected 2가 대조하라는 항목
+중 하나다. 라이브로 두 후보를 직접 확인했지만 둘 다 아니었다.
+
+- Patient List MWL 카드(OCR + 스크린샷 실측): `PatientID`/`Name`/`BirthDate`/
+  `Age`/성별 아이콘/`AccNo`/`Description`/`Modality`만 보이고 Scheduled
+  Date/Time 칸이 없다(카드 우측에 빈 공간만 있음 — 다른 컬럼이 있을 자리로
+  보이나 비어 있다).
+- Edit Information의 `np_study_datetime`(컨트롤 2163): 값을 실측해 보니
+  **Scheduled 가 아니라 실제 Study(촬영/저장) 일시**였다(현재 시각과 일치,
+  MWL의 `sps_start_time="09:00"`과 무관).
+
+`tests/workflow01.py`에는 우선 **SKIP**으로 남겨 뒀다(추측으로 만들지
+않음). 화면 어디에 표시되는지 알려주시면 `order.get("sps_start_date"/
+"sps_start_time")`과 대조하는 코드를 바로 추가할 수 있다.
+
+### ⑨ WU_09 USB Import 되읽기 트리거 미확정 (2026-09-07, 컨트롤 ID는 전부 실측)
+
+Import Study 대화상자(Examined 툴바 2184, 툴팁 "Import"로 확인)의 컨트롤은
+전부 실측했다 — `core/usb_media.py` 모듈 docstring 참고.
+
+  2062 드라이브 표시("C:\") + 화살표(자식 ctrl_id=1)를 누르면 이 PC의
+       드라이브 목록(C:\/D:\/E:\)이 드롭다운으로 뜬다(스크린샷으로 확인).
+  2065 Edit — 경로/검색어로 보이는 큰 입력란. `set_text`로 값은 반영되고
+       되읽어진다.
+  2063 CircleButton — **검색/새로고침이 아니라 "폴더 찾아보기"
+       (SHBrowseForFolder)를 여는 버튼**이다(눌러 보고 확인).
+  2066 ListCtrl — 결과 목록(owner-draw, ID/Name/Age/Birth Date/Image 열).
+  2064 Import 버튼, 1102 Close 버튼.
+
+시도했으나 안 된 것: 2065에 실제 Export 결과 폴더 경로를 `set_text` 후
+Enter — 목록이 안 채워짐. 네이티브 폴더 다이얼로그(2063)의 숨은 경로 Edit
+(ctrl_id 14148, `visible=False`)에 경로를 주입하고 확인을 눌러도 반영 안
+됨(SHBrowseForFolder가 타이핑된 경로를 실제 트리 선택으로 인정하지 않는
+것으로 보인다).
+
+**유력한 다음 시도**: 드라이브 드롭다운(2062 옆 화살표)에서 항목을
+직접 클릭하는 것 — 이 제품은 "경로를 입력"하는 UX가 아니라 "미디어(드라이브)
+를 고르는" UX일 가능성이 높다. 드롭다운 항목 자체의 컨트롤 ID/클래스를
+아직 못 잡았다(열자마자 스크린샷은 찍었지만 항목을 눌러 보기 전에 세션이
+종료됨 — `Temp/probe_import*.py` 진단 스크립트는 세션 종료 시 삭제했다,
+다시 만들어야 한다).
+
+`core/usb_media.py::attempt_import()`는 목록에 행이 안 나타나면 **추측으로
+Import 버튼을 누르지 않고** 그 사실을 그대로 돌려준다 — `tests/winupdate.py`
+가 이를 MANUAL로 안전하게 기록한다(2026-09-07 라이브 검증: USB 실제
+연결 상태에서 `opened=True, path_set=<정확>, rows=0, imported_clicked=False`).
 
 ---
 

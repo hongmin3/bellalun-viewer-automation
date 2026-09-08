@@ -27,6 +27,10 @@ from core.dicom_settings import _exact_saved, _saved_rows, tcp_open
 from core.mwl import MwlServer, make_mg_order
 from core.result import TCResult, PASS, FAIL
 
+# `_digits`는 workflow02 가 이미 만든 헬퍼를 재사용한다(순환 import 없음,
+# workflow02 는 workflow01 을 import 하지 않는다).
+from tests.workflow02 import _digits
+
 
 MWL_PID = "DATA_FLOW_MWL_01"
 LOCAL_PID = "DATA_FLOW_LOCAL_01"
@@ -49,6 +53,20 @@ def _compact(value):
 
 def _name(value):
     return " ".join(str(value or "").replace("^", " ").split()).upper()
+
+
+def _dicom_age_years(birth_iso, ref_iso):
+    """생년월일 대비 기준일의 만 나이(년). DICOM AS(Age String) 계산 관례.
+
+    MWL 서버는 Age 태그를 직접 보내지 않는다(`core/mwl.make_mg_order` 참고) —
+    뷰어가 Patient Birth Date와 조회 시점(Scheduled Date)으로 계산해 표시한다.
+    그래서 기대값도 화면에서 역산하지 않고 **독립적으로 계산**한다
+    (AGENTS.md "관찰한 동작으로 정상 기준을 역산하지 않는다").
+    """
+    from datetime import date
+    b = date.fromisoformat(birth_iso)
+    ref = date.fromisoformat(ref_iso)
+    return ref.year - b.year - ((ref.month, ref.day) < (b.month, b.day))
 
 
 def _capture(ctx, ui, name, result):
@@ -200,6 +218,38 @@ def run(ctx):
         r.assert_equal(4, "MWL Study Description",
                        order.get("requested_procedure_description"),
                        info["study_description"])
+        # TC_WindowsUpdate_02(Windows Update 체크리스트) Expected 2 가 명시하는
+        # 대조 항목 중 개정본 WF_01 이 아직 안 보던 두 가지 — Age 와 Scheduled
+        # Date/Time. 2026-09-07 추가(기본기능 TC 자체를 고도화, 사용자 승인).
+        expected_age = _dicom_age_years(
+            order.get("patient_birthdate"), order.get("sps_start_date"))
+        actual_age_digits = _digits(info.get("age"))
+        r.assert_true(
+            4, "MWL Age",
+            bool(actual_age_digits) and int(actual_age_digits) == expected_age,
+            expected=f"{expected_age}(생년월일·Scheduled Date 기준 계산)",
+            actual=info.get("age"),
+            note="MWL 서버는 Age 태그를 보내지 않는다 — Patient Birth Date 와 "
+                 "Scheduled Date 로 독립 계산한 값과 대조한다.")
+        # Scheduled Date/Time 은 보류한다 — 2026-09-07 라이브 조사로
+        # (1) Patient List MWL 카드(OCR 스크린샷 실측: PatientID/Name/BirthDate/
+        #     Age/Sex/AccNo/Description/Modality 만 보이고 Scheduled Date/Time
+        #     칸이 없다 — 우측에 빈 공간만 있다)
+        # (2) Edit Information 의 `np_study_datetime` 은 **Scheduled 이 아니라
+        #     실제 Study(촬영/저장) 일시**임을 확인했다(실측값이 "지금"과
+        #     일치, sps_start_time="09:00"과 무관)
+        # 이 둘 모두 대조 대상이 아니었다. 화면 어디에 Scheduled Date/Time 이
+        # 표시되는지 확정하지 못해 **추측으로 만들지 않는다**(AGENTS.md).
+        r.skip(4, "MWL Scheduled Date/Time",
+               "Patient List MWL 카드와 Edit Information 어디에서도 Scheduled "
+               "Date/Time 표시 위치를 찾지 못했다(카드에는 PatientID/Name/"
+               "BirthDate/Age/Sex/AccNo/Description/Modality만 보이고, "
+               "study_datetime 필드는 실제 Study 일시로 확인됨 — 실측값이 "
+               "현재 시각과 일치). 화면 표시 위치를 알려주시면 대조를 추가할 "
+               "수 있다.",
+               expected=f"sps_start_date={order.get('sps_start_date')} "
+                        f"sps_start_time={order.get('sps_start_time')}",
+               actual="표시 위치 미확인")
         r.assert_equal(4, "Procedure 없는 MWL의 Step 수", 0,
                        len(flows.step_items(ui)))
         _capture(ctx, ui, "04_mwl_examine.png", r)

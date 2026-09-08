@@ -147,3 +147,23 @@ def pc_info():
         " bios=$bios.SMBIOSBIOSVersion; gpu=$gpu"
         "} | ConvertTo-Json -Compress")
     return rows[0] if rows else {}
+
+
+def os_update_info():
+    """Windows Update 체크리스트 상단(OS Version/OS Build Version)에 실을 값.
+
+    `pc_info()`의 `os_version`/`os_build`(`Win32_OperatingSystem`)은 피처
+    업데이트 표시명("25H2"/"24H2")과 UBR(패치 리비전, 예: `26200.7171`의
+    `.7171`)을 담지 않는다. 그 값은 레지스트리 `CurrentVersion`에만 있다.
+    """
+    rows = _ps_json(
+        r"Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' "
+        r"-ErrorAction SilentlyContinue | Select-Object DisplayVersion,"
+        r"CurrentBuildNumber,UBR | ConvertTo-Json -Compress")
+    row = rows[0] if rows else {}
+    build = row.get("CurrentBuildNumber")
+    ubr = row.get("UBR")
+    return {
+        "display_version": row.get("DisplayVersion") or "",
+        "build_full": f"{build}.{ubr}" if build and ubr is not None else str(build or ""),
+    }

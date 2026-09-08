@@ -140,6 +140,25 @@ python run.py verify-install-package
   → 리포트 4종 + 선택 옵션 JSON(설치 후 대조용) + 화면 캡처
 ```
 
+**Windows Update 호환성 검증 체크리스트 자동화** — OS 업데이트 후 제품이 여전히
+정상 동작하는지 확인하는 별도 체크리스트(`TC_WindowsUpdate_01~13`)입니다.
+**새 TC를 만들지 않고** 위 회귀가 이미 검증한 TC들을 재사용해 이 체크리스트의
+판정 기준으로 재매핑하는 얇은 계층입니다(`tests/winupdate.py`).
+
+```
+python run.py run-winupdate                       # 필요한 TC만 순서대로 실제 실행
+python run.py run-winupdate --from-regression <전체 회귀 결과.json>   # 재실행 없이 변환
+  → MWL 조회·영상 조작(Zoom/Pan/Rotation 등)·2D/3D Image Processing
+  → DICOM 전송(2D/3D)·Print·Export(USB 자동 탐지, 없으면 SKIP)
+  → Setting 화면 표시(전 메뉴 순회 + 탭 빠른 클릭)·Setting Import/Export
+  → 원본 xlsx 사본에 K열로 새 Result 열 삽입(Pass/Fail/Manual) + 상단 실측
+     OS/OS Version/OS Build/Viewer Version 기재 + Issues 탭(재사용 TC 기준
+     결함이지만 이 체크리스트 판정에는 영향 없는 항목을 별도로 명시)
+```
+
+2026-09-07 라이브 전체 실행: TC 13건 PASS 9 / FAIL 0 / MANUAL 4(설치·계정
+승격·KIOSK처럼 사람이 해야 하는 항목), 자동화 결함 0건.
+
 ---
 
 ## 3. 왜 만들었나 — 해결한 문제
@@ -372,6 +391,7 @@ python run.py list                       # 개정본 37개 TC + 보조 4개의 �
 python run.py run-regression             # 전체 회귀 (기준 복원부터 리포트까지)
 python run.py run-xipl-07                # 개별 TC (전수는 python run.py --help)
 python run.py verify-install-package     # 설치 패키지 점검 (회귀와 분리된 단독 실행)
+python run.py run-winupdate              # Windows Update 호환성 검증 체크리스트 (TC_WindowsUpdate_01~13)
 python tools/run_regression.py           # 외부 감시가 붙은 전체 회귀(권장, run_all.cmd가 사용)
 check_automation_status.cmd 7            # 마지막 완료 전체 회귀가 7일 넘었는지 알림
 ```

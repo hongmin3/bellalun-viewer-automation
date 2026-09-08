@@ -7,6 +7,8 @@ import time
 
 from PIL import Image, ImageChops, ImageGrab, ImageStat
 
+from core import screen
+
 
 EXPAND_TOOLS = 1163
 TOOL_WINDOW_LEVEL = 1115
@@ -14,6 +16,16 @@ TOOL_ZOOM = 1113
 TOOL_PAN = 1114
 TOOL_ARROW = 1130
 TYPE_RECON = 2123
+
+# 2026-09-07 `probe-wu-tools` 실측 (Windows Update TC_WindowsUpdate_03 "영상
+# 조작" 대응). Select 는 이미 `EXAMINE["tool_select"]`(1111)로 실측돼 있던
+# 값이고, CW/CCW 는 이번에 새로 실측했다 — 둘 다 접힌 기본 툴바(x=1453
+# 세로열)가 아니라 **Expand(1163)로 펼친 큰 팔레트**(x=1090/1172/1254/1336
+# 4열 그리드) 안에 있다(W/L=1115, Arrow=1130 과 같은 위치다). 스크린샷으로
+# 라벨을 직접 확인했다(아이콘 추정 금지 원칙 — `close_film` 주석 참고).
+TOOL_SELECT = 1111
+TOOL_ROTATE_CW = 1120
+TOOL_ROTATE_CCW = 1121
 
 
 def _visible(ui, ctrl_id):
@@ -137,22 +149,34 @@ def apply_tool_sequence(ui, evidence_dir, prefix, pane="left"):
         ui, os.path.join(evidence_dir, f"{prefix}_00_pane.png"), pane)
     wl_before = _optional_wl_ocr(base_full, pane)
 
+    # Select/Rotate CW/CCW 는 2026-09-07 Windows Update 체크리스트
+    # (TC_WindowsUpdate_03 "영상 조작") 대응으로 추가했다 — 개정본 WF_02 Step 6/7
+    # ("검증 대상 Tool 을 각각 적용한다")의 범위 안이라 여기 넣으면 WF_02 도 함께
+    # 검증한다(사용자 승인). `click_only=True` 는 **드래그가 아니라 클릭 한 번으로
+    # 완결되는 조작**이라는 뜻이다 — Select 는 모드 전환(화면 변화 없음, 활성 강조
+    # 표시로 판정), Rotate 는 클릭 즉시 회전(드래그 불필요, 화면 변화로 판정).
     if pane == "right":
         specs = [
-            ("Window Level", TOOL_WINDOW_LEVEL, (.43, .58), (.57, .43), .0005),
-            ("Pan", TOOL_PAN, (.25, .54), (.43, .54), .0005),
-            ("Zoom", TOOL_ZOOM, (.48, .62), (.48, .42), .0010),
-            ("Annotation (Arrow)", TOOL_ARROW, (.40, .38), (.58, .51), .00005),
+            ("Window Level", TOOL_WINDOW_LEVEL, (.43, .58), (.57, .43), .0005, False),
+            ("Pan", TOOL_PAN, (.25, .54), (.43, .54), .0005, False),
+            ("Zoom", TOOL_ZOOM, (.48, .62), (.48, .42), .0010, False),
+            ("Annotation (Arrow)", TOOL_ARROW, (.40, .38), (.58, .51), .00005, False),
+            ("Select", TOOL_SELECT, None, None, 0, True),
+            ("Rotate CW", TOOL_ROTATE_CW, None, None, .0005, True),
+            ("Rotate CCW", TOOL_ROTATE_CCW, None, None, .0005, True),
         ]
     else:
         specs = [
-            ("Window Level", TOOL_WINDOW_LEVEL, (.43, .58), (.57, .43), .0100),
-            ("Zoom", TOOL_ZOOM, (.48, .62), (.48, .42), .0100),
-            ("Pan", TOOL_PAN, (.43, .54), (.59, .54), .0060),
-            ("Annotation (Arrow)", TOOL_ARROW, (.40, .38), (.58, .51), .00005),
+            ("Window Level", TOOL_WINDOW_LEVEL, (.43, .58), (.57, .43), .0100, False),
+            ("Zoom", TOOL_ZOOM, (.48, .62), (.48, .42), .0100, False),
+            ("Pan", TOOL_PAN, (.43, .54), (.59, .54), .0060, False),
+            ("Annotation (Arrow)", TOOL_ARROW, (.40, .38), (.58, .51), .00005, False),
+            ("Select", TOOL_SELECT, None, None, 0, True),
+            ("Rotate CW", TOOL_ROTATE_CW, None, None, .0100, True),
+            ("Rotate CCW", TOOL_ROTATE_CCW, None, None, .0100, True),
         ]
-    for index, (name, ctrl_id, start_ratio, end_ratio, min_ratio) in enumerate(specs, 1):
-        if ctrl_id in (TOOL_WINDOW_LEVEL, TOOL_ARROW):
+    for index, (name, ctrl_id, start_ratio, end_ratio, min_ratio, click_only) in enumerate(specs, 1):
+        if ctrl_id in (TOOL_WINDOW_LEVEL, TOOL_ARROW, TOOL_ROTATE_CW, TOOL_ROTATE_CCW):
             ensure_expanded(ui)
         controls = _visible(ui, ctrl_id)
         if not controls:
@@ -160,13 +184,30 @@ def apply_tool_sequence(ui, evidence_dir, prefix, pane="left"):
                             "passed": False, "error": "visible control not found"})
             continue
         ui.click(controls[0], settle=.5)
-        ui.drag(_point(bbox, *start_ratio), _point(bbox, *end_ratio),
-                duration=.8, settle=.8)
-        time.sleep(.4)
+        if click_only:
+            time.sleep(.6)
+        else:
+            ui.drag(_point(bbox, *start_ratio), _point(bbox, *end_ratio),
+                    duration=.8, settle=.8)
+            time.sleep(.4)
         full_path = capture_viewer(
             ui, os.path.join(evidence_dir, f"{prefix}_{index:02d}_{name.split()[0].lower()}.png"))
         pane_path = _capture_pane(
             ui, os.path.join(evidence_dir, f"{prefix}_{index:02d}_pane.png"), pane)
+        if name == "Select":
+            # Select 는 모드 전환일 뿐 영상 픽셀을 바꾸지 않는다 — 화면 변화율
+            # 대신 버튼 강조 표시(활성 상태)로 판정한다(Export Manager의
+            # `is_checked`/토글 판정과 같은 방식, `core.screen.radio_selected`).
+            active = screen.radio_selected(controls[0])
+            passed = bool(active)
+            record = {"name": name, "control_id": ctrl_id, "supported": True,
+                      "passed": passed, "active": active,
+                      "verdict_basis": "선택 도구는 화면 변화가 아니라 활성(강조) "
+                                       "표시로 판정",
+                      "evidence": full_path}
+            records.append(record)
+            previous = pane_path
+            continue
         delta = visual_delta(previous, pane_path)
         passed = delta["changed_ratio"] >= min_ratio
         record = {"name": name, "control_id": ctrl_id, "supported": True,
