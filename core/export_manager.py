@@ -177,10 +177,16 @@ def set_portable_viewer(ui, enabled=True, attempts=3):
 
 
 def select_format(ui, ctrl_id, attempts=3):
-    """File Format 그리드에서 지정한 포맷 버튼을 선택한다(라디오 방식 그룹).
+    """File Format 그리드에서 지정한 포맷 버튼을 **체크**한다.
 
-    이미 선택돼 있으면 클릭하지 않는다. `FORMAT_DICOM`/`FORMAT_DICOMDIR` 등과
-    함께 쓴다. 반환: {"requested": ctrl_id, "final": bool|None, "clicked": int}
+    **주의 — 라디오 그룹이 아니라 독립 체크박스다**(2026-09-08 실측 정정 —
+    이전 docstring은 "라디오 방식 그룹"이라 잘못 적어 뒀었다). `FORMAT_DICOMDIR`를
+    고른 뒤 이 함수로 `FORMAT_IMG`를 추가로 고르면 **DICOMDIR을 해제하지 않고
+    IMG가 함께 켜진 채로 Export 된다**(라이브로 두 체크박스가 동시에 True인
+    것을 확인). 다른 포맷만 단독으로 export 하려면 먼저 켜져 있는 포맷을
+    `_set_toggle(ui, other_ctrl_id, False, ...)`로 직접 꺼야 한다. 이미
+    선택돼 있으면 클릭하지 않는다. 반환:
+    {"requested": ctrl_id, "final": bool|None, "clicked": int}
     """
     result = _set_toggle(ui, ctrl_id, True, "Format 버튼", attempts)
     return {"requested": ctrl_id, "final": result["final"],

@@ -120,12 +120,32 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
      잡는 케이스). `core/ui.py::taskbar_autohidden()`(SHAppBarMessage로
      임시 자동 숨김, 종료 시 원상복구 — `foreground_unlocked`와 같은
      패턴)을 추가하고 `run.py`의 `__main__`에서 함께 걸었다.
-3. **WU_09 xlsx 자동 기록 정책 재검토 요청** — 사용자가 "지금처럼 체크리스트
-   원본에 자동화판정 열을 추가하는 방식이 필요 없어 보인다"는 의견을 냈다.
-   기존 이유(사용자 결정사항 5번 + `core/checklist.py`가 기본기능 체크리스트에
-   수년간 써 온 것과 같은 방식)는 설명했지만, **다음 세션에서 대안을 정리해
-   다시 여쭤야 한다**(예: xlsx 갱신을 완전히 빼고 JSON/HTML만 남길지, 아니면
-   원본을 건드리지 않는 별도 요약 문서로 바꿀지).
+   - **2026-09-08 추가 조사(사용자 요청 — IMG 옵션, USB 드라이브 재확인)**:
+     USB는 이번에도 **D:\ (VXvue1, REMOVABLE)** 로 동일하게 인식됨을 재확인
+     (참고로 E:\ 는 빈 CD-ROM 드라이브). Export Manager의 File Format
+     버튼은 **라디오 그룹이 아니라 독립 체크박스**임을 실측으로 정정했다
+     (DICOMDIR+IMG를 동시에 체크한 채 Export하면 DICOMDIR 패키지에 IMG
+     원본 덤프가 추가로 섞여 들어간다 — 이전 docstring이 "라디오 방식
+     그룹"이라 잘못 적어 뒀던 것을 고쳤다). **IMG 단독**(DICOMDIR/Portable
+     Viewer 전부 해제, `.img`+`.txt` 원본 픽셀 덤프만 생성 확인)으로도
+     Import 목록은 여전히 0행 — **사용자의 IMG 가설도 기각.** 또한 Import
+     목록이 0행인 채로 "Import" 버튼(2064)을 눌러 보면 "No study to
+     import." 안내만 뜨고 숨은 스캔 트리거는 아니었다. 지금까지 DICOMDIR
+     단독/DICOMDIR+Portable Viewer/DICOMDIR+IMG/IMG 단독 네 조합 모두
+     실패 — **Export 포맷 조합이 원인일 가능성은 사실상 소진됐다**, 남은
+     유력 후보는 NEXT_WORK.md ⑨의 (c)/(d)(USB 미디어 인식/AutoPlay 트리거)
+     뿐이다.
+3. ~~WU_09 xlsx 자동 기록 정책 재검토~~ — **2026-09-08 사용자 확정, 구현
+   완료**. 기존 K열(Result) 삽입 방식은 유지하고, **K열 바로 옆에 L열
+   (Comment)을 추가로 삽입**해 Fail/Manual TC에만 그 판정을 끌어낸 check의
+   note(짧게, 최대 3개) 를 적도록 `core/winupdate_report.py`를 고쳤다
+   (`_reason_for()` 신규 — Pass/Skip은 비워 둔다). 기존에 이미 있던 공용
+   "Comment" 열(여러 회차가 공유하는 수기 메모)은 그대로 두고 자동화가
+   덮어쓰지 않는다 — 이 새 L열과는 별개다. `--from-regression Reports/
+   Result_20260903_224518.json`로 재생성해 FAIL 1건(WU_05)·MANUAL 3건
+   (WU_01/12/13)에 Comment가 채워지고 PASS/SKIP 행은 비는 것을 확인했다.
+   상단 1~4행 OS/OS Version/OS Build/Viewer Version 실측 기록은 이미
+   2026-09-07에 구현돼 있었다(`_winupdate_env()`) — 그대로 유지.
 
 ### 변경/신규 파일
 
@@ -137,9 +157,10 @@ xlsx writer), `core/usb_media.py`(신규 — USB 탐지+Import 시도), `run.py`
 `core/viewer_tools.py`(Select/Rotate CW/CCW), `tests/workflow01.py`
 (Age/Scheduled 대조 추가 — WF_01 자체도 고도화됨), `core/export_manager.py`
 (2026-09-08 이어서 — `FORMAT_DICOM` 1008로 정정, `FORMAT_DICOMDIR` 등 File
-Format 상수 전부 추가, `select_format()`/`set_portable_viewer()` 신규),
-`core/ui.py`(2026-09-08 이어서 — `taskbar_autohidden()` 신규, 환경 버그
-수정).
+Format 상수 전부 추가, `select_format()`/`set_portable_viewer()` 신규,
+File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026-09-08
+이어서 — `taskbar_autohidden()` 신규, 환경 버그 수정), `core/winupdate_report.py`
+(2026-09-08 이어서 — L열 Comment 신규, `_reason_for()` 신규).
 
 ---
 

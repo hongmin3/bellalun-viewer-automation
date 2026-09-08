@@ -1195,6 +1195,49 @@ USB를 뽑았다 다시 꽂으면서 Import Study 대화상자가 열려 있는 
 유지가 맞다는 결론으로 마무리하고 더 파지 않는다(이미 두 세션에 걸쳐
 충분히 조사했다).
 
+#### 2026-09-08 추가(같은 날 다시 이어서) — 사용자 요청으로 IMG 옵션 시도, USB 드라이브 재확인
+
+사용자가 "D드라이브 맞는지 다시 확인하고, IMG 옵션도 시도해 보라"고 요청했다.
+
+- **USB 드라이브 재확인**: `GetLogicalDrives`+`GetDriveTypeW`로 전수 스캔 —
+  D:\\ REMOVABLE `VXvue1`(그대로), C:\\ FIXED, **E:\\ CDROM(빈 드라이브,
+  볼륨 레이블 없음)**. 이 PC에 실제 광학 드라이브가 있다는 걸 이번에 처음
+  확인했다 — 가설 (d)(AutoPlay/미디어 삽입)를 검증하려면 나중에 이 E:\\도
+  후보가 될 수 있다.
+- **File Format 그리드는 라디오 그룹이 아니라 독립 체크박스였다(실측
+  정정)** — DICOMDIR을 고른 뒤 이어서 IMG를 고르면 **DICOMDIR이 해제되지
+  않고 IMG와 함께 체크된 채**로 Export 됐다(`is_checked()`로 1009=True,
+  1010=True 동시 확인). 그래서 "DICOMDIR+IMG 동시 Export" 결과물은 기존
+  DICOMDIR/Autorun.inf/PortView 패키지에 `.img`+`.txt` 원본 픽셀 덤프가
+  추가된 형태였다 — 여전히 Import 목록 0행(90초 대기 포함, 정확한 리프
+  폴더로 확인).
+- **IMG 단독 재시도(DICOMDIR/Portable Viewer 전부 해제)**: `_set_toggle`로
+  1009/1032를 직접 꺼서 IMG(1010)만 남긴 뒤 Export → `.img`+`.txt` 원본
+  덤프만 생성(DICOMDIR/Autorun.inf/PortView 전혀 없음, 파일 6개, 정상
+  MG 데이터). Import 경로를 그 폴더로 설정 → 30초 폴링 → **여전히 0행.**
+  **사용자의 IMG 가설은 기각.** Import Study는 애초에 DICOM 데이터를
+  요구하는 기능이라 순수 픽셀 덤프(.img)는 애초에 대상이 될 수 없다는
+  것도 이번에 실측으로 확인했다.
+- **"Import" 버튼(2064)을 목록 0행 상태에서 직접 눌러도 봤다** — 클릭 자체가
+  숨은 스캔 트리거인지 확인하려는 시도. 결과는 "No study to import." 안내
+  팝업만 뜨고 스캔은 안 일어났다.
+- **plain "DICOM"(1008) 단독 시도는 미완료** — `select_format(manager,
+  1008)`을 호출했는데 세 포맷(1008/1009/1010) 전부 `is_checked()==False`로
+  남았다(클릭이 반영 안 됨 — 원인 미확인, 1008 버튼 자체가 이 그리드에서
+  다른 셋과 다르게 동작하거나 클릭 좌표가 어긋났을 수 있다). Export를
+  강행해도 파일 0개만 나왔다(포맷이 하나도 안 골라진 상태로 Start를 눌러
+  아무것도 안 만들어진 것으로 보인다). 다음 세션에서 필요하면 1008 버튼의
+  클릭 반응을 스크린샷으로 재확인할 것 — 다만 우선순위는 낮다(plain DICOM
+  은 애초에 DICOMDIR을 안 만들어서 이 조사의 핵심 질문과 무관하다).
+
+**결론 — DICOMDIR 단독 / DICOMDIR+Portable Viewer / DICOMDIR+IMG / IMG
+단독, 네 조합 모두 Import 목록 0행으로 동일하다. Export 포맷 조합이
+원인일 가능성은 사실상 소진됐다.** 남은 건 (c)(USB 미디어 인식) /
+(d)(AutoPlay 트리거) 뿐이고, 둘 다 UI 자동화만으로는 검증하기 어렵다
+(물리적 재삽입이나 드라이버 레벨 조작이 필요). **다음 세션에서 더 파고들
+가치가 있는지부터 사용자에게 확인하는 것을 권한다** — 이미 두 세션에
+걸쳐 포맷·경로·대기시간·드라이브 선택 순서 전부 소진했다.
+
 ---
 
 ## 6. 다음 세션용 프롬프트
@@ -1221,30 +1264,32 @@ Setting > Patient > Patient List > List Show Item의 "Scheduled Study
 DateTime"(기본 꺼짐)을 켜고 카드 오른쪽(가로 스크롤 필요)에서 OCR로
 읽는다.
 
-**남은 것 — 다음 세션에서 이어갈 두 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고,
-2026-09-08 이어서 갱신됨)**
+**남은 것 — 다음 세션에서 이어갈 한 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고,
+2026-09-08 두 차례 이어서 갱신됨)**
 
-1. **WU_09 USB Import 되읽기 — 가설 (a)(b) 기각, (c)(d)만 남음.**
+1. **WU_09 USB Import 되읽기 — 가설 (a)(b)(IMG) 전부 기각, (c)(d)만 남음.**
    `core/export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
    `set_portable_viewer()` 헬퍼를 이미 추가했고 `tests/winupdate.py`가
-   쓴다. DICOMDIR+Portable Viewer Export(Autorun.inf+PortView\ 전부
-   생성 확인)를 90초 폴링, 드라이브 드롭다운(2062) 우선 선택 후 경로
-   지정, 드라이브 우선 선택+키보드 트리 탐색 조합까지 전부 시도했지만
-   Import 목록은 항상 0행이었다 — **스캔 대기 부족(a)과 Autorun.inf/
-   PortView 부재(b)는 원인이 아니라고 결론**. 남은 후보: (c) 이 USB가
-   REMOVABLE 로는 보여도 Import 기능이 요구하는 실제 미디어 종류로는
-   인식 안 될 가능성, (d) DICOMDIR 스캔이 Windows AutoPlay/미디어 삽입
-   이벤트에 매여 있어 이미 꽂힌 드라이브를 UI로 사후 탐색해선 트리거가
-   안 될 가능성 — **USB를 물리적으로 뽑았다 다시 꽂으면서 Import Study
-   대화상자를 열어 두고 확인하는 것부터 시작해라.** 그래도 안 되면 이미
-   두 세션에 걸쳐 충분히 조사한 것이니 MANUAL 유지로 결론짓고 그만 파라.
-2. **WU 체크리스트 xlsx 자동 기록 정책 재검토.** 사용자가 "지금처럼
-   원본 체크리스트에 Result 열을 추가하는 방식이 꼭 필요해 보이지
-   않는다"는 의견을 냈다(2026-09-08). 기존 방식(결정사항 5번 + 기본기능
-   체크리스트의 기존 관행과 동일)의 이유는 설명했지만 대안을 정리해
-   다시 확인받아야 한다 — 예: xlsx 갱신을 없애고 JSON/HTML/CSV만 남길지,
-   원본 형식을 건드리지 않는 별도 요약 문서로 바꿀지 등. **코드를 먼저
-   바꾸지 말고 사용자에게 먼저 물어라.**
+   쓴다. DICOMDIR 단독 / DICOMDIR+Portable Viewer / DICOMDIR+IMG(File
+   Format은 라디오가 아니라 독립 체크박스임을 실측 정정) / IMG 단독,
+   **네 조합 모두** 90초 폴링까지 시도했지만 Import 목록은 항상 0행이었다
+   — 스캔 대기 부족(a), Autorun.inf/PortView 부재(b), 사용자가 제안한
+   IMG 포맷(픽셀 원본 덤프라 애초에 DICOM이 아님) 전부 원인이 아니라고
+   결론. USB는 재확인해도 여전히 D:\\(VXvue1, REMOVABLE) — 참고로 이 PC엔
+   빈 CD-ROM 드라이브(E:\\)도 있다. 남은 후보: (c) 이 USB가 Import 기능이
+   요구하는 실제 미디어 종류로는 인식 안 될 가능성, (d) DICOMDIR 스캔이
+   Windows AutoPlay/미디어 삽입 이벤트에 매여 있어 이미 꽂힌 드라이브를
+   UI로 사후 탐색해선 트리거가 안 될 가능성 — **USB를 물리적으로 뽑았다
+   다시 꽂으면서 Import Study 대화상자를 열어 두고 확인하는 것부터
+   시작해라.** 둘 다 UI 자동화만으로 검증하기 어려우니, 계속 팔 가치가
+   있는지 **먼저 사용자에게 확인하는 것을 권한다** — 이미 두 세션(같은
+   날 두 차례)에 걸쳐 포맷·경로·대기시간·드라이브 선택 순서를 전부
+   소진했다.
+
+~~2. WU 체크리스트 xlsx 자동 기록 정책 재검토~~ — **2026-09-08 사용자
+   확정, 구현 완료.** K열(Result) 삽입은 유지하고 바로 옆 L열에 Comment를
+   추가해 Fail/Manual TC에만 판정 사유를 짧게 적는다(`core/
+   winupdate_report.py::_reason_for()`). 상세는 progress.md 참고.
 
 먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절
 ⑧~⑨)를 읽어 상태를 파악해라. TC 원문은

@@ -5,8 +5,11 @@
 시트 `Checklist` (헤더 5행, TC 6~18행, 기존 Result 열 K~R — 최신이 왼쪽).
 
 `core/checklist.py`(기본기능 체크리스트)와 형식이 다르다 — 기본기능은 오른쪽에
-새 열 묶음을 append하지만, 이 문서는 **기존 Result 열과 같은 형식으로 K열에
-새 열을 삽입**해야 한다(`Result\\n<MM/DD>` 헤더 + `Pass`/`Fail`/`Manual` 값).
+새 열 묶음을 append하지만, 이 문서는 **기존 Result 열과 같은 형식으로 K~L열에
+새 열 2개를 삽입**해야 한다(K=`Result\\n<MM/DD>` 헤더 + `Pass`/`Fail`/`Manual`
+값, L=`Comment\\n<MM/DD>` 헤더 + Fail/Manual일 때만 짧은 사유 — 2026-09-08
+사용자 요청으로 추가. 기존에 이미 있던 공용 "Comment" 열은 여러 회차가
+공유하는 수기 메모라 자동화가 덮어쓰지 않는다, 이 L열과는 별개다).
 그래서 `core/checklist.write_results()`를 재사용하지 않고 이 모듈을 따로 둔다.
 원본은 수정하지 않는다(사본에만 기록).
 """
@@ -23,7 +26,8 @@ TC_ID_HEADER = "TC ID"
 HEADER_ROW = 5
 FIRST_TC_ROW = 6
 LAST_TC_ROW = 18
-NEW_RESULT_COL = 11  # K열
+NEW_RESULT_COL = 11   # K열 - Result
+NEW_COMMENT_COL = 12  # L열 - Comment(Fail/Manual 사유, Result 바로 옆)
 
 # 상단 실측값을 적는 행 (A열 라벨과 대응)
 ENV_ROWS = {"os": 1, "os_version": 2, "os_build": 3, "viewer_version": 4}
@@ -48,6 +52,31 @@ AUTOMATION_HEADERS = ["자동화 판정 일시", "재사용 근거 TC", "확인 
 
 def verdict_label(verdict):
     return _VERDICT_LABEL.get(str(verdict).upper(), str(verdict))
+
+
+#: Comment 열에 사유를 적는 판정 - Fail/Manual/Blocked만. Pass/Skip은 비워 둔다.
+_REASON_LABELS = {"Fail", "Manual", "Blocked"}
+
+
+def _reason_for(result, max_items=3):
+    """Fail/Manual/Blocked TC의 Comment 열에 적을 짧은 사유.
+
+    그 판정을 실제로 끌어낸 check(들)의 `note`(없으면 `title`) 첫 줄만 모은다 -
+    "간단히"가 목적이라 check 전체를 덤프하는 `자동화 note` 열과 다르다.
+    """
+    label = verdict_label(result.verdict)
+    if label not in _REASON_LABELS:
+        return ""
+    texts = []
+    for chk in result.checks:
+        if verdict_label(chk.status) != label:
+            continue
+        text = str(chk.note or chk.title or "").strip().splitlines()
+        if text and text[0] not in texts:
+            texts.append(text[0])
+        if len(texts) >= max_items:
+            break
+    return "; ".join(texts)
 
 
 def _find_header_row(ws):
@@ -85,16 +114,25 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
         wb[CHECKLIST_SHEET] if CHECKLIST_SHEET in wb.sheetnames else wb.active)
     hdr_row, tc_col = _find_header_row(ws)
 
-    # 새 Result 열을 K에 **삽입**한다(기존 K~S가 오른쪽으로 밀린다). 이 시트는
-    # 병합 셀이 없다고 실측 확인됐다(요청 프롬프트 기준 좌표표) — insert_cols가
-    # 안전하다.
-    ws.insert_cols(NEW_RESULT_COL)
+    # 새 Result/Comment 열 2개를 K~L에 **삽입**한다(기존 K~S가 오른쪽으로 두 칸
+    # 밀린다). 이 시트는 병합 셀이 없다고 실측 확인됐다(요청 프롬프트 기준
+    # 좌표표) — insert_cols가 안전하다. Comment는 기존(밀려나는) "Comment" 열과
+    # 별개다 - 그 열은 여러 회차가 공유하는 수기 메모라 자동화가 덮어쓰지
+    # 않는다(운영 지침). 이 Comment는 **이 Result 열 바로 옆**, 이번 판정
+    # 전용이다.
+    ws.insert_cols(NEW_RESULT_COL, amount=2)
     stamp_md = datetime.now().strftime("%m/%d")
     header_cell = ws.cell(hdr_row, NEW_RESULT_COL, f"Result\n{stamp_md}")
     header_cell.font = Font(bold=True)
     header_cell.alignment = Alignment(horizontal="center", vertical="center",
                                       wrap_text=True)
     ws.column_dimensions[header_cell.column_letter].width = 12
+
+    comment_header_cell = ws.cell(hdr_row, NEW_COMMENT_COL, f"Comment\n{stamp_md}")
+    comment_header_cell.font = Font(bold=True)
+    comment_header_cell.alignment = Alignment(horizontal="center", vertical="center",
+                                              wrap_text=True)
+    ws.column_dimensions[comment_header_cell.column_letter].width = 40
 
     env = env or {}
     for key, row in ENV_ROWS.items():
@@ -136,6 +174,10 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
         if label in FILLS:
             cell.fill = FILLS[label]
             cell.font = FONTS[label]
+        reason = _reason_for(result)
+        if reason:
+            reason_cell = ws.cell(row, NEW_COMMENT_COL, reason)
+            reason_cell.alignment = Alignment(vertical="top", wrap_text=True)
         ws.cell(row, auto_col_of["자동화 판정 일시"], stamp)
         basis = getattr(result, "wu_basis", "") or ""
         basis_cell = ws.cell(row, auto_col_of["재사용 근거 TC"], basis)
