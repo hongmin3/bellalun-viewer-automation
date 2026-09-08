@@ -167,6 +167,29 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
    껐을 뿐 JSON(`timings` 필드)에는 그대로 남는다. 이 테스트가 옛 HTML
    문구를 검증하고 있어서 새 동작(그 문구가 **없어야** 함)에 맞춰 함께
    고쳤다.
+5. **"이런 유형의 버그" 전수조사(2026-09-08, 사용자 요청) — 같은 클래스로
+   2건 더 발견, 전부 수정.** 항목 4의 HTML 수정이 TXT/CSV는 놓치고 있었다
+   — 재생성해 확인해 보니 WU 리포트의 TXT/CSV 머리글도 여전히 "Bellalun
+   Viewer 기본기능 자동화 결과"로 찍혔다. `write_txt()`에 `report_title`
+   인자, `write_reports()`의 CSV 헤더에 `meta["report_title_short"]`를
+   추가해 고쳤다(`_finish_winupdate`가 WU용 문구를 채운다. 기본값은 기존
+   기본기능 문구라 하위호환). 또 하나 — **모든** 리포트(WU뿐 아니라 회귀/
+   개별 TC 전부)의 "실행 명령" 줄이 `sys.argv[1:]`만 이어붙여
+   `python run.py`가 빠진 채(`python run-winupdate ...`, `python
+   portability-check ...`) 찍히고 있었다 — 그대로 복사해 실행하면 실패하는
+   명령이었다. `_report_meta`/`_finish_winupdate` 두 곳이 나란히 같은
+   실수를 하고 있어서 `run.py::_command_line()` 공용 헬퍼로 합쳐 고쳤다.
+   라이브로 4개 형식(HTML/TXT/CSV) × 2개 컨텍스트(기본기능/WU) 전부
+   재생성해 문구·명령이 맞는지 확인했다.
+   **낮은 우선순위로 남겨 둔 것** — WU 리포트의 TC별 "기준 문서 원문"
+   접이식 섹션(Precondition/Step Description/Expected Result 원문 인용)은
+   `meta["checklist"]`가 기본기능 체크리스트만 담고 있어서 WU TC에는 항상
+   비어 있다(`_step_context`가 조용히 빈 문자열을 돌려줘 죽지는 않는다).
+   틀린 내용이 나오는 버그는 아니고 — 각 Step의 `expected`/`actual`/`note`
+   (재사용한 기본기능/XIPL TC의 실제 값)는 정상적으로 나온다 — WU 체크리스트
+   자체 원문을 이 자리에 채우려면 `winupdate_report`쪽에 `read_tc_rows`류
+   함수를 새로 만들어야 하는 설계 결정이 필요해 손대지 않았다. 필요하면
+   다음에 논의.
 
 ### 변경/신규 파일
 
@@ -182,9 +205,11 @@ Format 상수 전부 추가, `select_format()`/`set_portable_viewer()` 신규,
 File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026-09-08
 이어서 — `taskbar_autohidden()` 신규, 환경 버그 수정), `core/winupdate_report.py`
 (2026-09-08 이어서 — L열 Comment 신규, `_reason_for()` 신규), `core/result.py`
-(2026-09-08 이어서 — `_render_html` 제목/기준문서 meta 파라미터화, Step 단위
-타이밍 기록/렌더링 제거), `tests/test_performance_waits.py`(2026-09-08
-이어서 — 제거된 "소요 시간 분해" 문구 검증을 "없어야 함" 검증으로 갱신).
+(2026-09-08 이어서 — `_render_html`/`write_txt`/CSV 헤더 제목·기준문서 meta
+파라미터화, Step 단위 타이밍 기록/렌더링 제거), `tests/test_performance_waits.py`
+(2026-09-08 이어서 — 제거된 "소요 시간 분해" 문구 검증을 "없어야 함" 검증으로
+갱신), `run.py`(2026-09-08 다시 이어서 — `_command_line()` 공용 헬퍼 신규,
+`_report_meta`/`_finish_winupdate` 두 곳의 "실행 명령에 run.py 누락" 수정).
 
 ---
 

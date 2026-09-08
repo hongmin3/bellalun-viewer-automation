@@ -50,14 +50,24 @@ class Context:
         self.reports_root = os.path.join(self.root, "Reports")
 
 
+def _command_line():
+    """리포트에 실을 "그대로 다시 실행할 수 있는" 명령 문자열.
+
+    `sys.argv[0]`(스크립트 이름 자체, 예: `run.py`)을 빼먹으면 리포트에 찍힌
+    명령을 그대로 복사해 실행할 때 "run-winupdate: command not found"처럼
+    실패한다(2026-09-08 실측 — 두 호출부가 나란히 같은 실수를 하고 있었다).
+    """
+    argv0 = os.path.basename(sys.argv[0]) if sys.argv else "run.py"
+    return "python " + " ".join([argv0] + sys.argv[1:])
+
+
 def _report_meta(ctx, results):
     """HTML 리포트에 실을 부가 정보를 모은다.
 
     실패해도 리포트 생성 자체는 살린다 — 대신 **조용히 넘기지 않고** 이유를
     출력한다(체크리스트 기록이 죽은 코드였던 2026-08-18 사례와 같은 처리).
     """
-    meta = {"command": "python " + " ".join(sys.argv[1:])
-                       if len(sys.argv) > 1 else "python run.py"}
+    meta = {"command": _command_line()}
     try:
         from core import checklist, sysinfo, tc_modules
         source = checklist.source_path(ctx)
@@ -598,12 +608,13 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note=""):
         except Exception as exc:
             print(f"  winupdate: xlsx 기록 실패 — {exc}")
 
-    command = "python " + " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "python run.py"
     from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
-                              meta={"command": command, "env": env,
+                              meta={"command": _command_line(), "env": env,
                                     "report_title":
                                         "Bellalun Viewer Windows Update 호환성 검증 자동화 상세 리포트",
+                                    "report_title_short":
+                                        "Bellalun Viewer Windows Update 호환성 검증 자동화 결과",
                                     "source_doc": WINUPDATE_CHECKLIST_NAME,
                                     "source_sheet": _WU_SHEET})
     result_paths.update(json_paths)

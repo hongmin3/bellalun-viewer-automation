@@ -473,7 +473,8 @@ def _one_line(value, limit=200):
     return text if len(text) <= limit else text[:limit - 3] + "..."
 
 
-def write_txt(results, path, env=None, checklist=None, command=None):
+def write_txt(results, path, env=None, checklist=None, command=None,
+             report_title="Bellalun Viewer 기본기능 자동화 결과"):
     """사람이 바로 읽는 Pass/Fail 요약 텍스트."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     total = {status: 0 for status in STATUSES}
@@ -483,7 +484,7 @@ def write_txt(results, path, env=None, checklist=None, command=None):
 
     L = []
     L.append("=" * 78)
-    L.append(" Bellalun Viewer 기본기능 자동화 결과")
+    L.append(f" {report_title}")
     L.append("=" * 78)
     L.append(f" 수행 일시 : {datetime.now():%Y-%m-%d %H:%M:%S}")
     if command:
@@ -598,7 +599,10 @@ def write_reports(results, out_dir, run_name=None, meta=None):
        "checklist":{tc_id: {precondition, steps, expected, test_data, ...}},
        "modules":  {tc_id: ["tests/workflow14.py", ...]},
        "scope":    {tc_id: {"level":.., "reason":..}},
-       "command":  "python run.py run-regression"}
+       "command":  "python run.py run-regression",
+       "report_title": "...",        # HTML <h1> — 생략 시 기본기능 문구
+       "report_title_short": "...",  # TXT/CSV 머리글 — 생략 시 기본기능 문구
+       "source_doc": "...xlsx", "source_sheet": "..."}  # HTML 기준 문서 줄
     """
     os.makedirs(out_dir, exist_ok=True)
     meta = meta or {}
@@ -607,10 +611,11 @@ def write_reports(results, out_dir, run_name=None, meta=None):
 
     # CSV — Excel에서 열어도 시험 환경과 실행 명령을 잃지 않도록 데이터 표 위에
     # 메타 행을 둔다.
+    report_title_short = meta.get("report_title_short", "Bellalun Viewer 기본기능 자동화 결과")
     csv_path = base + ".csv"
     with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
-        w.writerow(["# Bellalun Viewer 기본기능 자동화 결과"])
+        w.writerow([f"# {report_title_short}"])
         w.writerow(["# 생성 일시", datetime.now().isoformat(timespec="seconds")])
         if meta.get("command"):
             w.writerow(["# 실행 명령", meta["command"]])
@@ -641,7 +646,8 @@ def write_reports(results, out_dir, run_name=None, meta=None):
     # HTML
     txt_path = write_txt(results, base + ".txt", env=meta.get("env"),
                          checklist=meta.get("checklist"),
-                         command=meta.get("command"))
+                         command=meta.get("command"),
+                         report_title=report_title_short)
     html_path = base + ".html"
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(_render_html(results, meta,
