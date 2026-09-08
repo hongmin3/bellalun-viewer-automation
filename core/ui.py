@@ -17,6 +17,7 @@ import time
 
 u32 = ctypes.windll.user32
 k32 = ctypes.windll.kernel32
+shell32 = ctypes.windll.shell32
 
 # Keep Win32 control rectangles, mouse coordinates, and screenshots in the
 # same physical-pixel coordinate space on 125/150% DPI systems.
@@ -288,6 +289,88 @@ class foreground_unlocked:                             # noqa: N801
     def __exit__(self, *exc):
         if self.before:
             _set_foreground_lock_timeout(self.before)
+        return False
+
+
+ABM_GETSTATE = 4
+ABM_SETSTATE = 10
+ABS_AUTOHIDE = 0x0000001
+
+
+class _APPBARDATA(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", w.DWORD),
+        ("hWnd", w.HWND),
+        ("uCallbackMessage", w.UINT),
+        ("uEdge", w.UINT),
+        ("rc", w.RECT),
+        ("lParam", ctypes.c_long),
+    ]
+
+
+def _taskbar_hwnd():
+    return u32.FindWindowW("Shell_TrayWnd", None)
+
+
+def _taskbar_state():
+    """작업표시줄 상태 플래그(ABS_AUTOHIDE 비트 포함)를 읽는다. 실패하면 None."""
+    hwnd = _taskbar_hwnd()
+    if not hwnd:
+        return None
+    abd = _APPBARDATA()
+    abd.cbSize = ctypes.sizeof(_APPBARDATA)
+    abd.hWnd = hwnd
+    try:
+        return int(shell32.SHAppBarMessage(ABM_GETSTATE, ctypes.byref(abd)))
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _set_taskbar_state(state):
+    hwnd = _taskbar_hwnd()
+    if not hwnd:
+        return False
+    abd = _APPBARDATA()
+    abd.cbSize = ctypes.sizeof(_APPBARDATA)
+    abd.hWnd = hwnd
+    abd.lParam = int(state)
+    try:
+        shell32.SHAppBarMessage(ABM_SETSTATE, ctypes.byref(abd))
+        return True
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+class taskbar_autohidden:                               # noqa: N801
+    """자동화가 도는 동안 Windows 작업표시줄을 자동 숨김으로 바꿔 둔다.
+
+    Viewer 의 메인 메뉴 버튼(2015)은 화면 좌하단(rect 0,1030~50,1080)에 있다.
+    작업표시줄 자동 숨김이 꺼져 있으면 그 자리를 작업표시줄이 그대로 덮어
+    **물리 마우스 클릭이 화면 좌표를 덮은 창(작업표시줄/위젯 패널)으로 샌다**
+    (2026-09-08 WU_09 조사 중 실측 — 메인 메뉴가 안 열리고 대신 Windows 위젯
+    패널이 열렸다). `ViewerUi.blocking_window()`는 셸 창을 의도적으로
+    "가림 아님"으로 보므로(그 주석 참고, Viewer 기동 직후의 정상 순간과
+    구분이 안 된다) 이 케이스를 잡지 못한다 — Z-order 문제가 아니라 자동
+    숨김이 꺼진 작업표시줄이 실제로 그 화면 영역을 차지하고 있는 문제다.
+
+    `foreground_unlocked`와 같은 패턴 — 끝나면 원래 상태로 되돌린다.
+
+        with taskbar_autohidden():
+            ...  # UI 자동화
+    """
+
+    def __init__(self):
+        self.before = None
+
+    def __enter__(self):
+        self.before = _taskbar_state()
+        if self.before is not None and not (self.before & ABS_AUTOHIDE):
+            _set_taskbar_state(self.before | ABS_AUTOHIDE)
+        return self
+
+    def __exit__(self, *exc):
+        if self.before is not None:
+            _set_taskbar_state(self.before)
         return False
 
 

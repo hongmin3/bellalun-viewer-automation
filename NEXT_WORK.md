@@ -1137,11 +1137,63 @@ N번 → Right(0x27, 펼치기) → Down → ... → OK** 순서로 정확히 �
 
 `core/usb_media.py::attempt_import()`는 목록에 행이 안 나타나면 **추측으로
 Import 버튼을 누르지 않고** 그 사실을 그대로 돌려준다 — `tests/winupdate.py`
-가 이를 MANUAL로 안전하게 기록한다. 위 DICOMDIR 발견은 아직
-`core/usb_media.py` 코드/docstring에 반영하지 않았다 — 다음 세션에서
-`export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()` 헬퍼를 추가하고
-Export 단계 자체를 DICOMDIR 포맷으로 바꾼 뒤, 스캔 대기 시간을 늘려
-재시도하는 것부터 시작한다.
+가 이를 MANUAL로 안전하게 기록한다.
+
+#### 2026-09-08 이어서 — 환경 버그 1건 수정 + 가설 (a)/(b) 기각, 새 가설 (d)
+
+**환경 버그 발견·수정(WU_09와 별개, 모든 라이브 자동화에 영향)**: 이 세션
+시작 시 `open_main_menu`가 계속 실패했다 — 원인은 **Windows 작업표시줄
+자동 숨김이 꺼져 있어** Viewer 메인 메뉴 버튼(2015, 화면 좌하단
+0,1030~50,1080)을 작업표시줄이 그대로 덮고 있었기 때문이다. 물리 클릭은
+화면 좌표를 덮은 창이 가져가므로 클릭이 작업표시줄(이번엔 Windows 위젯
+패널)로 샜다. `ViewerUi.blocking_window()`는 셸 창을 의도적으로 "가림
+아님"으로 보므로(Viewer 기동 직후 정상 순간과 구분 안 됨) 이 케이스를
+못 잡는다 — Z-order 문제가 아니라 **자동 숨김이 꺼진 작업표시줄이 실제로
+그 화면 영역을 차지하는** 문제였다. `core/ui.py`에 `taskbar_autohidden()`
+(SHAppBarMessage 로 임시 자동 숨김 설정, 종료 시 원상복구 — `foreground_
+unlocked`와 같은 패턴)을 추가하고 `run.py`의 `__main__`에서
+`foreground_unlocked()`와 함께 걸었다. 이후 메인 메뉴 클릭이 안정적으로
+성공했다. **다음 세션 시작 전에도 이 증상(메뉴가 안 열리고 엉뚱한 게
+열림)이 재현되면 작업표시줄 자동 숨김 여부부터 의심할 것.**
+
+또한 `export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
+`set_portable_viewer()` 헬퍼를 정식 추가했다(기존 계획대로). `tests/
+winupdate.py::run_usb_export_import`가 Export 전에 DICOMDIR 포맷 +
+Portable Viewer를 선택하도록 반영.
+
+**가설 (a) "스캔 대기가 짧았다" — 기각.** 위 헬퍼로 DICOMDIR+Portable
+Viewer Export(Autorun.inf + PortView\ + DICOMDIR 전부 생성 확인, MG
+데이터 정상)한 뒤, Import 경로를 정확히 그 폴더로 설정하고 **90초** 폴링
+했지만 목록은 그대로 0행이었다.
+
+**새로 시도 — 드라이브 드롭다운을 경로 설정보다 먼저 선택.** 2062 옆
+화살표(자식 ctrl_id=1)를 눌러 뜨는 "ItemList" 팝업의 TextButton
+1/2/3(=C:\\/D:\\/E:\\, 화면 좌표로 클릭 — `by_id`는 팝업 내부에서 같은
+ctrl_id가 두 군데 중복 열거돼 신뢰 못 함)에서 D:\\를 먼저 선택해 2062
+표시를 "D:\\"로 바꾼 뒤 2065에 경로를 설정 → Enter → Tab 으로 포커스
+이동까지 시도했지만 역시 0행. **가설 (b) "Autorun.inf/PortView 실행
+파일이 있어야 인식"도 기각** — 이번 DICOMDIR Export에 두 파일 다
+포함됐는데도 안 됐다.
+
+**드라이브 우선 선택 + 네이티브 폴더 트리(키보드) 탐색 조합도 재시도** —
+2062에서 D:\\ 선택 → 2063("...") 으로 SHBrowseForFolder 열기 → Home/Down/
+Right로 `DATA_FLOW_MWL_01_AUTO MWL`(DICOMDIR 있는 정확한 리프 폴더)까지
+내려가 확인 → 30초 폴링. 역시 0행. 이전 세션이 이미 이 조합(드라이브
+드롭다운 없이 트리 탐색만)을 시도해 실패했던 것과 같은 결과다 — **드라이브
+드롭다운을 먼저 눌러도 트리 탐색 결과가 달라지지 않는다.**
+
+**남은 가설 — (c)는 그대로, (d) 신규:**
+(c) 드라이브가 `GetDriveType()`상 REMOVABLE 이어야 하는데 이 USB(D:\\,
+`VXvue1`)가 다른 이유로 인식이 안 될 수 있다(드롭다운엔 D:\\로 정상 표시).
+(d) **DICOMDIR 미디어 배포는 원래 CD/DVD 개념이다** — Import Study의 스캔
+트리거가 실제로는 Windows AutoPlay/`WM_DEVICECHANGE`(미디어 삽입 이벤트)에
+매여 있어서, 이미 꽂혀 있는 USB 드라이브를 UI로 사후에 "탐색"하는 방식으로는
+절대 트리거되지 않고 **물리적으로 다시 꽂아야**(또는 실제 광학 드라이브에
+미디어를 넣어야) 스캔이 시작될 가능성이 있다. 다음 세션 시작 후보:
+USB를 뽑았다 다시 꽂으면서 Import Study 대화상자가 열려 있는 상태로
+`list_rows()`를 폴링해 변화가 있는지 확인. 그래도 안 되면 이 TC는 MANUAL
+유지가 맞다는 결론으로 마무리하고 더 파지 않는다(이미 두 세션에 걸쳐
+충분히 조사했다).
 
 ---
 
@@ -1169,20 +1221,23 @@ Setting > Patient > Patient List > List Show Item의 "Scheduled Study
 DateTime"(기본 꺼짐)을 켜고 카드 오른쪽(가로 스크롤 필요)에서 OCR로
 읽는다.
 
-**남은 것 — 다음 세션에서 이어갈 두 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고)**
+**남은 것 — 다음 세션에서 이어갈 두 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고,
+2026-09-08 이어서 갱신됨)**
 
-1. **WU_09 USB Import 되읽기 — 핵심 원인은 확정, 마지막 트리거만 남음.**
-   Import Study는 DICOMDIR 포맷이 있어야 인식한다(일반 DICOM Export는
-   DICOMDIR을 안 만든다). `core/export_manager.py`의 File Format
-   1009(`FORMAT_DICOM`이라는 이름이 잘못 붙어 있다 — 실제로는
-   DICOMDIR 버튼)를 선택하면 DICOMDIR + Portable Viewer 번들이 실제로
-   생성되는 것도 확인했다. 그런데도 그 폴더를 정확히 선택해(키보드 트리
-   탐색 Home/Down/Right로 검증된 방법 사용) Import 에 넣어도 목록이 안
-   찬다. 다음 시도 후보: (a) 스캔 대기를 훨씬 길게(현재 3~8초 정도만
-   기다려 봤다) (b) Export 시 Burning Option/Collimation 등 다른 옵션도
-   함께 맞춰야 하는지 (c) 정말 실물 USB(D:\, VXvue1)가 이 기능이 요구하는
-   미디어 종류로 인식되는지 재확인. `core/export_manager.py`에
-   `FORMAT_DICOMDIR`/포맷 선택 헬퍼부터 정식으로 추가하고 시작해라.
+1. **WU_09 USB Import 되읽기 — 가설 (a)(b) 기각, (c)(d)만 남음.**
+   `core/export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
+   `set_portable_viewer()` 헬퍼를 이미 추가했고 `tests/winupdate.py`가
+   쓴다. DICOMDIR+Portable Viewer Export(Autorun.inf+PortView\ 전부
+   생성 확인)를 90초 폴링, 드라이브 드롭다운(2062) 우선 선택 후 경로
+   지정, 드라이브 우선 선택+키보드 트리 탐색 조합까지 전부 시도했지만
+   Import 목록은 항상 0행이었다 — **스캔 대기 부족(a)과 Autorun.inf/
+   PortView 부재(b)는 원인이 아니라고 결론**. 남은 후보: (c) 이 USB가
+   REMOVABLE 로는 보여도 Import 기능이 요구하는 실제 미디어 종류로는
+   인식 안 될 가능성, (d) DICOMDIR 스캔이 Windows AutoPlay/미디어 삽입
+   이벤트에 매여 있어 이미 꽂힌 드라이브를 UI로 사후 탐색해선 트리거가
+   안 될 가능성 — **USB를 물리적으로 뽑았다 다시 꽂으면서 Import Study
+   대화상자를 열어 두고 확인하는 것부터 시작해라.** 그래도 안 되면 이미
+   두 세션에 걸쳐 충분히 조사한 것이니 MANUAL 유지로 결론짓고 그만 파라.
 2. **WU 체크리스트 xlsx 자동 기록 정책 재검토.** 사용자가 "지금처럼
    원본 체크리스트에 Result 열을 추가하는 방식이 꼭 필요해 보이지
    않는다"는 의견을 냈다(2026-09-08). 기존 방식(결정사항 5번 + 기본기능
@@ -1205,6 +1260,15 @@ python run.py portability-check 의 "관리자 권한"이 True 인지 확인해�
 hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
 그 사실만 보고해라. USB 드라이브(D:\, `VXvue1`)가 꽂혀 있는지도 함께 확인해라 —
 WU_09 USB 관련 작업은 실물이 있어야 검증할 수 있다.
+
+**환경 버그 참고(2026-09-08 발견, 수정됨)**: 작업표시줄 자동 숨김이 꺼져 있으면
+Viewer 메인 메뉴 버튼(화면 좌하단)을 작업표시줄이 덮어 클릭이 샌다.
+`run.py`는 이제 `core/ui.py::taskbar_autohidden()`으로 실행 내내 자동
+숨김을 걸었다 되돌리므로 `run.py`를 거치는 명령은 이 문제가 없다.
+다만 `run.py` 밖에서 직접 `core.ui`/`core.flows`를 호출하는 임시
+스크립트를 짤 때는 `with foreground_unlocked(), taskbar_autohidden():`로
+감싸는 것을 잊지 마라 — 메인 메뉴가 안 열리고 엉뚱한 게(Windows 위젯
+패널 등) 열리면 이 문제부터 의심해라.
 
 **TC를 단독 실행할 때의 전제(2026-08-31 실측, 2026-09-01 추가 확인)**
 reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print

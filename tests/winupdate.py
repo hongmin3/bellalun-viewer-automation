@@ -535,6 +535,10 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
     manager = em.attach()
     try:
         path = em.set_path(manager, target)
+        # Import Study는 DICOMDIR 포맷이 있어야 인식한다(2026-09-08 실측,
+        # NEXT_WORK.md 5절 ⑨). 일반 DICOM 포맷은 DICOMDIR을 만들지 않는다.
+        em.select_format(manager, em.FORMAT_DICOMDIR)
+        em.set_portable_viewer(manager, True)
         outcome = em.export(manager, wait=180)
     finally:
         try:

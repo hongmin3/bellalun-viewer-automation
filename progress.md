@@ -96,20 +96,30 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
 ### 남은 작업 / 사용자 판단 필요
 
 1. ~~WU_02 Scheduled Date/Time 표시 위치~~ — **2026-09-08 완료**(위 참고).
-2. **WU_09 USB Import 되읽기 — 핵심 원인 확정, 트리거는 아직 미해결**
-   (2026-09-08 대폭 진전). Import Study는 **DICOMDIR 포맷이 있어야만
-   인식한다** — 일반 "DICOM" 포맷 Export(기존 WF_09/USB Export가 쓰는 것)는
-   DICOMDIR을 안 만든다. Export Manager의 File Format을 "DICOM"(1008) 대신
-   **"DICOMDIR"(1009 — 기존 상수 `FORMAT_DICOM=1009`는 실제로 DICOMDIR
-   버튼이었다, 이름이 잘못 붙어 있다)** 로 선택하면 `Portable Viewer` 옵션이
-   활성화되고 실제로 `DICOMDIR` 파일이 생성됨을 라이브로 확인했다. 또한
-   Import Study의 "..." 폴더 찾아보기(2063) 대화상자를 **실제 키보드 트리
-   탐색**(Home→Down/Right)으로 원하는 깊은 경로까지 정확히 선택하는 것도
-   성공했다(2065 Edit에 직접 타이핑하는 방식은 일정 길이에서 자동완성으로
-   잘리는 문제가 있어 안 쓴다). **그런데도** DICOMDIR이 있고 Modality=MG로
-   확인된 폴더를 정확히 선택해도 Import 목록(2066)이 채워지지 않았다 — 마지막
-   트리거를 못 찾았다. 상세 실측 기록은 `core/usb_media.py` docstring에
-   추가 예정(아직 안 함 — 다음 세션에서).
+2. **WU_09 USB Import 되읽기 — 핵심 원인 확정, 가설 (a)(b) 기각(2026-09-08
+   이어서 조사)**. Import Study는 **DICOMDIR 포맷이 있어야만 인식한다** —
+   일반 "DICOM" 포맷 Export(기존 WF_09/USB Export가 쓰는 것)는 DICOMDIR을
+   안 만든다. `core/export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
+   `set_portable_viewer()` 헬퍼를 정식으로 추가했고(`FORMAT_DICOM`도
+   1008로 정정 — 기존 1009는 실제로 DICOMDIR 버튼이었다), `tests/
+   winupdate.py::run_usb_export_import`가 Export 전에 이 둘을 선택하도록
+   반영했다. 라이브로 DICOMDIR+Portable Viewer Export(Autorun.inf+
+   PortView\ 전부 생성 확인, MG 데이터 정상)한 뒤, Import 경로를 정확한
+   리프 폴더로 설정하고 **90초 폴링**, **드라이브 드롭다운(2062)을 경로
+   설정보다 먼저 선택**하는 조합, **드라이브 우선 선택 + 키보드 트리 탐색**
+   조합까지 전부 시도했지만 Import 목록(2066)은 항상 0행이었다 — **스캔
+   대기 부족(가설 a)과 Autorun.inf/PortView 부재(가설 b)는 원인이 아니라고
+   결론**. 남은 후보 (c) USB가 Import 기능이 요구하는 미디어 종류로 인식
+   안 될 가능성, (d) DICOMDIR 스캔이 Windows AutoPlay/미디어 삽입 이벤트에
+   매여 있어 이미 꽂힌 드라이브를 UI로 사후 탐색해선 트리거가 안 될 가능성
+   — 상세는 `NEXT_WORK.md` 5절 ⑨ 참고.
+   - **환경 버그 발견·수정(WU_09와 별개, 전체 라이브 자동화에 영향)**: 이
+     조사 중 Windows **작업표시줄 자동 숨김이 꺼져 있어** Viewer 메인 메뉴
+     버튼(화면 좌하단)을 작업표시줄이 덮어 클릭이 새는 문제를 발견했다
+     (`blocking_window()`는 셸 창을 의도적으로 "가림 아님"으로 봐서 못
+     잡는 케이스). `core/ui.py::taskbar_autohidden()`(SHAppBarMessage로
+     임시 자동 숨김, 종료 시 원상복구 — `foreground_unlocked`와 같은
+     패턴)을 추가하고 `run.py`의 `__main__`에서 함께 걸었다.
 3. **WU_09 xlsx 자동 기록 정책 재검토 요청** — 사용자가 "지금처럼 체크리스트
    원본에 자동화판정 열을 추가하는 방식이 필요 없어 보인다"는 의견을 냈다.
    기존 이유(사용자 결정사항 5번 + `core/checklist.py`가 기본기능 체크리스트에
@@ -119,11 +129,17 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
 
 ### 변경/신규 파일
 
-`tests/winupdate.py`(신규 — 매핑 표), `core/winupdate_report.py`(신규 — WU
+`tests/winupdate.py`(신규 — 매핑 표, 2026-09-08 이어서 DICOMDIR 포맷/
+Portable Viewer 선택 추가), `core/winupdate_report.py`(신규 — WU
 xlsx writer), `core/usb_media.py`(신규 — USB 탐지+Import 시도), `run.py`
-(`run-winupdate`/`--from-regression` CLI), `core/sysinfo.py`
-(`os_update_info` 추가), `core/viewer_tools.py`(Select/Rotate CW/CCW),
-`tests/workflow01.py`(Age/Scheduled 대조 추가 — WF_01 자체도 고도화됨).
+(`run-winupdate`/`--from-regression` CLI, 2026-09-08 이어서 `__main__`에
+`taskbar_autohidden()` 추가), `core/sysinfo.py`(`os_update_info` 추가),
+`core/viewer_tools.py`(Select/Rotate CW/CCW), `tests/workflow01.py`
+(Age/Scheduled 대조 추가 — WF_01 자체도 고도화됨), `core/export_manager.py`
+(2026-09-08 이어서 — `FORMAT_DICOM` 1008로 정정, `FORMAT_DICOMDIR` 등 File
+Format 상수 전부 추가, `select_format()`/`set_portable_viewer()` 신규),
+`core/ui.py`(2026-09-08 이어서 — `taskbar_autohidden()` 신규, 환경 버그
+수정).
 
 ---
 

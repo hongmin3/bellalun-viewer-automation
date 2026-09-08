@@ -20,7 +20,18 @@ from core.ui import ViewerUi
 PROCESS = "EXPORT.MANAGER"
 
 # 실측 컨트롤 ID (2026-08-18, Bellalun 1.0.12.105)
-FORMAT_DICOM = 1009
+# File Format 그리드는 2026-09-08 재실측으로 전부 확정됐다(WU_09 조사).
+# 기존 FORMAT_DICOM=1009는 이름이 잘못 붙어 있었다 — 실제로는 DICOMDIR
+# 버튼이다(선택하면 Portable Viewer(1032)가 활성화되고 DICOMDIR 파일 +
+# PortView\ 폴더가 생성됨을 라이브로 확인). 진짜 "DICOM" 버튼은 1008이다.
+FORMAT_DICOM = 1008
+FORMAT_DICOMDIR = 1009      # Import Study가 인식하려면 이 포맷이 필요(실측)
+FORMAT_IMG = 1010
+FORMAT_JPEG = 1011
+FORMAT_TIF8 = 1012
+FORMAT_TIF16 = 1013
+FORMAT_BMP = 1014
+FORMAT_RAW = 1015
 PATH_DRIVE = 1019
 PATH_EDIT = 1023            # cls=Edit, 기본값 <data_dir>\Export
 TYPE_PROCESSED = 1025
@@ -124,28 +135,56 @@ def is_checked(ui, ctrl_id):
         return None
 
 
-def set_anonymous(ui, enabled=True, attempts=3):
-    """Anonymous 옵션(1031)을 원하는 상태로 만든다.
+def _set_toggle(ui, ctrl_id, enabled, what, attempts=3):
+    """체크/라디오 컨트롤을 원하는 상태로 만든다(공용).
 
-    토글이므로 **누르기 전에 현재 상태를 확인**하고, 누른 뒤 실제로 바뀌었는지
-    다시 확인한다(운영 지침 11절 - 조작 전후 상태 확인).
-
-    반환: {"requested": bool, "final": bool|None, "clicked": int}
+    누르기 전에 현재 상태를 확인하고, 누른 뒤 실제로 바뀌었는지 다시 확인한다
+    (운영 지침 11절 - 조작 전후 상태 확인). `set_anonymous`/`set_portable_viewer`가
+    공유한다.
     """
     clicked = 0
     for _ in range(attempts):
-        state = is_checked(ui, ANONYMOUS)
+        state = is_checked(ui, ctrl_id)
         if state is enabled:
             return {"requested": bool(enabled), "final": state,
                     "clicked": clicked}
-        hits = [c for c in ui.by_id(ANONYMOUS) if c.visible]
+        hits = [c for c in ui.by_id(ctrl_id) if c.visible]
         if not hits:
-            raise ExportManagerError(
-                f"Anonymous 옵션({ANONYMOUS})을 찾지 못했습니다.")
+            raise ExportManagerError(f"{what}(ID {ctrl_id})을 찾지 못했습니다.")
         ui.click(hits[0], settle=.8)
         clicked += 1
-    return {"requested": bool(enabled), "final": is_checked(ui, ANONYMOUS),
+    return {"requested": bool(enabled), "final": is_checked(ui, ctrl_id),
             "clicked": clicked}
+
+
+def set_anonymous(ui, enabled=True, attempts=3):
+    """Anonymous 옵션(1031)을 원하는 상태로 만든다.
+
+    반환: {"requested": bool, "final": bool|None, "clicked": int}
+    """
+    return _set_toggle(ui, ANONYMOUS, enabled, "Anonymous 옵션", attempts)
+
+
+def set_portable_viewer(ui, enabled=True, attempts=3):
+    """Portable Viewer 옵션(1032)을 원하는 상태로 만든다.
+
+    DICOMDIR 포맷(`FORMAT_DICOMDIR`)을 먼저 선택해야 이 옵션이 활성화된다
+    (2026-09-08 실측 — DICOM 포맷에서는 비활성 상태라 클릭이 반영되지 않을 수
+    있다). 반환: {"requested": bool, "final": bool|None, "clicked": int}
+    """
+    return _set_toggle(ui, OPT_PORTABLE_VIEWER, enabled, "Portable Viewer 옵션",
+                        attempts)
+
+
+def select_format(ui, ctrl_id, attempts=3):
+    """File Format 그리드에서 지정한 포맷 버튼을 선택한다(라디오 방식 그룹).
+
+    이미 선택돼 있으면 클릭하지 않는다. `FORMAT_DICOM`/`FORMAT_DICOMDIR` 등과
+    함께 쓴다. 반환: {"requested": ctrl_id, "final": bool|None, "clicked": int}
+    """
+    result = _set_toggle(ui, ctrl_id, True, "Format 버튼", attempts)
+    return {"requested": ctrl_id, "final": result["final"],
+            "clicked": result["clicked"]}
 
 
 def export(ui, wait=120, poll=2.0):

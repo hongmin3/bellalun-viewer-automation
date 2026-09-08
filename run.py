@@ -1345,7 +1345,11 @@ if __name__ == "__main__":
     # 전환을 거부했고, 그 때문에 재기동한 Viewer 가 올라오지 못해 로그인 직전
     # 게이트가 TC 를 반복 중단시켰다(2026-08-28 실측). `core/ui.py` 의
     # `foreground_unlocked` 주석 참고. 끝나면 원래 값으로 되돌린다.
-    from core.ui import foreground_unlocked
+    #
+    # **작업표시줄도 명령 실행 내내 자동 숨김으로 바꿔 둔다.** 꺼져 있으면
+    # Viewer 메인 메뉴 버튼(화면 좌하단)을 작업표시줄이 덮어 클릭이 샌다
+    # (2026-09-08 WU_09 조사 중 실측). `taskbar_autohidden` 주석 참고.
+    from core.ui import foreground_unlocked, taskbar_autohidden
 
-    with foreground_unlocked():
+    with foreground_unlocked(), taskbar_autohidden():
         sys.exit(main())
