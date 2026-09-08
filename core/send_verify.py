@@ -304,9 +304,12 @@ QUEUE_STATE_DONE = 7          # DICOM_STORAGE_QUEUE.State (2026-08-18 실측)
 # Queue 행이 영상인지 Dose SR 인지 가른다 (2026-08-20 실측).
 #   영상 : DataType 이 1 이 아니고 InstanceKey / InstanceUID 가 실제 값
 #   RDSR : DataType = 1, InstanceKey = -1, InstanceUID = NULL
-# 이 환경(Demo F8 가상 촬영)에서는 RDSR 행이 **항상 State=3 으로 남는다** — 여러
-# 실행에서 반복 확인했다(Key 32/35/38). RDSR 생성 조건이 성립하지 않기 때문이고
-# 제품 결함이 아니다(WF_06 과 같은 판단).
+# 2026-08-20 에는 이 환경(Demo F8 가상 촬영)에서 RDSR 행이 항상 State=3 으로 남아
+# "RDSR 생성 조건이 성립하지 않는다"고 판단했다(Key 32/35/38). 그러나 2026-08-27/28
+# 에 WF_06(Examined Send)과 WF_15(Pre-send Preview)가 **같은 Demo 환경**에서 RDSR
+# 을 정상 수신(State=Done)해 그 전제가 틀렸음이 드러났다 — Demo 촬영에서도 RDSR 은
+# 생성된다. 사양에 맞는 전송 경로(Examined 모드 + 모든 영상 전송)를 지켰는데도 Dose
+# SR 이 오지 않으면 전제 미충족이 아니라 사양 위반으로 판정한다(WF_06/WF_07/WF_15).
 QUEUE_DATATYPE_DOSE_SR = 1
 
 

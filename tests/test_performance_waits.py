@@ -34,7 +34,10 @@ class PerformanceWaitTests(unittest.TestCase):
         # `소요 시간 분해`(띄어쓰기)를 쓰고 있었다. 이 저장소의 유일한 단위
         # 시험이 그동안 실패 상태로 방치돼 있었다(아무도 돌리지 않았다).
         # 문구를 그대로 박는 대신 **HTML 이 실제로 내는 제목**을 확인한다.
-        self.assertIn("<h3>소요 시간 분해</h3>", html)
+        # 2026-09-04: 리포트가 복잡하다는 사용자 요청으로 이 섹션이
+        # `<details><summary>`로 접혔다(`core/result.py` `_STYLE`/`_render_html`
+        # 참고) — 더 이상 `<h3>`가 아니다. 실제 출력에 맞춰 갱신한다.
+        self.assertIn("<summary>소요 시간 분해</summary>", html)
         self.assertIn('"duration_seconds"', json_text)
         self.assertIn('"timings"', json_text)
 

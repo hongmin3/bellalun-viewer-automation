@@ -407,6 +407,16 @@ table.holds td,table.holds th{overflow-wrap:anywhere}
 .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid var(--line);margin-left:6px;vertical-align:2px;color:var(--mut);background:#fff}
 a{color:#1558b0}
 .note{white-space:pre-wrap}
+/* 접이식 섹션 — 참고 정보(사양 원문/소요 시간/부록 표)를 기본은 접어 두고
+   필요할 때만 펼친다(2026-09-04 사용자 요청: 리포트가 너무 복잡하다). 정보를
+   지우지 않고 첫 화면 분량만 줄인다. */
+details.fold{margin:6px 0 12px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+details.fold>summary{cursor:pointer;padding:7px 10px;font-size:12.5px;font-weight:600;color:#333;list-style:none}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:'▸ ';color:var(--mut)}
+details.fold[open]>summary::before{content:'▾ '}
+details.fold>summary:hover{background:#eef1f5}
+details.fold>.fold-body{padding:2px 10px 10px}
 """
 
 
@@ -738,9 +748,14 @@ def _render_html(results, meta, siblings=None):
 
     # --- 자동화 커버리지 총괄 (기준 체크리스트 전체) --------------------
     # 2026-08-21 사용자 요청: "실제 자동화 TC 를 못 만들어서 MANUAL 로 남겨 놓은
-    # TC" 를 리포트 초반에 한 섹션으로 모은다. 이번 실행에서 수행한 TC 뿐 아니라
-    # **기준 체크리스트 전체 행**을 대상으로 하며, 사유는 자동으로 추측하지 않고
+    # TC" 를 한 섹션으로 모은다. 이번 실행에서 수행한 TC 뿐 아니라 **기준
+    # 체크리스트 전체 행**을 대상으로 하며, 사유는 자동으로 추측하지 않고
     # `automation_scope.json` 의 `coverage` 항목에서 읽는다.
+    # 2026-09-04 사용자 요청: 리포트가 복잡하다 — 이 표는 **이번 실행 결과와
+    # 무관한 정적 참고 자료**라 대시보드 바로 다음에 나오면 정작 이번 실행의
+    # 실패/수동확인 결과보다 먼저 읽히게 된다. 본문에서 빼서 문서 끝 부록으로
+    # 옮기고 접어 둔다(`cov` 에 모았다가 siblings 앞에서 렌더링한다).
+    cov = []
     coverage = meta.get("coverage") or []
     if coverage:
         groups = _coverage_groups(coverage)
@@ -752,45 +767,44 @@ def _render_html(results, meta, siblings=None):
         levels = {}
         for x in coverage:
             levels[str(x.get("level"))] = levels.get(str(x.get("level")), 0) + 1
-        P.append(f"<h2>자동화 커버리지 총괄 — 기준 체크리스트 {len(coverage)} TC</h2>")
-        P.append("<div class='meta'>이번 실행 결과와 별개로, <b>기준 체크리스트의 "
+        cov.append("<div class='meta'>이번 실행 결과와 별개로, <b>기준 체크리스트의 "
                  "모든 TC</b>가 자동화됐는지와 못 한 것의 사유를 모아 둔 표다. "
                  "사유는 <code>automation_scope.json</code> 의 각 TC "
                  "<code>coverage</code> 항목에서 그대로 읽는다 — 리포트가 사유를 "
                  "만들어 내지 않는다. <b>타일은 자동화 등급</b>(FULL/PARTIAL/"
                  "MANUAL)이고, <b>아래 표의 묶음은 미자동화 사유 분류</b>라 기준이 "
                  "다르다.</div>")
-        P.append("<div class='dash'>")
-        P.append(f"<div class='tile'><div class='n'>{len(coverage)}</div>"
+        cov.append("<div class='dash'>")
+        cov.append(f"<div class='tile'><div class='n'>{len(coverage)}</div>"
                  "<div class='k'>기준 TC 총계</div></div>")
-        P.append(f"<div class='tile'><div class='n PASS'>"
+        cov.append(f"<div class='tile'><div class='n PASS'>"
                  f"{levels.get('FULL', 0)}</div>"
                  "<div class='k'>FULL — 전 단계 자동 판정</div></div>")
-        P.append(f"<div class='tile'><div class='n MANUAL'>"
+        cov.append(f"<div class='tile'><div class='n MANUAL'>"
                  f"{levels.get('PARTIAL', 0)}</div>"
                  "<div class='k'>PARTIAL — 일부 수동</div></div>")
-        P.append(f"<div class='tile'><div class='n SKIP'>"
+        cov.append(f"<div class='tile'><div class='n SKIP'>"
                  f"{levels.get('MANUAL', 0)}</div>"
                  "<div class='k'>MANUAL — 수동 전용</div></div>")
-        P.append("</div>")
-        P.append("<table class='cov'><colgroup><col style='width:200px'>"
+        cov.append("</div>")
+        cov.append("<table class='cov'><colgroup><col style='width:200px'>"
                  "<col style='width:20%'><col style='width:66px'>"
                  "<col style='width:28%'><col></colgroup>"
                  "<tr><th>TC ID</th><th>Title</th><th>범위</th>"
                  "<th>자동화하지 못한 지점</th><th>해제 조건</th></tr>")
         for name, items in groups:
-            P.append(f"<tr class='gh'><td colspan='5'>{e(name)} — "
+            cov.append(f"<tr class='gh'><td colspan='5'>{e(name)} — "
                      f"{len(items)}건</td></tr>")
             for x in items:
                 tc_id = str(x.get("tc_id") or "")
                 link = (f"<a href='#{e(tc_id)}'>{e(tc_id)}</a>"
                         if tc_id in {r.tc_id for r in results} else e(tc_id))
-                P.append(f"<tr><td>{link}</td><td>{e(str(x.get('title') or ''))}</td>"
+                cov.append(f"<tr><td>{link}</td><td>{e(str(x.get('title') or ''))}</td>"
                          f"<td class='s'>{e(str(x.get('level') or '-'))}</td>"
                          f"<td class='note'>{e(str(x.get('gap') or '-'))}</td>"
                          f"<td class='note'>{e(str(x.get('unblock') or '-'))}</td>"
                          "</tr>")
-        P.append("</table>")
+        cov.append("</table>")
 
     # --- 먼저 볼 것: FAIL 원인 ----------------------------------------
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
@@ -914,11 +928,12 @@ def _render_html(results, meta, siblings=None):
         if sc.get("reason"):
             cells.append(("자동화 범위와 사유", sc["reason"]))
         if cells:
-            P.append("<h3>기준 문서 원문 — 이 TC 가 무엇을 검증하는가</h3>")
+            P.append("<details class='fold'><summary>기준 문서 원문 — 이 TC 가 "
+                     "무엇을 검증하는가</summary><div class='fold-body'>")
             P.append("<div class='spec'>")
             for head, body in cells:
                 P.append(f"<div><h4>{e(head)}</h4><pre>{e(body)}</pre></div>")
-            P.append("</div>")
+            P.append("</div></div></details>")
 
         # 자동화 코드 위치
         files = mods.get(r.tc_id) or []
@@ -969,7 +984,8 @@ def _render_html(results, meta, siblings=None):
         if r.timings:
             accounted = sum(t["duration_seconds"] for t in r.timings)
             unaccounted = r.duration_seconds - accounted
-            P.append("<h3>소요 시간 분해</h3>")
+            P.append("<details class='fold'><summary>소요 시간 분해</summary>"
+                     "<div class='fold-body'>")
             P.append("<table><tr><th style='width:60px'>종류</th>"
                      "<th>단계 / 대기</th><th style='width:90px'>소요</th>"
                      "<th style='width:80px'>결과</th><th>상세</th></tr>")
@@ -984,7 +1000,17 @@ def _render_html(results, meta, siblings=None):
                          f"<td>{unaccounted:.1f}s</td><td>-</td>"
                          f"<td>스텝 합계 {accounted:.1f}s / TC 전체 "
                          f"{r.duration_seconds:.1f}s</td></tr>")
-            P.append("</table>")
+            P.append("</table></div></details>")
+
+    # --- 부록: 자동화 커버리지 총괄 -------------------------------------
+    # 위에서 모아 둔 `cov` 를 여기서 접은 상태로 렌더링한다 — 이번 실행 결과와
+    # 무관한 정적 참고 자료라 본문 끝 부록으로 둔다.
+    if cov:
+        P.append(f"<h2>부록: 자동화 커버리지 총괄 — 기준 체크리스트 "
+                 f"{len(coverage)} TC</h2>")
+        P.append("<details class='fold'><summary>표 펼치기 — TC 별 자동화 등급·"
+                 "미자동화 사유·해제 조건</summary>"
+                 "<div class='fold-body'>" + "".join(cov) + "</div></details>")
 
     if siblings:
         P.append("<h2>같은 실행의 다른 산출물</h2><table>")

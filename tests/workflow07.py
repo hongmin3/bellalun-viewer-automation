@@ -56,7 +56,7 @@ from core import dicom_settings as ds
 from core import flows, screen, uitext
 from core import send_verify as sv
 from core import viewer_processing
-from core.result import FAIL, MANUAL, PASS, TCResult
+from core.result import FAIL, PASS, TCResult
 
 AUTO_SEND_LABEL = "Auto Send"
 NONE_LABEL = "None"
@@ -282,12 +282,22 @@ def run(ctx):
                  "않았다** — Auto Send 설정만으로 Queue 에 들어가는 것이 이 TC 의 "
                  "핵심이다.")
 
+        # **영상과 Dose SR 모두 Done 이 될 때까지 기다린다.** 2026-08-20 에는 이
+        # 환경(Demo F8 가상 촬영)에서 RDSR 생성 조건이 성립하지 않는다고 보고 영상만
+        # 기다리고 Dose SR 은 관측만 남겼는데, 2026-08-27/28 에 WF_06(Examined Send)
+        # 과 WF_15(Pre-send Preview)가 **같은 Demo 환경**에서 RDSR 을 정상 수신해
+        # 그 전제가 틀렸음이 드러났다(core/send_verify.QUEUE_STATE_DONE 주석 참고).
+        # Step 0 에서 이미 Storage 의 SendDoseSR=1 을 전제로 확인했으므로(사양서1
+        # 125쪽 SRS 06-30-30), 여기서도 WF_06/WF_15 와 같이 Dose SR 을 **FAIL 가능한
+        # 일반 판정**으로 본다.
         images_q = [q for q in new_queue if not sv.is_dose_sr_row(q)]
         dose_q = [q for q in new_queue if sv.is_dose_sr_row(q)]
         end = time.time() + 90
         while time.time() < end and not (
                 images_q and all(int(q["State"]) == sv.QUEUE_STATE_DONE
-                                 for q in images_q)):
+                                 for q in images_q)
+                and dose_q and all(int(q["State"]) == sv.QUEUE_STATE_DONE
+                                   for q in dose_q)):
             time.sleep(2)
             rows = queue_rows()
             images_q = [q for q in rows if not sv.is_dose_sr_row(q)]
@@ -301,53 +311,72 @@ def run(ctx):
             note="Expected 6. 영상과 RDSR 의 Queue 상태가 Done 으로 표시된다. "
                  "영상과 Dose SR 은 성격이 달라 나눠 판정한다"
                  "(core/send_verify.is_dose_sr_row).")
-        if dose_q and any(int(q["State"]) != sv.QUEUE_STATE_DONE for q in dose_q):
-            r.blocked(
-                6, "Dose SR Queue 상태가 Done 이다",
-                "확인 항목은 **기대 상태**를 적는다(2026-08-21 사용자 지적) — 이전에는 "
-                "'Done 이 아니다' 라고 관측 결과를 제목에 적어 확인 항목처럼 읽히지 "
-                "않았다. 판정: 이 환경은 Demo(F8) 가상 촬영이라 RDSR 생성 조건이 "
-                "성립하지 않아 **전제 미충족(MANUAL)** 이다. 제품 결함으로 보고하지 "
-                "않는다 — WF_06/WF_15 에서도 같은 상태를 반복 확인했다. "
-                f"**실측**: Dose SR 행 {[q['Key'] for q in dose_q]} 이 "
-                f"State={[q['State'] for q in dose_q]} (Done={sv.QUEUE_STATE_DONE}) "
-                "로 남았다. "
-                "**해제 조건**: 실제 촬영 환경에서 RDSR 생성 조건을 충족시킨 "
-                "뒤 재확인. "
-                "Dose SR **전송 경로** 자체는 `WF_06`(Examined All Images)과 "
-                "`WF_15`(Pre-send Preview)가 사양 경로로 검증한다 — 이 TC 는 "
-                "검사 종료 Auto Send 경로를 본다. "
-                "**이 실행으로 말할 수 없는 것**: Emergency Auto Send 경로의 "
-                "Dose SR 전송이 정상인지 여부.",
-                expected=f"Dose SR 행 State={sv.QUEUE_STATE_DONE}",
-                actual={"dose_sr": dose_q})
-        elif not dose_q:
-            r.blocked(
-                6, "Dose SR 이 Queue 에 등록된다",
-                "Auto Send 로 영상은 전송됐지만 Dose SR 행이 없다. Demo 가상 촬영은 "
-                "RDSR 생성 조건을 충족하지 않는다(WF_06 과 같은 판단). "
-                "**해제 조건**: 실제 촬영 환경. "
-                "Dose SR 전송 경로 자체는 `WF_06`/`WF_15` 가 검증한다. "
-                "**이 실행으로 말할 수 없는 것**: RDSR 자동 전송 여부.",
-                expected="Dose SR 행 1건 이상", actual={"dose_sr": []})
+        r.assert_true(
+            6, "Dose SR Queue 상태 Done",
+            bool(dose_q) and all(int(q["State"]) == sv.QUEUE_STATE_DONE
+                                 for q in dose_q),
+            expected=f"Dose SR 행 1건 이상, 전부 State={sv.QUEUE_STATE_DONE}",
+            actual={"dose_sr": dose_q},
+            note="Expected 6 을 Dose SR 행에도 적용한다. Step 0 에서 Storage 의 "
+                 "SendDoseSR=1 을 이미 확인했으므로(사양서1 125쪽 SRS 06-30-30 "
+                 "'Send Dose SR 옵션이 활성화되어 있을 때' 전송한다), **Dose SR 이 "
+                 "없거나 Done 이 아니면 FAIL 이다** — WF_06 과 같은 판단이다. "
+                 "2026-08-20 에는 Demo 가상 촬영이라 RDSR 생성 조건이 성립하지 "
+                 "않는다고 보고 MANUAL 로 남겼으나, 2026-08-27/28 에 WF_06/WF_15 가 "
+                 "같은 Demo 환경에서 RDSR 을 정상 수신해 그 전제가 틀렸음이 "
+                 "드러났다.")
 
         # --- Step 7: 수신 확인 --------------------------------------------
-        outcome = sv.wait_received_stable(ctx, wait=90)
-        received = sv.received(ctx) or []
+        # patient_id 를 준다 — 공유 Storage SCP 서버라 우리가 보내는 사이에 다른
+        # 시험이 보낸 객체가 섞일 수 있다(WF_06/WF_15 와 같은 이유). Emergency
+        # Patient ID(`EM-...`)는 제품이 실행마다 새로 생성하므로 필터링에 안전하다.
+        patient_id = target.get("PatientID")
+        outcome = sv.wait_received_stable(ctx, patient_id=patient_id, wait=90)
+        received = sv.received(ctx, patient_id) or []
         want = {str(i["ImageInstanceUID"]) for i in ctx.db.query(
             "DATA", "SELECT ImageInstanceUID FROM INSTANCE WHERE StudyKey=@k "
                     "AND InstanceType IN (0)", {"k": study_key})}
-        got = {str(o.get("SOPInstanceUID")) for o in received
+        # 수신 객체 중 RDSR 은 영상이 아니다(WF_06/WF_15 와 같은 구분) — 검사 단위
+        # 보고서라 `INSTANCE` 에 행이 없으므로 영상 UID 대조에 섞으면 "DB 에 없는
+        # UID" 로 잘못 잡힌다.
+        rdsr_objects = [o for o in received
+                        if str(o.get("SOPClassUID") or "") == sv.SOP_CLASS_RDSR]
+        image_objects = [o for o in received if o not in rdsr_objects]
+        got = {str(o.get("SOPInstanceUID")) for o in image_objects
                if o.get("SOPInstanceUID")}
         r.assert_true(
             7, "동일 Emergency 검사의 영상 수신",
-            bool(received) and not (want - got),
+            bool(image_objects) and not (want - got),
             expected={"SOP Instance UID": sorted(want)},
             actual={"received": len(received), "received_uids": sorted(got),
                     "missing": sorted(want - got), "stable": outcome},
             note="Expected 7. 동일 Emergency 검사의 영상과 RDSR 이 수신된다. 영상은 "
-                 "SOP Instance UID 로 대조한다. RDSR 은 위 MANUAL 참고 — Demo 촬영에서 "
-                 "생성 조건이 성립하지 않는다.")
+                 "SOP Instance UID 로 대조한다. RDSR 은 이 대조에서 빼고 바로 아래에서 "
+                 "따로 판정한다.")
+
+        identity = (sv.db_identity(ctx, patient_id) if patient_id
+                    else {"study_uids": set()})
+        current_rdsr = [o for o in rdsr_objects
+                        if o.get("StudyInstanceUID") in identity["study_uids"]]
+        bad_rdsr = [o for o in current_rdsr if o.get("PatientID") != patient_id]
+        r.assert_true(
+            7, "수신한 Dose SR(RDSR)의 Patient ID·Study Instance UID 일치",
+            bool(current_rdsr) and not bad_rdsr,
+            expected={"SOP Class UID": sv.SOP_CLASS_RDSR,
+                      "PatientID": patient_id,
+                      "StudyInstanceUID": sorted(identity["study_uids"])},
+            actual={"rdsr": [{k: o.get(k) for k in
+                              ("PatientID", "StudyInstanceUID", "SOPInstanceUID")}
+                             for o in rdsr_objects],
+                    "current_rdsr": [{k: o.get(k) for k in
+                                      ("PatientID", "StudyInstanceUID",
+                                       "SOPInstanceUID")} for o in current_rdsr],
+                    "mismatch": bad_rdsr},
+            note="Expected 7 을 RDSR 에도 적용한다(WF_06/WF_15 와 같은 방식). SOP "
+                 "Class UID 는 체크리스트 Test Data 가 명시한 "
+                 f"{sv.SOP_CLASS_RDSR}(X-Ray Radiation Dose SR Storage). "
+                 "Emergency Patient ID 는 실행마다 새로 생성되므로 `current_rdsr` "
+                 "필터링이 과거 실행분과 섞일 일은 통상 없다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_07 실행", exc)
     finally:
