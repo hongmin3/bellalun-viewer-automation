@@ -950,6 +950,60 @@ def open_group_page(ui, group, page, wait=2.5):
                                   f"{group} 설정 '{page}'", wait)
 
 
+# Setting > Patient > Patient List > List Show Item. 2026-09-08 실측
+# (Windows Update 체크리스트 TC_WindowsUpdate_02 대응 — 사용자 지시: "Scheduled
+# Date/Time을 List Show Item에 추가해 두면 될 것 같다").
+#
+# 목록 자체(2334)는 owner-draw 라 개별 행에 컨트롤 ID가 없다(setting_lists.py
+# 가 다루는 다른 owner-draw 목록과 같은 종류). "Scheduled Study DateTime" 은
+# 이 목록의 **마지막 항목**이다(2026-09-08 실측 — Referring/Department/
+# Station/Modality/Hospital Code/Status 다음). 큰 폭(-200) 휠 한 번으로
+# 끝까지 스크롤되는 것을 확인했으므로, 매번 정확히 그 위치(컨테이너 좌하단
+# 기준 상대좌표)에 있다.
+SETTING_PATIENT_LIST_SHOW_ITEM = 2334
+_SCHEDULED_DATETIME_CHECKBOX_OFFSET = (25, -37)  # (컨테이너 left+, bottom+)
+
+
+def ensure_scheduled_datetime_column(ui, wait=2.0):
+    """Patient List 카드에 Scheduled Study DateTime 열이 보이도록 켠다.
+
+    기본값은 꺼져 있다(2026-09-08 실측). 이미 켜져 있으면 아무것도 바꾸지
+    않는다(조작 전 상태 확인 — 운영 지침 11절과 같은 방식).
+
+    반환: {"was_on": bool, "now_on": bool, "changed": bool}
+    """
+    from core import screen
+
+    open_group_page(ui, "patient", "patient_list", wait=wait)
+    container = [c for c in ui.by_id(SETTING_PATIENT_LIST_SHOW_ITEM) if c.visible]
+    if not container:
+        raise FlowError(
+            f"List Show Item 목록({SETTING_PATIENT_LIST_SHOW_ITEM})을 찾지 못했습니다.")
+    box = container[0]
+    ui.wheel(box, -200, settle=1.0)  # 한 번에 바닥까지(실측: 항목 7개 전부 노출)
+    cl, ct, cr, cb = box.rect
+    dx, dy = _SCHEDULED_DATETIME_CHECKBOX_OFFSET
+    x, y = cl + dx, cb + dy
+
+    def _checked():
+        img = screen.grab((x - 3, y - 3, x + 4, y + 4))
+        return screen._pink_verdict(img.load(), 0, 0, img.width, img.height)
+
+    was_on = _checked()
+    if not was_on:
+        ui.click((x, y), settle=.8)
+    now_on = _checked()
+    changed = bool(not was_on and now_on)
+    if changed:
+        update = [c for c in ui.by_id(SETTING_UPDATE_BUTTON) if c.visible]
+        if not update:
+            raise FlowError(f"Update 버튼({SETTING_UPDATE_BUTTON})을 찾지 못했습니다.")
+        ui.click(update[0], settle=1.5)
+        if ui.dialog():
+            ui.dismiss_dialog(timeout=5)
+    return {"was_on": bool(was_on), "now_on": bool(now_on), "changed": changed}
+
+
 # Setting > Study 하위 페이지 (2026-08-19 실측)
 SETTING_STUDY_PAGES = {"general": 209, "study_delete": 210, "reject_retake": 211}
 
@@ -2380,6 +2434,34 @@ def _study_items(ui):
         seen.add(c.hwnd)
         items.append(c)
     return sorted(items, key=lambda c: (c.rect[1], c.rect[0]))
+
+
+def scroll_study_list_right(ui, clicks=10):
+    """Patient List 카드의 가로 스크롤바를 오른쪽 끝까지 민다.
+
+    카드 열이 화면 폭(1920)보다 넓어지면(예: Scheduled Study DateTime 열을
+    켠 뒤) 오른쪽 열이 화면 밖으로 밀려난다(2026-09-08 실측). 세로
+    스크롤바와 같은 컨테이너 안에 있는 가로 "Scroll" 요소를 찾아 그 오른쪽
+    화살표를 누른다 — owner-draw라 컨트롤 ID로 특정할 수 없으므로 "가로로
+    넓고 얇다"는 모양으로 찾는다.
+    """
+    lists = ui.by_id(PATIENT["study_list"])
+    if not lists:
+        raise FlowError("StudyList 컨트롤을 찾지 못했습니다.")
+    bars = [c for c in children(lists[0].hwnd, 4)
+            if c.text == "Scroll" and c.visible
+            and (c.rect[2] - c.rect[0]) > 300
+            and (c.rect[3] - c.rect[1]) < 30]
+    if not bars:
+        return False  # 넘치지 않아 가로 스크롤바 자체가 없다(정상)
+    bar = bars[0]
+    arrows = [c for c in children(bar.hwnd, 2) if c.text == "IconButton" and c.visible]
+    if not arrows:
+        return False
+    right_arrow = max(arrows, key=lambda c: c.rect[0])
+    for _ in range(clicks):
+        ui.click(right_arrow, settle=.15)
+    return True
 
 
 def select_study_row(ui, row=1):

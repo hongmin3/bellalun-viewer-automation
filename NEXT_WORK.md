@@ -1056,54 +1056,92 @@ Phantom"` 대 `"ACR Phantom (3D-N)"`처럼 접두사 관계지만 **실제로 �
 "Setting 목록 행 상세값 복원"은 PASS(128행/1768항목, 달라진 항목 0)로
 비교 폭도 더 넓어졌다(122→128행). 단위시험 119 → **128건 OK**.
 
-### ⑧ WU_02 "Scheduled Date/Time" 화면 표시 위치 (2026-09-07, 조사했으나 미확인)
+### ⑧ ~~WU_02 "Scheduled Date/Time" 화면 표시 위치~~ — **2026-09-08 완료**
 
-Windows Update 체크리스트 TC_WindowsUpdate_02 Expected 2가 대조하라는 항목
-중 하나다. 라이브로 두 후보를 직접 확인했지만 둘 다 아니었다.
+사용자 힌트로 해결: `Setting > Patient > Patient List > List Show Item`에
+"Scheduled Study DateTime" 항목이 있고 **기본값이 꺼져 있었다**(목록
+맨 아래 — 실측: Referring/Department/Station/Modality/Hospital Code/
+Status 다음, `-200` 휠 한 번으로 바닥까지 스크롤됨). 켜면 Patient List
+카드 오른쪽 끝(가로 스크롤 필요 — 카드 열 전체 폭이 화면보다 훨씬 넓어짐,
+실측 행 rect `(-42, 417, 2593, 477)`처럼 논리 폭이 화면 밖으로 밀린다)에
+정확히 표시된다.
 
-- Patient List MWL 카드(OCR + 스크린샷 실측): `PatientID`/`Name`/`BirthDate`/
-  `Age`/성별 아이콘/`AccNo`/`Description`/`Modality`만 보이고 Scheduled
-  Date/Time 칸이 없다(카드 우측에 빈 공간만 있음 — 다른 컬럼이 있을 자리로
-  보이나 비어 있다).
-- Edit Information의 `np_study_datetime`(컨트롤 2163): 값을 실측해 보니
-  **Scheduled 가 아니라 실제 Study(촬영/저장) 일시**였다(현재 시각과 일치,
-  MWL의 `sps_start_time="09:00"`과 무관).
+구현: `core/flows.py::ensure_scheduled_datetime_column()`(멱등 — List Show
+Item 컨트롤 2334, 체크박스는 owner-draw라 pixel 판독), `scroll_study_list_right()`
+(가로 스크롤바를 owner-draw 모양(가로로 넓고 얇은 "Scroll" 요소)으로 찾아
+오른쪽 화살표를 누른다). `tests/workflow01.py` Step 1에서 카드를 OCR로
+읽어 `order.get("sps_start_date")`와 대조 — 스크롤 폭이 매번 달라 고정
+클릭 수 대신 **조금씩 스크롤하며 기대 날짜가 보일 때까지 반복**(상한 8회)
+하는 방식으로 안정화했다. `stop=False`로 넣어 이 OCR 대조가 실패해도
+TC 전체를 막지 않게 방어했다.
 
-`tests/workflow01.py`에는 우선 **SKIP**으로 남겨 뒀다(추측으로 만들지
-않음). 화면 어디에 표시되는지 알려주시면 `order.get("sps_start_date"/
-"sps_start_time")`과 대조하는 코드를 바로 추가할 수 있다.
+**라이브 검증 완료**: `TC_Basic_WorkFlow_01` 전체 PASS(`Reports/
+Result_20260908_120515.json`) — `MWL Scheduled Date` 항목 포함. WU_02는
+이 TC를 그대로 재사용하므로 다음 `run-winupdate` 실행부터 자동 반영된다.
 
-### ⑨ WU_09 USB Import 되읽기 트리거 미확정 (2026-09-07, 컨트롤 ID는 전부 실측)
+### ⑨ WU_09 USB Import 되읽기 — 핵심 원인 확정, 트리거는 아직 미확정 (2026-09-08 대폭 진전)
 
 Import Study 대화상자(Examined 툴바 2184, 툴팁 "Import"로 확인)의 컨트롤은
 전부 실측했다 — `core/usb_media.py` 모듈 docstring 참고.
 
   2062 드라이브 표시("C:\") + 화살표(자식 ctrl_id=1)를 누르면 이 PC의
-       드라이브 목록(C:\/D:\/E:\)이 드롭다운으로 뜬다(스크린샷으로 확인).
-  2065 Edit — 경로/검색어로 보이는 큰 입력란. `set_text`로 값은 반영되고
-       되읽어진다.
+       드라이브 목록(C:\/D:\/E:\)이 드롭다운으로 뜬다("ItemList" 팝업 창,
+       TextButton 3개 ctrl_id 1/2/3 = C:\/D:\/E:\ — 2026-09-08 확정).
+  2065 Edit — 경로 입력란. `set_text`/`type_text` 로 값은 반영되고
+       되읽어지지만, **일정 길이를 넘어가면 자동완성이 개입해 잘린다**
+       (실측: `...\DATA_FLOW_MWL_01\DATA_FLOW_MWL_01_AUTO MWL` 타이핑 시
+       `DATA_FLOW_MWL_01`까지만 남고 나머지가 사라짐 — 공백 문자 문제가
+       아니라 기존 유효 경로 자동완성이 나머지를 먹는 것으로 보임).
   2063 CircleButton — **검색/새로고침이 아니라 "폴더 찾아보기"
-       (SHBrowseForFolder)를 여는 버튼**이다(눌러 보고 확인).
-  2066 ListCtrl — 결과 목록(owner-draw, ID/Name/Age/Birth Date/Image 열).
-  2064 Import 버튼, 1102 Close 버튼.
+       (SHBrowseForFolder)를 여는 버튼**이다. **2062에서 드라이브를 먼저
+       선택한 뒤 열면 그 드라이브 루트에서 시작한다**(2026-09-08 확정 —
+       이전엔 C:\ 고정인 줄 알았으나 아니었다).
+  2066 ListCtrl — 결과 목록(owner-draw, ID/Name/Age/Birth Date/Image 열,
+       9개 `ListItem` 슬롯이 항상 존재하고 `visible=False`로 시작한다).
+  2064 Import 버튼(`IsWindowEnabled`로 확인하면 로직상 처음부터 활성 상태),
+  1102 Close 버튼.
 
-시도했으나 안 된 것: 2065에 실제 Export 결과 폴더 경로를 `set_text` 후
-Enter — 목록이 안 채워짐. 네이티브 폴더 다이얼로그(2063)의 숨은 경로 Edit
-(ctrl_id 14148, `visible=False`)에 경로를 주입하고 확인을 눌러도 반영 안
-됨(SHBrowseForFolder가 타이핑된 경로를 실제 트리 선택으로 인정하지 않는
-것으로 보인다).
+**핵심 원인 확정 — DICOMDIR 포맷 필요.** 실측 두 갈래로 좁혔다.
 
-**유력한 다음 시도**: 드라이브 드롭다운(2062 옆 화살표)에서 항목을
-직접 클릭하는 것 — 이 제품은 "경로를 입력"하는 UX가 아니라 "미디어(드라이브)
-를 고르는" UX일 가능성이 높다. 드롭다운 항목 자체의 컨트롤 ID/클래스를
-아직 못 잡았다(열자마자 스크린샷은 찍었지만 항목을 눌러 보기 전에 세션이
-종료됨 — `Temp/probe_import*.py` 진단 스크립트는 세션 종료 시 삭제했다,
-다시 만들어야 한다).
+1. 이 USB 드라이브에 이미 있던 실제 CD/USB 배포용 샘플(`D:\dcm\HM_HM
+   KIM_19770126_20260903_102100\DICOMDIR`)을 정확한 경로로 선택해도
+   Import 목록에 안 뜬다 — `dicomlite.scan_dir()`로 까 보니 **Modality=DX**
+   (Mammography 아님)였다. Bellalun Viewer가 MG 가 아닌 모달리티를 자체
+   필터링해 숨기는 것으로 보인다(제품이 유방촬영 전용이므로 합리적).
+2. `core/export_manager.py`의 File Format 그리드 컨트롤 ID를 전부 실측했다
+   (1008=DICOM/1009=DICOMDIR — **기존 상수 `FORMAT_DICOM=1009`는 이름이
+   잘못 붙어 있다, 실제로는 DICOMDIR 버튼**/1011=JPEG/1014=BMP/1012=TIF8/
+   1013=TIF16/1015=RAW/1010=IMG). **1009(DICOMDIR)를 선택하면 "Portable
+   Viewer" 체크박스(1032)가 활성화되고, Export 하면 실제로 `DICOMDIR`
+   파일 + `PortView\` 폴더(제품 내장 포터블 뷰어)가 생성됨을 라이브로
+   확인했다.** 우리 시험 데이터는 Modality=MG 로 정상이므로, 이 DICOMDIR
+   포맷으로 Export 한 뒤 Import 하면 될 것으로 보였다.
+
+**그런데도 안 됐다** — DICOMDIR 포맷으로 새로 Export 한 MG 데이터를
+(키보드 트리 탐색으로 정확히 그 폴더까지 선택해) Import 에 넣어도 목록이
+여전히 0행이었다. 남은 가설(미확인): (a) 스캔에 훨씬 더 긴 대기가 필요할
+수 있다(수 초 이상 기다려 보지 않음), (b) `Autorun.inf`/`PortView` 실행
+파일까지 있어야 "미디어"로 인식할 수 있다, (c) 드라이브 자체가
+`GetDriveType()`상 REMOVABLE 이어야 하는데 이 USB(`VXvue1`, D:)가 다른
+이유로 인식이 안 될 수 있다(다만 드라이브 드롭다운엔 정상적으로 D:\ 로
+표시됨).
+
+**경로 선택의 올바른 방법(확정)**: 2065에 직접 타이핑하지 말고, 2062에서
+드라이브를 먼저 선택한 뒤 2063("...") 을 열어 **네이티브 폴더 트리를
+키보드로 탐색**한다 — 트리(SysTreeView32, ctrl_id=100)는 `children()`으로
+행을 열거할 수 없어(owner 그리기가 아니라 진짜 트리뷰라 항목이 별도
+윈도우가 아님) 픽셀 클릭도 신뢰할 수 없었다. **Home(0x24) → Down(0x28)
+N번 → Right(0x27, 펼치기) → Down → ... → OK** 순서로 정확히 원하는 leaf
+폴더까지 내려가는 것을 라이브로 검증했다(각 단계마다 스크린샷으로 확인
+하며 정확한 Down 횟수를 셌다 — 폴더 계층이 바뀌면 횟수도 다시 세야 한다).
 
 `core/usb_media.py::attempt_import()`는 목록에 행이 안 나타나면 **추측으로
 Import 버튼을 누르지 않고** 그 사실을 그대로 돌려준다 — `tests/winupdate.py`
-가 이를 MANUAL로 안전하게 기록한다(2026-09-07 라이브 검증: USB 실제
-연결 상태에서 `opened=True, path_set=<정확>, rows=0, imported_clicked=False`).
+가 이를 MANUAL로 안전하게 기록한다. 위 DICOMDIR 발견은 아직
+`core/usb_media.py` 코드/docstring에 반영하지 않았다 — 다음 세션에서
+`export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()` 헬퍼를 추가하고
+Export 단계 자체를 DICOMDIR 포맷으로 바꾼 뒤, 스캔 대기 시간을 늘려
+재시도하는 것부터 시작한다.
 
 ---
 
@@ -1112,78 +1150,69 @@ Import 버튼을 누르지 않고** 그 사실을 그대로 돌려준다 — `te
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
-**P0가 전부 끝났다 — 28차 전체 회귀(2026-09-02 20:58~22:53,
-`Reports/Result_20260902_225334.json`, 115.3분)에서 PASS 23 / FAIL 2 / MANUAL 2를
-확정했다. 남은 FAIL 2건(`WF_14` Step 7 UPS 설정 미복원, `XIPL_03` Step 9 3D 파라미터
-기본값 복귀)은 전부 이미 알려진 제품 결함이고, 자동화 결함은 0건이다.**
+**Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화가
+2026-09-07~08에 새로 완성됐다.** `python run.py run-winupdate`(전용 체인) /
+`run-winupdate --from-regression <json>`(회귀 결과 변환) 둘 다 구현하고
+라이브로 전체 실행까지 완주했다 — TC 13건 PASS 9 / FAIL 0 / MANUAL 4(전부
+설계대로), 자동화·제품 결함 0건(`Reports/WindowsUpdate_Checklist_Result_
+20260907_205703.xlsx`, 99.8분). 새 TC를 만들지 않고 기존 기본기능/XIPL
+자동화를 재사용해 매핑하는 얇은 계층이다(`tests/winupdate.py`,
+`core/winupdate_report.py`). 자세한 경위는 progress.md 2026-09-07/08절과
+NEXT_WORK.md 5절 ⑧~⑨를 먼저 읽어라.
 
-거기까지 온 경위: 2026-08-31에 P0 #1~#4(wait_new_group 전환, WF_14 KeyError 수정,
-WF_10 매핑 검증, cold_start 주모니터 가드 수정)를 끝냈고, 이어서 WF_14 Step 7 "목록
-전 행 열거 완주" 서브체크의 문제 있던 9개 페이지를 전부 해결했다(owner-draw 컨트롤
-OCR 폴백, display.lut DB 쿼리 버그, dicom.tag_mapping 뷰포트 클리핑, 3곳의 목록
-교차 오염, qc.scheduler만 사양서로 확정된 진짜 제품 설계차이 — 2-D~2-J절).
-2026-09-01엔 `setup-dicom`이 이미 꺼둔 Storage를 실수로 다시 켜던 버그(2-K절)와
-`WF_06`의 공유 Storage RDSR 오염 버그를 고쳤다. 2026-09-02엔 `XIPL_05` Fiber 콤보
-스크롤 클리핑 수정에 이어, 27차 회귀에서 예상 밖으로 새로 나온 `WF_08`(3D Print)
-FAIL을 발견·수정했다 — 3D 검사를 Print > Selected로 열면 뜨는 "Select Images" 창을
-자동화가 전혀 다루지 않던 것이 원인이었다(2절 WF_08 행, 2-L절, B.34). 그 수정을
-반영한 28차로 최종 확정했다.
+이 회차에 기본기능 TC 자체도 함께 고도화했다: `tests/workflow01.py`에
+Age + Scheduled Date 대조 추가(둘 다 라이브 PASS 확인, 2026-09-08),
+`core/viewer_tools.py::apply_tool_sequence`에 Select(1111)/Rotate CW·CCW
+(1120/1121, 신규 실측) 추가(WF_02도 함께 검증됨). `core/flows.py`에
+`ensure_scheduled_datetime_column()`/`scroll_study_list_right()` 신설 —
+Setting > Patient > Patient List > List Show Item의 "Scheduled Study
+DateTime"(기본 꺼짐)을 켜고 카드 오른쪽(가로 스크롤 필요)에서 OCR로
+읽는다.
 
-**2026-09-03에 다음 단계로 넘어갔다 — QA 내용 자동화를 넘어선 메타 자동화 착수.**
-이 프로젝트의 진짜 목표는 회귀뿐 아니라 실행 자체가 상시 Claude 세션 없이 돌아가는
-것이다. 그 첫 코드로 `run.py` 회귀 루프가 TC마다 `work/regression_state.json`에
-진행률을 남기게 했다(커밋 `65d44d5`) — 외부 "Hub/Worker"(`AI-Remote-Control`의
-`background_watch.py`)가 Claude를 깨우지 않고 진행 상황을 읽게 하기 위함이다(2-M절).
-이 상태 파일을 실제로 소비하는 Hub/Worker 쪽 코드는 이 저장소 밖이라 아직 확인하지
-못했다 — 그쪽 진행 상황과 맞춰 다음에 무엇이 필요한지 봐야 한다.
+**남은 것 — 다음 세션에서 이어갈 두 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고)**
 
-자세한 경위는 NEXT_WORK.md 5절과 2-D~2-M절, `../프로젝트_상세.md` B.23~B.35를
-참고해라.
+1. **WU_09 USB Import 되읽기 — 핵심 원인은 확정, 마지막 트리거만 남음.**
+   Import Study는 DICOMDIR 포맷이 있어야 인식한다(일반 DICOM Export는
+   DICOMDIR을 안 만든다). `core/export_manager.py`의 File Format
+   1009(`FORMAT_DICOM`이라는 이름이 잘못 붙어 있다 — 실제로는
+   DICOMDIR 버튼)를 선택하면 DICOMDIR + Portable Viewer 번들이 실제로
+   생성되는 것도 확인했다. 그런데도 그 폴더를 정확히 선택해(키보드 트리
+   탐색 Home/Down/Right로 검증된 방법 사용) Import 에 넣어도 목록이 안
+   찬다. 다음 시도 후보: (a) 스캔 대기를 훨씬 길게(현재 3~8초 정도만
+   기다려 봤다) (b) Export 시 Burning Option/Collimation 등 다른 옵션도
+   함께 맞춰야 하는지 (c) 정말 실물 USB(D:\, VXvue1)가 이 기능이 요구하는
+   미디어 종류로 인식되는지 재확인. `core/export_manager.py`에
+   `FORMAT_DICOMDIR`/포맷 선택 헬퍼부터 정식으로 추가하고 시작해라.
+2. **WU 체크리스트 xlsx 자동 기록 정책 재검토.** 사용자가 "지금처럼
+   원본 체크리스트에 Result 열을 추가하는 방식이 꼭 필요해 보이지
+   않는다"는 의견을 냈다(2026-09-08). 기존 방식(결정사항 5번 + 기본기능
+   체크리스트의 기존 관행과 동일)의 이유는 설명했지만 대안을 정리해
+   다시 확인받아야 한다 — 예: xlsx 갱신을 없애고 JSON/HTML/CSV만 남길지,
+   원본 형식을 건드리지 않는 별도 요약 문서로 바꿀지 등. **코드를 먼저
+   바꾸지 말고 사용자에게 먼저 물어라.**
 
-먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절)를 읽어
-상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의
-`개정 TC` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를 무조건 탐색하지
-마라.
+먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절
+⑧~⑨)를 읽어 상태를 파악해라. TC 원문은
+Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의 `개정 TC` 시트와
+`..\Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx`의
+`Checklist` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를
+무조건 탐색하지 마라.
 
 **0단계 - 환경 확인 (가장 먼저, 매번)**
 python run.py portability-check 의 "관리자 권한"이 True 인지 확인해라. 그리고 물리
 콘솔 화면이 잠겨 있는지 확인해라 - GetForegroundWindow 타이틀이 "Windows 기본 잠금
 화면"인지, 또는 EnumWindows로 그 타이틀을 가진 창이 있는지 본다(타이틀이 비어 있는
 hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
-그 사실만 보고해라.
+그 사실만 보고해라. USB 드라이브(D:\, `VXvue1`)가 꽂혀 있는지도 함께 확인해라 —
+WU_09 USB 관련 작업은 실물이 있어야 검증할 수 있다.
 
 **TC를 단독 실행할 때의 전제(2026-08-31 실측, 2026-09-01 추가 확인)**
 reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print
 모두 0행). DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기 전에
 python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해 MWL이
-필요한 TC가 FAIL 한다. 이 커맨드 자체의 Storage Use 단일 선택 버그는 2026-09-01에
-고쳤다 — 2-K절 참고). **`run-wf04`/`run-wf06`/`run-wf15`는 setup-dicom만으로는
+필요한 TC가 FAIL 한다). **`run-wf04`/`run-wf06`/`run-wf15`는 setup-dicom만으로는
 부족하다** — 체크리스트 Precondition대로 `run-wf01→wf02→wf03`(또는 최소 `wf03`까지)를
 먼저 실행해 `DATA_FLOW_MWL_01` 환자와 2D 영상(`IMG_FLOW_2D_01`)을 만들어 둬야 한다.
-
-**관찰을 이어갈 것**
-close_examine 의 삼켜진 클릭은 flows.close_examine_confirmed 로 고쳤지만(팝업이 안 뜨고
-StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되지 않아 재시도 경로 자체는
-라이브로 타 보지 못했다.** 전체 회귀 결과에서 WF_07 Step 5 판정의 closed.attempts 값을
-확인해라 - 1보다 크면 실제로 삼켜진 클릭을 복구한 것이다.
-
-**다음 할 일 — P1/P2 는 2026-09-03에 전부 끝났다(2-N절). 남은 건 두 갈래다.**
-1. ~~P1/P2(자동화 리팩터링·속도 개선, 4절)~~ — **완료.** `probe-preset3d` 3D Preset
-   실측 → XIPL_07 Default 상속 판정, `run-sys3d`/`run-ui`의 고정 대기 전환 모두
-   구현하고 라이브로 재검증했다(판정 동일). WF_13 계정 권한 확인도 이미
-   2026-08-20에 구현돼 있던 것으로 확인됨(문서만 정정). stale 브랜치는 이미
-   없음을 확인했다.
-2. **개별 TC 검증이 전부 끝났으니, 전체 회귀(`run-regression`)를 돌리기 전에
-   반드시 사용자에게 "지금 수행해도 되냐"고 먼저 물어라** — 2026-09-03에 사용자가
-   명시적으로 이렇게 요청했다. 그전에는 돌리지 마라.
-3. **2-M절 Hub/Worker 연동 후속** — `AI-Remote-Control`은 `hongmin3/AI-Remote-Control`
-   (GitHub, private, Issue 기반 원격 실행)로 위치를 확인했다. 그 저장소의
-   `background_watch.py`가 `work/regression_state.json`을 실제로 어떻게 쓰는지는
-   아직 안 봤다 — 필요하면 그 저장소를 열어 직접 확인해라(사용자에게 물을 필요
-   없이 이 세션에서 `gh repo view`/`gh issue` 등으로 조회 가능했다).
-4. **5절 사용자 판단 대기 항목(남은 것)** — `Install_01`/`Install_02`는 사용자가
-   자료를 줄 때만 진행(그 전엔 Install TC를 건드리지 말고 MANUAL/SKIP 그대로
-   둔다). ④(WF_13)·⑤(stale 브랜치)는 이미 해소됐다.
 
 **작업 방식 참고**
 - 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행
@@ -1215,20 +1244,6 @@ StudyStatus 도 안 바뀐 경우에만 재시도), **간헐 실패가 재현되
   거르지 않는 습관이 이번에도 숨은 문제를 잡아냈다(2-I절).
 - 범위가 예상보다 커지면(이번 세션의 OCR 수정처럼) 중간에 멈추고 사용자에게 범위를
   확인해라 — 계속 "가능한 만큼" 넓히기보다 단계별로 승인받는 편이 나았다.
-
-추가 리팩터링·속도 개선 (P0 항목이 안정적으로 통과한 뒤에)
-- run-sys3d/run-ui(회귀 밖 명령)에 남은 demo_acquire_step 고정 대기도 wait_new_group으로
-  바꿀지 판단해라 - 급하지 않다(P2). 바꾼다면 **대기 직후의 첫 UI 조작이 재시도를 갖고
-  있는지 반드시 함께 확인해라** - 08-31에 XIPL_04가 정확히 그 이유로 실패했다.
-- python run.py probe-preset3d 로 3D-N/3D-W Preset 목록 컨트롤 실측 -> XIPL_07에
-  "새 Preset이 그 시점 Default를 물려받는가" 판정 추가.
-- 반복되는 로그인·화면 진입·환자 검색·정리 흐름 중 아직 안 합친 것이 있는지 조사하되,
-  진짜 동일한 로직만 합쳐라(비슷해 보여도 completed 여부·option·wait 값이 TC마다 다르면
-  억지로 합치지 마라).
-- 리팩터링은 작은 단위로 나누고 각 단위마다 정적 검사, 관련 개별 TC, 변경 전후 실행
-  시간 비교를 수행해라. 동작을 바꾸지 않는 순수 기계적 중복 제거는 라이브 검증 없이
-  정적 검사+단위시험만으로 커밋해도 되지만, 대기 방식처럼 실제 동작이 바뀌는 변경은
-  반드시 라이브로 재검증한 뒤에만 "완료"로 기록해라.
 
 검증·Git
 - 긴 실행 전에 반드시: py_compile, tools/check_module_attrs.py,

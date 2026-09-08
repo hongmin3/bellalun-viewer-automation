@@ -20,11 +20,19 @@
   Install_01/02 판정 + `sysinfo.pc_info()`/`os_update_info()` 실측을 참고
   근거로 첨부.
 - **WU_02** — `tests/workflow01.py`에 **Age** 대조 추가(생년월일·Scheduled
-  Date 기준 독립 계산, 라이브 검증 PASS "46"). **Scheduled Date/Time은
-  SKIP으로 보류** — Patient List MWL 카드(OCR+스크린샷 실측)와 Edit
-  Information 어디에도 표시 위치를 못 찾았다(`np_study_datetime`은 Scheduled
-  이 아니라 실제 Study 일시임을 실측 확인). **사용자에게 화면 표시 위치를
-  물어야 한다** — 5절 참고.
+  Date 기준 독립 계산, 라이브 검증 PASS "46"). **Scheduled Date/Time도
+  2026-09-08 완료** — 사용자 힌트(`Setting > Patient > Patient List >
+  List Show Item`에 "Scheduled Study DateTime" 추가) 그대로 확인됨(기본
+  꺼짐). `core/flows.py::ensure_scheduled_datetime_column()`(멱등 — 이미
+  켜져 있으면 안 바꿈)와 `scroll_study_list_right()`(카드 열 전체 폭이
+  화면보다 넓어 오른쪽으로 스크롤 필요, owner-draw라 고정 클릭 수 대신
+  "기대 날짜 보일 때까지 조금씩 스크롤 반복" 방식)를 추가하고
+  `tests/workflow01.py` Step 1에서 Patient List 카드를 OCR로 읽어 대조한다
+  (Edit Information의 `study_datetime`은 Scheduled가 아니라 실제 Study
+  일시라 여전히 안 씀). **라이브 검증: `TC_Basic_WorkFlow_01` 전체 PASS**
+  (`Scheduled Date` 항목 포함, `Reports/Result_20260908_120515.json`).
+  이 대조는 `r.add(..., stop=False)`로 넣어 owner-draw OCR 특유의 간헐
+  실패가 TC 전체를 중단시키지 않게 방어해 뒀다.
 - **WU_03** — Rotation 컨트롤 ID 실측(CW=1120, CCW=1121 — Expand 패널 안,
   스크린샷으로 라벨 확인). `core/viewer_tools.py::apply_tool_sequence`에
   Select(1111, 기존 실측)+Rotate CW/CCW 추가, Select는 화면 변화 대신
@@ -87,14 +95,27 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
 
 ### 남은 작업 / 사용자 판단 필요
 
-1. **WU_02 Scheduled Date/Time 표시 위치** — Patient List MWL 카드와 Edit
-   Information 어디에도 없었다(실측 확인). 화면 어디에 있는지 알려주시면
-   대조를 추가할 수 있다(현재 SKIP, 판정에 영향 없음).
-2. **WU_09 USB Import 되읽기 트리거 미해결** — Import Study 대화상자 컨트롤
-   ID는 전부 실측했지만(`core/usb_media.py` docstring 참고) 목록이 채워지는
-   트리거를 못 찾았다. 드라이브 드롭다운(C:\\/D:\\/E:\\) 선택이 유력한
-   후보다. 다음 세션에서 계속 조사하거나 사용자가 실제 UI로 확인해 주면
-   빠르게 마무리 가능.
+1. ~~WU_02 Scheduled Date/Time 표시 위치~~ — **2026-09-08 완료**(위 참고).
+2. **WU_09 USB Import 되읽기 — 핵심 원인 확정, 트리거는 아직 미해결**
+   (2026-09-08 대폭 진전). Import Study는 **DICOMDIR 포맷이 있어야만
+   인식한다** — 일반 "DICOM" 포맷 Export(기존 WF_09/USB Export가 쓰는 것)는
+   DICOMDIR을 안 만든다. Export Manager의 File Format을 "DICOM"(1008) 대신
+   **"DICOMDIR"(1009 — 기존 상수 `FORMAT_DICOM=1009`는 실제로 DICOMDIR
+   버튼이었다, 이름이 잘못 붙어 있다)** 로 선택하면 `Portable Viewer` 옵션이
+   활성화되고 실제로 `DICOMDIR` 파일이 생성됨을 라이브로 확인했다. 또한
+   Import Study의 "..." 폴더 찾아보기(2063) 대화상자를 **실제 키보드 트리
+   탐색**(Home→Down/Right)으로 원하는 깊은 경로까지 정확히 선택하는 것도
+   성공했다(2065 Edit에 직접 타이핑하는 방식은 일정 길이에서 자동완성으로
+   잘리는 문제가 있어 안 쓴다). **그런데도** DICOMDIR이 있고 Modality=MG로
+   확인된 폴더를 정확히 선택해도 Import 목록(2066)이 채워지지 않았다 — 마지막
+   트리거를 못 찾았다. 상세 실측 기록은 `core/usb_media.py` docstring에
+   추가 예정(아직 안 함 — 다음 세션에서).
+3. **WU_09 xlsx 자동 기록 정책 재검토 요청** — 사용자가 "지금처럼 체크리스트
+   원본에 자동화판정 열을 추가하는 방식이 필요 없어 보인다"는 의견을 냈다.
+   기존 이유(사용자 결정사항 5번 + `core/checklist.py`가 기본기능 체크리스트에
+   수년간 써 온 것과 같은 방식)는 설명했지만, **다음 세션에서 대안을 정리해
+   다시 여쭤야 한다**(예: xlsx 갱신을 완전히 빼고 JSON/HTML만 남길지, 아니면
+   원본을 건드리지 않는 별도 요약 문서로 바꿀지).
 
 ### 변경/신규 파일
 
