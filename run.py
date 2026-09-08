@@ -599,8 +599,13 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note=""):
             print(f"  winupdate: xlsx 기록 실패 — {exc}")
 
     command = "python " + " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "python run.py"
+    from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
-                              meta={"command": command, "env": env})
+                              meta={"command": command, "env": env,
+                                    "report_title":
+                                        "Bellalun Viewer Windows Update 호환성 검증 자동화 상세 리포트",
+                                    "source_doc": WINUPDATE_CHECKLIST_NAME,
+                                    "source_sheet": _WU_SHEET})
     result_paths.update(json_paths)
 
     for r in wu_results:

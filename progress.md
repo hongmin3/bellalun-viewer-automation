@@ -146,6 +146,27 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
    (WU_01/12/13)에 Comment가 채워지고 PASS/SKIP 행은 비는 것을 확인했다.
    상단 1~4행 OS/OS Version/OS Build/Viewer Version 실측 기록은 이미
    2026-09-07에 구현돼 있었다(`_winupdate_env()`) — 그대로 유지.
+4. **HTML/TXT 리포트 공통 버그 2건 수정(2026-09-08, 사용자 지적 — WU 리포트를
+   보다가 발견)**. `core/result.py::_render_html`이 이제까지 **모든**
+   리포트(기본기능/WU 공용)의 제목·기준 문서 줄을 기본기능 체크리스트로
+   하드코딩하고 있었다 — WU 리포트를 열어도 "Bellalun_Viewer_기본기능_
+   Checklist_개정본.xlsx (시트 개정 TC)"가 찍혔다. `meta`에
+   `report_title`/`source_doc`/`source_sheet`를 넣으면 덮어쓰도록 고치고
+   (기본값은 기존 기본기능 문구 그대로라 하위호환), `run.py::
+   _finish_winupdate`가 WU용 값을 채운다. 라이브로 재생성해 WU 리포트는
+   "Windows Update 호환성 검증 Checklist...xlsx (시트 Checklist)", 기본기능
+   리포트는 기존 문구 그대로임을 확인했다.
+   또한 TC별 "소요 시간 분해"(Step 단위 breakdown)를 완전히 없앴다 — Step
+   자체는 순식간에 끝나 항상 0초에 가깝게 찍혀 정보 가치가 없다는 지적.
+   `TCResult.add()`가 더 이상 Step 단위 타이밍을 재지 않고(`_step_cursor`
+   갱신만 유지 — `finalize()`의 종료 시각 보정용), HTML `<details>소요 시간
+   분해</details>`와 TXT `[소요시간]` 블록을 통째로 뺐다. TC 전체 소요시간은
+   기존처럼 TC 헤더/요약표에 그대로 남는다(추가 구현 불필요, 원래 있었다).
+   `record_timing()`(DB/화면전환 대기처럼 의미 있는 wait 기록, `tests/
+   test_performance_waits.py`가 검증)은 건드리지 않았다 — 리포트 표시만
+   껐을 뿐 JSON(`timings` 필드)에는 그대로 남는다. 이 테스트가 옛 HTML
+   문구를 검증하고 있어서 새 동작(그 문구가 **없어야** 함)에 맞춰 함께
+   고쳤다.
 
 ### 변경/신규 파일
 
@@ -160,7 +181,10 @@ xlsx writer), `core/usb_media.py`(신규 — USB 탐지+Import 시도), `run.py`
 Format 상수 전부 추가, `select_format()`/`set_portable_viewer()` 신규,
 File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026-09-08
 이어서 — `taskbar_autohidden()` 신규, 환경 버그 수정), `core/winupdate_report.py`
-(2026-09-08 이어서 — L열 Comment 신규, `_reason_for()` 신규).
+(2026-09-08 이어서 — L열 Comment 신규, `_reason_for()` 신규), `core/result.py`
+(2026-09-08 이어서 — `_render_html` 제목/기준문서 meta 파라미터화, Step 단위
+타이밍 기록/렌더링 제거), `tests/test_performance_waits.py`(2026-09-08
+이어서 — 제거된 "소요 시간 분해" 문구 검증을 "없어야 함" 검증으로 갱신).
 
 ---
 

@@ -175,15 +175,13 @@ class TCResult:
         미수행 Step 채우기가 쓴다 — 그 둘은 이미 중단된 뒤에 부르는 것이라
         다시 예외를 던지면 안 된다.
         """
+        # Step 단위 소요시간은 더 이상 재지 않는다(2026-09-08 사용자 요청 —
+        # 어차피 단언(assert) 자체는 순식간이라 항상 0초에 가깝게 찍혀
+        # 리포트에 의미 있는 정보를 주지 못했다). TC 전체 소요시간
+        # (`duration_seconds`)만 report에 남긴다. `_step_cursor`류는
+        # `finalize()`의 종료 시각 보정에 여전히 쓰이므로 갱신은 유지한다.
         now_wall = datetime.now()
         now = time.perf_counter()
-        self.timings.append({
-            "kind": "step", "name": f"Step {step}: {title}",
-            "started": self._step_cursor_wall.isoformat(timespec="milliseconds"),
-            "ended": now_wall.isoformat(timespec="milliseconds"),
-            "duration_seconds": round(now - self._step_cursor, 3),
-            "outcome": status, "detail": "check recorded",
-        })
         self._step_cursor_wall, self._step_cursor = now_wall, now
         self.checks.append(Check(step, title, status, expected, actual, note))
         check = self.checks[-1]
@@ -572,21 +570,6 @@ def write_txt(results, path, env=None, checklist=None, command=None):
             L.append("  [증거]")
             for e in r.evidence:
                 L.append(f"    - {e}")
-        if r.timings:
-            L.append("  [소요시간]")
-            for timing in r.timings:
-                L.append(f"    - {timing['kind']} {timing['name']}: "
-                         f"{timing['duration_seconds']:.3f}s / "
-                         f"{timing['outcome']} / {timing['detail']}")
-            # 스텝 시각화 밖에서 쓴 시간(전제 준비, 실패 전 재시도 등)을 숨기지
-            # 않는다. 2026-08-18 실측: TC_XIPL_06이 523.9초 걸렸는데 스텝 합계는
-            # 0.000초로 찍혀 "그 8분은 어디서 썼나"를 리포트만으로 알 수 없었다.
-            accounted = sum(t["duration_seconds"] for t in r.timings)
-            unaccounted = r.duration_seconds - accounted
-            if unaccounted > 5:
-                L.append(f"    - (스텝 외) 전제 준비·재시도 등: "
-                         f"{unaccounted:.1f}s / 스텝 합계 {accounted:.1f}s / "
-                         f"TC 전체 {r.duration_seconds:.1f}s")
         L.append("")
 
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
@@ -695,11 +678,19 @@ def _render_html(results, meta, siblings=None):
     mods = meta.get("modules") or {}
     scope = meta.get("scope") or {}
 
+    # 기본은 기본기능 체크리스트다. WU 리포트 등 다른 기준 문서를 쓰는
+    # 호출부는 meta에 report_title/source_doc/source_sheet를 넣어 덮어쓴다
+    # (2026-09-08 사용자 지적 — WU 리포트가 기본기능 문서명을 그대로 달고
+    # 있었다). `_finish_winupdate`가 실제로 넣는다.
+    report_title = meta.get("report_title", "Bellalun Viewer 기본기능 자동화 상세 리포트")
+    source_doc = meta.get("source_doc", "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx")
+    source_sheet = meta.get("source_sheet", "개정 TC")
+
     P = [f"<style>{_STYLE}</style>", "<div class='wrap'>",
-         "<h1>Bellalun Viewer 기본기능 자동화 상세 리포트</h1>",
+         f"<h1>{e(report_title)}</h1>",
          "<div class='meta'>기준 문서 "
-         "<code>Bellalun_Viewer_기본기능_Checklist_개정본.xlsx</code> "
-         "(시트 <code>개정 TC</code>) &nbsp;|&nbsp; 생성 "
+         f"<code>{e(source_doc)}</code> "
+         f"(시트 <code>{e(source_sheet)}</code>) &nbsp;|&nbsp; 생성 "
          f"{datetime.now():%Y-%m-%d %H:%M:%S}"
          + (f" &nbsp;|&nbsp; 실행 명령 <code>{e(meta['command'])}</code>"
             if meta.get("command") else "") + "</div>"]
@@ -979,28 +970,6 @@ def _render_html(results, meta, siblings=None):
                 P.append(f"<tr><td>{i}</td><td>"
                          f"<a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
             P.append("</table>")
-
-        # 소요시간 분해
-        if r.timings:
-            accounted = sum(t["duration_seconds"] for t in r.timings)
-            unaccounted = r.duration_seconds - accounted
-            P.append("<details class='fold'><summary>소요 시간 분해</summary>"
-                     "<div class='fold-body'>")
-            P.append("<table><tr><th style='width:60px'>종류</th>"
-                     "<th>단계 / 대기</th><th style='width:90px'>소요</th>"
-                     "<th style='width:80px'>결과</th><th>상세</th></tr>")
-            for t in r.timings:
-                P.append(f"<tr><td>{e(t['kind'])}</td><td>{e(t['name'])}</td>"
-                         f"<td>{t['duration_seconds']:.3f}s</td>"
-                         f"<td class='{t['outcome']}'>{e(t['outcome'])}</td>"
-                         f"<td>{e(t['detail'])}</td></tr>")
-            if unaccounted > 5:
-                P.append("<tr class='hdr'><td>-</td><td>(스텝 외) 전제 준비·"
-                         "재시도 등</td>"
-                         f"<td>{unaccounted:.1f}s</td><td>-</td>"
-                         f"<td>스텝 합계 {accounted:.1f}s / TC 전체 "
-                         f"{r.duration_seconds:.1f}s</td></tr>")
-            P.append("</table></div></details>")
 
     # --- 부록: 자동화 커버리지 총괄 -------------------------------------
     # 위에서 모아 둔 `cov` 를 여기서 접은 상태로 렌더링한다 — 이번 실행 결과와

@@ -30,14 +30,13 @@ class PerformanceWaitTests(unittest.TestCase):
             html = Path(paths["html"]).read_text(encoding="utf-8")
             json_text = Path(paths["json"]).read_text(encoding="utf-8")
         self.assertIn("existing check", html)
-        # 2026-08-24: `소요시간`(붙여쓰기)을 찾고 있었는데 HTML 은 그 전부터
-        # `소요 시간 분해`(띄어쓰기)를 쓰고 있었다. 이 저장소의 유일한 단위
-        # 시험이 그동안 실패 상태로 방치돼 있었다(아무도 돌리지 않았다).
-        # 문구를 그대로 박는 대신 **HTML 이 실제로 내는 제목**을 확인한다.
-        # 2026-09-04: 리포트가 복잡하다는 사용자 요청으로 이 섹션이
-        # `<details><summary>`로 접혔다(`core/result.py` `_STYLE`/`_render_html`
-        # 참고) — 더 이상 `<h3>`가 아니다. 실제 출력에 맞춰 갱신한다.
-        self.assertIn("<summary>소요 시간 분해</summary>", html)
+        # 2026-09-08 사용자 요청: Step 단위 소요시간은 항상 0초에 가깝게
+        # 찍혀 쓸모가 없었다 — `TCResult.add()`가 더 이상 재지 않고
+        # (`core/result.py`), 리포트도 "소요 시간 분해" 접이식 섹션을
+        # 아예 내지 않는다. TC 전체 소요시간은 TC 헤더의 "소요 Ns"로
+        # 여전히 나온다(위 `<div class='meta'>` 검증은 별도 테스트가
+        # 없으므로 여기서는 섹션이 사라졌다는 것만 지킨다).
+        self.assertNotIn("소요 시간 분해", html)
         self.assertIn('"duration_seconds"', json_text)
         self.assertIn('"timings"', json_text)
 
