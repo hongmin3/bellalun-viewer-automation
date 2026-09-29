@@ -294,6 +294,13 @@ function checkProject(projectRoot, options = {}) {
         warning('SPEC_PLAIN_LANGUAGE', `${doc.label}: hard-to-read wording for a first-time reader — ${[words && 'words: ' + words, long].filter(Boolean).join('; ')}; ${plain.paragraphs} paragraphs inspected; rewrite per AGENTS.md "SPEC 문장 쓰기"`);
       }
     }
+    // 한눈에 보기(workflow v8): SPEC.md 1절에 프로젝트 전체의 흐름도가 있어야 처음 보는 사람이 무슨 프로젝트이고
+    // 어떤 흐름으로 돌아가는지 먼저 본다. 그릴 수 있는지는 렌더러의 파서로 판정한다(HTML에 그려지는 것과 같다).
+    // 경고다: 오류로 두면 자동 갱신된 다른 PC의 프로젝트가 흐름도를 쓰기 전까지 세션 준비에서 막힌다.
+    const overview = specHtml.flowBlocks(rawSpec, 1);
+    result.counts.overviewDiagrams = overview.filter(b => b.drawable).length;
+    if (!overview.length) warning('SPEC_OVERVIEW_MISSING', 'SPEC.md: section 1 has no overview diagram; add "### 한눈에 보기" with a ```flow block showing what starts this project, its main steps, results and failure paths (AGENTS.md "한눈에 보기")');
+    else if (!result.counts.overviewDiagrams) warning('SPEC_OVERVIEW_INVALID', `SPEC.md:${overview[0].line}: the section 1 flow block cannot be drawn; write each line as "A -> B -> C" (labelled: "A -(실패)-> B"), it is shown as plain code until then`);
     if (result.counts.testPaths === 0) warning('NO_TEST_FILE_REFERENCES', `${labels}: no automated test file references inspected; documented TEST procedures need actual execution evidence`);
   }
   return result;

@@ -6,6 +6,7 @@
 
 ### Changed
 
+- 공통 SPEC workflow를 v8로 올리고 `SPEC.md` 1절에 프로젝트 전체 흐름을 보여 주는 "한눈에 보기" 흐름도를 더했다. `docs/SPEC.html` 1절에 그림으로 보인다. 제품 동작은 바뀌지 않았다.
 - 공통 SPEC workflow를 v7로 올렸다(키트 관리 블록과 `.project-check/` 검사기·렌더러 교체). 이 프로젝트는 단일 파일 `SPEC.md`를 그대로 쓴다. 제품 동작은 바뀌지 않았다.
 - 프로젝트 폴더가 `C:\자동화\Bellalun Viewer` → `C:\자동화\projects\Bellalun Viewer`로 옮겨졌다. 저장소 안 경로는 모두 상대 경로라 코드는 바뀌지 않았다.
 

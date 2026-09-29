@@ -1056,7 +1056,30 @@ if(r.top<t.top+40||r.bottom>t.bottom-8)toc.scrollTop+=r.top-t.top-toc.clientHeig
 window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update);window.addEventListener('hashchange',update);update();})();
 `.trim();
 
-module.exports = { RENDERER_VERSION, OUTPUT, REGENERATE, sourceHash, render, readMeta, status, write, activeIndex, plainLanguage, FENCE, closesFence, fencedMask, cells,
+// 한 절 안의 ```flow 블록을 모은다. 절은 `## N.` 제목으로 가르고, 주석과 fenced 블록 속 제목은 절이 아니다.
+// drawable은 렌더러가 실제로 흐름도로 그리는지(parseFlow)다 — 준비 검사가 같은 판정을 쓴다.
+function flowBlocks(markdown, sectionNumber) {
+  const lines = normalize(markdown).replace(/<!--[\s\S]*?(?:-->|$)/g, c => c.replace(/[^\n]/g, ' ')).replace(/\t/g, '    ').split('\n');
+  const blocks = [];
+  let inSection = false, fence = null, body = null, start = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (fence) {
+      if (closesFence(line, fence.mark)) {
+        if (fence.flow) { const flow = parseFlow(body); blocks.push({ line: start, drawable: Boolean(flow), nodes: flow ? flow.nodes.length : 0 }); }
+        fence = null;
+      } else if (body) body.push(line);
+      continue;
+    }
+    const open = line.match(FENCE);
+    if (open) { fence = { mark: open[1], flow: inSection && open[2] === 'flow' }; body = []; start = i + 1; continue; }
+    const heading = line.match(/^ {0,3}##\s+(\d+)\.\s/);
+    if (heading) inSection = Number(heading[1]) === sectionNumber;
+  }
+  return blocks;
+}
+
+module.exports = { RENDERER_VERSION, OUTPUT, REGENERATE, sourceHash, render, readMeta, status, write, activeIndex, plainLanguage, FENCE, closesFence, fencedMask, cells, parseFlow, flowBlocks,
   SPECS_DIR, INDEX_START, INDEX_END, indexRegion, indexTargets, featureFiles, specSet };
 
 if (require.main === module) {

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="c65520473d1d43950228316c16d84ce4d0ae1bb89a668402d6f09e7d8a791333">
+<meta name="spec-source-sha256" content="0f20b4dd8f5156b3e86c6f480a15a517a68509141d67a75de585ef87701724fc">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -148,6 +148,34 @@ footer{max-width:1280px;margin:0 auto;padding:8px 32px 40px;color:var(--muted);f
 <h2>1. 목적</h2>
 <p>Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증 가능한 PASS/FAIL 근거를 남긴다.
 성공 조건은 체크리스트의 대상·의미를 유지하면서 자동화 한계와 실제 제품 결함을 구분해 보고하는 것이다.</p>
+<h3>한눈에 보기</h3>
+<p>사람이 기준 체크리스트(기본기능 또는 Windows Update)와 범위를 골라 <code>run.py</code>를 실행하면, 자동화가 실행 환경과 관리자 권한을
+확인한 뒤 Bellalun Viewer를 실제 UI로 조작한다. 화면·DB·파일에서 근거를 모아 기대 결과와 대조하고, 체크리스트 문맥에 맞는
+판정 리포트를 남긴다.</p>
+<figure class="flow">
+<svg viewBox="0 0 334 612" width="334" height="612" role="img" aria-label="체크리스트·범위 선택(run.py) → 실행 환경·권한 확인, 실행 환경·권한 확인 → 선행조건·회귀 순서 준비, 선행조건·회귀 순서 준비 → 제품 UI 조작, 제품 UI 조작 → 근거 관찰(화면·DB·파일), 근거 관찰(화면·DB·파일) → 기대 결과와 대조·판정, 기대 결과와 대조·판정 → 판정 리포트(기본기능·Windows Update), 실행 환경·권한 확인 → 중단·사유 기록, 중단·사유 기록 → 판정 리포트(기본기능·Windows Update), 기대 결과와 대조·판정 → 자동화 한계로 분리 기록, 자동화 한계로 분리 기록 → 판정 리포트(기본기능·Windows Update)">
+<defs><marker id="flow-arrow-1" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>
+<path class="edge" d="M167 44 L167 88" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 124 L96.5 168" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M96.5 204 L167 248" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 284 L167 328" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 364 L167 408" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 444 L167 568" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 124 L267.5 168" marker-end="url(#flow-arrow-1)"/><text class="elabel" x="217.3" y="146">미충족</text>
+<path class="edge" d="M267.5 204 L167 568" marker-end="url(#flow-arrow-1)"/>
+<path class="edge" d="M167 444 L167 488" marker-end="url(#flow-arrow-1)"/><text class="elabel" x="167" y="466">자동화 한계</text>
+<path class="edge" d="M167 524 L167 568" marker-end="url(#flow-arrow-1)"/>
+<g class="node"><rect x="59" y="8" width="216" height="36" rx="8"/><text x="167" y="26">체크리스트·범위 선택(run.py)</text></g>
+<g class="node"><rect x="91.5" y="88" width="151" height="36" rx="8"/><text x="167" y="106">실행 환경·권한 확인</text></g>
+<g class="node"><rect x="8" y="168" width="177" height="36" rx="8"/><text x="96.5" y="186">선행조건·회귀 순서 준비</text></g>
+<g class="node"><rect x="114" y="248" width="106" height="36" rx="8"/><text x="167" y="266">제품 UI 조작</text></g>
+<g class="node"><rect x="76.5" y="328" width="181" height="36" rx="8"/><text x="167" y="346">근거 관찰(화면·DB·파일)</text></g>
+<g class="node"><rect x="85" y="408" width="164" height="36" rx="8"/><text x="167" y="426">기대 결과와 대조·판정</text></g>
+<g class="node"><rect x="29" y="568" width="276" height="36" rx="8"/><text x="167" y="586">판정 리포트(기본기능·Windows Update)</text></g>
+<g class="node"><rect x="209" y="168" width="117" height="36" rx="8"/><text x="267.5" y="186">중단·사유 기록</text></g>
+<g class="node"><rect x="78.5" y="488" width="177" height="36" rx="8"/><text x="167" y="506">자동화 한계로 분리 기록</text></g>
+</svg>
+</figure>
 </section>
 <section class="chapter" id="sec-2">
 <h2>2. 프로젝트 범위</h2>
