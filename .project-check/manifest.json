@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "files": {
+    "project-readiness.js": "20aee797d18b9c6a628e76fee0b1629f714421d9e280db96b26a3916a28d0908",
+    "agents-spec-section.md": "218d472924a50ddb54cd5c8b7f8feb3ac9b713d1f1703885b21b84ad63151bfd",
+    "render-spec-html.js": "cc51bef4b412e648a822cdd1c6fd4b64f2943d9eba56d744420168ccdfc8d7ee",
+    "changelog-template.md": "755091aa8eb9e08243808da015a724ddbb34c67fe713e0faabda6fb590a89402"
+  },
+  "projectFiles": {}
+}
