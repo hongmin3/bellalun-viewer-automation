@@ -36,25 +36,56 @@ class XiplStudio:
         self.tesseract = tesseract
         self.ui = ViewerUi(self.PROCESS_NAME)
 
-    def start(self, timeout=20, maximize=False):
+    def _wait_startup_window(self, pid, timeout, *, after_login=False):
+        """Wait for the original process's visible UI; never accept a PID alone."""
+        deadline = time.monotonic() + timeout
+        while True:
+            current_pid = self.ui.pid
+            if current_pid != pid:
+                state = "종료되었습니다" if current_pid is None else f"다른 PID({current_pid})로 변경되었습니다"
+                raise RuntimeError(
+                    f"XIPL.STUDIO 시작 중 프로세스가 {state}. PID={pid}, 실행파일={self.exe}")
+            candidate = self.ui.main_window()
+            if candidate:
+                width = candidate.rect[2] - candidate.rect[0]
+                height = candidate.rect[3] - candidate.rect[1]
+                if width > 0 and height > 0 and (not after_login or (candidate.text and height >= 700)):
+                    return candidate
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                stage = "로그인 후 작업 창" if after_login else "창"
+                raise RuntimeError(
+                    f"XIPL.STUDIO {stage}을 찾지 못했습니다. "
+                    f"PID={pid}, 실행파일={self.exe}, 대기={timeout:g}초")
+            time.sleep(min(.25, remaining))
+
+    def start(self, timeout=90, maximize=False):
+        """Start/attach and wait up to timeout seconds per readiness stage.
+
+        Viewer-launched WPF startup was observed taking more than 23 seconds.
+        Poll readiness, return promptly when ready, and fail early if it exits.
+        """
+        timeout = float(timeout)
+        if timeout < 0:
+            raise ValueError("XIPL 시작 대기 시간은 0 이상이어야 합니다.")
+        launched = None
         if not self.ui.pid:
-            subprocess.Popen([self.exe], cwd=os.path.dirname(self.exe))
-        end = time.time() + timeout
-        while time.time() < end and not self.ui.pid:
-            time.sleep(.5)
+            launched = subprocess.Popen([self.exe], cwd=os.path.dirname(self.exe))
+        end = time.monotonic() + timeout
+        pid = self.ui.pid
+        while not pid and time.monotonic() < end:
+            if launched is not None and launched.poll() is not None:
+                raise RuntimeError(
+                    f"XIPL.STUDIO가 시작 중 종료되었습니다. "
+                    f"PID={launched.pid}, 종료코드={launched.returncode}, 실행파일={self.exe}")
+            time.sleep(min(.5, max(0, end - time.monotonic())))
             self.ui._pid = None
-        if not self.ui.pid:
-            raise RuntimeError("XIPL.STUDIO가 실행되지 않았습니다.")
+            pid = self.ui.pid
+        if not pid:
+            raise RuntimeError(f"XIPL.STUDIO가 실행되지 않았습니다. 실행파일={self.exe}, 대기={timeout:g}초")
         # Process creation and WPF top-level window creation are independent.
         # Slower PCs can expose a PID several seconds before any visible HWND.
-        win = None
-        window_end = time.time() + timeout
-        while time.time() < window_end and not win:
-            win = self.ui.main_window()
-            if not win:
-                time.sleep(.25)
-        if not win:
-            raise RuntimeError("XIPL.STUDIO 창을 찾지 못했습니다.")
+        win = self._wait_startup_window(pid, timeout)
         # Login window is 650x566. User is the left of the two role buttons.
         if not win.text or (win.rect[3] - win.rect[1]) < 700:
             l, t, r, b = win.rect
@@ -65,14 +96,7 @@ class XiplStudio:
                                t + int((b-t) * .73)), settle=2)
             else:
                 time.sleep(2)
-            login_end = time.time() + timeout
-            while time.time() < login_end:
-                candidate = self.ui.main_window()
-                if candidate and candidate.text and (candidate.rect[3] - candidate.rect[1]) >= 700:
-                    win = candidate
-                    break
-                time.sleep(.25)
-        win = self.ui.main_window()
+            win = self._wait_startup_window(pid, timeout, after_login=True)
         # TC01 must read the Viewer-provided W/L before XIPL's maximized render
         # path applies automatic display processing.  Keep a normal window,
         # but move it wholly onto the primary work area so saved multi-monitor
@@ -82,7 +106,7 @@ class XiplStudio:
             self._place_normal_window(win.hwnd)
         ctypes.windll.user32.SetForegroundWindow(win.hwnd)
         time.sleep(.25)
-        return self.ui.main_window()
+        return self._wait_startup_window(pid, timeout, after_login=True)
 
     def _uia_invoke_named(self, name, control_type="Button"):
         """Invoke a named WPF element through Windows UI Automation."""

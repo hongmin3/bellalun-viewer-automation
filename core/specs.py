@@ -21,9 +21,11 @@ r"""사양서·매뉴얼 원문을 코드에서 직접 찾아 인용한다.
     #   'text': '... 익명화 ...'}, ...]
 """
 
+import hashlib
 import io
 import os
 import re
+import tempfile
 
 # `지식` 폴더에 함께 관리되는 근거 문서.
 KNOWLEDGE_DIR = "지식"
@@ -55,14 +57,19 @@ def knowledge_dir(ctx):
     `core/dbreset.source_dir`, `core/checklist.source_path`와 같은 방식이다 —
     저장소 위치 기준으로 위로 올라가며 찾는다. 절대경로를 코드에 박지 않는다.
     """
-    here = os.path.abspath(ctx.root)
-    for _ in range(4):                      # auto -> Bellalun Viewer -> 자동화 ...
-        here = os.path.dirname(here)
-        if not here:
-            break
-        candidate = os.path.join(here, KNOWLEDGE_DIR)
-        if os.path.isdir(candidate):
-            return candidate
+    override = ((getattr(ctx, "cfg", {}) or {}).get("knowledge_dir") or "").strip()
+    if override:
+        return os.path.abspath(override) if os.path.isdir(override) else ""
+    roots = [getattr(ctx, "resource_root", ctx.root), ctx.root]
+    for root in dict.fromkeys(roots):
+        here = os.path.abspath(root)
+        for _ in range(4):
+            here = os.path.dirname(here)
+            if not here:
+                break
+            candidate = os.path.join(here, KNOWLEDGE_DIR)
+            if os.path.isdir(candidate):
+                return candidate
     return ""
 
 
@@ -81,25 +88,20 @@ def spec_paths(ctx):
     return found
 
 
-def _cache_path(pdf_path):
-    """추출 텍스트 캐시 경로. 원본과 같은 폴더에 `.txt`로 둔다.
+def _cache_path(pdf_path, cache_dir=None):
+    """원본 내용 해시로 구분한 작업 폴더의 텍스트 캐시 경로."""
+    if cache_dir is None:
+        from bellalunauto.runtime import resolve_layout
+        workspace = os.environ.get("BELLALUN_WORKSPACE") or str(resolve_layout().workspace)
+        cache_dir = os.path.join(workspace, "Cache", "Specs")
+    with open(pdf_path, "rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
+    base = os.path.splitext(os.path.basename(pdf_path))[0].replace("(사양서) ", "")
+    return os.path.join(cache_dir, f"{base}-{digest}.txt")
 
-    매뉴얼 `.docx`도 같은 규칙으로 `.txt` 사본을 두고 있어(운영 지침 0절) 일관된다.
-    다음 사람이 grep으로 바로 찾을 수 있는 것이 목적이다.
-    """
-    base = os.path.splitext(os.path.basename(pdf_path))[0]
-    base = base.replace("(사양서) ", "")
-    return os.path.join(os.path.dirname(pdf_path), f"{base}.txt")
 
-
-def extract(pdf_path, force=False):
-    """PDF 텍스트를 쪽 단위로 뽑고 `.txt`로 캐시한다.
-
-    반환: 쪽별 문자열 리스트(0번째 원소가 1쪽).
-
-    캐시가 원본보다 새로우면 재추출하지 않는다. 사양서1은 336쪽이라 매번 뽑으면
-    느리다.
-    """
+def extract(pdf_path, force=False, cache_dir=None):
+    """PDF를 쪽 단위로 읽는다. 설치 원본 옆에는 캐시를 쓰지 않는다."""
     try:
         from pypdf import PdfReader
     except ImportError as exc:                      # pragma: no cover
@@ -108,17 +110,30 @@ def extract(pdf_path, force=False):
             "`python -m pip install -r requirements.txt`로 설치하십시오."
         ) from exc
 
-    cache = _cache_path(pdf_path)
+    cache = _cache_path(pdf_path, cache_dir)
     if not force and os.path.isfile(cache):
-        if os.path.getmtime(cache) >= os.path.getmtime(pdf_path):
-            return io.open(cache, encoding="utf-8").read().split("\f")
+        with io.open(cache, encoding="utf-8") as source:
+            return source.read().split("\f")
 
     reader = PdfReader(pdf_path)
     pages = [(page.extract_text() or "") for page in reader.pages]
+    temporary = None
     try:
-        io.open(cache, "w", encoding="utf-8", newline="\n").write("\f".join(pages))
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
+                                         dir=os.path.dirname(cache), prefix=".spec-",
+                                         delete=False) as target:
+            temporary = target.name
+            target.write("\f".join(pages))
+        os.replace(temporary, cache)
     except OSError:
         pass                                        # 캐시 실패는 치명적이지 않다
+    finally:
+        if temporary and os.path.exists(temporary):
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
     return pages
 
 
@@ -192,7 +207,7 @@ def search(ctx, pattern, flags=re.I, context=160, limit=20):
     regex = re.compile(pattern, flags)
     out = []
     for short, path in sorted(spec_paths(ctx).items()):
-        pages = extract(path)
+        pages = extract(path, cache_dir=os.path.join(ctx.root, "Cache", "Specs"))
         for index, page_text in enumerate(pages, start=1):
             if not page_text:
                 continue

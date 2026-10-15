@@ -9,6 +9,9 @@
 
 ## 긴 실행 전 사전 검사
 
+소스 검증 환경은 `python -m pip install -r requirements-dev.txt`로 준비한다.
+설치된 BellalunAuto에는 Python이나 시험용 의존성을 별도로 설치하지 않는다.
+
 ```powershell
 python -m py_compile <변경한 파일>
 python tools/check_module_attrs.py
@@ -17,7 +20,7 @@ python tools/check_cleanup_stop.py
 python tools/check_regression_names.py
 python tools/traceability.py
 python tools/check_docs_sync.py
-python -m unittest discover -s tests -p "test_*.py"
+python -m pytest tests -q
 ```
 
 외부 문서 timestamp 등으로 실패하면 숨기지 말고 변경 관련성과 원인을 구분해 보고한다.

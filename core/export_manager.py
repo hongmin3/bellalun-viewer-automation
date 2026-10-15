@@ -13,6 +13,7 @@ config에 경로를 하드코딩하지 않고 **화면에 표시된 값을 읽�
 """
 
 import os
+import re
 import time
 
 from core.ui import ViewerUi
@@ -25,13 +26,17 @@ PROCESS = "EXPORT.MANAGER"
 # 버튼이다(선택하면 Portable Viewer(1032)가 활성화되고 DICOMDIR 파일 +
 # PortView\ 폴더가 생성됨을 라이브로 확인). 진짜 "DICOM" 버튼은 1008이다.
 FORMAT_DICOM = 1008
-FORMAT_DICOMDIR = 1009      # Import Study가 인식하려면 이 포맷이 필요(실측)
-FORMAT_IMG = 1010
+FORMAT_DICOMDIR = 1009      # 선택하면 Portable Viewer(1032)가 활성화된다
+FORMAT_IMG = 1010           # Import Study 가 되읽을 수 있는 유일한 포맷(실측)
 FORMAT_JPEG = 1011
 FORMAT_TIF8 = 1012
 FORMAT_TIF16 = 1013
 FORMAT_BMP = 1014
 FORMAT_RAW = 1015
+
+# File Format 그리드 전체(독립 체크박스) — `select_only_format`이 쓴다.
+ALL_FORMATS = (FORMAT_DICOM, FORMAT_DICOMDIR, FORMAT_IMG, FORMAT_JPEG,
+               FORMAT_TIF8, FORMAT_TIF16, FORMAT_BMP, FORMAT_RAW)
 PATH_DRIVE = 1019
 PATH_EDIT = 1023            # cls=Edit, 기본값 <data_dir>\Export
 TYPE_PROCESSED = 1025
@@ -77,23 +82,63 @@ def _click(ui, ctrl_id, what, settle=1.0):
     return hits[0]
 
 
-def cancel(ui, timeout=10):
-    """창을 닫는다(Export 전에는 Cancel, 완료 후에는 Close 역할).
+# A timed-out export must not be interrupted by callers' finally/cancel cleanup.
+_PENDING_EXPORTS = set()
+_CONFIRMED_EXPORTS = set()
 
-    완료 안내 팝업이 떠 있으면 그 모달이 이 버튼 클릭을 삼킨다(2026-08-18 실측:
-    Cancel이 계속 실패하고 프로세스가 남았다). 그래서 **먼저 팝업을 닫는다.**
-    """
-    _confirm_done(ui, timeout=3)
-    try:
-        _click(ui, CANCEL, "Export Cancel/Close", settle=1.5)
-    except ExportManagerError:
+
+def _manager_window(ui):
+    matches = [window for window in ui.windows() if window.visible
+               and any(control.visible for control in ui.by_id(PATH_EDIT, window))]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _manager_modals(ui, manager):
+    return [window for window in ui.windows()
+            if window.visible and window.hwnd != manager.hwnd
+            and window.cls == "#32770"
+            and window.rect[2] > window.rect[0] and window.rect[3] > window.rect[1]]
+
+
+def _alive(pid):
+    return bool(pid and ViewerUi._alive(pid))
+
+
+def _wait_exit(pid, timeout):
+    end = time.monotonic() + max(0, timeout)
+    while _alive(pid):
+        if time.monotonic() >= end:
+            return False
+        time.sleep(min(.5, max(0, end - time.monotonic())))
+    _PENDING_EXPORTS.discard(pid)
+    _CONFIRMED_EXPORTS.discard(pid)
+    return True
+
+
+def cancel(ui, timeout=10):
+    """Close an idle manager; preserve active exports and unknown modals."""
+    pid = ui.pid
+    if not pid:
+        return True
+    end = time.monotonic() + max(0, timeout)
+    if pid in _CONFIRMED_EXPORTS:
+        return _wait_exit(pid, max(0, end-time.monotonic()))
+    manager = _manager_window(ui)
+    if manager is None:
+        return not _alive(pid)
+    modals = _manager_modals(ui, manager)
+    if pid in _PENDING_EXPORTS or modals:
+        completion = wait_export_completion(ui, timeout=max(0, end-time.monotonic()))
+        if not (completion["observed"] and completion["dismissed"] and not completion["error"]):
+            return not _alive(pid)
+        # The product closes itself after acknowledging success. No Cancel input.
+        return _wait_exit(pid, max(0, end-time.monotonic()))
+    buttons = [button for button in ui.by_id(CANCEL, manager) if button.visible]
+    if len(buttons) != 1:
         return False
-    end = time.time() + timeout
-    while time.time() < end:
-        if not ViewerUi(PROCESS).pid:
-            return True
-        time.sleep(.5)
-    return False
+    ui.click(buttons[0], settle=.3)
+    return _wait_exit(pid, max(0, end-time.monotonic()))
+
 
 
 def set_path(ui, path):
@@ -193,69 +238,176 @@ def select_format(ui, ctrl_id, attempts=3):
             "clicked": result["clicked"]}
 
 
-def export(ui, wait=120, poll=2.0):
-    """Start를 눌러 내보내고, 경로에 파일이 생길 때까지 기다린다.
+def select_only_format(ui, ctrl_id, attempts=3):
+    """지정 포맷만 켜고 나머지 File Format 체크박스는 전부 끈다.
 
-    "내보냈다"를 버튼 클릭으로 판정하지 않는다. **경로에 실제로 생긴 파일**을
-    증거로 삼고, 창이 닫히는 것까지 확인한다(운영 지침 2절).
+    `select_format`은 독립 체크박스를 하나 켤 뿐이라 이전에 켜져 있던 포맷이
+    함께 Export 된다(2026-09-08 실측: DICOMDIR+IMG 동시 산출). Import 되읽기
+    처럼 **산출물 포맷을 정확히 하나로 고정해야** 하는 곳에서 이걸 쓴다.
 
-    반환: {"path": ..., "files": [...], "closed": bool}
+    1008(DICOM)은 클릭이 반영되지 않는 경우가 관찰됐다 — `_set_toggle`이
+    예외를 던지지 않고 최종 상태를 그대로 돌려주므로 호출부가 확인할 수 있다.
+
+    반환: {"selected": {...}, "turned_off": {ctrl_id: {...}}}
     """
+    selected = select_format(ui, ctrl_id, attempts)
+    turned_off = {}
+    for other in ALL_FORMATS:
+        if other == ctrl_id:
+            continue
+        if is_checked(ui, other):
+            turned_off[other] = _set_toggle(ui, other, False,
+                                            f"Format 버튼({other})", attempts)
+    return {"selected": selected, "turned_off": turned_off}
+
+
+def parse_export_completion(text):
+    """Accept only the measured success message, with an optional OK label."""
+    raw = text if isinstance(text, str) else ""
+    observed = re.fullmatch(
+        r"\s*Export\s+was\s+successful\.\s*The\s+Export\s+Manager\s+closes\.\s*(?:OK\s*)?",
+        raw, flags=re.I) is not None
+    return {"observed": observed, "signal": "export-success-message" if observed else "",
+            "raw_text": raw, "error": None if observed else "Export 실제 성공 문구를 확인하지 못했습니다."}
+
+
+def _export_completion_popup(ui, manager):
+    modals = _manager_modals(ui, manager)
+    if len(modals) != 1:
+        return None
+    popup = modals[0]
+    left, top, right, bottom = manager.rect
+    pl, pt, pr, pb = popup.rect
+    if not (left <= pl < pr <= right and top <= pt < pb <= bottom):
+        return None
+    buttons = ui.dialog_buttons(popup)
+    if len(buttons) != 1 or buttons[0].ctrl_id not in (1, 500):
+        return None
+    return popup
+
+
+def _completion_evidence_path(evidence_path):
+    if evidence_path is not None:
+        return os.fspath(evidence_path)
+    from bellalunauto.runtime import resolve_layout
+    layout = resolve_layout(workspace=os.environ.get("BELLALUN_WORKSPACE"))
+    return os.path.join(layout.workspace, "Evidence", "Export",
+                        f"ExportCompletion_{time.time_ns()}.png")
+
+
+def wait_export_completion(ui, timeout=120, poll=.5, evidence_path=None):
+    """Observe throughout the export; acknowledge only verified scoped success."""
+    from core import screen
+    result = dict(parse_export_completion(""), dismissed=False, evidence=None,
+                  source=None, popup_hwnd=None)
+    end = time.monotonic() + max(0, timeout)
+    pid = ui.pid
+
+    def read(popup):
+        native = ui.dialog_text(popup) or ""
+        if native.strip():
+            return native, "native"
+        return screen.ocr(popup.rect, scale=3, psm=6), "ocr"
+
+    try:
+        while True:
+            if not _alive(pid):
+                result["error"] = "Export 완료 문구 확인 전에 대상 프로세스가 종료됐습니다."
+                return result
+            manager = _manager_window(ui)
+            if manager is None:
+                result["error"] = "Export Manager 창을 유일하게 식별하지 못했습니다."
+                return result
+            popup = _export_completion_popup(ui, manager)
+            if popup is not None:
+                saved = ui.capture_dialog(popup, _completion_evidence_path(evidence_path))
+                if saved and os.path.isfile(saved) and os.path.getsize(saved) > 0:
+                    result["evidence"] = os.fspath(saved)
+                raw, source = read(popup)
+                result.update(parse_export_completion(raw), source=source, popup_hwnd=popup.hwnd)
+                if not result["evidence"]:
+                    result["error"] = "Export 완료 팝업 증거 이미지를 저장하지 못했습니다."
+                    return result
+                if not result["observed"]:
+                    return result
+                if not _alive(pid) or ui.pid != pid:
+                    result["error"] = "Export 완료 확인 전에 대상 프로세스가 바뀌었습니다."
+                    return result
+                fresh = _export_completion_popup(ui, manager)
+                if fresh is None or fresh.hwnd != popup.hwnd or not parse_export_completion(read(fresh)[0])["observed"]:
+                    result["error"] = "증거 저장 후 Export 완료 팝업이 달라졌습니다."
+                    return result
+                ui.click(ui.dialog_buttons(fresh)[0], settle=.3)
+                while True:
+                    if not _alive(pid) or not any(window.hwnd == popup.hwnd and window.visible for window in ui.windows()):
+                        result["dismissed"] = True
+                        _CONFIRMED_EXPORTS.add(pid)
+                        if _alive(pid) and _manager_modals(ui, manager):
+                            result["error"] = "Export 완료 팝업 뒤에 다른 대화상자가 남아 있습니다."
+                        return result
+                    if time.monotonic() >= end:
+                        result["error"] = "Export 완료 팝업이 확인 후에도 닫히지 않았습니다."
+                        return result
+                    time.sleep(min(.25, max(0, end-time.monotonic())))
+            elif _manager_modals(ui, manager):
+                modals = _manager_modals(ui, manager)
+                result["error"] = "알 수 없는 Export 대화상자 구성을 보존했습니다."
+                if len(modals) == 1:
+                    saved = ui.capture_dialog(modals[0], _completion_evidence_path(evidence_path))
+                    if saved and os.path.isfile(saved) and os.path.getsize(saved) > 0:
+                        result["evidence"] = os.fspath(saved)
+                    raw, source = read(modals[0])
+                    result.update(raw_text=raw, source=source, popup_hwnd=modals[0].hwnd)
+                return result
+            if time.monotonic() >= end:
+                result["error"] = "제한 시간 안에 Export 실제 성공 문구를 확인하지 못했습니다."
+                return result
+            time.sleep(min(max(.05, poll), max(0, end-time.monotonic())))
+    except Exception as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
+
+
+def export(ui, wait=120, poll=2.0, *, close_wait=60, evidence_path=None):
+    """Wait for actual success, then process exit, before collecting all outputs."""
     path = read_path(ui)
     if not path:
         raise ExportManagerError("Export 경로가 비어 있습니다.")
+    pid = ui.pid
+    manager = _manager_window(ui)
+    if not pid or manager is None or _manager_modals(ui, manager):
+        raise ExportManagerError("다른 팝업 없이 Export Manager 창을 확인해야 시작할 수 있습니다.")
+    buttons = [button for button in ui.by_id(START, manager) if button.visible]
+    if len(buttons) != 1:
+        raise ExportManagerError("Export Start 버튼을 유일하게 확인하지 못했습니다.")
     before = _snapshot(path)
-    _click(ui, START, "Export Start", settle=2.0)
-
-    end = time.time() + wait
-    created = []
-    while time.time() < end:
-        after = _snapshot(path)
-        created = sorted(p for p, meta in after.items()
-                         if before.get(p) != meta)
-        if created:
-            break
-        time.sleep(poll)
-
-    # 성공하면 "Export was successful. The Export Manager closes." 안내가 뜨고
-    # (Status=Done) **OK를 눌러야 창이 닫힌다**(2026-08-18 실측). 이 모달을
-    # 방치하면 이후 조작이 전부 막힌다 - 이 저장소에서 반복 확인된 문제다.
-    confirmed = _confirm_done(ViewerUi(PROCESS))
-
-    # 안내에서 "The Export Manager closes"라고 하지만 실제로 창이 사라지는 데
-    # 시간이 걸리고, 남는 경우도 있다. 남아 있으면 Close로 정리한다 —
-    # 모달이 남으면 이후 TC의 클릭이 전부 막힌다.
-    closed = False
-    end = time.time() + 20
-    while time.time() < end:
-        if not ViewerUi(PROCESS).pid:
-            closed = True
-            break
-        time.sleep(.5)
-    if not closed:
-        closed = cancel(ViewerUi(PROCESS), timeout=15)
-    return {"path": path, "files": created, "closed": closed,
-            "done_confirmed": confirmed}
+    if not _alive(pid) or ui.pid != pid:
+        raise ExportManagerError("Export 시작 전에 대상 프로세스가 바뀌었습니다.")
+    _PENDING_EXPORTS.add(pid)
+    ui.click(buttons[0], settle=.3)
+    completion = wait_export_completion(ui, timeout=wait, poll=poll, evidence_path=evidence_path)
+    if not (completion["observed"] and completion["dismissed"] and not completion["error"]):
+        message = completion["error"] or "Export 실제 완료를 확인하지 못했습니다."
+        failure = ExportManagerError(f"{message} (문구={completion['raw_text']!r}, 증거={completion['evidence']!r})")
+        failure.completion = completion
+        raise failure
+    if not _wait_exit(pid, close_wait):
+        raise ExportManagerError("Export 완료 확인 후에도 대상 프로세스가 제한 시간 안에 종료되지 않았습니다.")
+    after = _snapshot(path)
+    created = sorted(name for name, metadata in after.items() if before.get(name) != metadata)
+    if not created:
+        raise ExportManagerError("Export 완료 후 실제 생성 또는 갱신된 파일이 없습니다.")
+    return {"path": path, "files": created, "closed": True,
+            "done_confirmed": True, "completion": completion}
 
 
 def _confirm_done(ui, timeout=10):
-    """완료 안내 팝업의 OK를 누른다. 없으면 None."""
+    """Compatibility wrapper; unknown dialogs are never acknowledged."""
     if not ui.pid:
         return None
-    end = time.time() + timeout
-    while time.time() < end:
-        dialog = ui.dialog()
-        if dialog:
-            from core.ui import children
-            buttons = [c for c in children(dialog.hwnd, 3)
-                       if c.visible and (c.rect[2] - c.rect[0]) >= 60
-                       and 24 <= (c.rect[3] - c.rect[1]) <= 80]
-            if buttons:
-                # 안내 팝업은 OK 하나뿐이다. 여러 개면 가장 왼쪽(긍정)을 누른다.
-                ui.click(min(buttons, key=lambda c: c.rect[0]), settle=1.5)
-                return True
-        time.sleep(.5)
-    return False
+    result = wait_export_completion(ui, timeout=timeout)
+    return bool(result["observed"] and result["dismissed"] and not result["error"])
+
 
 
 def _snapshot(path):

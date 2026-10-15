@@ -455,21 +455,8 @@ def run(ctx):
                  "돌아왔는지 DB 컬럼으로 확인한다. 전수 대조가 통과해도 어느 "
                  "항목이 어떻게 복원됐는지 보고서에 남기기 위해 따로 둔다.")
 
-        same, diff = snapshot.config_identical(pre, post)
-        r.assert_true(
-            7, "설정 테이블 전수 대조(Export 시점과 동일)", same,
-            expected=f"설정 섹션 {len(snapshot.CONFIG_SECTIONS)}개 전부 일치",
-            actual="일치" if same else f"불일치 {len(diff)}개 섹션: "
-                                     f"{sorted(diff)}",
-            note="사양서1 60절이 Export 대상을 'Study 정보를 제외한 모든 설정 "
-                 "정보(DB / sql file)'로 정의하므로, 화면 픽셀이 아니라 설정 "
-                 "테이블 전수 대조가 결정적 근거다. Step 3 에서 "
-                 f"{len(summary['덮은 설정테이블'])}개 테이블을 실제로 바꿨으므로 "
-                 "이 대조는 그만큼의 범위를 실제로 검증한다.")
-        for sec in sorted(diff):
-            r.add(7, f"설정 섹션 [{sec}] 복원", FAIL,
-                  expected="Export 시점과 동일",
-                  actual=_fmt_section(diff[sec]))
+        _assert_config_identical(r, pre, post, evidence,
+                                 len(summary['덮은 설정테이블']))
 
         # Step 7 보강 — 화면 컨트롤 값 항목 단위 대조 (좌표/이미지 비교 아님)
         after_vals = setting_values.read_all(
@@ -682,6 +669,30 @@ def run(ctx):
                                + (" Import 로 이미 복원된 상태였다."
                                   if imported else ""))
     return r
+
+
+def _assert_config_identical(result, before, after, evidence, changed_table_count):
+    """첫 FAIL로 중단돼도 전후 스냅샷과 모든 필드 차이를 보존한다."""
+    same, diff = snapshot.config_identical(before, after)
+    before_path = snapshot.save(before, os.path.join(evidence, "db_before_export_snapshot.json"))
+    after_path = snapshot.save(after, os.path.join(evidence, "db_after_import_snapshot.json"))
+    diff_path = snapshot.save({"before": before_path, "after": after_path, "sections": diff},
+                              os.path.join(evidence, "db_config_diff.json"))
+    for path in (before_path, after_path, diff_path):
+        result.attach(path)
+    result.assert_true(
+        7, "설정 테이블 전수 대조(Export 시점과 동일)", same,
+        expected=f"설정 섹션 {len(snapshot.CONFIG_SECTIONS)}개 전부 일치",
+        actual="일치" if same else f"불일치 {len(diff)}개 섹션: {sorted(diff)}",
+        note="사양서1 60절이 Export 대상을 'Study 정보를 제외한 모든 설정 "
+             "정보(DB / sql file)'로 정의하므로, 화면 픽셀이 아니라 설정 "
+             "테이블 전수 대조가 결정적 근거다. Step 3 에서 "
+             f"{changed_table_count}개 테이블을 실제로 바꿨으므로 "
+             "이 대조는 그만큼의 범위를 실제로 검증한다. "
+             f"전후 DB 스냅샷과 전체 필드 차이: {diff_path}")
+    for section in sorted(diff):
+        result.add(7, f"설정 섹션 [{section}] 복원", FAIL,
+                   expected="Export 시점과 동일", actual=_fmt_section(diff[section]))
 
 
 def _current_values(db):

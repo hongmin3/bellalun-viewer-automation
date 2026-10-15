@@ -25,6 +25,7 @@ Expected 가 요구하지 않는 항목에서 난 FAIL 중 **사용자가 이미
 """
 
 import os
+from pathlib import Path
 import time
 
 from core.result import TCResult, PASS, FAIL, MANUAL, SKIP, BLOCKED
@@ -295,39 +296,69 @@ def _wu_09(lookup, usb_outcome):
               "실행해야 확인할 수 있다.",
               expected="USB 드라이브로 Export 후 되읽기 Import",
               actual="이 실행 경로에서는 수행하지 않음")
-    elif usb_outcome.get("drive") is None:
-        r.skip(0, "USB Export/Import",
-              "이 PC에 이동식(USB) 드라이브가 꽂혀 있지 않아 건너뛴다"
-              "(GetDriveTypeW 기준, 사용자 확정 정책).",
-              expected="USB 드라이브 존재", actual="이동식 드라이브 없음")
     elif usb_outcome.get("error"):
         r.add(0, "USB Export/Import", FAIL,
              expected="USB 드라이브로 Export 후 되읽기 Import",
              actual=usb_outcome["error"], stop=False,
              note=f"드라이브 {usb_outcome.get('drive')} 실행 중 예외 발생.")
+    elif usb_outcome.get("drive") is None:
+        r.skip(0, "USB Export/Import",
+              "이 PC에 이동식(USB) 드라이브가 꽂혀 있지 않아 건너뛴다"
+              "(GetDriveTypeW 기준, 사용자 확정 정책).",
+              expected="USB 드라이브 존재", actual="이동식 드라이브 없음")
     else:
         export_ok = bool(usb_outcome.get("export", {}).get("files"))
         r.assert_true(
             0, "USB Export",
             export_ok,
-            expected=f"{usb_outcome['drive']} 에 DICOM 파일 생성",
+            expected=f"{usb_outcome['drive']} 에 IMG 파일 생성",
             actual=usb_outcome.get("export"),
             note="core/export_manager.py 재사용, 경로만 USB 드라이브로 지정.")
         imp = usb_outcome.get("import") or {}
-        if imp.get("imported_clicked"):
-            r.assert_true(
-                0, "USB Import 되읽기", bool(imp.get("rows")),
-                expected="Import Study 목록에 대상 검사 표시 후 Import 수행",
-                actual=imp)
+        if imp.get("error"):
+            r.add(0, "USB Import 되읽기", FAIL,
+                  expected="Import Study 목록에 대상 검사 표시 후 Import 수행",
+                  actual=imp, stop=False,
+                  note="되읽기 절차 실행 중 예외. core/usb_media.py 참고.")
+        elif not imp.get("rows"):
+            r.add(0, "USB Import 되읽기", FAIL,
+                  expected="Import Study 목록에 대상 검사 표시",
+                  actual=imp, stop=False,
+                  note="폴더 찾아보기로 경로를 확정했는데도 목록이 비었다. "
+                       "Export 산출물이 IMG 포맷인지 확인할 것 — plain DICOM/"
+                       "DICOMDIR 은 이 목록에 잡히지 않는다(2026-09-09 실측).")
+        elif not imp.get("imported_clicked"):
+            r.add(0, "USB Import 되읽기", FAIL,
+                  expected="목록의 대상 행을 선택하고 Import 수행",
+                  actual=imp, stop=False,
+                  note="목록에는 행이 나타났으나 Import 를 수행하지 못했다.")
+        elif imp.get("evidence") is not None:
+            from core.usb_verification import verify_import_evidence
+            evidence = imp["evidence"]
+            if isinstance(evidence, dict):
+                verification = verify_import_evidence(
+                    evidence.get("before"), evidence.get("after"),
+                    evidence.get("completion"), evidence.get("examined"),
+                    export_inventory=usb_outcome.get("export", {}).get("inventory"),
+                    expected_studies=1)
+            else:
+                verification = {"ok": False, "reason": "수집한 Import 근거의 형식이 잘못되었습니다."}
+            r.add(0, "USB Import 되읽기", PASS if verification["ok"] else FAIL,
+                  expected="완료 신호·재생성 UID·영상 파일·Examined 신규 검사 일치",
+                  actual={"import": imp, "verification": verification}, stop=False,
+                  note=verification["reason"])
         else:
+            # Import 클릭과 중복 팝업 처리까지는 자동화했지만, 되읽기 **완료**를
+            # 교차 확인하는 단계(Examined 재검색 등)를 아직 붙이지 못했다
+            # (2026-09-09, 사용자 요청으로 그 직전에 중단). 클릭만으로 PASS 를
+            # 주지 않는다 — 이 저장소는 로그 한 줄로 PASS 를 판정하지 않는다.
             r.manual(
                 0, "USB Import 되읽기",
-                "Import Study 대화상자에서 경로 설정까지는 자동화했지만, 결과 "
-                "목록(2066)에 행이 나타나는 트리거를 이 세션에서 확정하지 "
-                "못했다(core/usb_media.py 모듈 docstring의 실측 기록 참고 — "
-                "드라이브 드롭다운(C:\\/D:\\/E:\\) 선택이 진짜 트리거일 "
-                "가능성이 높다). 추측으로 Import 버튼을 누르지 않았다.",
-                expected="Import Study 목록에 대상 검사 표시",
+                "Import Study 목록에 대상 검사가 나타났고 행 선택 후 Import 를 "
+                "수행했다(중복 팝업이 뜨면 'Use existing data' 처리). 되읽기 "
+                "**완료** 여부를 Examined 재검색으로 교차 확인하는 단계는 아직 "
+                "구현하지 않았다 — 그 부분만 사람이 확인한다.",
+                expected="뷰어로 import 성공",
                 actual=imp)
     r.wu_basis = _basis_line(wf09) + " + USB 신규 로직(core/usb_media.py)"
     return r
@@ -462,21 +493,32 @@ def _quick_tab_check(ui):
 
 def run_setting_display(ctx, ui):
     """TC_WindowsUpdate_10 — Setting 화면 표시. `run-winupdate` 전용 체인에서만 호출."""
-    from core import flows, setting_values
+    from core import flows, setting_changes, setting_values
 
     r = TCResult("TC_WindowsUpdate_10", WU_TITLES["TC_WindowsUpdate_10"])
     tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
+    failure_cause = None
     try:
         if not flows.ensure_patient_screen(ui):
             raise flows.FlowError("Patient 화면이 준비되지 않았습니다.")
         sweep = setting_values.read_all(ui, tesseract_exe=tess)
         missing = sweep.get("missing") or {}
+        pages = sweep.get("pages") or {}
+        expected_pages = {f"{group}.{page}" for group in flows.SETTING_GROUPS
+                          for page in flows.setting_pages(group)}
+        actual_pages = set(pages)
+        empty_pages = sorted(name for name in expected_pages & actual_pages
+                             if not isinstance(pages[name], dict) or not pages[name])
+        complete = (bool(pages) and actual_pages == expected_pages and not empty_pages
+                    and not sweep.get("viewer_died") and not missing)
         r.assert_true(
             1, "Setting 전 메뉴/하위 메뉴 정상 오픈",
-            not sweep.get("viewer_died") and not missing,
-            expected="9개 그룹 전 페이지 정상 오픈, Viewer 생존",
-            actual={"pages": len(sweep.get("pages") or {}), "missing": missing,
-                    "viewer_died": sweep.get("viewer_died")},
+            complete,
+            expected="9개 그룹 전 페이지 정상 오픈, 페이지별 값 존재, Viewer 생존",
+            actual={"pages": len(pages), "expected_pages": len(expected_pages),
+                    "missing": missing, "unvisited": sorted(expected_pages - actual_pages),
+                    "unexpected": sorted(actual_pages - expected_pages),
+                    "empty_pages": empty_pages, "viewer_died": sweep.get("viewer_died")},
             note="setting_values.read_all 전수 순회를 그대로 재사용한다(경량화 "
                  "하지 않는다 — 사용자 지시). NEXT_WORK.md 3-B 간헐 종료가 "
                  "재현되면 축소하지 않고 이 판정에 그대로 남긴다.")
@@ -484,21 +526,34 @@ def run_setting_display(ctx, ui):
         if not flows.ensure_patient_screen(ui):
             raise flows.FlowError("Setting 순회 후 Patient 화면으로 돌아오지 못했습니다.")
         flows.open_setting(ui)
-        quick = _quick_tab_check(ui)
-        ok = bool(quick) and all(x["ok"] for x in quick)
+        quick = _quick_tab_check(ui) or []
+        expected_quick_count = (len(flows.SETTING_GROUPS) - 1) * 3
+        failed_quick = [item for item in quick if not isinstance(item, dict)
+                        or item.get("ok") is not True]
+        ok = (bool(quick) and len(quick) == expected_quick_count and not failed_quick)
         r.assert_true(
             2, "탭을 빠르게 클릭해도 선택한 탭 화면이 바르게 표시",
             ok,
             expected="인접 탭 빠른 전환(A→B→A, 0.15초 간격) 전 구간 활성표시+콘텐츠 렌더",
-            actual={"checked": len(quick),
-                    "failed": [x for x in quick if not x["ok"]]},
+            actual={"checked": len(quick), "expected": expected_quick_count,
+                    "failed": failed_quick},
             note="신규 로직 — 대응하는 기존 TC가 없다(매핑 표에 '신규 필요'로 "
                  "명시). Setting > System 탭(177)부터 QC 탭(185)까지 인접 쌍을 "
                  "전부 오간다.")
-        from core import setting_changes
-        setting_changes.close_setting(ui)
     except Exception as exc:
-        r.abort(0, "TC_WindowsUpdate_10 실행", exc)
+        failure_cause = f"{type(exc).__name__}: {exc}"
+        r.abort(0, "TC_WindowsUpdate_10 실행", exc,
+                note="본 시험의 실패 원인을 유지하고 Setting 화면 정리는 finally에서 수행한다.")
+    finally:
+        try:
+            if setting_changes.close_setting(ui) is False:
+                raise flows.FlowError("Setting 화면이 닫히지 않았습니다.")
+        except Exception as cleanup_error:
+            r.cleanup(0, "Setting 화면 정리", FAIL,
+                      expected="Setting 화면 닫힘",
+                      actual=f"{type(cleanup_error).__name__}: {cleanup_error}",
+                      note=f"본 시험 오류: {failure_cause or '없음'}. "
+                           "앞선 시험 판정은 유지하며 정리 실패를 별도로 기록한다.")
     return r
 
 
@@ -507,52 +562,161 @@ def run_setting_display(ctx, ui):
 # USB 매체 왕복만 이 함수가 새로 담당한다)
 # ---------------------------------------------------------------------
 
+# USB 왕복 전용 폴더. **드라이브 바로 아래 1단계**여야 한다(Import 되읽기
+# 제약 — core/usb_media.py 참고). 매 실행 비우고 다시 만든다.
+USB_EXPORT_FOLDER = "BellalunWU09"
+
 def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
     """USB 드라이브가 꽂혀 있으면 Export→Import 를 시도하고 결과를 돌려준다.
 
     반환: {"drive": str|None, "export": {...}|None, "import": {...}|None}
     드라이브가 없으면 `{"drive": None}` 만 돌려준다(호출부가 SKIP으로 기록).
     """
-    from core import usb_media, export_manager as em, flows
+    from core import usb_media, usb_paths, usb_evidence, export_manager as em, flows
     from tests.workflow03 import _open_examined
+    result = {"drive": None, "export": None, "import": None,
+              "cleanup": {"ok": True, "errors": []}}
+    export_opened = False
+    import_requested = False
 
-    drive = usb_media.find_usb_drive()
-    if drive is None:
-        return {"drive": None}
+    def record_error(stage, error):
+        message = f"{stage}: {type(error).__name__}: {error}"
+        original = (result.get("import") or {}).get("error")
+        if not result.get("error"):
+            result["error"] = original or message
+        result.setdefault("errors", []).append(message)
 
-    target = os.path.join(drive, "BellalunWU09", patient_id)
-    if not flows.ensure_patient_screen(ui, wait=3):
-        raise flows.FlowError("Patient 화면이 준비되지 않았습니다(USB Export 전).")
-    _open_examined(ui)
-    rows = flows.examined_search(ui, patient_id)
-    if not rows:
-        raise flows.FlowError(f"Examined 검색 결과가 없습니다: {patient_id}")
-    ui.click(rows[0], settle=1.2)
-    button = [c for c in ui.by_id(2191) if c.visible]
-    if not button:
-        raise flows.FlowError("Export 버튼(2191)을 찾지 못했습니다.")
-    ui.click(button[0], settle=3)
-    manager = em.attach()
+    def cleanup_error(message):
+        result["cleanup"]["ok"] = False
+        result["cleanup"]["errors"].append(message)
+        if not result.get("error"):
+            result["error"] = f"USB 정리 실패: {message}"
+
     try:
+        drive = usb_media.find_usb_drive()
+        result["drive"] = drive
+        if drive is None:
+            return {"drive": None}
+        # Guarded cleanup rejects path escapes, links/junctions and traversal
+        # before touching the sole automation-owned child of a USB drive root.
+        target, cleared = usb_paths.prepare_export_folder(drive)
+        if not flows.ensure_patient_screen(ui, wait=3):
+            raise flows.FlowError("Patient 화면이 준비되지 않았습니다(USB Export 전).")
+        _open_examined(ui)
+        rows = flows.examined_search(ui, patient_id)
+        if not rows:
+            raise flows.FlowError("시험 환자의 Examined 검색 결과가 없습니다.")
+        ui.click(rows[0], settle=1.2)
+        button = [c for c in ui.by_id(2191) if c.visible]
+        if len(button) != 1:
+            raise flows.FlowError("유일한 Export 버튼(2191)을 찾지 못했습니다.")
+        export_opened = True
+        ui.click(button[0], settle=3)
+        manager = em.attach()
         path = em.set_path(manager, target)
-        # Import Study는 DICOMDIR 포맷이 있어야 인식한다(2026-09-08 실측,
-        # NEXT_WORK.md 5절 ⑨). 일반 DICOM 포맷은 DICOMDIR을 만들지 않는다.
-        em.select_format(manager, em.FORMAT_DICOMDIR)
-        em.set_portable_viewer(manager, True)
+        if em.is_checked(manager, em.OPT_PORTABLE_VIEWER) is True:
+            # DICOMDIR enables this option so it can be explicitly turned off.
+            em.select_format(manager, em.FORMAT_DICOMDIR)
+        portable = em.set_portable_viewer(manager, False)
+        anonymous = em.set_anonymous(manager, False)
+        fmt = em.select_only_format(manager, em.FORMAT_IMG)
+        format_states = {format_id: em.is_checked(manager, format_id) for format_id in em.ALL_FORMATS}
+        if (portable.get("final") is not False or anonymous.get("final") is not False
+                or fmt.get("selected", {}).get("final") is not True
+                or any(checked is not (format_id == em.FORMAT_IMG) for format_id, checked in format_states.items())
+                or any(value.get("final") is not False for value in fmt.get("turned_off", {}).values())):
+            raise flows.FlowError("IMG 단독·Anonymous 해제·Portable Viewer 해제 상태를 확인하지 못했습니다.")
         outcome = em.export(manager, wait=180)
-    finally:
+        inventory = []
+        for image in sorted(Path(target).rglob("*")):
+            if image.suffix.lower() != ".img":
+                continue
+            item = {"path": str(image), "exists": image.is_file(), "readable": False, "size": 0}
+            try:
+                item["size"] = image.stat().st_size
+                with image.open("rb") as stream:
+                    item["readable"] = bool(stream.read(1)) and item["size"] > 0
+            except OSError as error:
+                item["error"] = f"{type(error).__name__}: {error}"
+            inventory.append(item)
+        files = [item["path"] for item in inventory if item["exists"] and item["readable"] and item["size"] > 0]
+        result["export"] = {"path": path, "files": files, "inventory": inventory, "format": fmt,
+                            "format_states": format_states,
+                            "anonymous": anonymous, "portable_viewer": portable,
+                            "cleared": cleared, "outcome_files": outcome.get("files")}
+        if not inventory or len(files) != len(inventory):
+            raise flows.FlowError("Export된 IMG 파일이 없거나 비어 있거나 읽을 수 없습니다.")
+        if outcome.get("closed") is not True:
+            raise flows.FlowError("Export Manager가 닫히지 않아 Import를 시작하지 않았습니다.")
+
+        evidence_dir = Path(ctx.evidence_root) / "WU09" / str(time.time_ns())
+        evidence_dir.mkdir(parents=True, exist_ok=False)
+        completion_path = str((evidence_dir / "import-completion.png").resolve())
+        evidence = {"before": None, "after": None, "completion": None,
+                    "examined": {"patient_id": patient_id, "searched": False, "study_uids": []}}
         try:
-            em.cancel(em.ViewerUi(em.PROCESS), timeout=10)
-        except Exception:
-            pass
+            # Take this immediately before the Import attempt, not before Export.
+            evidence["before"] = usb_evidence.patient_snapshot(ctx.db, ctx.cfg["data_dir"], patient_id)
+            import_requested = True
+            result["import"] = usb_media.attempt_import(ui, target, expected=1, evidence_path=completion_path)
+            if not isinstance(result["import"], dict):
+                result["import"] = None
+                raise TypeError("Import 수집 결과가 객체가 아닙니다.")
+            evidence["completion"] = result["import"].get("completion")
+            if result["import"].get("error"):
+                result["error"] = result["import"]["error"]
+            if result["import"].get("cleanup_error"):
+                cleanup_error(result["import"]["cleanup_error"])
+        except Exception as error:
+            record_error("Import 실행/사전 관찰", error)
+            if result["import"] is None:
+                result["import"] = {"error": result["error"], "closed": False}
+        finally:
+            try:
+                evidence["after"] = usb_evidence.patient_snapshot(ctx.db, ctx.cfg["data_dir"], patient_id)
+            except Exception as error:
+                record_error("Import 이후 DB/파일 관찰", error)
+                evidence.setdefault("collection_errors", []).append(f"{type(error).__name__}: {error}")
+            result["import"]["evidence"] = evidence
 
-    files = []
-    if os.path.isdir(target):
-        for dirpath, _, names in os.walk(target):
-            files.extend(os.path.join(dirpath, n) for n in names)
-    export_result = {"path": path, "files": files, "outcome_files": outcome.get("files")}
-
-    time.sleep(1)
-    import_result = usb_media.attempt_import(ui, target)
-
-    return {"drive": drive, "export": export_result, "import": import_result}
+        imp = result["import"]
+        completion = evidence["completion"]
+        if (isinstance(completion, dict) and completion.get("observed") is True
+                and not completion.get("error") and not imp.get("error")
+                and not result.get("error") and imp.get("closed") is True):
+            try:
+                # Collector reads actual fresh UI-click Study Keys and DB UIDs;
+                # it never receives or copies the expected new UID set.
+                evidence["examined"] = usb_evidence.observe_examined(ui, ctx.db, ctx.cfg["data_dir"], patient_id)
+            except Exception as error:
+                record_error("Examined 독립 재검색", error)
+                evidence.setdefault("collection_errors", []).append(f"{type(error).__name__}: {error}")
+    except Exception as error:
+        record_error("USB Export/Import", error)
+    finally:
+        if export_opened:
+            try:
+                remaining_manager = em.ViewerUi(em.PROCESS)
+                if remaining_manager.pid:
+                    # em.cancel can dismiss a modal. Unknown modals are kept
+                    # for controlled recovery rather than clicking a guess.
+                    if remaining_manager.dialog() is not None:
+                        cleanup_error("Export Manager에 미확인 대화상자가 남아 자동으로 닫지 않았습니다.")
+                    elif em.cancel(remaining_manager, timeout=10) is False:
+                        cleanup_error("Export Manager 창을 닫지 못했습니다.")
+            except Exception as error:
+                cleanup_error(f"Export Manager 정리: {type(error).__name__}: {error}")
+        if import_requested:
+            try:
+                if usb_media.cancel_browse_dialog(ui) is False:
+                    cleanup_error("Import 폴더 찾아보기 창을 닫지 못했습니다.")
+            except Exception as error:
+                cleanup_error(f"Import 폴더 찾아보기 정리: {type(error).__name__}: {error}")
+            # attempt_import owns known completion dismissal and scoped Import
+            # closure. An unclosed result may contain an unknown/negative modal;
+            # preserve it and request the caller's cold-start recovery for TC10.
+            imp = result.get("import") or {}
+            result["cleanup"]["import_closed"] = imp.get("closed") is True
+            if imp.get("closed") is not True:
+                cleanup_error("Import 창/완료 대화상자가 남아 있습니다. 미확인 버튼을 누르지 않고 복구를 요청합니다.")
+    return result

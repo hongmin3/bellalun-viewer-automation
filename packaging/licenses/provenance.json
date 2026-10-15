@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "component": "Tcl",
+      "version": "8.6.15",
+      "file": "Tcl-8.6.15-license.terms",
+      "source": "https://raw.githubusercontent.com/tcltk/tcl/core-8-6-15/license.terms",
+      "sha256": "c0a69a2bfd757361ec7e6143973b103c90409316b49e9c88db26ad6388e79f16"
+    },
+    {
+      "component": "Tk",
+      "version": "8.6.15",
+      "file": "Tk-8.6.15-license.terms",
+      "source": "https://raw.githubusercontent.com/tcltk/tk/core-8-6-15/license.terms",
+      "sha256": "2cde822b93ca16ae535c954b7dfe658b4ad10df2a193628d1b358f1765e8b198"
+    },
+    {
+      "component": "OpenSSL",
+      "version": "3.0.16",
+      "file": "OpenSSL-3.0.16-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.0.16/LICENSE.txt",
+      "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+    },
+    {
+      "component": "OpenSSL",
+      "version": "3.0.16",
+      "file": "OpenSSL-3.0.16-AUTHORS.md",
+      "source": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.0.16/AUTHORS.md",
+      "sha256": "5076ca441daef7fb35e904c2ac070880c7b3d58300a5a6aecac41e8f525f4412"
+    },
+    {
+      "component": "zlib",
+      "version": "1.3.1",
+      "file": "zlib-1.3.1-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE",
+      "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243"
+    },
+    {
+      "component": "OpenSSL",
+      "version": "3.0.16",
+      "file": "OpenSSL-3.0.16-COPYRIGHT.txt",
+      "source": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.0.16/README.md",
+      "source_sha256": "f8f614a6589d7c7ee2ba2bd5f3fd87afe3c89012fd79f31f82cb4e50edbaefe9",
+      "extraction": "Copyright section verbatim; upstream tag has no NOTICE file",
+      "sha256": "8342f7425e3a47d7cde2625dfc35ad52ea7b287ddebe721c5043547ee8dd49df"
+    }
+  ]
+}

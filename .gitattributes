@@ -1,0 +1,2 @@
+# Keep verified upstream license bytes identical across Windows checkouts.
+packaging/licenses/* -text

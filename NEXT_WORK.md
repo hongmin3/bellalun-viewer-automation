@@ -1,4 +1,29 @@
-# 다음 작업 (2026-09-07 Windows Update 체크리스트 자동화 회차 기준)
+# 다음 작업 (2026-10-15 BellalunAuto 구현·검증 회차)
+
+## 지금 상태와 다음 실행
+
+BellalunAuto의 한국어 화면·PC 설정·작업 폴더·worker 감시·UAC·중복 실행 잠금과
+승인 자료를 포함하는 내부 설치 빌드 계층을 구현했다. 설치 사용 절차는
+[README](README.md#팀원-pc에서-시작하기), 빌드·자료 승인 절차는 [배포 안내](docs/distribution-guide.md)를 따른다.
+최종 설치판은 아직 검증·승인하지 않았다.
+
+| 구분 | 2026-10-15 확인 범위 |
+|---|---|
+| 변경 전 소스 전체 회귀 | TC 27건: PASS 17 / FAIL 8 / MANUAL 2. 수정 후 결과와 구분한다 |
+| 중간 단위시험 | 367개와 하위 사례 183개 통과. 실제 제품 전체 시험의 대체 근거가 아니다 |
+| USB 단독 실측 | Imported 1 / Skipped 0 완료 메시지, 신규 검사 1건·영상 3건의 DB/파일 XML UID와 Examined 재검색 일치. 연결된 전체 흐름은 재검증 중 |
+| 수정 반영 | OCR 경로 전달, XIPL 준비 대기, 미등록 DB의 제품 표준 복원 파일명, WF14 실패 전 상세 DB 증거 저장. 승인 자료 경로·출력·링크 보호도 반영 |
+| 최종 결과 | 최종 동일 EXE의 기본기능 전체·실시간 WU 전체, 설치 수명주기와 개발 도구 없는 환경 검증은 미완료. 결과 확보 후 이 표를 갱신한다 |
+
+현재 우선순위는 다음과 같다.
+
+1. 연결된 USB Export/Import에서 완료 신호와 신규 UID·파일·Examined 근거를 다시 확인한다.
+2. WF14를 재실측해 DB 복원 경로 오류의 해소와 새 상세 diff를 확인한다. 기존 UPS 제외 범위를 넓히지 않는다.
+3. 변경판을 다시 빌드하고 최종 동일 EXE로 기본기능 전체와 실시간 WU 전체를 순서대로 수행한다.
+4. 설치·재설치·업데이트·제거, 다른 드라이브/한글/공백/CWD, 새 셸·Win+R, 사용자 자료 보존과 개발 도구 없는 환경의 실제 검증 범위를 기록한다.
+
+아래 날짜별 기록은 과거 수행 사실을 보존한다. 과거의 “완료”, “자동화 결함 0건”,
+USB 미확정 항목 및 우선순위를 현재 변경판의 완료 상태로 해석하지 않는다.
 
 > **문서 지도 — 이 문서의 역할과 다른 3개 문서와의 관계**
 > 이 문서는 **현재 상태와 다음에 할 일**만 담는다 — 최신 회귀 결과, 이번 회차에 바꾼 것, 남은 문제, P0/P1/P2, **사용자 판단이 필요한 항목(5절)**, 다음 세션용 프롬프트(6절).
@@ -7,20 +32,21 @@
 
 ---
 
-## 1. 현재 상태
+## 1. 2026-09-09까지의 상태 기록
 
 | 항목 | 값 | 근거 |
 |---|---|---|
 | 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC` — TC 37건 | `WF_14` Step 3 문구는 2026-08-28 사용자 승인으로 수정(원본은 `..\Baseline\Checklist_개정본_20260828_WF14Step3수정전.xlsx`) |
 | 자동화 범위 | 완전자동 20 / 부분자동 7 / 수동 10 (+ 보조 4) | `python run.py list` |
-| **최신 전체 회귀** | **29차, 2026-09-03 20:45~22:45 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1, 119.9분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건 — 이번 회차의 P1/P2(XIPL_07 보강, run-sys3d/run-ui 대기 전환)·WF_13 문서 정정 반영판으로도 회귀 없음 확인** | `Reports/Result_20260903_224518.json` |
+| **당시 최신 전체 회귀** | **29차, 2026-09-03 20:45~22:45 — TC 27건: PASS 23 / FAIL 2 / MANUAL 2, 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1, 119.9분. 남은 FAIL 2건은 둘 다 제품 결함(3-A UPS, XIPL_03). 자동화 결함은 0건 — 이번 회차의 P1/P2(XIPL_07 보강, run-sys3d/run-ui 대기 전환)·WF_13 문서 정정 반영판으로도 회귀 없음 확인** | `Reports/Result_20260903_224518.json` |
 | 문서 구조 | `AGENTS.md`/`README.md`/`NEXT_WORK.md`/`..\프로젝트_상세.md` 4개로 유지. `NEXT_TASK.md`·`PORTABILITY_AUDIT.md`·`tools/prune_docs.py` 는 2026-08-28 폐지(아래 2절) | `AGENTS.md` "문서 수명 정책" |
 | **27차→28차: `WF_08` 수정 반영판 회귀로 최종 확인 완료** | 27차(`Result_20260902_021817.json`, 116.1분, PASS22/FAIL3/MANUAL2)에서 `WF_08`(Select Images 창 미처리)이 예상 밖 FAIL — 수정 후 28차(`Result_20260902_225334.json`, 115.3분, PASS23/FAIL2/MANUAL2)에서 PASS로 확정됐다(2절 WF_08 행, 아래 2-L절) | `Reports/Result_20260902_225334.json` |
 | **09-03: 회귀 진행률을 `work/regression_state.json`에 기록하는 Hub/Worker 연동 착수** | `run.py` 회귀 루프가 TC마다 `core/automation_health.write_state()`를 호출해 진행률을 남긴다 — 외부 `AI-Remote-Control`(GitHub `hongmin3/AI-Remote-Control`)의 `background_watch.py`가 Claude 세션을 깨우지 않고 진행 상황을 읽게 하기 위함(아래 2-M절). 이 저장소 밖 소비 측 구현은 미확인 | 커밋 `65d44d5` |
 | **09-03(이어짐): WF_13 문서 정정, P1/P2 완료** | WF_13 계정 권한별 Setting 노출은 2026-08-20에 이미 완전 자동화돼 있었다(문서만 stale) — `run-wf13` 재확인 PASS. P1(`probe-preset3d` 3D Preset 실측 → XIPL_07 Default 상속 판정)과 P2(`run-sys3d`/`run-ui` 고정 대기 → 상태 기반 전환) 모두 구현·라이브 검증 완료(2-N절). stale 브랜치 `agent/add-next-task-handoff`는 이미 존재하지 않음 확인 | 2-N절, `run-xipl-07`/`run-sys3d`/`run-ui` 재검증 리포트 |
-| **저장소 경로 이전(09-07)** | OneDrive 동기화를 해지하고 알려진 폴더 리디렉션(`Desktop`→`%USERPROFILE%\OneDrive\Desktop`)을 해제하면서, 프로젝트 루트를 `C:\Users\ksj74\OneDrive\Desktop\자동화\Bellalun Viewer` → **`C:\자동화\Bellalun Viewer`**로 옮겼다. 저장소 안의 산출물·기준 문서 경로는 모두 `ctx.root`/`__file__` 상대라 **기능 코드 변경은 없었다**. 부수 효과 2건: (1) 프로필 밖으로 나가 `core/dbreset.py`가 기록한 SQL Server `LOCALSERVICE` 접근 제약이 이 PC에서는 사라졌다(복사 단계는 PC 독립성 때문에 유지), (2) `tests/install_package_flow.py`의 `~\Desktop` 후보가 리디렉션 때문에 **실존하지 않는 경로**를 보고 있었고 이제 정상화됐다. `config.json > checklist_xlsx`에 남아 있던 다른 PC 경로도 비웠다 | 아래 2-C절, `..\프로젝트_상세.md` 1절 |
-| **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(`HOST=ADMIN`, 프로필 `C:\Users\ksj74`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
+| **저장소 경로 이전(09-07)** | OneDrive 동기화를 해지하고 알려진 폴더 리디렉션(`Desktop`→`%USERPROFILE%\OneDrive\Desktop`)을 해제하면서, 프로젝트 루트를 `%USERPROFILE%\OneDrive\Desktop\자동화\Bellalun Viewer` → **`C:\자동화\Bellalun Viewer`**로 옮겼다. 저장소 안의 산출물·기준 문서 경로는 모두 `ctx.root`/`__file__` 상대라 **기능 코드 변경은 없었다**. 부수 효과 2건: (1) 프로필 밖으로 나가 `core/dbreset.py`가 기록한 SQL Server `LOCALSERVICE` 접근 제약이 이 PC에서는 사라졌다(복사 단계는 PC 독립성 때문에 유지), (2) `tests/install_package_flow.py`의 `~\Desktop` 후보가 리디렉션 때문에 **실존하지 않는 경로**를 보고 있었고 이제 정상화됐다. `config.json > checklist_xlsx`에 남아 있던 다른 PC 경로도 비웠다 | 아래 2-C절, `..\프로젝트_상세.md` 1절 |
+| **실행 PC 변경(08-31)** | 이식성 시험 겸 **다른 PC**(별도 시험 PC, 프로필 `%USERPROFILE%`)로 옮겨 수행했다. 이전 PC를 막던 화면 잠금·로그인 실패는 **이 PC에서 재현되지 않았다** — `portability-check` PASS(관리자 True, 1920x1080/96DPI, 필수 경로 4종, DB 서비스 RUNNING), 잠금 화면 창 없음, `cold_start` 로그인 정상, DICOM 서버 5개 포트 모두 도달 | 아래 2-C절 |
 | **09-07: Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화 신설·완료** | `..\Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx`(시트 `Checklist`)를 신규 TC 없이 기존 기본기능/XIPL 자동화 재사용 + 매핑 계층(`tests/winupdate.py`, `core/winupdate_report.py`)으로 자동화. CLI 둘: `run-winupdate`(전용 체인)/`run-winupdate --from-regression <json>`(회귀 결과 변환, 둘 다 매핑 표 공유). **라이브 전체 체인 완주(99.8분): TC 13건 PASS 9 / FAIL 0 / MANUAL 4(01/09/12/13, 전부 설계대로), 자동화·제품 결함 0건.** WU_09는 실제 USB(D:\)로 Export 완전 자동 PASS, Import 되읽기만 트리거 미해결로 MANUAL. WU_10(Setting 화면 표시)은 신규 구현 첫 라이브 실행에서 PASS(탭 빠른 클릭 24/24). WU_02 Age 대조를 WF_01 자체에도 추가(기본기능 TC 고도화), Select/Rotate CW·CCW(1120/1121, 신규 실측)를 `apply_tool_sequence`에 추가해 WF_02도 함께 고도화. 남은 것: WU_02 Scheduled Date/Time 표시 위치 미확인(SKIP), WU_09 USB Import 트리거 미확정(MANUAL) — 아래 5절 | `progress.md` 2026-09-07 절, `Reports/WindowsUpdate_Checklist_Result_20260907_205703.xlsx`, `Reports/winupdate_live_20260907.out.log` |
+| **09-09: WU_09 USB Import 되읽기 트리거 확정** | 세 세션을 막고 있던 "목록 0행"의 원인은 경로 Edit(2065)에 값을 써넣는 방식이었다 — 값은 반영되지만 스캔이 시작되지 않는다. 진짜 트리거는 **폴더 찾아보기(2063)로 폴더를 골라 확인**하는 것이고, 이어서 **목록 행을 클릭해 선택**한 뒤 Import 를 눌러야 한다(중복 팝업은 "Use existing data"(1101)). 또 **되읽기 대상은 자사 IMG 포맷뿐**이라는 것을 대조 실측으로 확인했다(plain DICOM·DICOMDIR 은 0행) — 이전 세션의 "DICOMDIR 필요/IMG 기각" 결론은 정정됐다. `core/usb_media.py` 재작성, `export_manager.select_only_format` 신설, `tests/winupdate.py` 를 1단계 폴더 + IMG 단독 Export 로 정렬. 남은 것은 되읽기 **완료 확인** 한 단계(아래 5절 ⑨) | `NEXT_WORK.md` 5절 ⑨, `progress.md` 2026-09-09 절 |
 
 ---
 
@@ -733,14 +759,14 @@ run-sys3d/run-ui 대기 전환·WF_13 문서 정정이 전체 회귀 경로에�
 
 ---
 
-## 4. 우선순위
+## 4. 2026-09까지의 우선순위 기록
 
 ### P0
 
 0. **매 세션 첫 단계 — 실행 PC가 자동화를 수행할 수 있는 상태인지 확인한다.**
    `portability-check`의 "관리자 권한"이 True인지 보고, 포그라운드 창 타이틀이 잠금
    화면이 아닌지 + `EnumWindows`로 잠금 화면 창이 없는지 확인한다(타이틀이 빈 hwnd=0
-   만으로 "풀렸다"고 판단하지 않는다). 2026-08-31에 옮긴 PC(`HOST=ADMIN`)에서는 잠금
+   만으로 "풀렸다"고 판단하지 않는다). 2026-08-31에 옮긴 PC(별도 시험 PC)에서는 잠금
    문제가 재현되지 않았다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다.
    TC 단독 실행에서 DICOM 전송·MWL을 쓰면 **`setup-dicom`을 먼저 한 번 돌린다**(2-D절 —
    `setup-storage`만으로는 MWL이 빠져 `run-wf10`류가 FAIL 한다).
@@ -1079,295 +1105,145 @@ TC 전체를 막지 않게 방어했다.
 Result_20260908_120515.json`) — `MWL Scheduled Date` 항목 포함. WU_02는
 이 TC를 그대로 재사용하므로 다음 `run-winupdate` 실행부터 자동 반영된다.
 
-### ⑨ WU_09 USB Import 되읽기 — 핵심 원인 확정, 트리거는 아직 미확정 (2026-09-08 대폭 진전)
+### ⑨ WU_09 USB Import 되읽기 — 트리거 확정, 되읽기 **완료 확인**만 남음 (2026-09-09)
 
-Import Study 대화상자(Examined 툴바 2184, 툴팁 "Import"로 확인)의 컨트롤은
-전부 실측했다 — `core/usb_media.py` 모듈 docstring 참고.
+사용자가 수동으로 되읽기에 성공하는 화면을 보여주면서 재개했다. 이전 두
+세션이 "0행"으로 막혀 있던 진짜 원인을 찾았고, 절차 전체를 라이브로
+재현했다. **이전 세션의 결론 두 개가 뒤집혔다** — 아래 "정정" 참고.
 
-  2062 드라이브 표시("C:\") + 화살표(자식 ctrl_id=1)를 누르면 이 PC의
-       드라이브 목록(C:\/D:\/E:\)이 드롭다운으로 뜬다("ItemList" 팝업 창,
-       TextButton 3개 ctrl_id 1/2/3 = C:\/D:\/E:\ — 2026-09-08 확정).
-  2065 Edit — 경로 입력란. `set_text`/`type_text` 로 값은 반영되고
-       되읽어지지만, **일정 길이를 넘어가면 자동완성이 개입해 잘린다**
-       (실측: `...\DATA_FLOW_MWL_01\DATA_FLOW_MWL_01_AUTO MWL` 타이핑 시
-       `DATA_FLOW_MWL_01`까지만 남고 나머지가 사라짐 — 공백 문자 문제가
-       아니라 기존 유효 경로 자동완성이 나머지를 먹는 것으로 보임).
-  2063 CircleButton — **검색/새로고침이 아니라 "폴더 찾아보기"
-       (SHBrowseForFolder)를 여는 버튼**이다. **2062에서 드라이브를 먼저
-       선택한 뒤 열면 그 드라이브 루트에서 시작한다**(2026-09-08 확정 —
-       이전엔 C:\ 고정인 줄 알았으나 아니었다).
-  2066 ListCtrl — 결과 목록(owner-draw, ID/Name/Age/Birth Date/Image 열,
-       9개 `ListItem` 슬롯이 항상 존재하고 `visible=False`로 시작한다).
-  2064 Import 버튼(`IsWindowEnabled`로 확인하면 로직상 처음부터 활성 상태),
-  1102 Close 버튼.
+#### 확정된 절차 (전부 라이브 검증, `core/usb_media.py` 구현 완료)
 
-**핵심 원인 확정 — DICOMDIR 포맷 필요.** 실측 두 갈래로 좁혔다.
+1. **2062 에서 대상 드라이브를 먼저 고른다.** 폴더 트리의 시작 위치를 정하는
+   것이 이 드롭다운의 역할이다. 항목은 'ItemList' 최상위 팝업 창의
+   TextButton 들인데 `children()` **열거 순서가 화면과 역순**이라(ctrl_id
+   3,2,1) y 좌표로 정렬해야 한다 — 드라이브가 3개일 때는 가운데가 우연히
+   맞아 버그가 숨는다.
+2. **2063("...")으로 폴더 찾아보기를 열고 대상 폴더를 골라 확인한다.** 이것이
+   유일한 스캔 트리거다. 열린 직후 **트리에 포커스가 없으므로** 루트 노드를
+   한 번 클릭해 포커스를 준 뒤 Down N 번으로 내려간다(N 은 탐색기 정렬 =
+   대소문자 무시 순, `browsable_dirs()` 가 계산). 확인은 Enter 가 아니라
+   **WM_COMMAND(IDOK)** 로 보낸다.
+3. 목록(2066)에 행이 나타나면 **그 행을 클릭해 선택한다.** 선택하지 않고
+   Import 를 누르면 "Please select study to import." 경고만 뜬다.
+4. **Import(2064)** 를 누른다. 같은 Patient ID 가 이미 있으면 "Select Patient
+   Information" 팝업이 뜨고, 안내가 "You must use existing data to import this
+   study." 이므로 **"Use existing data"(1101)** 를 눌러야 진행된다.
 
-1. 이 USB 드라이브에 이미 있던 실제 CD/USB 배포용 샘플(`D:\dcm\HM_HM
-   KIM_19770126_20260903_102100\DICOMDIR`)을 정확한 경로로 선택해도
-   Import 목록에 안 뜬다 — `dicomlite.scan_dir()`로 까 보니 **Modality=DX**
-   (Mammography 아님)였다. Bellalun Viewer가 MG 가 아닌 모달리티를 자체
-   필터링해 숨기는 것으로 보인다(제품이 유방촬영 전용이므로 합리적).
-2. `core/export_manager.py`의 File Format 그리드 컨트롤 ID를 전부 실측했다
-   (1008=DICOM/1009=DICOMDIR — **기존 상수 `FORMAT_DICOM=1009`는 이름이
-   잘못 붙어 있다, 실제로는 DICOMDIR 버튼**/1011=JPEG/1014=BMP/1012=TIF8/
-   1013=TIF16/1015=RAW/1010=IMG). **1009(DICOMDIR)를 선택하면 "Portable
-   Viewer" 체크박스(1032)가 활성화되고, Export 하면 실제로 `DICOMDIR`
-   파일 + `PortView\` 폴더(제품 내장 포터블 뷰어)가 생성됨을 라이브로
-   확인했다.** 우리 시험 데이터는 Modality=MG 로 정상이므로, 이 DICOMDIR
-   포맷으로 Export 한 뒤 Import 하면 될 것으로 보였다.
+#### 정정 — 이전 세션의 결론 두 개가 틀렸다
 
-**그런데도 안 됐다** — DICOMDIR 포맷으로 새로 Export 한 MG 데이터를
-(키보드 트리 탐색으로 정확히 그 폴더까지 선택해) Import 에 넣어도 목록이
-여전히 0행이었다. 남은 가설(미확인): (a) 스캔에 훨씬 더 긴 대기가 필요할
-수 있다(수 초 이상 기다려 보지 않음), (b) `Autorun.inf`/`PortView` 실행
-파일까지 있어야 "미디어"로 인식할 수 있다, (c) 드라이브 자체가
-`GetDriveType()`상 REMOVABLE 이어야 하는데 이 USB(`VXvue1`, D:)가 다른
-이유로 인식이 안 될 수 있다(다만 드라이브 드롭다운엔 정상적으로 D:\ 로
-표시됨).
+- **"경로 Edit(2065)에 값을 넣으면 경로가 설정된다"** → 값은 반영되고
+  되읽어지지만 **스캔은 절대 시작되지 않는다.** 루트/리프, 대기 90초까지
+  전부 0행이었다. 세 세션에 걸친 "0행" 조사의 진짜 원인이 이것이다. 지난
+  세션이 "폴더 트리로도 실패했다"고 적은 시도들도 실제 코드는
+  `set_import_path`(=`set_text`)를 쓰고 있었다(`Temp/probe_import4.py`).
+- **"Import Study 는 DICOMDIR 포맷을 요구한다 / IMG 는 대상이 아니다"** →
+  **정반대다.** 확정된 절차로 같은 조건에서 대조한 결과:
 
-**경로 선택의 올바른 방법(확정)**: 2065에 직접 타이핑하지 말고, 2062에서
-드라이브를 먼저 선택한 뒤 2063("...") 을 열어 **네이티브 폴더 트리를
-키보드로 탐색**한다 — 트리(SysTreeView32, ctrl_id=100)는 `children()`으로
-행을 열거할 수 없어(owner 그리기가 아니라 진짜 트리뷰라 항목이 별도
-윈도우가 아님) 픽셀 클릭도 신뢰할 수 없었다. **Home(0x24) → Down(0x28)
-N번 → Right(0x27, 펼치기) → Down → ... → OK** 순서로 정확히 원하는 leaf
-폴더까지 내려가는 것을 라이브로 검증했다(각 단계마다 스크린샷으로 확인
-하며 정확한 Down 횟수를 셌다 — 폴더 계층이 바뀌면 횟수도 다시 세야 한다).
+  | Export 산출물 | 폴더 | 목록 |
+  |---|---|---|
+  | plain DICOM(`.dcm`, DICOMDIR 없음) | `D:\BellalunWU09` | **0행** |
+  | DICOMDIR + Autorun.inf + PortView | `D:\BellalunWU09_dicomdir` | **0행** |
+  | IMG(`.img`+`.txt` 원본 덤프) | `D:\BellalunWU09_imgonly` | **1행** |
 
-`core/usb_media.py::attempt_import()`는 목록에 행이 안 나타나면 **추측으로
-Import 버튼을 누르지 않고** 그 사실을 그대로 돌려준다 — `tests/winupdate.py`
-가 이를 MANUAL로 안전하게 기록한다.
+  즉 **Import Study 가 되읽는 것은 자사 IMG 포맷뿐이다.** `tests/winupdate.py`
+  는 이제 `em.select_only_format(manager, em.FORMAT_IMG)` 로 IMG 만 남겨
+  Export 한다(File Format 은 독립 체크박스라 이전 선택이 함께 나간다).
 
-#### 2026-09-08 이어서 — 환경 버그 1건 수정 + 가설 (a)/(b) 기각, 새 가설 (d)
+  **판정 주의**: WU_09 원문은 포맷을 지정하지 않는다("Export 된 스터디를
+  선택 후 뷰어로 import 한다"). 그러므로 IMG 왕복으로 Expected 를 충족한다.
+  다만 **DICOM/DICOMDIR 산출물이 되읽기 대상이 아니라는 사실 자체**는 제품
+  사양(Operation Manual 의 Import Study 설명)과 대조해 볼 가치가 있다 —
+  아직 근거 문서를 확인하지 않았으므로 결함으로 단정하지 않았다.
 
-**환경 버그 발견·수정(WU_09와 별개, 모든 라이브 자동화에 영향)**: 이 세션
-시작 시 `open_main_menu`가 계속 실패했다 — 원인은 **Windows 작업표시줄
-자동 숨김이 꺼져 있어** Viewer 메인 메뉴 버튼(2015, 화면 좌하단
-0,1030~50,1080)을 작업표시줄이 그대로 덮고 있었기 때문이다. 물리 클릭은
-화면 좌표를 덮은 창이 가져가므로 클릭이 작업표시줄(이번엔 Windows 위젯
-패널)로 샜다. `ViewerUi.blocking_window()`는 셸 창을 의도적으로 "가림
-아님"으로 보므로(Viewer 기동 직후 정상 순간과 구분 안 됨) 이 케이스를
-못 잡는다 — Z-order 문제가 아니라 **자동 숨김이 꺼진 작업표시줄이 실제로
-그 화면 영역을 차지하는** 문제였다. `core/ui.py`에 `taskbar_autohidden()`
-(SHAppBarMessage 로 임시 자동 숨김 설정, 종료 시 원상복구 — `foreground_
-unlocked`와 같은 패턴)을 추가하고 `run.py`의 `__main__`에서
-`foreground_unlocked()`와 함께 걸었다. 이후 메인 메뉴 클릭이 안정적으로
-성공했다. **다음 세션 시작 전에도 이 증상(메뉴가 안 열리고 엉뚱한 게
-열림)이 재현되면 작업표시줄 자동 숨김 여부부터 의심할 것.**
+#### 안전 규칙 — 드라이브 루트를 고르면 안 된다
 
-또한 `export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
-`set_portable_viewer()` 헬퍼를 정식 추가했다(기존 계획대로). `tests/
-winupdate.py::run_usb_export_import`가 Export 전에 DICOMDIR 포맷 +
-Portable Viewer를 선택하도록 반영.
+스캔이 재귀적이라 `C:\` 루트가 확정되면 드라이브 전체를 훑는다. 실측으로
+한 번 일으켰다(`BFFM_SETSELECTIONW` 가 무시되면서 초기 선택 C:\ 가 그대로
+IDOK 됐다): **"Find Images (n/710)" 가 17분 넘게 돌았고 그동안 Close 클릭이
+전혀 먹지 않았다 — 중단할 방법이 없다.** 그래서 `select_import_folder()` 는
+드라이브 루트를 예외로 거부하고, 2단계 이상 경로도 거부한다(키보드 트리
+탐색이 형제 인덱스 기반이라 한 단계만 계산된다). `SHBrowseForFolder` 에
+`BFFM_SETSELECTIONW`(WM_USER+103)를 크로스 프로세스로 보내 임의 깊이를
+지정하는 방법은 **이 다이얼로그가 무시했다.**
 
-**가설 (a) "스캔 대기가 짧았다" — 기각.** 위 헬퍼로 DICOMDIR+Portable
-Viewer Export(Autorun.inf + PortView\ + DICOMDIR 전부 생성 확인, MG
-데이터 정상)한 뒤, Import 경로를 정확히 그 폴더로 설정하고 **90초** 폴링
-했지만 목록은 그대로 0행이었다.
+Export 대상 폴더도 이 제약에 맞춰 **드라이브 바로 아래 1단계**로 바꿨다
+(`tests/winupdate.USB_EXPORT_FOLDER = "BellalunWU09"`). 매 실행 그 폴더를
+비우고 시작한다 — 이전 산출물이 남으면 Import 목록에 여러 건이 섞인다.
 
-**새로 시도 — 드라이브 드롭다운을 경로 설정보다 먼저 선택.** 2062 옆
-화살표(자식 ctrl_id=1)를 눌러 뜨는 "ItemList" 팝업의 TextButton
-1/2/3(=C:\\/D:\\/E:\\, 화면 좌표로 클릭 — `by_id`는 팝업 내부에서 같은
-ctrl_id가 두 군데 중복 열거돼 신뢰 못 함)에서 D:\\를 먼저 선택해 2062
-표시를 "D:\\"로 바꾼 뒤 2065에 경로를 설정 → Enter → Tab 으로 포커스
-이동까지 시도했지만 역시 0행. **가설 (b) "Autorun.inf/PortView 실행
-파일이 있어야 인식"도 기각** — 이번 DICOMDIR Export에 두 파일 다
-포함됐는데도 안 됐다.
+#### 같은 ID, 다른 의미 — 1102
 
-**드라이브 우선 선택 + 네이티브 폴더 트리(키보드) 탐색 조합도 재시도** —
-2062에서 D:\\ 선택 → 2063("...") 으로 SHBrowseForFolder 열기 → Home/Down/
-Right로 `DATA_FLOW_MWL_01_AUTO MWL`(DICOMDIR 있는 정확한 리프 폴더)까지
-내려가 확인 → 30초 폴링. 역시 0행. 이전 세션이 이미 이 조합(드라이브
-드롭다운 없이 트리 탐색만)을 시도해 실패했던 것과 같은 결과다 — **드라이브
-드롭다운을 먼저 눌러도 트리 탐색 결과가 달라지지 않는다.**
+중복 팝업의 "Not change data" 가 **1102 로, Import Study 의 Close 와 같다.**
+팝업이 떠 있는 동안 `by_id(1102)` 로 Close 를 찾으면 엉뚱한 버튼을 누른다.
+`close_import_dialog()` 는 `import_window()` 로 **창 범위를 한정해서** 찾는다.
+버튼 텍스트는 커스텀 렌더라 OCR 로 읽히지 않았다(빈 문자열) — 위치가 아니라
+컨트롤 ID 로 고른다.
 
-**남은 가설 — (c)는 그대로, (d) 신규:**
-(c) 드라이브가 `GetDriveType()`상 REMOVABLE 이어야 하는데 이 USB(D:\\,
-`VXvue1`)가 다른 이유로 인식이 안 될 수 있다(드롭다운엔 D:\\로 정상 표시).
-(d) **DICOMDIR 미디어 배포는 원래 CD/DVD 개념이다** — Import Study의 스캔
-트리거가 실제로는 Windows AutoPlay/`WM_DEVICECHANGE`(미디어 삽입 이벤트)에
-매여 있어서, 이미 꽂혀 있는 USB 드라이브를 UI로 사후에 "탐색"하는 방식으로는
-절대 트리거되지 않고 **물리적으로 다시 꽂아야**(또는 실제 광학 드라이브에
-미디어를 넣어야) 스캔이 시작될 가능성이 있다. 다음 세션 시작 후보:
-USB를 뽑았다 다시 꽂으면서 Import Study 대화상자가 열려 있는 상태로
-`list_rows()`를 폴링해 변화가 있는지 확인. 그래도 안 되면 이 TC는 MANUAL
-유지가 맞다는 결론으로 마무리하고 더 파지 않는다(이미 두 세션에 걸쳐
-충분히 조사했다).
+#### 남은 것 — 되읽기 **완료** 확인 한 가지
 
-#### 2026-09-08 추가(같은 날 다시 이어서) — 사용자 요청으로 IMG 옵션 시도, USB 드라이브 재확인
+사용자 요청으로 "Use existing data" 를 누르기 직전에 멈췄다(Import 를
+실행하면 DB 에 검사가 추가되므로 판단을 넘겼다). 그래서 **4단계 이후 제품이
+무엇을 보여주는지(진행 표시 / 완료 팝업 / 대화상자 자동 닫힘)를 아직 실측하지
+못했다.** `attempt_import()` 는 그 지점까지 자동화하고 관측값
+(`duplicate_popup`, `dialog_closed_itself`)만 담아 돌려준다. `_wu_09` 는
+클릭만으로 PASS 를 주지 않고 **MANUAL** 로 남긴다(이 저장소는 로그 한 줄로
+PASS 를 판정하지 않는다).
 
-사용자가 "D드라이브 맞는지 다시 확인하고, IMG 옵션도 시도해 보라"고 요청했다.
-
-- **USB 드라이브 재확인**: `GetLogicalDrives`+`GetDriveTypeW`로 전수 스캔 —
-  D:\\ REMOVABLE `VXvue1`(그대로), C:\\ FIXED, **E:\\ CDROM(빈 드라이브,
-  볼륨 레이블 없음)**. 이 PC에 실제 광학 드라이브가 있다는 걸 이번에 처음
-  확인했다 — 가설 (d)(AutoPlay/미디어 삽입)를 검증하려면 나중에 이 E:\\도
-  후보가 될 수 있다.
-- **File Format 그리드는 라디오 그룹이 아니라 독립 체크박스였다(실측
-  정정)** — DICOMDIR을 고른 뒤 이어서 IMG를 고르면 **DICOMDIR이 해제되지
-  않고 IMG와 함께 체크된 채**로 Export 됐다(`is_checked()`로 1009=True,
-  1010=True 동시 확인). 그래서 "DICOMDIR+IMG 동시 Export" 결과물은 기존
-  DICOMDIR/Autorun.inf/PortView 패키지에 `.img`+`.txt` 원본 픽셀 덤프가
-  추가된 형태였다 — 여전히 Import 목록 0행(90초 대기 포함, 정확한 리프
-  폴더로 확인).
-- **IMG 단독 재시도(DICOMDIR/Portable Viewer 전부 해제)**: `_set_toggle`로
-  1009/1032를 직접 꺼서 IMG(1010)만 남긴 뒤 Export → `.img`+`.txt` 원본
-  덤프만 생성(DICOMDIR/Autorun.inf/PortView 전혀 없음, 파일 6개, 정상
-  MG 데이터). Import 경로를 그 폴더로 설정 → 30초 폴링 → **여전히 0행.**
-  **사용자의 IMG 가설은 기각.** Import Study는 애초에 DICOM 데이터를
-  요구하는 기능이라 순수 픽셀 덤프(.img)는 애초에 대상이 될 수 없다는
-  것도 이번에 실측으로 확인했다.
-- **"Import" 버튼(2064)을 목록 0행 상태에서 직접 눌러도 봤다** — 클릭 자체가
-  숨은 스캔 트리거인지 확인하려는 시도. 결과는 "No study to import." 안내
-  팝업만 뜨고 스캔은 안 일어났다.
-- **plain "DICOM"(1008) 단독 시도는 미완료** — `select_format(manager,
-  1008)`을 호출했는데 세 포맷(1008/1009/1010) 전부 `is_checked()==False`로
-  남았다(클릭이 반영 안 됨 — 원인 미확인, 1008 버튼 자체가 이 그리드에서
-  다른 셋과 다르게 동작하거나 클릭 좌표가 어긋났을 수 있다). Export를
-  강행해도 파일 0개만 나왔다(포맷이 하나도 안 골라진 상태로 Start를 눌러
-  아무것도 안 만들어진 것으로 보인다). 다음 세션에서 필요하면 1008 버튼의
-  클릭 반응을 스크린샷으로 재확인할 것 — 다만 우선순위는 낮다(plain DICOM
-  은 애초에 DICOMDIR을 안 만들어서 이 조사의 핵심 질문과 무관하다).
-
-**결론 — DICOMDIR 단독 / DICOMDIR+Portable Viewer / DICOMDIR+IMG / IMG
-단독, 네 조합 모두 Import 목록 0행으로 동일하다. Export 포맷 조합이
-원인일 가능성은 사실상 소진됐다.** 남은 건 (c)(USB 미디어 인식) /
-(d)(AutoPlay 트리거) 뿐이고, 둘 다 UI 자동화만으로는 검증하기 어렵다
-(물리적 재삽입이나 드라이버 레벨 조작이 필요). **다음 세션에서 더 파고들
-가치가 있는지부터 사용자에게 확인하는 것을 권한다** — 이미 두 세션에
-걸쳐 포맷·경로·대기시간·드라이브 선택 순서 전부 소진했다.
-
+다음 세션이 할 일은 이 한 가지다 — Import 를 끝까지 수행해 완료 신호를
+실측하고, Examined 재검색으로 **검사가 실제로 늘었는지 교차 확인**하는
+단계를 붙인 뒤 `_wu_09` 를 PASS 판정으로 바꾼다.
 ---
 
-## 6. 다음 세션용 프롬프트
+## 6. 과거 다음 세션용 프롬프트
 
 ```text
 Bellalun Viewer QA 자동화를 이어서 진행해줘.
 
-**Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화가
-2026-09-07~08에 새로 완성됐다.** `python run.py run-winupdate`(전용 체인) /
-`run-winupdate --from-regression <json>`(회귀 결과 변환) 둘 다 구현하고
-라이브로 전체 실행까지 완주했다 — TC 13건 PASS 9 / FAIL 0 / MANUAL 4(전부
-설계대로), 자동화·제품 결함 0건(`Reports/WindowsUpdate_Checklist_Result_
-20260907_205703.xlsx`, 99.8분). 새 TC를 만들지 않고 기존 기본기능/XIPL
-자동화를 재사용해 매핑하는 얇은 계층이다(`tests/winupdate.py`,
-`core/winupdate_report.py`). 자세한 경위는 progress.md 2026-09-07/08절과
-NEXT_WORK.md 5절 ⑧~⑨를 먼저 읽어라.
+**WU_09 USB Import 되읽기 — 트리거를 2026-09-09에 확정했고, 되읽기 "완료
+확인" 한 단계만 남았다.** 세 세션을 막고 있던 원인은 경로 Edit(2065)에
+값을 써넣는 방식이었다(값은 반영되지만 스캔이 시작되지 않는다). 진짜
+트리거는 **폴더 찾아보기(2063)로 폴더를 골라 확인**하는 것이고, 이어서
+**목록의 행을 클릭해 선택한 뒤** Import 를 눌러야 한다. 같은 Patient ID 가
+있으면 뜨는 "Select Patient Information" 팝업에서 **"Use existing data"
+(1101)** 를 눌러야 진행된다. 그리고 **Import Study 가 되읽는 것은 자사 IMG
+포맷뿐이다** — 같은 절차로 plain DICOM 과 DICOMDIR 은 목록 0행, IMG 만
+1행이었다(이전 세션의 "DICOMDIR 이 필요하다 / IMG 는 대상 아니다"는 정정
+됐다). 절차·정정·안전 규칙 전부 **NEXT_WORK.md 5절 ⑨** 와
+`core/usb_media.py` 모듈 docstring 에 정리해 뒀으니 먼저 읽어라.
 
-이 회차에 기본기능 TC 자체도 함께 고도화했다: `tests/workflow01.py`에
-Age + Scheduled Date 대조 추가(둘 다 라이브 PASS 확인, 2026-09-08),
-`core/viewer_tools.py::apply_tool_sequence`에 Select(1111)/Rotate CW·CCW
-(1120/1121, 신규 실측) 추가(WF_02도 함께 검증됨). `core/flows.py`에
-`ensure_scheduled_datetime_column()`/`scroll_study_list_right()` 신설 —
-Setting > Patient > Patient List > List Show Item의 "Scheduled Study
-DateTime"(기본 꺼짐)을 켜고 카드 오른쪽(가로 스크롤 필요)에서 OCR로
-읽는다.
+구현은 이미 들어가 있고 정적 검사·pytest(151 passed)까지 통과했다:
+`core/usb_media.py`(select_drive / select_import_folder / select_row /
+resolve_duplicate_patient / import_window / wait_for_rows / attempt_import),
+`core/export_manager.py::select_only_format`, `tests/winupdate.py`
+(USB_EXPORT_FOLDER="BellalunWU09" 1단계 폴더 + IMG 단독 Export + 매 실행
+폴더 비우기). **아직 커밋하지 않았다** — 아래 검증을 마치고 커밋해라.
 
-**남은 것 — 다음 세션에서 이어갈 한 가지 (NEXT_WORK.md 5절 ⑨ 상세 참고,
-2026-09-08 두 차례 이어서 갱신됨)**
+**이번 세션에 할 일 (이것 하나면 된다)**
 
-1. **WU_09 USB Import 되읽기 — 가설 (a)(b)(IMG) 전부 기각, (c)(d)만 남음.**
-   `core/export_manager.py`에 `FORMAT_DICOMDIR`/`select_format()`/
-   `set_portable_viewer()` 헬퍼를 이미 추가했고 `tests/winupdate.py`가
-   쓴다. DICOMDIR 단독 / DICOMDIR+Portable Viewer / DICOMDIR+IMG(File
-   Format은 라디오가 아니라 독립 체크박스임을 실측 정정) / IMG 단독,
-   **네 조합 모두** 90초 폴링까지 시도했지만 Import 목록은 항상 0행이었다
-   — 스캔 대기 부족(a), Autorun.inf/PortView 부재(b), 사용자가 제안한
-   IMG 포맷(픽셀 원본 덤프라 애초에 DICOM이 아님) 전부 원인이 아니라고
-   결론. USB는 재확인해도 여전히 D:\\(VXvue1, REMOVABLE) — 참고로 이 PC엔
-   빈 CD-ROM 드라이브(E:\\)도 있다. 남은 후보: (c) 이 USB가 Import 기능이
-   요구하는 실제 미디어 종류로는 인식 안 될 가능성, (d) DICOMDIR 스캔이
-   Windows AutoPlay/미디어 삽입 이벤트에 매여 있어 이미 꽂힌 드라이브를
-   UI로 사후 탐색해선 트리거가 안 될 가능성 — **USB를 물리적으로 뽑았다
-   다시 꽂으면서 Import Study 대화상자를 열어 두고 확인하는 것부터
-   시작해라.** 둘 다 UI 자동화만으로 검증하기 어려우니, 계속 팔 가치가
-   있는지 **먼저 사용자에게 확인하는 것을 권한다** — 이미 두 세션(같은
-   날 두 차례)에 걸쳐 포맷·경로·대기시간·드라이브 선택 순서를 전부
-   소진했다.
+1. Import 를 끝까지 수행해 **완료 신호를 실측**한다. 사용자 요청으로
+   "Use existing data" 를 누르기 직전에 멈춰서, 그 이후 제품이 무엇을
+   보여주는지(진행 표시 / 완료 팝업 / 대화상자 자동 닫힘)를 아직 못 봤다.
+   `attempt_import()` 가 `duplicate_popup` / `dialog_closed_itself` 를
+   관측값으로 담아 돌려주니 거기에 완료 판정을 붙이면 된다.
+2. **Examined 재검색으로 검사가 실제로 늘었는지 교차 확인**하는 단계를
+   붙인다(이 저장소는 로그 한 줄로 PASS 를 판정하지 않는다). 그런 다음
+   `tests/winupdate.py::_wu_09` 의 마지막 분기를 MANUAL 에서 PASS 판정으로
+   바꾼다 — 지금은 "클릭까지 했으나 완료 미확인"이라 MANUAL 로 남긴다.
+3. `python run.py run-winupdate` 로 WU_09 를 포함한 라이브 확인을 하고
+   결과를 progress.md 에 남긴 뒤 커밋한다.
 
-~~2. WU 체크리스트 xlsx 자동 기록 정책 재검토~~ — **2026-09-08 사용자
-   확정, 구현 완료.** K열(Result) 삽입은 유지하고 바로 옆 L열에 Comment를
-   추가해 Fail/Manual TC에만 판정 사유를 짧게 적는다(`core/
-   winupdate_report.py::_reason_for()`). 상세는 progress.md 참고.
+**주의 — 드라이브 루트를 절대 고르지 마라.** 스캔이 재귀적이라 C:\ 가
+확정되면 드라이브 전체를 훑고(실측: "Find Images (n/710)" 가 17분 넘게
+돌았다) 그동안 Close 가 전혀 먹지 않는다. `select_import_folder()` 가
+루트와 2단계 이상 경로를 예외로 거부하니 그 가드를 풀지 마라. 또 중복
+팝업의 "Not change data" 는 **1102 로 Import Study 의 Close 와 ID 가 같다** —
+창 범위를 한정해서 찾아야 한다(`import_window()`).
 
-먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md(전체, 특히 5절
-⑧~⑨)를 읽어 상태를 파악해라. TC 원문은
-Bellalun_Viewer_기본기능_Checklist_개정본.xlsx의 `개정 TC` 시트와
-`..\Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx`의
-`Checklist` 시트만 기준으로 삼는다. 전체 저장소나 Reports/Evidence/Log를
-무조건 탐색하지 마라.
+USB 드라이브(D:\, `VXvue1`)가 꽂혀 있어야 검증할 수 있다. 없으면 그 사실만
+보고해라. Viewer 는 사용자가 강제종료한 상태로 끝났으니 먼저 띄워야 한다.
 
-**0단계 - 환경 확인 (가장 먼저, 매번)**
-python run.py portability-check 의 "관리자 권한"이 True 인지 확인해라. 그리고 물리
-콘솔 화면이 잠겨 있는지 확인해라 - GetForegroundWindow 타이틀이 "Windows 기본 잠금
-화면"인지, 또는 EnumWindows로 그 타이틀을 가진 창이 있는지 본다(타이틀이 비어 있는
-hwnd=0 만으로 "풀렸다"고 판단하지 마라). 잠겨 있으면 UI 자동화를 억지로 실행하지 말고
-그 사실만 보고해라. USB 드라이브(D:\, `VXvue1`)가 꽂혀 있는지도 함께 확인해라 —
-WU_09 USB 관련 작업은 실물이 있어야 검증할 수 있다.
-
-**환경 버그 참고(2026-09-08 발견, 수정됨)**: 작업표시줄 자동 숨김이 꺼져 있으면
-Viewer 메인 메뉴 버튼(화면 좌하단)을 작업표시줄이 덮어 클릭이 샌다.
-`run.py`는 이제 `core/ui.py::taskbar_autohidden()`으로 실행 내내 자동
-숨김을 걸었다 되돌리므로 `run.py`를 거치는 명령은 이 문제가 없다.
-다만 `run.py` 밖에서 직접 `core.ui`/`core.flows`를 호출하는 임시
-스크립트를 짤 때는 `with foreground_unlocked(), taskbar_autohidden():`로
-감싸는 것을 잊지 마라 — 메인 메뉴가 안 열리고 엉뚱한 게(Windows 위젯
-패널 등) 열리면 이 문제부터 의심해라.
-
-**TC를 단독 실행할 때의 전제(2026-08-31 실측, 2026-09-01 추가 확인)**
-reset-environment가 복원하는 기준 스냅샷에는 DICOM 서버 등록이 없다(MWL/Storage/Print
-모두 0행). DICOM 전송이나 MWL을 쓰는 TC(run-wf07/run-wf10 등)를 단독으로 돌리기 전에
-python run.py setup-dicom 을 한 번 실행해라(setup-storage는 Storage만 등록해 MWL이
-필요한 TC가 FAIL 한다). **`run-wf04`/`run-wf06`/`run-wf15`는 setup-dicom만으로는
-부족하다** — 체크리스트 Precondition대로 `run-wf01→wf02→wf03`(또는 최소 `wf03`까지)를
-먼저 실행해 `DATA_FLOW_MWL_01` 환자와 2D 영상(`IMG_FLOW_2D_01`)을 만들어 둬야 한다.
-
-**작업 방식 참고**
-- 세션이 길어질 수 있다 — 라이브 UI 자동화 1회(run-wf14 등)가 20~30분씩 걸린다. 실행
-  전에 마우스/키보드를 점유한다는 것을 알리고, 여러 개를 동시에 돌리지 마라(충돌한다).
-- **하나의 CLI 세션(프로세스)이 끝나면 그 안에서 띄운 백그라운드 작업도 함께 끊긴다.**
-  20~30분 걸리는 라이브 실행(run-wf14 등)은 `Start-Process -WindowStyle Hidden`으로
-  세션과 완전히 분리된 OS 프로세스로 띄우고, 표준출력/에러를 파일로 리다이렉트해라
-  (2026-09-01에 harness 자체의 백그라운드 추적이 세션 경계에서 한 번 끊긴 전례가 있다
-  — 로그가 프로세스 종료 시점에야 플러시되니 중간 확인은 프로세스 생존 여부/CPU 시간
-  변화로 판단해라).
-- "구조적 문제/원인 불명"에 부딪히면 추측보다 먼저 `../지식/`(Service Manual·Operation
-  Manual·사양서)과 DB를 직접 조회해 확인해라 — 이번 세션에서 그렇게 12곳을 풀었다.
-- **고친 뒤 바로 라이브로 재검증해라 — 첫 진단이 틀릴 수 있다.** 2026-09-01에
-  `dicom.tag_mapping`의 첫 수정(행 높이 비교)은 라이브 재검증에서 곧바로 "변화 없음"이
-  드러나 틀린 전제(Win32 rect는 클리핑을 반영하지 않는다)였음을 알게 됐다 — 재진단
-  (뷰포트 rect 대조)으로 다시 고쳐 해결했다. 코드만 보고 "이걸로 맞겠지"라고 다음
-  단계로 넘어가지 않는다.
-- **"설계 차이라 못 고친다"/"오탐이다"는 결론도 검증 대상이다.** `display.overlay`
-  ("개념 불일치, 새 검증 필요")와 `patient.physician`("대상 컨트롤 자체가 틀렸다,
-  오탐") 둘 다 그랬다 — 라이브로 컨트롤 트리를 덤프하고 라벨을 OCR로 읽어 보니
-  실제로는 넷 다(`procedure.procedure`/`dicom.print_overlay` 포함) **같은 교차
-  오염 버그**였다(2-G~2-I절). `display.overlay`의 근거 숫자("28")가 사양서 수치
-  (34)와도 안 맞았는데 그 불일치를 미리 짚지 못했다 — 결론에 쓴 숫자·판단이 실제로
-  무엇을 근거로 하는지 항상 라이브로 재확인해라.
-- **개수가 이미 맞아도 끝난 게 아니다.** `patient.physician`의 대응 관계를
-  확정한 뒤(0=0) "다 됐다"고 봤는데, 라이브 재검증에서 `walk()`가 "행이 0개면
-  무조건 실패"로 처리하는 별개의 오래된 결함을 만났다(지금까지 다룬 목록이 전부
-  DB 원천 1행 이상이라 이 전제가 안 깨졌을 뿐이다). 매 수정 뒤 라이브 재검증을
-  거르지 않는 습관이 이번에도 숨은 문제를 잡아냈다(2-I절).
-- 범위가 예상보다 커지면(이번 세션의 OCR 수정처럼) 중간에 멈추고 사용자에게 범위를
-  확인해라 — 계속 "가능한 만큼" 넓히기보다 단계별로 승인받는 편이 나았다.
-
-검증·Git
-- 긴 실행 전에 반드시: py_compile, tools/check_module_attrs.py,
-  tools/check_self_attrs.py, tools/check_cleanup_stop.py,
-  tools/check_regression_names.py, tools/traceability.py,
-  python -m unittest discover -s tests -p "test_*.py"
-  (`tests/install_package_flow.py:310` 경고는 기존 것이라 무시해도 된다 - 범위 밖 코드는
-  근거 없이 건드리지 마라.)
-- 문서를 갱신해라. 순서: ..\프로젝트_상세.md(기본 문서 - 먼저 갱신) ->
-  python tools/render_docs.py -> README.md(포트폴리오 축약형) -> NEXT_WORK.md -> progress.md,
-  필요할 때만 automation_scope.json/traceability.json.
-- git status/diff/remote 검토 후 관련 파일만 commit 하고 같은 작업에서 별도 재승인 없이
-  일반 push까지 수행해라. push한 브랜치와 commit SHA를 보고해라.
-  Force Push·history 재작성 금지. config.json, Reports/, Evidence/, Log/, Cache/,
-  Temp/, work/ 는 커밋하지 마라.
-- 테스트하지 않은 것을 성공했다고 기록하지 마라. 이전 세션에서 이미 구현된 것과 이번
-  세션에서 새로 한 것을 최종 보고에서 구분해라.
+먼저 auto/AGENTS.md, auto/progress.md, auto/NEXT_WORK.md 5절 ⑨ 를 읽어
+상태를 파악해라. TC 원문은 Bellalun_Viewer_기본기능_Checklist_개정본.xlsx 의
+`개정 TC` 시트와 `..\Windows Update 호환성 검증 Checklist_Bellalun Viewer_
+R-25-782.xlsx` 의 `Checklist` 시트만 기준으로 삼는다. 전체 저장소나
+Reports/Evidence/Log 를 무조건 탐색하지 마라.
 ```

@@ -1,0 +1,9 @@
+# Source verification only; target PCs do not need these packages.
+-r requirements.txt
+et_xmlfile==2.0.0
+packaging==26.3
+pytest==9.1.1
+iniconfig==2.3.0
+pluggy==1.6.0
+colorama==0.4.6
+Pygments==2.21.0

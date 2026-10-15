@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "asset_version": "REPLACE_WITH_APPROVAL_VERSION",
+  "compatibility": {
+    "viewer": ["REPLACE_WITH_APPROVED_VIEWER_VERSION"],
+    "sql": ["REPLACE_WITH_APPROVED_SQL_VERSION"]
+  },
+  "files": [
+    {
+      "source": "D:/private-approved-assets/Basic_Checklist.xlsx",
+      "destination": "checklists/Basic_Checklist.xlsx",
+      "sha256": "REPLACE_WITH_FILE_SHA256",
+      "kind": "checklist",
+      "role": "basic-checklist",
+      "version": "REPLACE_WITH_APPROVAL_VERSION"
+    }
+  ]
+}

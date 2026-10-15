@@ -15,6 +15,13 @@ TESSERACT_EXE = os.environ.get(
     "BELLALUN_TESSERACT", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
 
+def configure_ocr(executable):
+    """Apply the selected PC config even when this module was imported earlier."""
+    global TESSERACT_EXE
+    TESSERACT_EXE = os.fspath(executable)
+
+
+
 def grab(box, path=None, scale=1):
     """화면 영역을 캡처한다. path를 주면 파일로 저장한다."""
     from PIL import ImageGrab

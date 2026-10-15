@@ -3,14 +3,38 @@
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
-사람이 손으로 하루씩 돌리던 회귀 시험을, **명령 한 줄로 수행하고 판정 근거까지
-남기는** 자동화로 만들었습니다. 최신 전수 회귀는 119.9분이 걸렸습니다.
+기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
+팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-```bash
-python run.py run-regression
-```
+**2026-10-15 현재:** 중간 단위시험 367개와 하위 사례 183개가 통과했습니다.
+USB 단독 실측에서는 완료 메시지와 신규 검사·영상 UID, 파일 XML, Examined 재검색이 일치했습니다.
+연결된 시험 흐름을 재검증 중이며 **최종 설치판의 두 전체 시험과 배포 검증은 미완료**입니다.
 
 ---
+
+## 팀원 PC에서 시작하기
+
+다음은 검증·승인된 내부 패키지를 전달받은 뒤의 절차입니다. 최종 패키지는 현재 검증 중입니다.
+팀원용 `BellalunAuto`는 기존 자동화 엔진을 실행하는 설치 프로그램과 한국어 실행 화면을 제공합니다.
+배포 PC에는 Python·pip·Git·소스 저장소를 설치하지 않습니다. Viewer·SQL Server·XIPL·OCR와
+시험용 외부 서버는 준비되어 있어야 합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
+
+1. 승인된 내부 `BellalunAuto-<version>-setup.exe`를 설치합니다.
+2. 시작 메뉴에서 BellalunAuto를 열고 설정·결과를 저장할 작업 폴더를 선택합니다.
+3. PC별 설정에서 제품 경로·SQL 인스턴스·서버·시험 계정과 승인 자료 위치를 확인하고 저장합니다.
+4. 실행 환경 점검의 누락 항목을 해결한 뒤 기본기능 또는 실시간 Windows Update 전체 실행을 선택합니다.
+5. 실행이 끝나면 결과 폴더의 HTML·JSON·체크리스트 결과를 확인합니다.
+
+```powershell
+BellalunAuto.exe --version
+BellalunAuto.exe selfcheck
+BellalunAuto.exe run-regression
+BellalunAuto.exe run-winupdate
+```
+
+설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
+사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
+아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 
 ## 0. 온보딩 요약 — 5분 안에 전체 그림
 
@@ -101,11 +125,12 @@ Bellalun Viewer\
 | 규모 | Python **32,700줄** / 모듈 86개 — core 15,925(37) · tests 14,139(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-03 재실측 |
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
-| 최신 전체 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건 : PASS 23 / FAIL 2 / MANUAL 2 (119.9분)<br>그 안의 검증 303개 : PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1 |
-| 남은 FAIL | `TC_Basic_WorkFlow_14` Step 7 — **제품 결함**(UPS 설정이 Export/Import 로 복원되지 않음) / `TC_XIPL_compatibility_03` Step 9 — **제품 결함**(Apply 후 3D 파라미터 기본값 복귀). **자동화 결함은 0건.** 28차 이후 추가한 XIPL_07 3D Preset Default 상속 판정, run-sys3d/run-ui 상태 기반 대기 전환도 이 29차에서 회귀 없이 확인됨 |
+| 최신 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정했으며 수정 후 전체 실행은 대기 중 |
+| 남은 검증 | USB 연결 흐름과 WF14 재실측, 최종 동일 EXE의 기본기능 전체·실시간 WU 전체 및 설치 검증. 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
+| 과거 기준 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건: PASS 23 / FAIL 2 / MANUAL 2 (119.9분), 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1. 당시 남은 FAIL은 문서화한 UPS 복원과 XIPL_03 기본값 복귀였음 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 73건, 위반 0 |
-| 자체 검사 | `tools/` 도구 11개 + 단위 시험 **151건** |
+| 자체 검사 | 2026-10-15 중간 단위시험 **367개 / 하위 사례 183개 통과**. 과거 2026-09-03 기준은 단위시험 151건 |
 
 ### 이 자동화가 실제로 하는 일
 
@@ -156,8 +181,9 @@ python run.py run-winupdate --from-regression <전체 회귀 결과.json>   # �
      결함이지만 이 체크리스트 판정에는 영향 없는 항목을 별도로 명시)
 ```
 
-2026-09-07 라이브 전체 실행: TC 13건 PASS 9 / FAIL 0 / MANUAL 4(설치·계정
-승격·KIOSK처럼 사람이 해야 하는 항목), 자동화 결함 0건.
+과거 2026-09-07 라이브 전체 실행: TC 13건 PASS 9 / FAIL 0 / MANUAL 4였습니다.
+당시 USB Import도 MANUAL이었으며 이 결과는 현재 변경판의 전체 검증을 뜻하지 않습니다.
+2026-10-15에는 USB 완료·신규 UID·파일·Examined 교차 확인을 단독 실측했고 연결 흐름을 재검증 중입니다.
 
 ---
 

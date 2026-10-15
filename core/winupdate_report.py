@@ -141,6 +141,22 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
             cell = ws.cell(row, NEW_RESULT_COL, value)
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
+    # Keep the conversion/live distinction visible without moving TC cells.
+    if env.get("실행 방식"):
+        if "실행 정보" in wb.sheetnames:
+            del wb["실행 정보"]
+        info = wb.create_sheet("실행 정보", 0)
+        info.append(["항목", "내용"])
+        for key in ("실행 방식", "체인 완료", "근거"):
+            if key in env:
+                info.append([key, env[key]])
+        info.column_dimensions["A"].width = 20
+        info.column_dimensions["B"].width = 90
+        for row in info:
+            for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        wb.active = info
+
     by_id = {r.tc_id: r for r in results}
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

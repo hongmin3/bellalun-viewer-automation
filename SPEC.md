@@ -4,15 +4,16 @@
 
 | 항목 | 값 |
 |---|---|
-| Document Version | 1.0.0 |
-| Project Version | 기존 작업 트리 기준, 제품 릴리스 변경 없음 |
-| Last Updated | 2026-09-22 |
+| Document Version | 1.1.0 |
+| Project Version | BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음 |
+| Last Updated | 2026-10-15 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
 기존 [README.md](README.md), [구조 문서](docs/architecture.md), `automation_scope.json`,
 `traceability.json`과 테스트에 근거한 최소 현재 사양이다.
-이번 SPEC/readiness 도입은 관리 체계 변경이며 제품 기능·실행 동작을 추가하거나 변경하지 않는다.
+기존 자동화 엔진과 팀원 PC용 BellalunAuto 배포 실행 계층을 다룬다.
+컴파일·설치·실제 제품 시험의 검증 범위는 각각 결과 기록으로 구분한다.
 현재 제품 작업의 우선순위와 남은 결정은 `NEXT_WORK.md`에 둔다.
 사양과 구현이 다르면 `SPEC / CODE MISMATCH`로 보고한다.
 
@@ -23,14 +24,14 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 
 ### 한눈에 보기
 
-사람이 기준 체크리스트(기본기능 또는 Windows Update)와 범위를 골라 `run.py`를 실행하면, 자동화가 실행 환경과 관리자 권한을
+사람이 설치된 BellalunAuto의 화면이나 명령으로 체크리스트(기본기능 또는 Windows Update)를 고르면, 자동화가 실행 환경과 관리자 권한을
 확인한 뒤 Bellalun Viewer를 실제 UI로 조작한다. 화면·DB·파일에서 근거를 모아 기대 결과와 대조하고, 체크리스트 문맥에 맞는
 판정 리포트를 남긴다.
 
 ```flow
-체크리스트·범위 선택(run.py) -> 실행 환경·권한 확인 -> 선행조건·회귀 순서 준비 -> 제품 UI 조작 -> 근거 관찰(화면·DB·파일) -> 기대 결과와 대조·판정 -> 판정 리포트(기본기능·Windows Update)
-실행 환경·권한 확인 -(미충족)-> 중단·사유 기록 -> 판정 리포트(기본기능·Windows Update)
-기대 결과와 대조·판정 -(자동화 한계)-> 자동화 한계로 분리 기록 -> 판정 리포트(기본기능·Windows Update)
+승인 자료로 컴파일·설치 -> 작업 폴더·PC 설정 -> 체크리스트 선택(BellalunAuto) -> 실행 환경·권한·중복 실행 확인 -> 선행조건·회귀 순서 준비 -> 제품 UI 조작 -> 근거 관찰(화면·DB·파일) -> 기대 결과와 대조·판정 -> 작업 폴더의 판정 리포트
+실행 환경·권한·중복 실행 확인 -(미충족 사유 기록)-> 작업 폴더의 판정 리포트
+기대 결과와 대조·판정 -(자동화 한계와 사유 기록)-> 작업 폴더의 판정 리포트
 ```
 
 ## 2. 프로젝트 범위
@@ -40,22 +41,28 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 - 기본기능 체크리스트의 Workflow와 기능군별 시나리오 및 문서화된 회귀.
 - 기존 기본기능/XIPL 결과를 이용하는 Windows Update 전용 흐름과 리포트.
 - TC별 자동화 범위·사양 근거 추적성, 판정 및 생성 증거.
+- Python·Git·소스가 필요 없는 Windows x64 팀원용 실행파일·설치 프로그램과 설정 화면.
 
 ### 제외
 
 - 비슷한 이름의 다른 체크리스트로 TC 번호/절차를 대체하는 작업.
 - 근거가 없는 PASS, 미확정 Release Note/OS 기준값의 추정, WU_09 완료의 미검증 승격.
-- 이번 도입 중의 Viewer 실행·DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.
+- 승인된 시험 흐름 밖의 DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.
 - 회귀 밖 독립 설치 패키지 점검을 기본 회귀에 임의 편입하는 작업.
 
 ## 3. 시스템 구성
 
 `run.py`가 명령·환경 gate·회귀를 연결한다. TC 시나리오는 tests에,
 UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
+
 `core/result.py`가 판정과 공통 리포트 데이터를 담당하고
 `core/winupdate_report.py`가 Windows Update 체크리스트 출력을 담당한다.
+
 `automation_scope.json`과 `traceability.json`은 각각 범위와 근거 연결의 데이터 원본이다.
 비공개 체크리스트·지식·Baseline은 auto Git 저장소 밖 자산이다.
+
+`bellalunauto/`는 GUI·작업 경로·중복 실행·자식 감시를 맡고 기존 엔진을 호출한다.
+설치 위치의 resources는 읽기 전용 자료다. 설정과 생성물은 사용자가 선택한 작업 폴더에 둔다.
 
 ## 4. 전체 동작 흐름
 
@@ -67,7 +74,17 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 
 ## 5. 기능 요구사항
 
-### REQ-REGRESSION-001
+| 카테고리 | 이름 |
+|---|---|
+| REGRESSION | 기준 체크리스트 실행 |
+| TRACE | 사양 근거 추적 |
+| VERDICT | 근거에 따른 판정 |
+| REPORT | 체크리스트별 결과 보고 |
+| DIST | 팀원용 설치와 실행 |
+| WU | USB 왕복과 설정 검사 |
+| BOUNDARY | 비공개 자료 보호 |
+
+### REQ-REGRESSION-001 기준 체크리스트 실행
 
 #### 목적
 체크리스트 근거가 있는 Workflow만 실행하고 PASS/FAIL/MANUAL/SKIP 의미를 보존한다.
@@ -88,7 +105,7 @@ CLI 명령, 기준 체크리스트, `automation_scope.json`의 TC 등급·사유
 #### 관련 테스트
 TEST-REGRESSION-001, `tests/test_automation_health.py`, `tests/test_result_reports.py`.
 
-### REQ-TRACE-001
+### REQ-TRACE-001 사양 근거 추적
 
 #### 목적
 자동 검증과 체크리스트/사양 근거 사이 연결을 유지한다.
@@ -109,7 +126,7 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 #### 관련 테스트
 TEST-TRACE-001, `tests/test_result_reports.py`.
 
-### REQ-VERDICT-001
+### REQ-VERDICT-001 관찰 근거에 따른 판정
 
 #### 목적
 PASS는 조작 성공 자체가 아닌 제품 화면 또는 저장·전송된 결과의 근거로 결정한다.
@@ -118,7 +135,7 @@ TC expected result와 화면·DB·파일·수신 결과 등 actual evidence.
 #### 선행 조건
 근거를 읽을 수 있고 해당 TC의 기대 결과와 대조할 수 있어야 한다.
 #### 동작
-클릭/입력 성공만으로 통과하지 않는다. 필요한 값·화면 변화·영속화/수신 결과를 확인한다.
+클릭/입력 성공만으로 통과하지 않는다. 필요한 값·화면 변화·저장/수신 결과를 확인한다.
 실제 제품 결함은 FAIL로 유지하고 자동화 한계는 이유를 포함해 구분한다.
 #### 기대 결과
 검증하지 못한 동작은 PASS가 되지 않으며 증거로 결과를 재검토할 수 있다.
@@ -130,7 +147,7 @@ WU_09는 되읽기 완료 신호와 교차 확인이 검증되기 전에는 MANU
 #### 관련 테스트
 TEST-VERDICT-001, `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py`.
 
-### REQ-REPORT-001
+### REQ-REPORT-001 체크리스트별 결과 보고
 
 #### 목적
 기본기능과 Windows Update 리포트가 각각의 제목·기준 문서·판정 이유를 보존한다.
@@ -152,9 +169,74 @@ Windows Update의 원문 Step 접이식 설명이 비어 있는 기존 한계를
 #### 관련 테스트
 TEST-REPORT-001, `tests/test_result_reports.py`.
 
+### REQ-DIST-001 설치와 실행 경로
+
+Windows x64 팀원 PC에 `BellalunAuto-<version>-setup.exe`로 설치한다. 실행파일 이름은
+`BellalunAuto.exe`다. Python·pip·Git·원본 저장소 없이 기본기능과 Windows Update 전체 실행을 제공한다.
+지원 시험 환경은 Windows 10/11 x64, Viewer와 SQL Server·XIPL·OCR 및 외부 시험 서버가 준비된 PC다.
+개별 OS Build와 제품 버전의 실제 검증 범위는 빌드 결과에 기록한다.
+
+설치 영역의 실행 리소스와 사용자가 고른 작업 폴더의 설정·결과·증거·로그·캐시를 분리한다.
+현재 작업 폴더와 개발 PC 경로에 의존하지 않는다. `--config`를 유지하고 UAC 전환 시 config와
+작업 폴더의 절대 경로를 전달한다. 최초 작업 폴더 선택을 저장하고 이후 실행에서 재사용한다.
+
+시작 메뉴·선택적 바탕화면 바로가기·새 CMD/PowerShell의 PATH·Win+R의 App Paths 진입을 제공한다.
+PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록만 지우고 작업 폴더의 사용자 자료는 보존한다.
+설치 직후 DB 복원이나 제품 시험을 시작하지 않는다.
+
+### REQ-DIST-002 실행 화면과 프로세스 관리
+
+명령 없는 실행은 한국어 화면을 연다. 두 전체 실행, 자체진단, 환경 점검, PC별 설정,
+진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령을 유지한다.
+실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.
+
+감시 프로세스는 자기 EXE의 명시적 worker 모드로 엔진을 실행한다. worker가 다시 감시 프로세스를
+만들지 않는다. 종료 코드·진행 상태·새 전체 리포트 확인과 비정상 종료의 제품 정리를 보존한다.
+같은 PC의 제품 조작은 작업 폴더가 달라도 하나만 실행한다.
+
+### REQ-DIST-003 컴파일과 내부 자료 배포
+
+Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파일하고 Inno Setup으로 설치한다.
+하나의 빌드 스크립트가 검사·컴파일·패키징을 수행한다. 도구/의존성 버전을 고정하고 버전·소스 commit·
+도구 버전·파일 목록·SHA256을 남긴다. 동일 빌드의 포터블 ZIP도 만든다.
+
+자체 Python 소스/바이트코드·단위시험·Git·개발 문서·중간파일·디버그 심볼을 배포하지 않는다.
+자체 소스를 추출하거나 외부 python.exe를 실행하지 않는다. 동적 TC import를 컴파일에 포함한다.
+소스를 읽는 검사는 빌드 단계에서 수행하고 배포판 자체진단은 소스 없이 동작한다.
+
+내부 자료는 승인된 로컬 manifest의 허용 목록과 해시로만 포함한다. 체크리스트 두 개·필수 사양/매뉴얼·
+승인 시험 Baseline·사용 안내·제3자 라이선스를 제공한다. 자료 버전과 Viewer/SQL 호환성을 확인한다.
+사내 원문·Baseline·자료가 든 패키지는 공개 Git/Release에 올리지 않는다.
+현재 DB 백업·환자 데이터·개인 config·기존 결과/증거를 넣지 않는다.
+
+### REQ-DIST-004 설치판 진단과 최종 실행 검증
+
+`--version`, `selfcheck`, `portability-check`와 GUI/CLI를 제공한다. 자체진단은 제품 설정과 DB를
+변경하지 않고 제품·DB·OCR·서버·자료·화면·권한의 누락과 해결 방법을 한국어로 표시한다.
+관리자 권한이 필요한 시험은 UAC를 요청하고 거부 시 종료한다. 기존 1920×1080·96 DPI·주 모니터 보호를 유지한다.
+
+설치 폴더 밖 CWD·한글/공백 경로·다른 설치 드라이브·새 셸·설치/재설치/업데이트/제거와
+사용자 자료 보존을 검증한다. 개발 도구/소스 없는 PC 또는 VM 검증의 실제 수행 범위를 기록한다.
+최종 배포 EXE로 기본기능 전체와 실시간 Windows Update 전체를 각각 수행한다.
+빌드 성공·설치 성공·기동 성공·제품 시험 성공을 구분하며 미수행 검증은 완료로 쓰지 않는다.
+
+### REQ-WU-001 USB 왕복과 설정 전수 검사
+
+WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.
+Import 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색 등 독립 근거를 대조한다.
+기존 검사 검색이나 Import 클릭만으로 PASS를 주지 않는다. USB 부재·예외·수행 실패를 구분한다.
+드라이브 루트/지원하지 않는 경로 선택과 창 범위를 벗어나는 1102 사용을 금지한다.
+
+WU_10은 기존 설정 그룹/하위 페이지 전수 순회와 빠른 탭 전환을 수행한다. 빈 결과나 일부 순회로
+PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류가 TC10 실행을 막지 않게 한다.
+과거 회귀 변환을 실시간 TC9/10 실행으로 표시하지 않는다.
+
+기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
+알려진 제품 결함은 FAIL을 유지하고 미충족 조건과 실제 근거를 보고한다.
+
 ## 6. 비기능 요구사항
 
-### NFR-BOUNDARY-001
+### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
 
 비공개 지식, Baseline DB 자료, 실제 자격증명·설정, 환자/DICOM 및 생성 증거는 공개 커밋에 포함하지 않는다.
 공개 auto 저장소에는 코드·검사 도구·템플릿·공개 가능한 문서만 둔다.
@@ -193,7 +275,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 ## 11. 테스트 사양
 
 아래 테스트 파일은 제품 시나리오와 구분한 안전한 단위 검증 대상이다.
-이번 문서 작업은 readiness와 문서 연결만 검증하며 새 제품 회귀 결과를 주장하지 않는다.
+단위시험과 문서 검사는 실제 제품 시험을 대신하지 않는다. 설치 EXE의 두 전체 실행 결과를 별도로 남긴다.
 
 ### TEST-REGRESSION-001
 
@@ -211,7 +293,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - 절차: `tests/test_result_reports.py`에서 기준 절차·expected 전달을 검증한다.
   원문 환경에서는 `python tools/traceability.py`로 인용·쪽·모듈·명령·Step 연결을 대조한다.
 - Expected Result: 기준과 TC 연결을 따라갈 수 있고 원본 부재/미확정 근거를 정상 검증으로 숨기지 않는다.
-  이번 도입에서는 비공개 원본 검증을 실행하지 않는다.
+  비공개 원본 대조는 권한 있는 환경에서 별도로 수행한다.
 
 ### TEST-VERDICT-001
 
@@ -239,6 +321,22 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
   비공개 원본/Baseline/설정/생성물의 커밋 제외 경계를 경로 수준에서 검토한다.
 - Expected Result: 민감값은 출력하지 않고 공개 대상에 비공개 자산이 들어가지 않음을 확인한다.
 
+### TEST-DIST-001 배포 실행과 경로
+
+임시 한글/공백 경로에서 설정 저장·CWD 독립·절대 경로 유지·중복 실행·자식 명령·worker 재귀 방지를
+자동 검증한다. 설치 EXE에서 version/selfcheck/GUI/CLI와 새 셸을 실행하고 사용자 자료 보존을 확인한다.
+실제 EXE의 두 전체 실행 결과와 개발 도구 없는 환경 검증을 별도로 기록한다.
+
+### TEST-DIST-002 패키지 경계
+
+허용 목록의 경로 탈출·해시 불일치·소스/민감파일 혼입을 거부하는지 테스트한다.
+완성 배포 폴더의 목록과 SHA256 및 빌드 정보로 자체 소스·현재 설정·기존 결과의 부재를 확인한다.
+
+### TEST-WU-001 완료 근거와 설정 순회
+
+기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
+USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -248,16 +346,23 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
+| REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py` | implemented |
+| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py` | implemented |
+| REQ-DIST-003 | `tools/build_distribution.py`, `packaging/` | TEST-DIST-002; `tests/test_distribution_build.py` | implemented |
+| REQ-DIST-004 | `bellalunauto/app.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_engine.py` | implemented |
+| REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | implemented |
 
 implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
 이번 readiness 검사만으로 실제 제품 검증을 verified로 올리지 않는다.
+DIST/WU 구현과 단위시험, USB 단독 실측을 반영했으며 최종 설치판 검증은 미완료다.
+최종 동일 EXE의 두 전체 실행·설치 수명주기·개발 도구 없는 환경 검증은 별도 결과로 확인한다.
 
 ## 13. 미확정 사항
 
-- 확인 필요 — WU_09 중복 데이터 선택 이후 Import 완료 신호와 Examined 재검색 교차 확인.
-  근거: `progress.md`의 2026-09-09 기록과 `NEXT_WORK.md` 5절 ⑨.
-  영향: 목록 1행 표시 성공만으로 PASS로 올리지 않고 완료 검증 전 MANUAL 유지.
-  담당: 자동화 유지보수 담당자, 실제 실행 시점/범위 결정은 사용자.
+- 미완료 — 최종 동일 EXE에서 기본기능 전체·실시간 WU 전체와 설치 환경을 검증한다.
+  USB 완료 메시지·신규 UID·실제 파일·Examined 교차 확인은 2026-10-15 단독 실측으로 확보했다.
+  연결된 실행과 최종 설치판 전체 결과는 단독 실측과 구분하여 기록한다.
+  근거: `NEXT_WORK.md` 상단 현재 상태. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.
 - 확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
   근거: `automation_scope.json` 및 `NEXT_WORK.md`.
   영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.
@@ -269,4 +374,4 @@ implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
 ## 14. 향후 개선 후보
 
 Hub/Worker 진행률 소비 측 확인과 기존 우선순위는 `NEXT_WORK.md`를 따른다.
-이번 도입에서 새로운 TC·판정 완화·제품 개선을 구현하지 않는다.
+배포 작업을 이유로 새로운 TC·판정 완화·Viewer 제품 변경을 추가하지 않는다.

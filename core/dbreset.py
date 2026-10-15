@@ -28,7 +28,9 @@
 """
 
 import os
+from pathlib import Path
 import shutil
+import stat
 import subprocess
 import time
 
@@ -193,12 +195,49 @@ def start_app_services(timeout=SERVICE_START_TIMEOUT):
     return state
 
 
+def _inside_resources(ctx, path):
+    resource_root = getattr(ctx, "resource_root", None)
+    return bool(resource_root and Path(path).resolve().is_relative_to(Path(resource_root).resolve()))
+
+
+def snapshot_output_dir(ctx):
+    """새 스냅샷 출력 위치. 설치된 승인 Baseline은 읽기 전용 입력이다."""
+    target = source_dir(ctx)
+    if _inside_resources(ctx, target):
+        target = os.path.join(ctx.root, "Baseline")
+    if _inside_resources(ctx, target):
+        raise ValueError("스냅샷 작업 폴더는 설치 실행 자료 폴더 밖에 있어야 합니다.")
+    return target
+
+
+def _validate_snapshot_files(directory):
+    """Reject linked/shared backup leaves before SQL or file-copy writes."""
+    for database in DATABASES:
+        leaf = Path(directory) / f"{database}.bak"
+        try:
+            info = leaf.lstat()
+        except FileNotFoundError:
+            continue
+        reparse = getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        if (not stat.S_ISREG(info.st_mode) or reparse or info.st_nlink > 1):
+            raise ValueError("스냅샷 출력 파일에 링크·공유 파일 또는 폴더를 사용할 수 없습니다.")
+
+
 def backup_baseline(ctx):
     """현재 4개 DB를 기준 스냅샷(.bak)으로 저장한다.
 
     SQL Server가 직접 쓸 수 있는 staging 폴더에 백업한 뒤, 운영자가 관리하는
-    `Baseline` 폴더로도 복사해 둔다(그 폴더가 PC 이관/공유의 기준이다).
+    `Baseline` 폴더로도 복사한다. 입력이 설치 실행 자료 안에 있으면
+    새 사본은 작업 폴더의 `Baseline`에 둔다. 승인된 설치 원본은 보존한다.
     """
+    # Validate both destinations before mkdir, service shutdown, or BACKUP.
+    target = snapshot_output_dir(ctx)
+    staging_target = os.path.join(ctx.cfg.get("data_dir", r"D:\BellalunData"),
+                                  "Backup", "Baseline")
+    if _inside_resources(ctx, staging_target):
+        raise ValueError("스냅샷 DB 저장 경로는 설치 실행 자료 폴더 밖에 있어야 합니다.")
+    _validate_snapshot_files(target)
+    _validate_snapshot_files(staging_target)
     staging = staging_dir(ctx)
     stop_app_processes()
     saved = {}
@@ -213,7 +252,6 @@ def backup_baseline(ctx):
         # restore와 같은 이유로 서비스를 반드시 되살린다.
         saved["_services"] = start_app_services()
 
-    target = source_dir(ctx)
     try:
         os.makedirs(target, exist_ok=True)
         for db in DATABASES:
@@ -259,7 +297,8 @@ def _move_clauses(ctx, db, bak_path):
     현재 DB가 쓰는 물리 경로(`sys.master_files`)로 매핑한다.
 
     현재 DB가 없어 매핑할 대상이 없으면(신규 PC) `<data_dir>\Database`에
-    논리 파일명 기준으로 배치한다.
+    제품이 attach/import하는 표준 파일명(`<DB>.mdf`, `<DB>.ldf`)으로 배치한다.
+    논리 파일명(`ACCOUNT_dat` 등)은 물리 파일명과 다르므로 그대로 쓰지 않는다.
     """
     listing = ctx.db.query("master", f"RESTORE FILELISTONLY FROM DISK = N'{_quote(bak_path)}'")
     current = {row["name"]: row["physical_name"] for row in ctx.db.query(
@@ -275,7 +314,7 @@ def _move_clauses(ctx, db, bak_path):
         target = current.get(logical)
         if not target:
             suffix = ".ldf" if str(row.get("Type", "")).upper() == "L" else ".mdf"
-            target = os.path.join(fallback_dir, f"{logical}{suffix}")
+            target = os.path.join(fallback_dir, f"{db}{suffix}")
         clauses.append(f"MOVE N'{_quote(logical)}' TO N'{_quote(target)}'")
     return clauses
 

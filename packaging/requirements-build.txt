@@ -1,0 +1,6 @@
+# Build host only; never installed on a teammate's PC.
+# Python 3.12.10 x64; Inno Setup 6.7.3; Nuitka downloads its matched MinGW64.
+-r ../requirements-dev.txt
+Nuitka==4.3
+ordered-set==4.1.0
+zstandard==0.25.0

@@ -12,24 +12,43 @@
   1. `<모듈별칭>.<이름> = ...` 형태의 **모듈 속성 대입**이 있는지
   2. 참조하는 `<모듈별칭>.<이름>` 이 실제로 그 모듈에 **있는지**
 
-실행: python tools_check_module_attrs.py
+실행: python tools/check_module_attrs.py
 """
 
-import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
 import ast
-import glob
 import importlib
-import io
+from pathlib import Path
 import sys
+from types import ModuleType
 
 
-TARGETS = sorted(glob.glob("tests/*.py") + glob.glob("core/*.py"))
+ROOT = Path(__file__).resolve().parents[1]
 
 
 PROJECT_ROOTS = ("core", "tests")
 
 
-def module_aliases(tree):
+def _from_module_target(module, name, root):
+    """from-import의 클래스·함수는 제외하고 실제 로컬 모듈만 고른다."""
+    target = f"{module}.{name}"
+    try:
+        parent = importlib.import_module(module)
+    except Exception:
+        parent = None
+    if parent is not None and hasattr(parent, name):
+        value = getattr(parent, name)
+        if not isinstance(value, ModuleType):
+            return None
+        target = value.__name__
+        if target.split(".")[0] not in PROJECT_ROOTS:
+            return None
+    location = Path(root).joinpath(*target.split("."))
+    if location.with_suffix(".py").is_file() or (location / "__init__.py").is_file():
+        return target
+    return None
+
+
+def module_aliases(tree, root=ROOT):
     """별칭 -> 모듈 경로. **이 저장소 모듈만** 본다.
 
     표준 라이브러리는 제외한다. `import urllib.request` 는 이름 `urllib` 를
@@ -39,57 +58,78 @@ def module_aliases(tree):
     aliases = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.split(".")[0] not in PROJECT_ROOTS:
+                continue
             for a in node.names:
-                target = f"{node.module}.{a.name}"
-                if node.module.split(".")[0] in PROJECT_ROOTS                         or node.module.startswith("."):
+                target = _from_module_target(node.module, a.name, root)
+                if target is not None:
                     aliases[a.asname or a.name] = target
         elif isinstance(node, ast.Import):
             for a in node.names:
                 if a.name.split(".")[0] not in PROJECT_ROOTS:
                     continue
                 # `import a.b` 는 `a` 를 바인딩한다. `import a.b as x` 는 `x` -> a.b.
-                aliases[a.asname or a.name.split(".")[0]] =                     a.name if a.asname else a.name.split(".")[0]
+                bound = a.asname or a.name.split(".")[0]
+                aliases[bound] = a.name if a.asname else bound
     return aliases
 
 
-problems = []
-for path in TARGETS:
-    src = io.open(path, encoding="utf-8").read()
-    tree = ast.parse(src, filename=path)
-    aliases = module_aliases(tree)
+def check_paths(paths, root=ROOT):
+    """주어진 소스만 검사하고 메시지 목록을 반환한다. 소스는 실행하지 않는다."""
+    problems = []
+    for path in paths:
+        path = str(path)
+        source = Path(path)
+        if not source.is_absolute():
+            source = Path(root) / source
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=path)
+        aliases = module_aliases(tree, root=root)
 
-    # 1) 모듈 속성 대입
-    for node in ast.walk(tree):
-        if (isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store)
-                and isinstance(node.value, ast.Name)
-                and node.value.id in aliases):
-            problems.append(
-                f"{path}:{node.lineno} 모듈 속성에 대입: "
-                f"{node.value.id}.{node.attr} = ... "
-                f"(지역 변수여야 하는지 확인하십시오)")
+        # 1) 모듈 속성 대입
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in aliases):
+                problems.append(
+                    f"{path}:{node.lineno} 모듈 속성에 대입: "
+                    f"{node.value.id}.{node.attr} = ... "
+                    f"(지역 변수여야 하는지 확인하십시오)")
 
-    # 2) 없는 이름 참조
-    for alias, target in aliases.items():
-        if target.startswith("."):
-            # `from . import x` — 파일 위치로 패키지를 정한다.
-            pkg = path.replace("\\", "/").split("/")[0]
-            target = f"{pkg}.{target.lstrip('.')}"
-        try:
-            mod = importlib.import_module(target)
-        except Exception:
-            continue
-        if not hasattr(mod, "__file__"):
-            continue
-        have = set(dir(mod))
-        used = {n.attr for n in ast.walk(tree)
-                if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
-                and n.value.id == alias and isinstance(n.ctx, ast.Load)}
-        for name in sorted(used - have):
-            problems.append(f"{path}: {alias}.{name} 이 {target} 에 없습니다")
+        # 2) 없는 이름 참조
+        for alias, target in aliases.items():
+            if target.startswith("."):
+                pkg = path.replace("\\", "/").split("/")[0]
+                target = f"{pkg}.{target.lstrip('.')}"
+            try:
+                mod = importlib.import_module(target)
+            except Exception:
+                continue
+            if not hasattr(mod, "__file__"):
+                continue
+            have = set(dir(mod))
+            used = {n.attr for n in ast.walk(tree)
+                    if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                    and n.value.id == alias and isinstance(n.ctx, ast.Load)}
+            for name in sorted(used - have):
+                problems.append(f"{path}: {alias}.{name} 이 {target} 에 없습니다")
+    return problems
 
-if problems:
-    print("문제 발견:")
-    for p in problems:
-        print(" ", p)
-    sys.exit(1)
-print(f"이상 없음 ({len(TARGETS)}개 모듈 검사)")
+
+def main():
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    targets = sorted(str(path.relative_to(ROOT))
+                     for folder in ("tests", "core")
+                     for path in (ROOT / folder).glob("*.py"))
+    problems = check_paths(targets)
+    if problems:
+        print("문제 발견:")
+        for problem in problems:
+            print(" ", problem)
+        return 1
+    print(f"이상 없음 ({len(targets)}개 모듈 검사)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

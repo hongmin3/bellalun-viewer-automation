@@ -38,6 +38,13 @@ VIEW_RANGE_MONTH = 1108
 TESSERACT_EXE = os.environ.get(
     "BELLALUN_TESSERACT", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
+
+def configure_ocr(executable):
+    """Apply the selected PC config even when this module was imported earlier."""
+    global TESSERACT_EXE
+    TESSERACT_EXE = os.fspath(executable)
+
+
 SLIDER_NAMES_2D = {
     2057: "Contrast",
     2058: "Sharpness",

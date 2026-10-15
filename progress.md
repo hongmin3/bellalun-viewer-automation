@@ -1,13 +1,190 @@
-# Progress Checkpoint
+# 진행 상태
 
-## 2026-09-07 Windows Update 체크리스트 자동화 — 완료(라이브 전체 체인 PASS 9/FAIL 0/MANUAL 4)
+## 2026-10-15 현재 세션: BellalunAuto 배포와 최종 EXE 검증
+
+사용자가 바탕 화면 `새 텍스트 문서.txt`의 구현·빌드·설치 검증을 지시했다.
+최종 EXE로 기본기능 전체와 실시간 Windows Update 전체를 수행한다.
+WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실패를 완화하지 않는다.
+완료 시 터미널에 파일 위치·TC별 결과·남은 제약·commit/push를 자세히 남긴다.
+
+- 브랜치 `codex/bellalunauto-distribution`, 기존 dirty tree를 보존했다.
+- 소스 전체 회귀 2026-10-15 01:25~03:21 종료. wrapper PID 5188, child 8140 종료.
+  `Reports/regression_session.out.log`, `Reports/regression_session.err.log`, `work/regression_state.json` 참조.
+  `Result_20261015_032127.json`: 27 TC, PASS 17 / FAIL 8 / MANUAL 2, exit 1.
+  방화벽 누락·공통 OCR의 C: 고정 참조·XIPL 시작 20초 제한을 확인해 보완 중이다.
+  Setting Import는 초기 Baseline 복원의 비표준 DB 파일명과 제품의 표준 경로 충돌을 확인했다.
+- 원본 `config.json` 보존. git 제외 `.config-session.json`에서 OCR만 복구된 D: 경로로 지정했다.
+  환경 점검 PASS, 기존 단위시험 151 PASS. USB는 E:\\ VXvue1이다.
+- 설계/계획: `docs/superpowers/plans/2026-10-15-bellalunauto.md`, SPEC REQ-DIST-001~004/REQ-WU-001.
+  세부 세션 ledger는 git 제외 `work/distribution-ledger.md`다.
+- 새 runtime/GUI/build 모듈과 테스트를 작성했다. runtime 독립 리뷰 통과.
+  build 리뷰 3건(필수 자료 역할/pytest 수집/Inno 버전 검출)은 수정·재검토를 통과했다.
+  GUI 설치 자료 연결·API key 비공개 처리와 UAC 로그 전달은 수정·재검토를 통과했다.
+  실제 GUI/UAC·설치 검증은 남아 있다.
+- 새 배포 모듈 안전 시험 53건·하위 사례 7건 PASS, USB 순수 판정 18건·하위 사례 29건 PASS.
+  제품 로그의 실제 카드 클릭 Study Key와 환자 범위 DB UID를 연결하는 수집기를 추가했다.
+  회귀 종료 후 엔진 연결·공통 OCR·WU 판정·읽기 전용 자료 보호 패치를 적용했다.
+  적용 직후 전체 단위 331건·하위 사례 154건과 정적 검사 PASS; 이후 추가 수정은 재검증한다.
+  사전 본체 EXE의 버전·조회 전용 환경 점검이 실제 실행됐다. 최종 배포본은 다시 빌드한다.
+  PowerShell 직접 호출의 대기/종료 코드 문제를 재현해 콘솔 설정을 hide로 보완했다.
+- USB 실제 관찰: Import 완료 Imported 1 / Skipped 0, 새 검사 1개·영상 3개,
+  새 영상 내부 UID 3종 모두 DB 일치. 완료 팝업의 scoped OK/Close와 실제 Examined
+  카드 선택 로그→DB UID 연결도 통과했다. 별도 리뷰에서 부분 Import 오판 방지를 위해
+  Export IMG 목록과 신규 영상 수·검사 수의 정확한 일치 조건을 추가했다.
+  연결 코드 실측에서는 Export 완료 뒤 프로세스 종료 대기 경계를 발견했다.
+  성공 문구·증거·단일 버튼 확인과 종료 최대 60초 대기로 보완, 제품 재시험 대기다.
+- 추가 단위 372건·하위 193건 PASS 후 Export/늦은 중복 팝업 회귀를 보강했다.
+  전체 단위 384건·하위 202건 PASS, 독립 리뷰 Critical/Important 없음.
+  설정 Import 단독 실기 시험은 03:43부터 실제 설정·목록 전수 수집 중이다.
+- 실행 자료는 로컬 `work/approved-assets.json`의 11개 승인 파일만 포함한다.
+  사내 자료와 설치 산출물은 공개 Git에 넣지 않는다.
+- 빌드 도구: `work/buildenv/Scripts/python.exe`, `work/InnoSetup6/ISCC.exe`(6.7.3).
+  원래 Python/Git/Node는 D:의 복구된 설치에 있다. 명령 PATH에는 없으므로 절대 경로를 쓴다.
+- 공개 fetch는 성공했다. 복구된 GitHub 인증은 유효하지 않고 연결 계정은 push 권한이 없다.
+  구현·검증·로컬 commit은 계속 진행하며 최종 push 결과를 별도로 보고한다.
+
+다음: WU_09 완료/Examined 연결, XIPL·Setting Import 실기 재검증과 전체 검사를 마친다.
+그 다음 정식 컴파일·설치·동일 최종 EXE로 두 전체 실행·최종 리뷰/문서/commit/push를 진행한다.
+아직 빌드/설치/EXE 제품 시험은 완료되지 않았다.
+
+## 이전 인계
+
+## 현재 목표
+
+WU_09 USB Import의 되읽기 완료 신호와 Examined 재검색 교차 확인을 마무리하는 것이
+현재 제품 작업이다. 2026-09-22 rollout은 SPEC/readiness 관리 체계만 도입하며 제품 기능을 추가하지 않는다.
+
+## 현재 상태
+
+`git status --short`를 2026-09-22 확인했다. 이전 세션의 WU_09 변경과 문서 변경이 남은 dirty tree다.
+WU_09는 IMG 폴더 선택으로 목록 1행이 표시되는 것까지 실측됐지만,
+중복 팝업의 Use existing data 이후 완료 검증은 끝나지 않았다.
+2026-09-09 종료 시 Viewer를 사용자가 강제종료했다는 기록을 보존하며 현재 실행 상태로 단정하지 않는다.
+
+## 진행 중
+
+기존 WU_09의 `core/usb_media.py`, `core/export_manager.py`, `tests/winupdate.py` 변경은 보존한다.
+되읽기 완료 검증 전 MANUAL을 PASS로 바꾸지 않는다.
+이번 작업은 SPEC·CHANGELOG·진행 문서 정리와 readiness 검사다.
+
+## 남은 작업
+
+- WU_09 완료 신호를 실측하고 Examined 재검색으로 교차 확인한 뒤 판정을 결정한다.
+  제품 실행 범위/시점은 사용자, 구현·검증은 자동화 유지보수 담당자가 맡는다.
+- Install_01/02는 사용자/제품 QA의 승인 Release Note·OS Build 자료를 기다리며 기존 MANUAL/SKIP을 유지한다.
+- WU 리포트의 원문 Step 접이식 영역을 채울지 사용자와 유지보수 담당자가 결정한다.
+- Hub/Worker 진행률 소비 측 후속 확인과 제품 결함은 `NEXT_WORK.md`의 현재 우선순위를 따른다.
+
+## 주요 결정
+
+- USB Import 스캔은 경로 Edit 입력이 아니라 폴더 찾아보기 선택으로 시작한다.
+  2026-09-09 대조에서는 IMG만 되읽혔으며 이전 DICOMDIR/IMG 가설은 정정됐다.
+- 드라이브 루트·2단계 이상 경로를 거부하고 폴더 확인은 WM_COMMAND(IDOK)를 사용한다.
+  컨트롤 ID 1102는 창 범위에 따라 의미가 달라 Import 창 범위로 제한한다.
+- 제품 결함(UPS 설정 미복원, XIPL_03 3D 파라미터 복귀)의 FAIL을 완화하지 않는다.
+- 기본기능/WU 리포트 제목·기준 문서·이유를 구분하고 비공개 자산/생성물은 공개 커밋에서 제외한다.
+- 과거 상세 기록은 아래에 보존하고 현재 제품 인계의 기본 경로는 `NEXT_WORK.md`로 유지한다.
+
+## 변경 파일
+
+이번 작업: `SPEC.md`, `CHANGELOG.md`, `progress.md`.
+기존 미커밋 제품 변경: `core/export_manager.py`, `core/usb_media.py`, `tests/winupdate.py`.
+기존 문서/rollout 변경: `AGENTS.md`, `NEXT_WORK.md`, readiness/CI 및 spec-history.
+최신 변경 목록은 `git status --short`로 다시 확인하며 이 작업에서 기존 변경을 커밋하거나 정리하지 않는다.
+
+## 검증
+
+- 마지막 안전 검사 원문 기록: 2026-09-09 `py_compile`, tools/check 계열,
+  `pytest` 151 passed. 당시 실행 세부 명령은 원문에 적힌 범위 이상으로 추정하지 않는다.
+- 기본기능 전체 회귀 기록: 2026-09-03 20:45~22:45, 29차, TC 27건
+  PASS 23 / FAIL 2 / MANUAL 2(119.9분). FAIL 2건은 당시 알려진 제품 결함이다.
+- WU 전체 체인 기록: 2026-09-07 19:17~20:57, TC 13건 PASS 9 / FAIL 0 / MANUAL 4 / SKIP 0.
+  WU_09의 미완료 확인 상태를 이 과거 결과로 덮지 않는다.
+- 2026-09-22 문서 readiness: 오류 0 / SPEC_OPEN_QUESTIONS 경고 1 / exit 0. 프로젝트 1개 검사, failed=0,
+  gateFailures=0, checkerError=false. 미확정 항목의 영향과 담당자는 SPEC 13절에 명시했다.
+- 이번 문서 작업에서는 Viewer/UI, baseline 복원, 전체 회귀를 실행하지 않았다.
+
+## 다음 시작점
+
+이 문서 → `git status --short` → `NEXT_WORK.md` 5절 ⑨와 6절 프롬프트 순서로 읽는다.
+WU_09의 완료 신호 검증부터 이어가고, 완료 전 기존 미커밋 변경과 MANUAL 판정을 보존한다.
+기존 기본기능/WU 검증과 사고 경위는 아래에서 필요한 날짜 절만 참조한다.
+
+## 이전 상세 기록
+
+2026-09-22 정리 전 본문을 아래에 보존했다. 09-07/09-08의 USB 포맷/스캔 가설은
+09-09 정정 기록보다 우선하지 않는다. 고유 운영 사실을 삭제하거나 Git 이력에만 맡기지 않았다.
+### Progress Checkpoint
+
+#### 2026-09-09 WU_09 USB Import 되읽기 — 트리거 확정, 완료 확인만 남음
+
+**목표**: 세 세션째 "Import Study 목록 0행"으로 막혀 있던 WU_09 되읽기를
+자동화한다. 사용자가 수동으로 성공하는 화면(`D:\BellalunWU09_imgonly` 선택
+→ 1행 표시)을 보여주면서 재개했다.
+
+##### 완료
+
+- **원인 확정**: 경로 Edit(2065)에 `set_text`+Enter 로는 **스캔이 시작되지
+  않는다**(루트/리프 무관, 대기 90초까지 전부 0행). 지난 세션들이 "폴더
+  트리로도 실패"라고 적은 시도들도 실제 코드는 `set_import_path`(=set_text)를
+  쓰고 있었다. 진짜 트리거는 **폴더 찾아보기(2063)로 폴더를 골라 확인**하는
+  것이다.
+- **절차 전체 라이브 재현**: 드라이브 선택(2062, 항목이 화면과 역순이라 y
+  정렬 필수) → 폴더 찾아보기 → 루트 노드 클릭으로 트리 포커스 확보 → Down N
+  → WM_COMMAND(IDOK) → 목록 행 클릭 선택 → Import → 중복 팝업에서
+  "Use existing data"(1101). `D:\BellalunWU09_imgonly` 로 1행 표시까지
+  자동화로 확인했다.
+- **포맷 결론 정정**: 같은 절차로 대조한 결과 **IMG 포맷만 되읽힌다** —
+  plain DICOM 0행 / DICOMDIR+PortView 0행 / IMG 1행. 2026-09-08 의
+  "DICOMDIR 이 필요하다, IMG 는 대상 아니다"는 반대였다(그때는 경로 지정
+  방법 자체가 틀려 어떤 포맷도 0행이었다).
+- **코드**: `core/usb_media.py` 재작성(select_drive / select_import_folder /
+  select_row / duplicate_patient_popup / resolve_duplicate_patient /
+  import_window / wait_for_rows / attempt_import, 실측 근거 docstring 포함),
+  `core/export_manager.py::select_only_format` 신설(File Format 은 독립
+  체크박스라 이전 선택이 함께 나간다), `tests/winupdate.py` 를 1단계 폴더
+  (`USB_EXPORT_FOLDER`) + IMG 단독 Export + 매 실행 폴더 비우기로 정렬.
+  `py_compile` / `tools/check_*` / `pytest 151 passed` 통과.
+
+##### 남은 작업 (다음 세션 시작점)
+
+되읽기 **완료 확인** 한 단계. 사용자 요청으로 "Use existing data" 직전에
+멈춰서, 그 이후 제품이 보여주는 완료 신호를 아직 실측하지 못했다.
+Examined 재검색으로 검사가 늘었는지 교차 확인하는 단계를 붙이고
+`_wu_09` 를 MANUAL → PASS 판정으로 바꾼 뒤 `run-winupdate` 라이브 확인.
+상세는 NEXT_WORK.md 5절 ⑨ 와 6절 프롬프트.
+
+##### 사고와 대응 (재발 방지)
+
+- **C:\ 전체 스캔을 한 번 일으켰다.** `BFFM_SETSELECTIONW`(WM_USER+103)를
+  크로스 프로세스로 보내 임의 깊이 경로를 지정하려 했으나 이 다이얼로그가
+  **무시**했고, 초기 선택인 C:\ 루트가 그대로 IDOK 됐다. "Find Images
+  (n/710)" 가 17분 넘게 돌았고 그동안 Close 가 전혀 먹지 않았다. 스캔이
+  끝난 뒤 정리했고 **아무것도 Import 하지 않았다.** → `select_import_folder()`
+  가 드라이브 루트와 2단계 이상 경로를 예외로 거부한다.
+- **`C:\새 폴더` 가 생성됐다.** 폴더 다이얼로그가 열린 직후 트리에 포커스가
+  없는 줄 모르고 Home/Down 을 보냈더니 포커스가 "새 폴더 만들기" 버튼으로
+  갔고, 확인하려고 누른 Enter 가 그 버튼을 눌렀다. 빈 폴더를 확인하고
+  삭제했다. → 확인은 Enter 가 아니라 **WM_COMMAND(IDOK)** 로 보낸다.
+- **1102 가 두 의미다.** 중복 팝업의 "Not change data" 와 Import Study 의
+  Close 가 같은 ID 다. → `close_import_dialog()` 는 `import_window()` 로 창
+  범위를 한정해서 찾는다.
+
+##### 미커밋
+
+위 세 파일 변경은 **아직 커밋하지 않았다** — 되읽기 완료 확인까지 마치고
+한 번에 커밋한다. Viewer 는 세션 끝에 사용자가 강제종료했다.
+
+---
+
+#### 2026-09-07 Windows Update 체크리스트 자동화 — 완료(라이브 전체 체인 PASS 9/FAIL 0/MANUAL 4)
 
 **목표**: `../Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx`
 (시트 `Checklist`, TC_WindowsUpdate_01~13)를 신규 TC 없이 기존 기본기능/XIPL
 자동화 재사용 + 얇은 매핑 계층으로 자동화. 상세 요구사항은 이 작업을 지시한
 프롬프트(세션 로그) 참고 — 결정사항 1~7 전부 사용자 확정.
 
-### 완료
+##### 완료
 
 - **매핑/리포트 인프라**: `tests/winupdate.py`(공유 매핑 표 `build_wu_results()`,
   `run()`/`--from-regression` 양쪽이 공유), `core/winupdate_report.py`(K열
@@ -44,6 +221,8 @@
   라이브 테스트에서 WU_11이 UPS 결함 2건 모두 정상 제외되고 PASS로 전환됨을
   확인. WU_05는 이번 회귀 스냅샷의 실제 다른 원인(Step 1 조기 중단)이 그대로
   FAIL로 남는 것도 확인(설계대로 — 알려진 결함이 아닌 FAIL은 안 가린다).
+- **⚠ 아래 09-07/09-08 절의 WU_09 서술은 2026-09-09 에 정정됐다** — "DICOMDIR 포맷이 필요하다"와 "경로 Edit 설정으로 경로가 지정된다"는 둘 다 틀렸다. 실제로는 폴더 찾아보기로 골라야 스캔이 시작되고, 되읽히는 포맷은 IMG 뿐이다. 맨 위 2026-09-09 절과 NEXT_WORK.md 5절 ⑨ 를 기준으로 삼아라.
+
 - **WU_09**: `core/usb_media.py` 신규 — `find_usb_drive()`(이동식 드라이브
   자동 탐지, 없으면 SKIP), USB Export는 `core/export_manager.py` 그대로
   재사용(경로만 USB로). **USB Import 되읽기는 미해결** — Import Study
@@ -59,7 +238,7 @@
   `setting_values.read_all` 전수 순회 그대로 재사용 + "탭 빠른 클릭"
   서브체크 신규(인접 그룹 A→B→A, 0.15초 간격, 활성표시+콘텐츠렌더 확인).
 
-### 라이브 전체 체인 실행 결과 (완료 — 2026-09-07 19:17~20:57, 99.8분)
+##### 라이브 전체 체인 실행 결과 (완료 — 2026-09-07 19:17~20:57, 99.8분)
 
 `python run.py run-winupdate` 를 Start-Process로 완전히 분리된 백그라운드
 프로세스로 띄워 끝까지 완주했다(세션 종료와 무관하게 계속 동작 — 로그
@@ -93,7 +272,7 @@ title 매칭만으로 이슈를 실었는데, 이번 실행처럼 알려진 결�
 추가). `--from-regression`으로 결함이 실제 FAIL이었던 과거 스냅샷 재검증 —
 issues 3건 그대로 유지됨을 확인(회귀 없음).
 
-### 남은 작업 / 사용자 판단 필요
+##### 남은 작업 / 사용자 판단 필요
 
 1. ~~WU_02 Scheduled Date/Time 표시 위치~~ — **2026-09-08 완료**(위 참고).
 2. **WU_09 USB Import 되읽기 — 핵심 원인 확정, 가설 (a)(b) 기각(2026-09-08
@@ -191,7 +370,7 @@ issues 3건 그대로 유지됨을 확인(회귀 없음).
    함수를 새로 만들어야 하는 설계 결정이 필요해 손대지 않았다. 필요하면
    다음에 논의.
 
-### 변경/신규 파일
+##### 변경/신규 파일
 
 `tests/winupdate.py`(신규 — 매핑 표, 2026-09-08 이어서 DICOMDIR 포맷/
 Portable Viewer 선택 추가), `core/winupdate_report.py`(신규 — WU
@@ -213,7 +392,7 @@ File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026
 
 ---
 
-## 2026-09-07 저장소 경로 이전 (기능 변경 없음)
+#### 2026-09-07 저장소 경로 이전 (기능 변경 없음)
 
 - OneDrive 동기화를 해지하고 알려진 폴더 리디렉션(`Desktop`/`Personal`/`My Pictures`
   → `%USERPROFILE%\OneDrive\...`)을 해제하면서 프로젝트 루트를
@@ -233,7 +412,7 @@ File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026
   Documents를 셸에 물으므로 코드 변경이 필요 없었다. 실체 데이터(`Bellalun\InstallLog`)
   를 `OneDrive\문서` → `C:\Users\ksj74\Documents`로 함께 옮겨 기존 로그 3건 유지 확인.
 
-## 2026-09-03 현재 상태
+#### 2026-09-03 현재 상태
 
 - **29차 전체 회귀 완료(2026-09-03 20:45~22:45, `Reports/Result_20260903_224518.json`,
   119.9분): PASS 23 / FAIL 2 / MANUAL 2. 자동화 결함 0건.** 남은 FAIL 2건(`WF_14`
@@ -269,3 +448,15 @@ File Format이 체크박스임을 반영해 docstring 정정), `core/ui.py`(2026
     실제 소비 로직 확인, 다음 필요 항목 설계.
 - 알려진 문제: `NEXT_WORK.md` 3절 참고(제품 결함 3-A/XIPL_03, 간헐 증상
   3-B/3-C — 전부 자동화 결함 아님, 29차에서도 회귀 없음).
+
+## 2026-09-22 — 프로젝트 킷 rollout 안전 검증 기록
+
+기존 기록은 그대로 두고 이 절만 덧붙인다. 이 결과는 **문서·구조·안전 테스트** 범위이며
+제품 UI·실기 동작 검증을 대신하지 않는다.
+
+- 안전 테스트(외부 시스템·DB·시험 서버 미조작): `python -m unittest` 151개 통과
+- 완료 검사: `node .project-check/project-readiness.js .` → `failed=0`
+- 공통 지침 workflow: `spec-workflow: v3` (사양 두 층 구조 — `SPEC.md` 인덱스 + `specs/<기능>.md`)
+- 증거 로그: 워크스페이스의 `.project-kit-rollout-backup/20260922-121838/verification/`
+  (저장소에는 담지 않는다 — 로컬 경로와 실행 기록이 들어 있다)
+- 미커밋 제품 변경은 건드리지 않았다. 커밋 범위는 사용자가 정한다.
