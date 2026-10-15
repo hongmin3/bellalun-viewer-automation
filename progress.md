@@ -8,11 +8,15 @@ WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실�
 완료 시 터미널에 파일 위치·TC별 결과·남은 제약·commit/push를 자세히 남긴다.
 
 - 브랜치 `codex/bellalunauto-distribution`, 기존 dirty tree를 보존했다.
+  구현 commit `b3838e7`, 엔진 연결 `de44689`. 일반 push는 GitHub 인증 부재로 실패했다.
 - 소스 전체 회귀 2026-10-15 01:25~03:21 종료. wrapper PID 5188, child 8140 종료.
   `Reports/regression_session.out.log`, `Reports/regression_session.err.log`, `work/regression_state.json` 참조.
   `Result_20261015_032127.json`: 27 TC, PASS 17 / FAIL 8 / MANUAL 2, exit 1.
   방화벽 누락·공통 OCR의 C: 고정 참조·XIPL 시작 20초 제한을 확인해 보완 중이다.
   Setting Import는 초기 Baseline 복원의 비표준 DB 파일명과 제품의 표준 경로 충돌을 확인했다.
+  수정 후 단독 WF14(03:43~04:22)는 DB 38개 영역 차이 0, 전후 56페이지,
+  목록 89행·849항목 복원 PASS. 기존 UPS 미복원만 FAIL, 정리 PASS다.
+  `work/Reports/Result_20261015_042220.json`, `work/wf14-targeted-wu11-verdict.json` 참조.
 - 원본 `config.json` 보존. git 제외 `.config-session.json`에서 OCR만 복구된 D: 경로로 지정했다.
   환경 점검 PASS, 기존 단위시험 151 PASS. USB는 E:\\ VXvue1이다.
 - 설계/계획: `docs/superpowers/plans/2026-10-15-bellalunauto.md`, SPEC REQ-DIST-001~004/REQ-WU-001.
@@ -34,8 +38,12 @@ WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실�
   연결 코드 실측에서는 Export 완료 뒤 프로세스 종료 대기 경계를 발견했다.
   성공 문구·증거·단일 버튼 확인과 종료 최대 60초 대기로 보완, 제품 재시험 대기다.
 - 추가 단위 372건·하위 193건 PASS 후 Export/늦은 중복 팝업 회귀를 보강했다.
-  전체 단위 384건·하위 202건 PASS, 독립 리뷰 Critical/Important 없음.
-  설정 Import 단독 실기 시험은 03:43부터 실제 설정·목록 전수 수집 중이다.
+  전체 단위 387건·하위 202건 PASS, 독립 리뷰 Critical/Important 없음.
+  실제 Export OK ID 800을 확인해 허용 목록에 추가, 완료 팝업·프로세스 종료 재확인 PASS.
+  전체 연결 USB 재시험 중이다.
+- 정식 후보1은 391 C 모듈 컴파일·자료 staging·ZIP 생성 성공, Inno PATH 분할 함수에서
+  실패했다. `.iss` 수정 후 실제 1.0.0 설치 파일 컴파일과 0.9.0 정의 문법 검사 PASS.
+  런타임 OK ID 수정도 포함하므로 후보1을 전달하지 않고 전체 빌드를 새로 수행한다.
 - 실행 자료는 로컬 `work/approved-assets.json`의 11개 승인 파일만 포함한다.
   사내 자료와 설치 산출물은 공개 Git에 넣지 않는다.
 - 빌드 도구: `work/buildenv/Scripts/python.exe`, `work/InnoSetup6/ISCC.exe`(6.7.3).

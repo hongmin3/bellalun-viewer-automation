@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="3e505ed682ff895a14200e9b9f8a45ba7d37d6893f1ef090cfc4b52941078a45">
+<meta name="spec-source-sha256" content="be8539aafa19514376adc1fd658235a323012f794c31afc39f28a9a4b71fb6c6">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -248,9 +248,10 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <section class="card kind-req" id="REQ-REGRESSION-001">
 <h3><span class="idtag">REQ-REGRESSION-001</span> 기준 체크리스트 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: DB가 미등록 상태일 때 Baseline 복원의 물리 파일명을 제품 표준 <code>{DB}.mdf</code> / <code>{DB}.ldf</code>로 지정한다. 기존 등록 경로는 유지한다. WF14의 DB 전수 대조는 중단 전에 전후 스냅샷과 전체 필드 차이를 남긴다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: WF14 단독 재시험에서 DB 38개 영역, 전후 56개 페이지와 목록 89행·849항목 복원을 확인했다. 기존 UPS 미복원만 FAIL이며 원복 정리는 PASS다. 기존 WU11 기준에 따른 조회 전용 매핑은 PASS이며 실제 live 전체를 대체하지 않는다.</li>
 </ul>
 </details>
 <section class="field"><h4>목적</h4><div class="field-body">
@@ -410,9 +411,10 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-003">
 <h3><span class="idtag">REQ-DIST-003</span> 컴파일과 내부 자료 배포</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/build_distribution.py</code>, <code>packaging/</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 승인 자료 manifest·해시 검사, Nuitka standalone·Inno Setup 빌드, 포터블 ZIP과 빌드 정보 생성을 구현했다. 사내 원문·Baseline·설치 산출물은 공개 배포 대상에서 제외한다.</li>
+<li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: Inno Setup 6.7.3에서 사용할 수 없는 PATH 분할 함수를 명시적 토큰 분할로 교체하고 실제 설치 스크립트 컴파일 회귀 검사를 추가했다.</li>
 </ul>
 </details>
 <p>Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파일하고 Inno Setup으로 설치한다.
@@ -432,7 +434,7 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <details class="history"><summary>변경 이력 3</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 선택한 OCR 실행 경로를 공통 OCR 호출에 연결하고 XIPL 기동 준비 대기를 보강했다. 설치 자료·승인 Baseline을 출력으로 덮어쓰지 않도록 경로·링크 검사를 추가하고, 명시한 승인 자료 경로를 보존한다.</li>
-<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 중간 단위시험 367개와 하위 사례 183개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 387개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
 <li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 최종 동일 EXE의 기본기능 전체·실시간 WU 전체, 설치·업데이트·제거·새 셸 및 개발 도구 없는 환경 검증은 미완료다. 해당 결과가 확보되면 검증 범위와 함께 갱신한다.</li>
 </ul>
 </details>
@@ -447,11 +449,12 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-WU-001">
 <h3><span class="idtag">REQ-WU-001</span> USB 왕복과 설정 전수 검사</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 4</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: USB Import 완료 메시지, 환자 범위 전후 DB UID, 실제 영상 파일과 Examined 클릭 로그를 연결하는 판정을 구현했다. 단독 실측에서 Imported 1 / Skipped 0, 신규 검사 1건·영상 3건, 파일 XML UID와 재검색 결과의 일치를 확인했다. 연결된 전체 흐름과 최종 설치판 검증은 별도로 수행한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 과거 회귀 변환과 실시간 실행을 구분하고, 새 live 전체 완료 메타데이터 없이 완료로 판단하지 않는다. USB 부재·실패·미완료와 설정 순회 실패의 판정도 보존한다.</li>
-<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 중간 단위시험 367개와 하위 사례 183개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
+<li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: Export 성공 문구·증거·단일 버튼을 확인하고 프로세스 종료를 별도 대기한다. 실제 Export OK ID 800을 확인했으며 부분 Import는 영상 수 비교로 거절한다. 늦게 뜨는 중복 환자 팝업도 제한 시간 안에서 처리한다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 387개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
 </ul>
 </details>
 <p>WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.

@@ -281,7 +281,8 @@ def _export_completion_popup(ui, manager):
     if not (left <= pl < pr <= right and top <= pt < pb <= bottom):
         return None
     buttons = ui.dialog_buttons(popup)
-    if len(buttons) != 1 or buttons[0].ctrl_id not in (1, 500):
+    # 800: Export Manager success popup, observed 2026-10-15.
+    if len(buttons) != 1 or buttons[0].ctrl_id not in (1, 500, 800):
         return None
     return popup
 

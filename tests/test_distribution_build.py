@@ -153,6 +153,20 @@ class DistributionBuildTests(unittest.TestCase):
             self.skipTest('optional local Inno compiler not installed')
         self.assertEqual(self.builder.inno_version(iscc), '6.7.3')
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows Inno compiler validation')
+    def test_installer_pascal_is_accepted_by_the_pinned_compiler(self):
+        iscc = ROOT / 'work/InnoSetup6/ISCC.exe'
+        if not iscc.is_file():
+            self.skipTest('optional local Inno compiler not installed')
+        payload = self.home / 'synthetic compiler-only payload'
+        payload.mkdir()
+        (payload / 'BellalunAuto.exe').write_bytes(b'synthetic payload; never executed')
+        result = subprocess.run([str(iscc), '/O-', '/DAppVersion=1.0.0',
+                                 f'/DSourceDir={payload}', f'/DOutputDir={self.home}',
+                                 str(ROOT / 'packaging/BellalunAuto.iss')], capture_output=True)
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-1500:].decode('utf-8', errors='replace'))
+        self.assertFalse((self.home / 'BellalunAuto-1.0.0-setup.exe').exists())
+
     def test_changed_source_between_validation_and_copy_is_rejected(self):
         assets = self.validate()
         (self.home / 'basic.xlsx').write_bytes(b'changed')

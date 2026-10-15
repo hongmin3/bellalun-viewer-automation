@@ -125,6 +125,26 @@ class ExportCompletionWaitTests(unittest.TestCase):
         self.assertTrue(result['closed'])
         self.assertFalse(any(identifier == em.CANCEL for _, identifier in case.events))
 
+    def test_observed_single_ok_id_800_confirms_exact_success(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = ExportFixture(folder, popup_at=1)
+            case.manager.rect = (417, 101, 1504, 980)
+            case.popup.rect = (707, 440, 1213, 641)
+            case.ok.ctrl_id = 800
+            case.ok.rect = (900, 577, 1020, 621)
+            result = self.run_export(case)
+        self.assertTrue(result['done_confirmed'])
+        self.assertTrue(result['closed'])
+        self.assertEqual([identifier for _, identifier in case.events], [em.START, 800])
+
+    def test_observed_ok_id_800_still_rejects_unknown_message(self):
+        with tempfile.TemporaryDirectory() as folder:
+            case = ExportFixture(folder, popup_at=1, text='Unknown Export message.')
+            case.ok.ctrl_id = 800
+            with self.assertRaises(em.ExportManagerError):
+                self.run_export(case)
+        self.assertEqual([identifier for _, identifier in case.events], [em.START])
+
     def test_unknown_popup_is_preserved_and_cannot_confirm_export(self):
         with tempfile.TemporaryDirectory() as folder:
             case = ExportFixture(folder, popup_at=1, text='Export failed. Unknown error.')

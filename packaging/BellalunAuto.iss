@@ -67,13 +67,32 @@ begin
   Result := RemoveBackslashUnlessRoot(Value);
 end;
 
+function SplitPathTokens(Value: String): TArrayOfString;
+var
+  Separator, Count: Integer;
+begin
+  SetArrayLength(Result, 0);
+  Separator := Pos(';', Value);
+  while Separator > 0 do
+  begin
+    Count := GetArrayLength(Result);
+    SetArrayLength(Result, Count + 1);
+    Result[Count] := Copy(Value, 1, Separator - 1);
+    Delete(Value, 1, Separator);
+    Separator := Pos(';', Value);
+  end;
+  Count := GetArrayLength(Result);
+  SetArrayLength(Result, Count + 1);
+  Result[Count] := Value;
+end;
+
 function HasToken(Value, Token: String): Boolean;
 var
   Parts: TArrayOfString;
   I: Integer;
 begin
   Result := False;
-  Parts := SplitString(Value, ';');
+  Parts := SplitPathTokens(Value);
   for I := 0 to GetArrayLength(Parts) - 1 do
     if CompareText(NormalizeToken(Parts[I]), NormalizeToken(Token)) = 0 then
     begin
@@ -90,7 +109,7 @@ var
 begin
   Result := '';
   First := True;
-  Parts := SplitString(Value, ';');
+  Parts := SplitPathTokens(Value);
   for I := 0 to GetArrayLength(Parts) - 1 do
     if CompareText(NormalizeToken(Parts[I]), NormalizeToken(Token)) <> 0 then
     begin
