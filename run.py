@@ -1377,7 +1377,7 @@ def _main():
         except Exception as exc:
             from core.result import TCResult, FAIL
             r = TCResult("TC_XIPL_compatibility_01", "Viewer와 XIPL 표시값 비교")
-            r.add(0, "Viewer 시험 데이터 및 Overlay 준비", FAIL, actual=str(exc))
+            r.add(0, "Viewer 시험 데이터 및 Overlay 준비", FAIL, actual=str(exc), stop=False)
             results.append(r)
     elif args.cmd == "run-xipl-02":
         from tests.xipl_flows import _prepare, compatibility_02
@@ -1386,7 +1386,7 @@ def _main():
         except Exception as exc:
             from core.result import TCResult, FAIL
             r = TCResult("TC_XIPL_compatibility_02", "Viewer 2D Image Processing")
-            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
+            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc), stop=False)
             results.append(r)
     elif args.cmd == "run-xipl-03":
         from tests.xipl_flows import _prepare, compatibility_03
@@ -1395,7 +1395,7 @@ def _main():
         except Exception as exc:
             from core.result import TCResult, FAIL
             r = TCResult("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction")
-            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
+            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc), stop=False)
             results.append(r)
     elif args.cmd == "run-xipl-04":
         from tests.xipl_flows import compatibility_04
@@ -1413,7 +1413,7 @@ def _main():
         except Exception as exc:
             from core.result import TCResult, FAIL
             r = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
-            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc))
+            r.add(0, "Viewer 시험 데이터 준비", FAIL, actual=str(exc), stop=False)
             results.append(r)
     if args.cmd == "run-sys3d":
         from tests.system_compat import run as run_system_3d

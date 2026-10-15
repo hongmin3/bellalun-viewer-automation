@@ -168,8 +168,8 @@ def run(ctx):
               expected="List Show Item에 Scheduled Study DateTime 켜짐",
               actual=column,
               note="Setting > Patient > Patient List > List Show Item. "
-                   "사용자 지시로 2026-09-08 추가. owner-draw 픽셀 판독이라 "
-                   "간헐적으로 오탐할 수 있어 stop=False.",
+                   "작은 휠로 목록을 탐색해 정확한 Scheduled Study DateTime "
+                   "라벨과 실제 CheckBox를 확인한다. 변경 후 및 Update 후 상태를 되읽는다.",
               stop=False)
         if not flows.ensure_patient_screen(ui):
             raise flows.FlowError("Setting 종료 후 Patient 화면으로 돌아오지 못했습니다.")
@@ -202,45 +202,24 @@ def run(ctx):
         if count != 1:
             return r
 
-        # Scheduled Date/Time 대조 — Patient List 카드에서 읽는다(Edit
-        # Information 의 study_datetime 은 Scheduled 가 아니라 실제 Study
-        # 일시임을 실측 확인했다 — 2026-09-08 이전 세션 기록 참고). 카드 열이
-        # 화면 폭보다 넓어져(Scheduled Study DateTime 열을 켠 뒤) 오른쪽으로
-        # 스크롤해야 보인다.
-        # 카드 열 전체 폭이 화면보다 훨씬 넓어(실측 약 2600px) 스크롤 버튼
-        # 클릭 수 : 실제 이동 폭이 일정하지 않다. 고정 클릭 수 대신 **조금씩
-        # 스크롤하며 매번 OCR로 기대 날짜가 보이는지 직접 확인**하고, 보이면
-        # 즉시 멈춘다(상한만 둔다) — 스크롤 폭을 추측하지 않는다.
-        win = ui.main_window()
+        # Scheduled 헤더 아래 열만 읽는다. 기대 날짜는 수집기에 넘기지 않아
+        # Birth Date나 다른 열에서 일치하는 숫자를 찾아 PASS하지 않는다.
         expected_sched_date = _digits(order.get("sps_start_date"))
-        card_text, dates, actual_sched_date = "", [], ""
-        for _ in range(8):
-            rows_now = flows._study_items(ui)
-            if not rows_now:
-                break
-            rl, rt, rr, rb = rows_now[0].rect
-            clipped = (max(rl, win.rect[0]), rt, min(rr, win.rect[2]), rb)
-            card_text = screen.ocr(clipped, scale=3, path=None)
-            dates = re.findall(r"(\d{4}/\d{2}/\d{2})", card_text)
-            if dates and _digits(dates[-1]) == expected_sched_date:
-                actual_sched_date = _digits(dates[-1])
-                break
-            flows.scroll_study_list_right(ui, clicks=8)
-            time.sleep(.4)
-        else:
-            actual_sched_date = _digits(dates[-1]) if dates else ""
+        scheduled = flows.read_scheduled_datetime(
+            ui, evidence_dir=os.path.join(ctx.evidence_root, "Flow", "01_Worklist"))
+        for path in scheduled["evidence"]:
+            r.attach(path)
+        actual_sched_date = scheduled["date"]
         sched_ok = bool(actual_sched_date) and actual_sched_date == expected_sched_date
-        # stop=False — 이 대조는 owner-draw 카드의 가로 스크롤+OCR 에 의존해
-        # 아직 안정성이 낮다(2026-09-08 라이브 실행에서 간헐 실패 관찰). 이
-        # 한 항목 때문에 TC 전체가 중단되지 않게 한다 — 나머지 Step 은
-        # 이 항목과 독립적으로 그 자체로 의미가 있다.
+        # stop=False — 날짜 불일치는 FAIL로 유지한다. 뒤의 촬영/Local 생성은
+        # 이 대조와 독립적인 검증이므로 이 항목이 실패해도 계속 수행한다.
         r.add(1, "MWL Scheduled Date", PASS if sched_ok else FAIL,
               expected=expected_sched_date,
-              actual={"card_ocr": card_text, "parsed_date": actual_sched_date},
-              note="Patient List 카드의 Scheduled Study DateTime 열(우측, 가로 "
-                   "스크롤 필요)을 OCR로 읽는다. 시:분까지는 OCR 안정성이 "
-                   "낮아 날짜만 비교한다. 간헐적으로 카드 재렌더링 타이밍 "
-                   "때문에 OCR이 비거나 스크롤이 반영 안 될 수 있다(조사 중).",
+              actual={"card_ocr": scheduled["text"], "parsed_date": actual_sched_date,
+                      "scheduled_column": scheduled},
+              note="Patient List의 Scheduled Study DateTime 헤더를 확인하고 해당 열과 "
+                   "대상 행이 겹치는 ROI에서 날짜를 독립 수집한다. Birth Date와 "
+                   "Edit Information의 실제 Study 일시는 Scheduled Date로 사용하지 않는다.",
               stop=False)
 
         flows.select_study_row(ui, 1)

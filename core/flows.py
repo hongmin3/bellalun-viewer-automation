@@ -956,12 +956,60 @@ def open_group_page(ui, group, page, wait=2.5):
 #
 # 목록 자체(2334)는 owner-draw 라 개별 행에 컨트롤 ID가 없다(setting_lists.py
 # 가 다루는 다른 owner-draw 목록과 같은 종류). "Scheduled Study DateTime" 은
-# 이 목록의 **마지막 항목**이다(2026-09-08 실측 — Referring/Department/
-# Station/Modality/Hospital Code/Status 다음). 큰 폭(-200) 휠 한 번으로
-# 끝까지 스크롤되는 것을 확인했으므로, 매번 정확히 그 위치(컨테이너 좌하단
-# 기준 상대좌표)에 있다.
+# 이 목록의 항목이다. 2026-10-15 재실측에서 큰 휠(-200) 한 번은 끝까지
+# 이동하지 않았다. 고정 하단 좌표는 다른 항목(Procedure)의 체크를 읽었다.
+# 실제 라벨과 그 ListItem의 CheckBox를 찾아서만 상태를 변경한다.
 SETTING_PATIENT_LIST_SHOW_ITEM = 2334
-_SCHEDULED_DATETIME_CHECKBOX_OFFSET = (25, -37)  # (컨테이너 left+, bottom+)
+
+
+def _scheduled_words(rect, path=None):
+    """한 프레임의 OCR 단어와 화면 좌표. 기대 날짜는 입력받지 않는다."""
+    import pytesseract
+    from core import screen
+    scale = 3
+    image = screen.grab(rect, path=path, scale=scale)
+    pytesseract.pytesseract.tesseract_cmd = screen.TESSERACT_EXE
+    data = pytesseract.image_to_data(image, lang="eng", config="--psm 6",
+                                     output_type=pytesseract.Output.DICT)
+    result = []
+    for index, text in enumerate(data["text"]):
+        if not str(text).strip():
+            continue
+        left = rect[0] + data["left"][index] / scale
+        top = rect[1] + data["top"][index] / scale
+        result.append({"text": str(text), "rect": (
+            left, top, left + data["width"][index] / scale,
+            top + data["height"][index] / scale)})
+    return result
+
+
+def _scheduled_label_box(words):
+    """같은 행/인접 줄의 정확한 Scheduled Study DateTime 라벨만 선택한다."""
+    import re
+    target = "scheduledstudydatetime"
+    tokens = [(re.sub(r"[^a-z0-9]", "", word["text"].lower()), word["rect"]) for word in words]
+    tokens = [(text, rect) for text, rect in tokens if text]
+    found = set()
+    for index in range(len(tokens)):
+        text = ""
+        boxes = []
+        for token, rect in tokens[index:index + 5]:
+            text += token
+            if not target.startswith(text):
+                break
+            if boxes and rect[0] - boxes[-1][2] > max(30, (rect[3] - rect[1]) * 4):
+                break
+            boxes.append(rect)
+            bounds = (min(box[0] for box in boxes), min(box[1] for box in boxes),
+                      max(box[2] for box in boxes), max(box[3] for box in boxes))
+            if bounds[3] - bounds[1] > max(box[3] - box[1] for box in boxes) * 2.5:
+                break
+            if text == target:
+                found.add(bounds)
+                break
+    if len(found) > 1:
+        raise FlowError("Scheduled Study DateTime 라벨이 여러 개라 대상을 특정할 수 없습니다.")
+    return next(iter(found)) if found else None
 
 
 def ensure_scheduled_datetime_column(ui, wait=2.0):
@@ -975,33 +1023,55 @@ def ensure_scheduled_datetime_column(ui, wait=2.0):
     from core import screen
 
     open_group_page(ui, "patient", "patient_list", wait=wait)
-    container = [c for c in ui.by_id(SETTING_PATIENT_LIST_SHOW_ITEM) if c.visible]
-    if not container:
-        raise FlowError(
-            f"List Show Item 목록({SETTING_PATIENT_LIST_SHOW_ITEM})을 찾지 못했습니다.")
-    box = container[0]
-    ui.wheel(box, -200, settle=1.0)  # 한 번에 바닥까지(실측: 항목 7개 전부 노출)
-    cl, ct, cr, cb = box.rect
-    dx, dy = _SCHEDULED_DATETIME_CHECKBOX_OFFSET
-    x, y = cl + dx, cb + dy
+    checkbox = None
+    for step in range(41):
+        containers = {c.hwnd: c for c in ui.by_id(SETTING_PATIENT_LIST_SHOW_ITEM) if c.visible}
+        if len(containers) != 1:
+            raise FlowError(f"유일한 List Show Item 목록({SETTING_PATIENT_LIST_SHOW_ITEM})을 찾지 못했습니다.")
+        box = next(iter(containers.values()))
+        label = _scheduled_label_box(_scheduled_words(box.rect))
+        if label:
+            center_y = (label[1] + label[3]) / 2
+            rows = {c.hwnd: c for c in children(box.hwnd, 5)
+                    if c.visible and c.text == "ListItem" and c.rect[1] >= box.rect[1]
+                    and c.rect[3] <= box.rect[3] and c.rect[1] <= center_y <= c.rect[3]}
+            if len(rows) == 1:
+                row = next(iter(rows.values()))
+                checks = {c.hwnd: c for c in children(row.hwnd, 2)
+                          if c.visible and c.text == "CheckBox" and c.rect[2] <= label[0]
+                          and c.rect[1] >= row.rect[1] and c.rect[3] <= row.rect[3]}
+                if len(checks) != 1:
+                    raise FlowError("Scheduled 행의 유일한 CheckBox를 찾지 못했습니다.")
+                checkbox = next(iter(checks.values()))
+                break
+        if step < 40:
+            ui.wheel(box, -5, settle=.35)
+    if checkbox is None:
+        raise FlowError("List Show Item에서 Scheduled Study DateTime 행을 확인하지 못했습니다.")
 
-    def _checked():
-        img = screen.grab((x - 3, y - 3, x + 4, y + 4))
-        return screen._pink_verdict(img.load(), 0, 0, img.width, img.height)
+    def checked():
+        left, top, right, bottom = checkbox.rect
+        return screen.radio_selected(checkbox, dx=(right - left) // 2, dy=(bottom - top) // 2)
 
-    was_on = _checked()
+    was_on = checked()
+    if was_on is None:
+        raise FlowError("Scheduled Study DateTime 체크 상태가 불명확합니다.")
     if not was_on:
-        ui.click((x, y), settle=.8)
-    now_on = _checked()
+        ui.click(checkbox, settle=.5)
+    now_on = checked()
+    if now_on is not True:
+        raise FlowError("Scheduled Study DateTime 체크 변경을 되읽어 확인하지 못했습니다.")
     changed = bool(not was_on and now_on)
     if changed:
         update = [c for c in ui.by_id(SETTING_UPDATE_BUTTON) if c.visible]
         if not update:
             raise FlowError(f"Update 버튼({SETTING_UPDATE_BUTTON})을 찾지 못했습니다.")
         ui.click(update[0], settle=1.5)
-        if ui.dialog():
-            ui.dismiss_dialog(timeout=5)
-    return {"was_on": bool(was_on), "now_on": bool(now_on), "changed": changed}
+        confirm_setting_dialog(ui, required=True)
+        if checked() is not True:
+            raise FlowError("Update 후 Scheduled Study DateTime 체크가 유지되지 않았습니다.")
+    return {"was_on": bool(was_on), "now_on": bool(now_on), "changed": changed,
+            "label": "Scheduled Study DateTime", "checkbox_rect": list(checkbox.rect), "scroll_steps": step}
 
 
 # Setting > Study 하위 페이지 (2026-08-19 실측)
@@ -2462,6 +2532,96 @@ def scroll_study_list_right(ui, clicks=10):
     for _ in range(clicks):
         ui.click(right_arrow, settle=.15)
     return True
+
+
+def read_scheduled_datetime(ui, *, max_scroll=8, evidence_dir=None):
+    """Scheduled 헤더가 가리키는 열만 읽는다. DOB나 기대 날짜를 사용하지 않는다.
+
+    실제 SysHeader32와 StudyList 뷰포트로 ROI를 정한다. 마지막 스크롤 이후도
+    반드시 다시 읽으며, 열 미확인/날짜 불명확은 빈 date와 오류로 남긴다.
+    """
+    import math
+    import re
+    from datetime import datetime
+    from core import screen
+
+    result = {"date": "", "text": "", "error": "", "evidence": [], "scrolls": 0}
+
+    def saved_path(name):
+        return os.path.join(evidence_dir, name) if evidence_dir else None
+
+    def attach(path):
+        if path and os.path.isfile(path):
+            result["evidence"].append(path)
+
+    for attempt in range(max_scroll + 1):
+        containers = {c.hwnd: c for c in ui.by_id(PATIENT["study_list"]) if c.visible}
+        if len(containers) != 1:
+            result["error"] = "유일한 Patient StudyList를 찾지 못했습니다."
+            return result
+        box = next(iter(containers.values()))
+        controls = {c.hwnd: c for c in children(box.hwnd, 4) if c.visible}
+        headers = [c for c in controls.values() if c.cls == "SysHeader32"]
+        cards = _study_items(ui)
+        win = ui.main_window()
+        if len(headers) != 1 or not cards or win is None:
+            result["error"] = "Patient List 헤더 또는 대상 행을 확인하지 못했습니다."
+            return result
+        viewports = [c for c in controls.values() if c.text == "StudyListScrollWnd"
+                     and 0 < c.rect[2] - c.rect[0] <= box.rect[2] - box.rect[0]]
+        viewport = min(viewports, key=lambda c: c.rect[2] - c.rect[0]).rect if viewports else box.rect
+        visible = (max(box.rect[0], viewport[0], win.rect[0]), max(box.rect[1], viewport[1], win.rect[1]),
+                   min(box.rect[2], viewport[2], win.rect[2]), min(box.rect[3], viewport[3], win.rect[3]))
+        header = headers[0].rect
+        header_roi = (max(header[0], visible[0]), max(header[1], visible[1]),
+                      min(header[2], visible[2]), min(header[3], visible[3]))
+        if header_roi[2] <= header_roi[0] or header_roi[3] <= header_roi[1]:
+            result["error"] = "Patient List 헤더가 화면에 보이지 않습니다."
+            return result
+        path = saved_path(f"scheduled-header-{attempt:02d}.png")
+        label = _scheduled_label_box(_scheduled_words(header_roi, path=path))
+        attach(path)
+        result["header_roi"] = list(header_roi)
+        if label:
+            row = cards[0].rect
+            roi = (max(visible[0], math.floor(label[0]) - 2), max(row[1], visible[1]),
+                   min(visible[2], math.ceil(label[2]) + 2), min(row[3], visible[3]))
+            if roi[2] <= roi[0] or roi[3] <= roi[1]:
+                result["error"] = "Scheduled 열과 대상 행의 보이는 교차 영역이 없습니다."
+                return result
+            result["roi"] = list(roi)
+            result["header"] = "Scheduled Study DateTime"
+            result["reads"] = []
+            for read in range(3):
+                path = saved_path(f"scheduled-value-{attempt:02d}-{read}.png")
+                text = screen.ocr(roi, scale=3, psm=7, path=path)
+                attach(path)
+                result["text"] = text
+                result["reads"].append(text)
+                found = re.findall(r"(?<!\d)(\d{4})[/\-](\d{2})[/\-](\d{2})(?!\d)", text)
+                dates = set()
+                invalid_date = False
+                for year, month, day in found:
+                    try:
+                        dates.add(datetime(int(year), int(month), int(day)).strftime("%Y%m%d"))
+                    except ValueError:
+                        invalid_date = True
+                if len(dates) == 1 and not invalid_date:
+                    result["date"] = next(iter(dates))
+                    return result
+                if read < 2:
+                    time.sleep(.25)
+            result["error"] = "Scheduled 열의 날짜가 없거나 모호하거나 유효하지 않습니다."
+            return result
+        if attempt == max_scroll:
+            break
+        if not scroll_study_list_right(ui, clicks=8):
+            result["error"] = "Scheduled 헤더가 보이지 않고 가로 스크롤 대상도 없습니다."
+            return result
+        result["scrolls"] += 1
+        time.sleep(.4)
+    result["error"] = "가로 스크롤 이후에도 Scheduled Study DateTime 헤더를 확인하지 못했습니다."
+    return result
 
 
 def select_study_row(ui, row=1):

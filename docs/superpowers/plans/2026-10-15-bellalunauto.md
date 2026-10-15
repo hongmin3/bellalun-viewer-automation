@@ -39,9 +39,9 @@ Interfaces:
 - `child_command(arguments, executable=None, compiled=None) -> list[str]`: 소스 모드는 Python+BellalunAuto.py, 컴파일 모드는 자체 EXE.
 - `RunLock` context manager: Windows 전역 제품 조작 잠금. `AlreadyRunning` 예외. 포터블/작업 폴더가 달라도 공유.
 
-- [ ] 한글·공백·CWD 변경·명시 config·설정 보존·자식 명령·중복 실행 테스트를 먼저 작성하고 실패를 확인한다.
-- [ ] 원자적 JSON 저장과 최소한의 경로/잠금을 구현하고 테스트를 통과시킨다.
-- [ ] 변경 파일을 별도 리뷰하고 결과를 ledger에 남긴다.
+- [x] 한글·공백·CWD 변경·명시 config·설정 보존·자식 명령·중복 실행 테스트를 먼저 작성하고 실패를 확인한다.
+- [x] 원자적 JSON 저장과 최소한의 경로/잠금을 구현하고 테스트를 통과시킨다.
+- [x] 변경 파일을 별도 리뷰하고 결과를 ledger에 남긴다.
 
 ### Task 2: 얇은 한국어 GUI
 
@@ -52,10 +52,12 @@ Interfaces:
 - 실행 명령은 `--workspace <absolute> --config <absolute> run-regression|run-winupdate|selfcheck|portability-check`.
 - `run-regression`/`run-winupdate`는 진입점의 외부 감시를 통과한다. GUI가 엔진을 직접 호출하지 않는다.
 
-- [ ] 실행 명령과 설정 검증을 화면 없이 테스트하고 실패를 확인한다.
-- [ ] 두 모드 실행, 자체진단, 환경 점검, 설정, 로그/진행, 결과 열기, 버전을 제공한다.
-- [ ] 처음 실행의 작업 폴더 선택과 설정 입력, 실행 중 중복 버튼 방지, 종료 시 자식 정리를 구현한다.
-- [ ] GUI 실기 실행과 별도 리뷰를 수행한다.
+- [x] 실행 명령과 설정 검증을 화면 없이 테스트하고 실패를 확인한다.
+- [x] 두 모드 실행, 자체진단, 환경 점검, 설정, 로그/진행, 결과 열기, 버전을 제공한다.
+- [x] 처음 실행의 작업 폴더 선택과 설정 입력, 실행 중 중복 버튼 방지, 종료 시 자식 정리를 구현한다.
+- [x] GUI 실기 실행과 별도 리뷰를 수행한다.
+
+후보4의 GUI 기동·설정·조회 경로와 guardian 시험 근거다. 두 제품 전체 시험의 최종 완료는 Task 5에서 별도로 확인한다.
 
 ### Task 3: 빌드와 설치
 
@@ -68,24 +70,41 @@ Interfaces:
 - 배포 리소스: `resources/config.example.json`, `resources/automation_scope.json`, `resources/traceability.json`, `resources/assets/`.
 - 출력은 `BellalunAuto-<version>-setup.exe`, 같은 빌드 portable.zip, build-info.json, SHA256SUMS.txt.
 
-- [ ] 허용 목록/경로 탈출/소스·설정·민감자료 차단/해시 불일치 테스트를 작성하고 실패를 확인한다.
-- [ ] Nuitka standalone, 자체 모듈 컴파일, 동적 import 명시 포함, 고정 도구 버전과 빌드 보고서를 구현한다.
-- [ ] Inno Setup의 시작 메뉴·선택적 바탕화면·PATH·App Paths·제거 시 보존을 구현한다.
-- [ ] 실제 빌드·파일 검사·로컬 설치/재설치/제거 검증을 수행한다. 내부 산출물은 공개 업로드하지 않는다.
+- [x] 허용 목록/경로 탈출/소스·설정·민감자료 차단/해시 불일치 테스트를 작성하고 실패를 확인한다.
+- [x] Nuitka standalone, 자체 모듈 컴파일, 동적 import 명시 포함, 고정 도구 버전과 빌드 보고서를 구현한다.
+- [x] Inno Setup의 시작 메뉴·선택적 바탕화면·PATH·App Paths·제거 시 보존을 구현한다.
+- [x] 실제 빌드·파일 검사·로컬 설치/재설치/제거 검증을 수행한다. 내부 산출물은 공개 업로드하지 않는다.
+
+후보4 source `8d0cdcd`의 실제 ZIP 감사 31항목과 설치 보존 7단계 PASS를 확인했다.
+후속 자동화 수정은 새 정식 빌드와 설치 검증을 반복한다.
 
 ### Task 4: 엔진 연결과 USB 완료 검증
 
 Files: `BellalunAuto.py`, `bellalunauto/__init__.py`, `bellalunauto/app.py`, `run.py`, `tools/run_regression.py`, `core/specs.py`, `tests/winupdate.py`, `core/usb_media.py`, 관련 테스트.
 
-- [ ] 소스 전체 회귀 완료/결과를 보존한 뒤 엔진을 변경한다.
-- [ ] version/selfcheck/CLI 전달/worker 재귀 차단/감시 종료 코드를 먼저 테스트한다.
-- [ ] config와 작업 폴더를 분리하고 읽기 전용 자료의 경로를 연결한다.
-- [ ] 자체진단은 제품/DB/설정 변경 없이 누락과 해결 방법을 표시한다.
-- [ ] TC 원문을 확인한다. USB 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색을 함께 관찰한다.
-- [ ] 기존 검사만 존재·완료 시간초과·실패 팝업·USB 부재·예외·TC10 정리/전수순회 테스트를 먼저 작성한다.
-- [ ] 실측 근거로만 TC9 판정을 고친다. TC10 전수 순회와 빠른 탭 전환을 유지한다.
+- [x] 소스 전체 회귀 완료/결과를 보존한 뒤 엔진을 변경한다.
+- [x] version/selfcheck/CLI 전달/worker 재귀 차단/감시 종료 코드를 먼저 테스트한다.
+- [x] config와 작업 폴더를 분리하고 읽기 전용 자료의 경로를 연결한다.
+- [x] 자체진단은 제품/DB/설정 변경 없이 누락과 해결 방법을 표시한다.
+- [x] TC 원문을 확인한다. USB 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색을 함께 관찰한다.
+- [x] 기존 검사만 존재·완료 시간초과·실패 팝업·USB 부재·예외·TC10 정리/전수순회 테스트를 먼저 작성한다.
+- [x] 실측 근거로만 TC9 판정을 고친다. TC10 전수 순회와 빠른 탭 전환을 유지한다.
+
+USB 단독 전체 연결의 새 검사 1건·영상 3건과 XML/DB/Examined 일치를 실측했다.
+위 체크는 구현·안전 시험·단독 실측 범위이며 설치판 WU 전체의 TC9/10 PASS를 대신하지 않는다.
 
 ### Task 5: 최종 검증과 인계
+
+현재 후보4 설치 기본 전체(05:56~07:58)는 새 `Result_20261015_075809.json`에서
+27 TC: PASS 20 / FAIL 5 / MANUAL 2로 완료했고 281파일 snapshot을 CONSISTENT로 보존했다.
+FAIL은 기존 제품 WF14 UPS·XIPL_03 2건, 자동화 WF01 DOB 열·XIPL_01/06 한글 경로 OCR 3건이다.
+뒤따른 WU는 08:06:39에 guardian 정리·`abnormal_exit` 73으로 끝나 미완료다.
+XIPL OCR stdin 수정 후 399개·하위 202개 단위시험과 실제 저장 영상 W1/W2 검출은 통과했고,
+WF01 수정은 진행 중이다. 수정 후 새 빌드를 설치해 두 전체를 다시 수행한다.
+
+- [x] 후보4의 한글/공백 설치 경로에서 guardian 3사례·GUI 기동 경로·자체진단 20항목을 확인했다.
+- [x] 후보4의 새 셸 명령 검색·설치 교체/재설치/제거·작업 자료 보존 7단계를 확인했다.
+- [x] 기본 전체 뒤 Evidence·새 리포트·로그를 동기 snapshot으로 보존하고 다음 모드를 시작했다.
 
 - [ ] 정적 검사·전체 단위시험·readiness·SPEC HTML을 확인한다.
 - [ ] 설치 EXE를 개발 폴더 밖 한글/공백 경로에서 version/selfcheck/환경 점검/GUI/CLI로 실행한다.
@@ -96,3 +115,7 @@ Files: `BellalunAuto.py`, `bellalunauto/__init__.py`, `bellalunauto/app.py`, `ru
 - [ ] 새 컨텍스트 리뷰 후 필요한 수정은 재검증·재빌드·동일 EXE 전체 실행으로 확인한다.
 - [ ] 문서/CHANGELOG/progress 갱신, 공개 diff 검사, 관련 파일만 커밋·푸시한다.
 - [ ] 터미널에 설치 위치·해시·commit·검증 환경·TC별 결과·미완료 조건을 자세히 남긴다.
+
+위 미체크 항목은 수정 후 최종 빌드에 대한 인계 조건이다. 실제 검증 호스트는 Windows 11이며
+별도 VM·다른 관리자 계정 UAC·Windows 10 실검증은 이 환경에서 수행하지 못했다.
+동일 호스트의 reduced PATH 결과를 Python·Git·소스 없는 PC/VM 검증으로 대체하지 않는다.

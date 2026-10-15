@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import ctypes
 import ctypes.wintypes
+from io import BytesIO
 import json
 import re
 import shutil
@@ -208,12 +209,29 @@ if($null -ne $found){{
         ImageGrab.grab(bbox=w.rect, all_screens=True).save(path)
         return path
 
-    def ocr(self, image_path):
+    def _ocr_png(self, image, *options):
+        """Send image bytes, avoiding Tesseract's narrow Windows filename API."""
         if not os.path.exists(self.tesseract):
-            return ""
-        p = subprocess.run([self.tesseract, image_path, "stdout", "-l", "eng"],
-                           capture_output=True)
-        return p.stdout.decode("utf-8", "replace")
+            raise FileNotFoundError(f"Tesseract OCR 실행 파일이 없습니다: {self.tesseract}")
+        payload = BytesIO()
+        image.save(payload, format="PNG")
+        args = [self.tesseract, "stdin", "stdout", "-l", "eng", *options]
+        try:
+            process = subprocess.run(args, input=payload.getvalue(),
+                                     capture_output=True, timeout=30)
+        except subprocess.TimeoutExpired as error:
+            detail = (error.stderr or b"")
+            if isinstance(detail, bytes):
+                detail = detail.decode("utf-8", "replace")
+            raise RuntimeError(f"Tesseract OCR 제한 시간(30초) 초과: {detail.strip()}") from error
+        if process.returncode:
+            detail = process.stderr.decode("utf-8", "replace").strip()
+            raise RuntimeError(f"Tesseract OCR 실패(exit={process.returncode}): {detail or '(stderr 없음)'}")
+        return process.stdout.decode("utf-8", "replace")
+
+    def ocr(self, image_path):
+        with Image.open(image_path) as image:
+            return self._ocr_png(image)
 
     def ocr_region(self, image_path, box, scale=3):
         """OCR a small UI region after enlargement (better for dark WPF text)."""
@@ -222,20 +240,14 @@ if($null -ne $found){{
         crop = crop.resize((crop.width * scale, crop.height * scale))
         temp = str(Path(image_path).with_suffix(".ocr.png"))
         crop.save(temp)
-        if not os.path.exists(self.tesseract):
-            return ""
-        p = subprocess.run([self.tesseract, temp, "stdout", "-l", "eng", "--psm", "6"],
-                           capture_output=True)
-        return p.stdout.decode("utf-8", "replace")
+        return self._ocr_png(crop, "--psm", "6")
 
     def find_text(self, image_path, wanted):
         """Return OCR word boxes matching *wanted* in window-relative pixels."""
-        if not os.path.exists(self.tesseract):
-            return []
-        p = subprocess.run([self.tesseract, image_path, "stdout", "-l", "eng", "tsv"],
-                           capture_output=True)
+        with Image.open(image_path) as image:
+            text = self._ocr_png(image, "tsv")
         rows = []
-        for line in p.stdout.decode("utf-8", "replace").splitlines()[1:]:
+        for line in text.splitlines()[1:]:
             cols = line.split("\t", 11)
             if len(cols) != 12:
                 continue
@@ -619,12 +631,10 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
                                Image.Resampling.LANCZOS)
             temp = str(Path(image_path).with_suffix(f".region{box[1]}.png"))
             crop.save(temp)
-            args = [self.tesseract, temp, "stdout", "-l", "eng",
-                    "--psm", str(psm)]
+            options = ["--psm", str(psm)]
             if whitelist:
-                args.extend(["-c", f"tessedit_char_whitelist={whitelist}"])
-            proc = subprocess.run(args, capture_output=True)
-            return proc.stdout.decode("utf-8", "replace")
+                options.extend(["-c", f"tessedit_char_whitelist={whitelist}"])
+            return self._ocr_png(crop, *options)
 
         header_text = read((int(w * .025), int(h * .045),
                             int(w * .38), int(h * .18)), 6)

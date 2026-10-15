@@ -7,6 +7,10 @@
 WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실패를 완화하지 않는다.
 완료 시 터미널에 파일 위치·TC별 결과·남은 제약·commit/push를 자세히 남긴다.
 
+현재 최종 검증은 미완료다. 후보4 설치 EXE의 기본 전체는 완료했으나 자동화 오류 3건이
+남았고, 이어 시작한 WU는 수정 전 확인된 작업 자식만 중단했다. 아래 수정 사항을 반영한
+새 정식 빌드를 설치한 뒤 동일 EXE로 기본기능 전체와 실시간 WU 전체를 다시 수행한다.
+
 - 브랜치 `codex/bellalunauto-distribution`, 기존 dirty tree를 보존했다.
   구현 commit `b3838e7`, 엔진 연결 `de44689`. 일반 push는 GitHub 인증 부재로 실패했다.
 - 소스 전체 회귀 2026-10-15 01:25~03:21 종료. wrapper PID 5188, child 8140 종료.
@@ -24,7 +28,7 @@ WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실�
 - 새 runtime/GUI/build 모듈과 테스트를 작성했다. runtime 독립 리뷰 통과.
   build 리뷰 3건(필수 자료 역할/pytest 수집/Inno 버전 검출)은 수정·재검토를 통과했다.
   GUI 설치 자료 연결·API key 비공개 처리와 UAC 로그 전달은 수정·재검토를 통과했다.
-  실제 GUI/UAC·설치 검증은 남아 있다.
+  이후 후보4의 실제 GUI·설치 검증은 통과했다. 다른 관리자 계정으로 전환하는 UAC는 미검증이다.
 - 새 배포 모듈 안전 시험 53건·하위 사례 7건 PASS, USB 순수 판정 18건·하위 사례 29건 PASS.
   제품 로그의 실제 카드 클릭 Study Key와 환자 범위 DB UID를 연결하는 수집기를 추가했다.
   회귀 종료 후 엔진 연결·공통 OCR·WU 판정·읽기 전용 자료 보호 패치를 적용했다.
@@ -65,9 +69,45 @@ WU_01/12/13의 기존 수동 범위를 제외한 10건 PASS가 목표이며 실�
 - WU 완료 탐색을 실제 생성 파일명 `Result_WindowsUpdate_*.json`에 맞췄다.
   실제 report producer 통합 시험으로 결함 재현·수정, 394개/하위 202개 시험을 통과했다.
 
-다음: 후보4를 전체 재빌드하고 최종 설치본 guardian/worker·설치 보존을 확인한다.
-동일 최종 EXE로 두 전체 실행을 처음부터 수행하며, 두 모드 사이에 증거 사본을 보존한다.
-아직 최종 EXE 제품 전체 시험은 완료되지 않았다.
+- 후보4 정식 빌드 source `8d0cdcdcbf8b69b768e70176bfac6827a952e7da`, EXE SHA256
+  `2b1d71378190c67a97b0198c207058744790bce91eaf4d3c45a4a049659f1e15`.
+  `work/release-1.0.0-candidate4`의 실제 ZIP 바이트·승인 자료 11개·라이선스·기본 설정 등
+  독립 감사 31항목 PASS(`work/final4-artifact-audit.json`). 설치·교체·재설치·제거 보존·최종
+  재설치 7단계, guardian 3사례, 시작 메뉴/바탕화면/Win+R GUI 경로 및 자체진단 20항목 PASS.
+  설치 근거는 `work/install-continuation-20261015T125010Z/validation.json`에 있다.
+- 후보4 설치 기본 전체는 2026-10-15 05:56~07:58(현지 America/Los_Angeles)에 완료했다.
+  새 `Result_20261015_075809.json`: 27 TC, PASS 20 / FAIL 5 / MANUAL 2, guardian completed, exit 1.
+  FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 2건과 자동화 오류 WF01 DOB 열 선택·XIPL_01/06
+  한글 경로 OCR 3건이다. 제품 결함의 FAIL 기준은 유지한다.
+  `work/final-suites-20261015-055609/verification.json`과 `snapshots/basic/`에 원본을 보존했다.
+  snapshot은 Evidence 트리·해당 새 리포트 5개·해당 로그 합계 281파일의 복사 전후
+  mtime/크기/SHA 및 guardian/report를 재검증해 CONSISTENT다. WU 시작 전 보존을 마쳤다.
+- 후보4 WU는 07:58 시작했으나 08:06경 확인된 작업 자식 PID 280만 중단했다.
+  guardian PID 4540이 Viewer를 정리하고 08:06:37 `abnormal_exit` 73을 기록했다.
+  observer의 종료 시각은 08:06:39(`ended_at=2026-10-15T15:06:39.403079+00:00`)다.
+  WU 전체는 미완료이며 새 live 전체 완료/PASS 근거로 사용하지 않는다.
+- WF01 DOB 열 선택 오류는 실제 UI로 원인을 확인해 수정했다. XIPL 저장 영상 OCR은
+  한글 파일 경로 대신 stdin으로 영상 바이트를 전달하도록 수정했으며 전체 단위 399건·하위 202건 PASS.
+  실제 XIPL_06 저장 영상 2304×3072에서 W1/W2 검출을 확인했다
+  (`work/xipl-saved-ocr-fix-validation.json`). 이 수정은 후보4에 포함되지 않았으므로 재빌드가 필요하다.
+- WF01 새 helper 실측은 `work/scheduled-live-validation-20261015-082442/validation.json` PASS다.
+  기존 On을 실제 UI에서 Off로 저장한 뒤 새 helper로 On을 저장하고 Patient MWL 예약일 ROI에서
+  `20261015`를 읽었다. 전체 WF01이나 새 설치판 전체 성공으로 확대하지 않는다.
+- XIPL 준비의 오래된 정렬 선택이 DB 검사 50(영상 7개) 대신 48(영상 0개)을 여는 것을 실측했다.
+  `open_test_study`는 새 클릭 로그의 StudyKey와 조회한 DB 키가 일치하기 전 View를 허용하지 않는다.
+  개별 XIPL_01/02/03/06의 준비 예외는 `stop=False`로 FAIL 리포트를 보존하고 원래 TC·타입·Step 기준을 유지한다.
+  `test_xipl_study_selection`·`test_xipl_preparation_report` 포함 전체 415건·하위 215건 PASS,
+  독립 runtime 리뷰 Important 없음. 한글 작업 폴더의 XIPL_01/06 실제 재시험은 모두 PASS다.
+  `Result_20261015_083133.json`, `Result_20261015_083428.json`에서 code 0과 새 단독 결과를 확인했다.
+  로드 중 수행한 별도 패널 진단은 불충분하여 성공 근거로 사용하지 않는다.
+- 현재 검증은 개발 도구가 있는 동일 Windows 11 호스트에서 수행했다. reduced PATH 검사는
+  Python·Git·소스가 없는 PC/VM 검증을 대체하지 않는다. 별도 VM·다른 관리자 계정 UAC·Windows 10
+  실검증은 이 환경에서 수행하지 못했으며 완료로 기록하지 않는다.
+
+다음: 정식 후보5 재빌드·설치 검증 후 동일 EXE로 기본기능과 실시간 WU 전체를 재수행한다.
+동일 새 EXE로 기본기능 전체 → 증거 snapshot → 실시간 WU 전체를 처음부터 수행하고
+WU_01/12/13의 기존 수동 범위를 제외한 10건의 실제 결과를 판별한다.
+최종 결과 출력·공개 diff 검사·commit/push와 최종 인계는 아직 완료하지 않았다.
 
 ## 이전 인계
 

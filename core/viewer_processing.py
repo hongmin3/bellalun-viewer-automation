@@ -832,9 +832,23 @@ def open_test_study(ctx):
             seen.add(c.hwnd); rows.append(c)
     if not rows:
         raise RuntimeError(f"View search returned no rows: {patient_id}")
-    # View cards are newest-first.  The completed fixture is the oldest card;
-    # any newer blank duplicate is intentionally ignored.
-    ui.click(sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))[-1], settle=1)
+    # Card order cannot establish identity: a partial run may leave an older
+    # empty study. Match the fresh card-click log to the DB fixture before View.
+    from core.usb_evidence import log_cursor, selected_study_key
+    observed_keys = []
+    selection = None
+    for card in sorted(rows, key=lambda c: (c.rect[1], c.rect[0])):
+        cursor = log_cursor(ctx.cfg["data_dir"])
+        ui.click(card, settle=.2)
+        selected = selected_study_key(cursor)
+        observed_keys.append(selected)
+        if selected == row["Key"]:
+            selection = {"study_key": selected, "log_path": str(cursor.path),
+                         "log_offset": cursor.offset}
+            break
+    if selection is None:
+        raise RuntimeError(f"DB fixture Study Key {row['Key']} was not confirmed "
+                           f"in the Patient ID search cards; observed={observed_keys}")
     open_button = [c for c in ui.by_id(2182) if c.visible]
     if not open_button:
         raise RuntimeError("View button not found")
@@ -850,7 +864,8 @@ def open_test_study(ctx):
             f"actual={len(steps)}")
     session = {"ui": ui, "study_key": row["Key"], "patient_id": patient_id,
                "step_2d": 1, "step_3d": 2, "initial_steps": len(steps),
-               "overlay_fields": overlay_fields, "instances": instance_rows}
+               "overlay_fields": overlay_fields, "instances": instance_rows,
+               "study_selection": selection}
     if len(steps) >= 3:
         session["step_3d_w"] = 3
     return session
