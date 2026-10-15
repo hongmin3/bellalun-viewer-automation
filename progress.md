@@ -1,6 +1,36 @@
 # 진행 상태
 
-## 2026-10-15 현재 세션: BellalunAuto 후보6 재검증
+## 2026-10-15 인계: 후보6 기본 완료, WU 준비 실패
+
+사용자가 여기까지 정리하고 다른 세션에서 이어가도록 요청했다. 최종 목표는 미달성이다.
+다른 PC에서 읽을 재개 문서는 [세션 인계](docs/handoff-2026-10-15.md)다.
+원래 PC의 상세 증거는 git 제외 `work/HANDOFF_20261015_candidate6.md`와
+`work/checkpoint_candidate6.md`다. 최종 배포·결과 터미널 출력은 아직 하지 않았다.
+
+- 정식 후보6 빌드 소스 `65f205ed05cb0c95bcdb997b6fb75098dc7c6631`,
+  EXE SHA256 `02c67e86509901c4408abeb2126ee350bf3d4372aa5da9d4f2eafc779e987e79`.
+  단위 424개·하위 238개, 산출물 감사 31항목, 설치 보존 7단계,
+  guardian 3사례를 검증했다. CLI 자체진단 20 PASS다.
+- GUI 3진입점과 버전·결과 폴더를 확인했다. 일반 권한 자체진단은 관리자 권한 부족을
+  19 PASS/1 FAIL로 안내했고, 별도 승격 GUI의 두 진단은 각각 20 PASS였다.
+  `work/final6-gui-validation-supplement.json`에서 권한별 근거를 구분한다.
+- 동일 설치 EXE 기본 전체 13:36~15:37은 정상 종료했다. 27 TC: PASS 23 / FAIL 2 / MANUAL 2.
+  `Result_20261015_153714.json`, 보존본 318파일 크기·SHA 일치와 첨부 120참조를 독립 확인했다.
+  FAIL은 WF14 UPS 설정 미복원과 XIPL03 Recon/Syn 값 복귀다. 기본 원본 FAIL을 유지한다.
+  `work/final6-basic-verdict-review.json`에는 기존 Step3/5 padding 한계도 구분했다.
+- 이어진 live WU는 15:37~15:39 `DICOM_Server_Setup` 전제 준비 실패로 조기 종료했다.
+  `Result_WindowsUpdate_20261015_153914.json`의 chain_completed=false이며 상태는 abnormal_exit다.
+  중단 리포트의 0 PASS/9 FAIL/3 MANUAL/1 SKIP는 전체 수행 완료나 제품 9결함 확정이 아니다.
+  준비 실패의 세부 원인은 아직 분석하지 않았다. WU10도 미수행이며 새 허용 제외로 삼지 않는다.
+- 실제 실행·보존 근거: `work/final-suites-20261015-133607/verification.json`.
+  관찰자와 제품 자동화 프로세스는 종료했다. 최종 WU 10 PASS는 아직 확인하지 못했다.
+- 다음: WU 준비 실패 원인 분석 → 최종 EXE live WU 전체 완료/목표 확인 → 최종 문서·전달·출력.
+  소스/EXE를 수정하면 정식 재빌드·설치 후 같은 새 EXE의 기본 전체와 live WU 전체를 재실행한다.
+  기존 완료·실패 증거를 덮거나 이전 후보 결과를 최종 실행 결과로 사용하지 않는다.
+- 별도 clean PC/VM·Windows 10·다른 관리자 계정 UAC는 미검증이다.
+  이전 일반 push는 인증 실패였으며, 공개 README 등 최종 상태 반영과 정상 push 확인이 남았다.
+
+## 2026-10-15 이전 진행 기록: 후보6 정식 빌드 전
 
 사용자는 최종 설치 EXE로 기본기능 전체와 실시간 Windows Update 전체를 수행하고,
 WU_01/12/13 기존 수동 범위 외 10건 PASS를 확인하도록 지시했다.
