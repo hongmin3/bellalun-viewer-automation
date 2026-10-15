@@ -1,5 +1,18 @@
 # 진행 상태
 
+## 2026-10-15 두 번째 PC로 이관 병합
+
+원래 PC에서 push하지 못한 `codex/bellalunauto-distribution`(HEAD `dcfefd3`)을 Git bundle로 받아
+이 PC의 `main`(`25818ac`)에 fast-forward로 병합했다. bundle SHA256과 `git bundle verify`를 확인했다.
+
+- 이 PC의 병합 전 미커밋 수정 6파일(2026-09 작업)은 git 제외 `work/pre-bundle-merge-backup-20261015/`에
+  patch와 원본 사본으로 보존했다. 같은 파일의 후속판이 bundle 커밋에 들어 있어 작업 트리에는 bundle판을 쓴다.
+- `AGENTS.md`는 키트 관리 블록(질문과 근거 보고)만 갱신했다.
+- 이 PC 확인: `python -m unittest discover -s tests -p "test_*.py"` 360개 OK(skip 18),
+  readiness failed 0(WARN `SPEC_OPEN_QUESTIONS`). 정식 후보6 빌드의 단위 424개 기록과는 실행 환경이 달라 대체하지 않는다.
+- 이 PC에는 후보6 설치본·`work/` 실행 증거·승인 내부 자산·Nuitka·Inno Setup이 없다. Bellalun Service와
+  `MSSQL$BELLALUN`은 실행 중이다. WU 준비 실패 분석은 이 PC에서 재현부터 시작해야 한다.
+
 ## 2026-10-15 인계: 후보6 기본 완료, WU 준비 실패
 
 사용자가 여기까지 정리하고 다른 세션에서 이어가도록 요청했다. 최종 목표는 미달성이다.
