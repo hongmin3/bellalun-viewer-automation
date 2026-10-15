@@ -65,6 +65,20 @@ GENERIC_TEXTS = {
 
 RADIO_TEXTS = {"RadioButton", "CheckBox"}
 
+# Afx/AUI 컨트롤의 text는 화면 문구가 아니라 위젯 종류다. 값 수집에서는
+# 제외되는 TextButton도 페이지 렌더의 실제 콘텐츠다. 장식/메뉴/공통 Update는
+# 포함하지 않으며, 페이지 이름으로 정상 여부를 추정하지 않는다.
+_CONTENT_TEXTS = {
+    "TextButton", "IconButton", "RadioButton", "CheckBox", "Slider",
+    "ItemList", "ItemWnd", "ListCtrl", "ListItem", "PathView",
+    "ExpandButton", "CircleButton", "TransparentBackIconButton",
+    "SystemThumbnail", "SystemThumbnailItem",
+}
+_CONTENT_CLASSES = {
+    "Edit", "Button", "ComboBox", "ComboBoxEx32", "SysListView32",
+    "SysTreeView32", "SysDateTimePick32", "SysMonthCal32", "msctls_trackbar32",
+}
+
 # 콘텐츠 패널 후보의 최소 크기. Setting 창(실측 1766x978) 안의 콘텐츠 패널은
 # 1458x820 이다(2026-08-21, 1920x1080/96DPI).
 _PANE_MIN_W = 700
@@ -231,6 +245,63 @@ def read_page(ui, pane, ocr_combos=False, tesseract_exe=None, controls=None,
     return out
 
 
+def page_render(pane_ctrl, controls, settled):
+    """값과 독립적인 렌더 관찰. controls는 해당 pane의 실제 하위 열거 결과다.
+
+    안정화 검사에서 얻은 동일 목록을 재사용하므로 전체 Viewer 트리를 추가로
+    훑지 않는다. 실제 값/텍스트는 중복 기록하지 않고 위젯 종류와 geometry만
+    남긴다. 숨김/패널 밖/8px 미만 컨트롤과 장식은 콘텐츠 증거가 아니다.
+    """
+    pane = {"hwnd": pane_ctrl.hwnd, "rect": list(pane_ctrl.rect),
+            "visible": bool(pane_ctrl.visible)}
+    content, seen = [], set()
+    if pane_ctrl.visible:
+        for c in _in_pane(controls, pane_ctrl.rect):
+            if (c.hwnd in seen or c.hwnd == pane_ctrl.hwnd
+                    or c.ctrl_id == flows.SETTING_UPDATE_BUTTON
+                    or c.rect[2] - c.rect[0] < 8 or c.rect[3] - c.rect[1] < 8):
+                continue
+            text = c.text or ""
+            custom = c.cls.startswith(("Afx", "AUI"))
+            if c.cls in _CONTENT_CLASSES:
+                kind = c.cls
+            elif custom and text in _CONTENT_TEXTS:
+                kind = text
+            elif custom and text not in GENERIC_TEXTS:
+                # 커스텀 콤보는 종류 대신 현재 값을 text로 돌려준다.
+                kind = "value_text"
+            else:
+                continue
+            seen.add(c.hwnd)
+            content.append({"hwnd": c.hwnd, "ctrl_id": c.ctrl_id,
+                            "cls": c.cls, "kind": kind, "rect": list(c.rect)})
+    return {"pane": pane, "settled": bool(settled), "controls": content}
+
+
+def page_rendered(observation):
+    """안정화된 visible pane 안에 실제 8x8px 이상 콘텐츠가 관찰됐는가."""
+    if not isinstance(observation, dict) or observation.get("settled") is not True:
+        return False
+    pane = observation.get("pane") or {}
+    rect = pane.get("rect")
+    if (pane.get("visible") is not True or not pane.get("hwnd")
+            or not isinstance(rect, (list, tuple)) or len(rect) != 4):
+        return False
+    pl, pt, pr, pb = rect
+    if pr <= pl or pb <= pt:
+        return False
+    for c in observation.get("controls") or []:
+        r = c.get("rect") if isinstance(c, dict) else None
+        if not isinstance(r, (list, tuple)) or len(r) != 4:
+            continue
+        l, t, right, bottom = r
+        if (c.get("hwnd") and c["hwnd"] != pane["hwnd"]
+                and right - l >= 8 and bottom - t >= 8
+                and pl <= l < right <= pr and pt <= t < bottom <= pb):
+            return True
+    return False
+
+
 def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
              capture_dir=None, on_event=None):
     """Setting 전 그룹/페이지를 순회하며 컨트롤 값을 읽는다.
@@ -240,14 +311,17 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
 
     반환: {"pages": {"system.general": {키: {...}}}, "missing": {...},
            "shots": {"system.general": png}, "pane": [l,t,r,b],
-           "viewer_died": bool}
+           "viewer_died": bool, "page_render": {page: {pane, settled, controls}}}
+
+    pages/compare의 값 계약은 유지한다. 별도 page_render는 버튼만 있는 페이지도
+    실제 콘텐츠가 렌더됐는지 검증할 수 있도록 패널/안정화/하위 컨트롤을 남긴다.
 
     `viewer_died` 는 순회 도중 **Viewer 프로세스가 사라진** 경우다. 그때는 남은
     페이지를 "못 읽었다" 로만 적으면 원인이 보이지 않는다 — 2026-08-25 에 이
     상황을 "패널을 찾지 못했습니다" 로만 보고해, 제품이 종료된 사실을 알아채는 데
     한참 걸렸다. 사라진 것을 확인하면 **거기서 멈추고** 그 사실을 남긴다.
     """
-    pages, missing, shots = {}, {}, {}
+    pages, missing, shots, renders = {}, {}, {}, {}
     pane = None
     died = False
     start_pid = ui.pid
@@ -299,6 +373,7 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             pane = pane_ctrl.rect
             controls, settled = _wait_page_settled(ui, pane_ctrl,
                                                    pane_controls(pane_ctrl))
+            renders[key] = page_render(pane_ctrl, controls, settled)
             pane_image = screen.grab(pane)
             pages[key] = read_page(ui, pane, ocr_combos=ocr_combos,
                                    tesseract_exe=tesseract_exe,
@@ -310,6 +385,7 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             if on_event:
                 on_event(f"{key}: {len(pages[key])}개 값 settled={settled}")
     return {"pages": pages, "missing": missing, "shots": shots,
+            "page_render": renders,
             "pane": list(pane) if pane else None,
             "viewer_died": died or _viewer_gone(ui, start_pid)}
 

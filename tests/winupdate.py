@@ -507,18 +507,24 @@ def run_setting_display(ctx, ui):
         expected_pages = {f"{group}.{page}" for group in flows.SETTING_GROUPS
                           for page in flows.setting_pages(group)}
         actual_pages = set(pages)
+        renders = sweep.get("page_render") or {}
+        rendered_pages = set(renders)
         empty_pages = sorted(name for name in expected_pages & actual_pages
-                             if not isinstance(pages[name], dict) or not pages[name])
+                             if not setting_values.page_rendered(renders.get(name)))
         complete = (bool(pages) and actual_pages == expected_pages and not empty_pages
+                    and rendered_pages == expected_pages
                     and not sweep.get("viewer_died") and not missing)
         r.assert_true(
             1, "Setting 전 메뉴/하위 메뉴 정상 오픈",
             complete,
-            expected="9개 그룹 전 페이지 정상 오픈, 페이지별 값 존재, Viewer 생존",
+            expected="9개 그룹 전 페이지 정상 오픈, 안정화된 패널별 실제 콘텐츠 존재, Viewer 생존",
             actual={"pages": len(pages), "expected_pages": len(expected_pages),
                     "missing": missing, "unvisited": sorted(expected_pages - actual_pages),
                     "unexpected": sorted(actual_pages - expected_pages),
-                    "empty_pages": empty_pages, "viewer_died": sweep.get("viewer_died")},
+                    "empty_pages": empty_pages, "page_render": renders,
+                    "render_unvisited": sorted(expected_pages - rendered_pages),
+                    "render_unexpected": sorted(rendered_pages - expected_pages),
+                    "viewer_died": sweep.get("viewer_died")},
             note="setting_values.read_all 전수 순회를 그대로 재사용한다(경량화 "
                  "하지 않는다 — 사용자 지시). NEXT_WORK.md 3-B 간헐 종료가 "
                  "재현되면 축소하지 않고 이 판정에 그대로 남긴다.")

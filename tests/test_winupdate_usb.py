@@ -321,9 +321,15 @@ class WindowsUpdateUSBSafetyTests(unittest.TestCase):
 
     def complete_sweep(self):
         from core import flows
-        return {'pages': {f'{group}.{page}': {'synthetic': {'value': 'x'}}
+        result = {'pages': {f'{group}.{page}': {'synthetic': {'value': 'x'}}
                           for group in flows.SETTING_GROUPS for page in flows.setting_pages(group)},
                 'missing': {}, 'viewer_died': False}
+        result['page_render'] = {name: {'settled': True,
+            'pane': {'hwnd': 20, 'visible': True, 'rect': [400, 100, 1800, 900]},
+            'controls': [{'hwnd': 31, 'ctrl_id': 1200, 'cls': 'AfxWnd140u',
+                          'kind': 'TextButton', 'rect': [410, 110, 520, 145]}]}
+            for name in result['pages']}
+        return result
 
     def setting_result(self, sweep, quick_count=24):
         # Bound every UI entry point before calling the real verdict function.
@@ -344,11 +350,35 @@ class WindowsUpdateUSBSafetyTests(unittest.TestCase):
                                       'missing': {}, 'viewer_died': False})
         self.assertEqual(result.checks[0].status, FAIL)
 
-    def test_tc10_empty_page_values_must_fail_after_engine_integration(self):
+    def test_tc10_empty_page_content_must_fail_even_when_values_exist(self):
         sweep = self.complete_sweep()
-        sweep['pages']['system.general'] = {}
+        sweep['page_render']['system.general']['controls'] = []
         result = self.setting_result(sweep)
         self.assertEqual(result.checks[0].status, FAIL)
+
+    def test_tc10_button_only_pages_can_pass_without_page_name_exceptions(self):
+        sweep = self.complete_sweep()
+        for name in sweep['pages']:
+            sweep['pages'][name] = {}
+        result = self.setting_result(sweep)
+        self.assertEqual([check.status for check in result.checks], [PASS, PASS])
+
+    def test_tc10_missing_extra_unsettled_or_hidden_render_must_fail(self):
+        for change in ('missing', 'extra', 'unsettled', 'hidden', 'invalid_pane'):
+            sweep = self.complete_sweep()
+            render = sweep['page_render']
+            if change == 'missing':
+                del render['system.general']
+            elif change == 'extra':
+                render['unexpected.page'] = deepcopy(render['system.general'])
+            elif change == 'unsettled':
+                render['system.general']['settled'] = False
+            elif change == 'hidden':
+                render['system.general']['pane']['visible'] = False
+            else:
+                render['system.general']['pane']['rect'] = [0, 0, 0, 0]
+            with self.subTest(change=change):
+                self.assertEqual(self.setting_result(sweep).checks[0].status, FAIL)
 
     def test_tc10_partial_quick_tabs_must_fail_after_engine_integration(self):
         result = self.setting_result(self.complete_sweep(), quick_count=1)
