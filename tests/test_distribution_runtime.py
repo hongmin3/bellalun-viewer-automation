@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import uuid
 
 try:
@@ -133,6 +133,65 @@ class RuntimeTests(unittest.TestCase):
         exe = str(self.root / "설치 경로" / "BellalunAuto.exe")
         self.assertEqual(runtime.child_command(["--worker", "run-winupdate"], exe, True),
                          [exe, "--worker", "run-winupdate"])
+
+    def test_windows_compiled_default_uses_native_exe_instead_of_missing_python(self):
+        native = str(self.root / "설치 경로" / "BellalunAuto.exe")
+        missing = str(self.root / "설치 경로" / "python.exe")
+        self.assertFalse(Path(missing).exists())
+        with patch.object(runtime, "_compiled", return_value=True), \
+             patch.object(runtime.sys, "executable", missing), \
+             patch.object(runtime, "_windows_executable_path", return_value=native, create=True) as locate:
+            self.assertEqual(runtime.child_command(["--worker"]), [native, "--worker"])
+        locate.assert_called_once_with()
+
+    def test_source_and_explicit_executable_do_not_query_native_module(self):
+        with patch.object(runtime, "_windows_executable_path", side_effect=AssertionError("unexpected native lookup"), create=True):
+            self.assertEqual(runtime.child_command(["--worker"], "chosen.exe", True),
+                             ["chosen.exe", "--worker"])
+            self.assertEqual(runtime.child_command(["--help"], compiled=False)[0], sys.executable)
+
+    @unittest.skipUnless(os.name == "nt", "Windows module path API")
+    def test_native_executable_path_expands_truncated_buffer_and_keeps_unicode(self):
+        native = "D:\\한글 설치\\" + "a" * 280 + "\\BellalunAuto.exe"
+        sizes = []
+
+        def locate(module, buffer, size):
+            self.assertIsNone(module)
+            sizes.append(size)
+            if len(native) >= size:
+                return size
+            buffer.value = native
+            return len(native)
+
+        function = Mock(side_effect=locate)
+        kernel = Mock(GetModuleFileNameW=function)
+        with patch.object(runtime.ctypes, "WinDLL", return_value=kernel):
+            self.assertEqual(runtime._windows_executable_path(), native)
+        self.assertEqual(sizes, [260, 520])
+
+    @unittest.skipUnless(os.name == "nt", "Windows module path API")
+    def test_native_executable_path_failure_is_explicit_and_never_falls_back(self):
+        kernel = Mock(GetModuleFileNameW=Mock(return_value=0))
+        with patch.object(runtime.ctypes, "WinDLL", return_value=kernel), \
+             patch.object(runtime.ctypes, "get_last_error", return_value=5), \
+             patch.object(runtime, "_compiled", return_value=True):
+            with self.assertRaises(OSError):
+                runtime.child_command(["--worker"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows module path API")
+    def test_native_executable_path_growth_has_finite_limit(self):
+        sizes = []
+
+        def truncated(module, buffer, size):
+            sizes.append(size)
+            return size
+
+        kernel = Mock(GetModuleFileNameW=Mock(side_effect=truncated))
+        with patch.object(runtime.ctypes, "WinDLL", return_value=kernel):
+            with self.assertRaisesRegex(RuntimeError, "버퍼 한도"):
+                runtime._windows_executable_path()
+        self.assertEqual(sizes[-1], 32768)
+        self.assertLessEqual(len(sizes), 8)
 
     def test_nuitka_compiled_marker_is_recognized(self):
         with patch.object(runtime, "__compiled__", object(), create=True):

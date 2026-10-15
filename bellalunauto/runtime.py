@@ -166,14 +166,40 @@ def remember_workspace(
                  {"workspace": str(_absolute(workspace))})
 
 
+def _windows_executable_path() -> str:
+    """Read this process's actual image path; Nuitka may report python.exe."""
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    locate = kernel.GetModuleFileNameW
+    locate.argtypes = (wintypes.HMODULE, wintypes.LPWSTR, wintypes.DWORD)
+    locate.restype = wintypes.DWORD
+    size = 260
+    while True:
+        buffer = ctypes.create_unicode_buffer(size)
+        length = locate(None, buffer, size)
+        if not length:
+            raise ctypes.WinError(ctypes.get_last_error())
+        if length < size:
+            return buffer.value
+        if size >= 32768:
+            raise RuntimeError("실행 파일 경로가 Windows 경로 버퍼 한도를 초과했습니다.")
+        size = min(size * 2, 32768)
+
+
 def child_command(
     arguments: Iterable[str],
     executable: str | os.PathLike[str] | None = None,
     compiled: bool | None = None,
 ) -> list[str]:
     """Build an argv list without shell quoting or dependence on the child CWD."""
-    binary = os.fspath(executable) if executable is not None else sys.executable
     is_compiled = _compiled() if compiled is None else compiled
+    if executable is not None:
+        binary = os.fspath(executable)
+    elif is_compiled and os.name == "nt":
+        binary = _windows_executable_path()
+    else:
+        binary = sys.executable
     prefix = [binary] if is_compiled else [binary, str(Path(__file__).resolve().parents[1] / "BellalunAuto.py")]
     return prefix + list(arguments)
 

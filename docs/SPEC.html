@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="be8539aafa19514376adc1fd658235a323012f794c31afc39f28a9a4b71fb6c6">
+<meta name="spec-source-sha256" content="352fbaa00fa71a0220b7561b2baf5863151fb727bb439202914895be546d5b70">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -395,10 +395,11 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-002">
 <h3><span class="idtag">REQ-DIST-002</span> 실행 화면과 프로세스 관리</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: BellalunAuto의 한국어 실행·설정 화면, 작업 폴더 분리, 읽기 전용 자체진단, 기존 CLI 연결을 구현했다. 자기 EXE의 worker 감시, PC 공통 제품 잠금, UAC 경로 전달, 중지·비정상 종료 정리와 비공개 로그 처리를 포함한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 과거 회귀 변환과 실시간 실행을 구분하고, 새 live 전체 완료 메타데이터 없이 완료로 판단하지 않는다. USB 부재·실패·미완료와 설정 순회 실패의 판정도 보존한다.</li>
+<li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: Nuitka standalone에서 <code>sys.executable</code>이 존재하지 않는 <code>python.exe</code>를 반환하는 경우를 재현했다. Windows 실제 EXE 경로로 자식 작업을 실행하며 소스 실행과 명시한 실행 경로는 유지한다.</li>
 </ul>
 </details>
 <p>명령 없는 실행은 한국어 화면을 연다. 두 전체 실행, 자체진단, 환경 점검, PC별 설정,
@@ -434,8 +435,8 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <details class="history"><summary>변경 이력 3</summary>
 <ul>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 선택한 OCR 실행 경로를 공통 OCR 호출에 연결하고 XIPL 기동 준비 대기를 보강했다. 설치 자료·승인 Baseline을 출력으로 덮어쓰지 않도록 경로·링크 검사를 추가하고, 명시한 승인 자료 경로를 보존한다.</li>
-<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 387개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
-<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 최종 동일 EXE의 기본기능 전체·실시간 WU 전체, 설치·업데이트·제거·새 셸 및 개발 도구 없는 환경 검증은 미완료다. 해당 결과가 확보되면 검증 범위와 함께 갱신한다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 392개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 한글·공백이 있는 다른 드라이브에서 후보2 설치·업데이트·재설치·제거 보존과 새 셸 검증을 통과했다. 최초 GUI 설정 저장과 설치판 자체진단 20항목도 통과했다. 자식 실행 경로 수정 후 새 최종 빌드로 재확인한다. 동일 최종 EXE의 두 전체 실행과 개발 도구 없는 PC 검증은 미완료다.</li>
 </ul>
 </details>
 <p><code>--version</code>, <code>selfcheck</code>, <code>portability-check</code>와 GUI/CLI를 제공한다. 자체진단은 제품 설정과 DB를
@@ -454,7 +455,7 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: USB Import 완료 메시지, 환자 범위 전후 DB UID, 실제 영상 파일과 Examined 클릭 로그를 연결하는 판정을 구현했다. 단독 실측에서 Imported 1 / Skipped 0, 신규 검사 1건·영상 3건, 파일 XML UID와 재검색 결과의 일치를 확인했다. 연결된 전체 흐름과 최종 설치판 검증은 별도로 수행한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 과거 회귀 변환과 실시간 실행을 구분하고, 새 live 전체 완료 메타데이터 없이 완료로 판단하지 않는다. USB 부재·실패·미완료와 설정 순회 실패의 판정도 보존한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: Export 성공 문구·증거·단일 버튼을 확인하고 프로세스 종료를 별도 대기한다. 실제 Export OK ID 800을 확인했으며 부분 Import는 영상 수 비교로 거절한다. 늦게 뜨는 중복 환자 팝업도 제한 시간 안에서 처리한다.</li>
-<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 387개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
+<li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 단위시험 392개와 하위 사례 202개가 통과했다. 변경 전 소스 전체 회귀는 TC 27건 중 PASS 17 / FAIL 8 / MANUAL 2였으며 수정 후 전체 결과를 대신하지 않는다.</li>
 </ul>
 </details>
 <p>WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.
