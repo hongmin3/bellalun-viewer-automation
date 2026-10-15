@@ -42,10 +42,21 @@ class Context:
         self.config_path = os.path.abspath(config_path)
         with open(self.config_path, encoding="utf-8") as f:
             self.cfg = json.load(f)
+        self.root = os.path.abspath(os.environ.get("BELLALUN_WORKSPACE")
+                                    or os.path.dirname(self.config_path))
+        self.resource_root = os.path.abspath(os.environ.get("BELLALUN_RESOURCE_DIR")
+                                             or os.path.dirname(__file__))
+        from bellalunauto.resources import bundled_config
+        self.cfg = bundled_config(self.cfg, self.resource_root)
+        xipl = self.cfg.get("xipl") or {}
+        ocr_executable = xipl.get("tesseract_exe") if isinstance(xipl, dict) else None
+        if isinstance(ocr_executable, str) and ocr_executable.strip():
+            from core import screen, viewer_processing
+            screen.configure_ocr(ocr_executable)
+            viewer_processing.configure_ocr(ocr_executable)
         self.cfg["data_dir"] = _resolve_data_dir(
             self.cfg.get("data_dir", r"D:\BellalunData"))
         self.db = BellalunDb(self.cfg.get("sql_server", r".\BELLALUN"))
-        self.root = os.path.dirname(self.config_path)
         self.evidence_root = os.path.join(self.root, "Evidence")
         self.reports_root = os.path.join(self.root, "Reports")
 
@@ -57,8 +68,11 @@ def _command_line():
     명령을 그대로 복사해 실행할 때 "run-winupdate: command not found"처럼
     실패한다(2026-09-08 실측 — 두 호출부가 나란히 같은 실수를 하고 있었다).
     """
-    argv0 = os.path.basename(sys.argv[0]) if sys.argv else "run.py"
-    return "python " + " ".join([argv0] + sys.argv[1:])
+    launched = os.environ.get("BELLALUN_LAUNCH_COMMAND")
+    if launched:
+        return launched
+    entrypoint = os.path.abspath(sys.argv[0]) if sys.argv else os.path.abspath(__file__)
+    return subprocess.list2cmdline([sys.executable, entrypoint] + sys.argv[1:])
 
 
 def _report_meta(ctx, results):
@@ -74,7 +88,7 @@ def _report_meta(ctx, results):
         meta["checklist"] = checklist.read_tc_rows(source) if source else {}
         meta["modules"] = tc_modules.as_map()
         try:
-            with open(os.path.join(ctx.root, "automation_scope.json"),
+            with open(os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json"),
                       encoding="utf-8") as f:
                 scope_rows = json.load(f)
             meta["scope"] = {x["tc_id"]: {"level": x.get("level"),
@@ -582,12 +596,19 @@ def _winupdate_env(ctx):
         return {}
 
 
-def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note=""):
+def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
+                      *, execution_mode="live", chain_completed=False):
     """WU 판정을 xlsx(K열 삽입 + Issues 탭)와 JSON/CSV/HTML 리포트로 남긴다."""
     from core import winupdate_report
     for r in wu_results:
         r.finalize()
-    env = _winupdate_env(ctx)
+    env = dict(_winupdate_env(ctx))
+    env["실행 방식"] = "과거 결과 변환" if execution_mode == "historical" else "실시간 제품 시험"
+    env["체인 완료"] = ("해당 없음" if execution_mode == "historical" else
+                         "완료" if chain_completed else "조기 중단")
+    if source_note:
+        env["근거"] = source_note
+    print(f"  실행 방식: {env['실행 방식']} / 체인 완료: {env['체인 완료']}")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     result_paths = {}
@@ -611,6 +632,8 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note=""):
     from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
                               meta={"command": _command_line(), "env": env,
+                                    "execution_mode": execution_mode,
+                                    "chain_completed": bool(chain_completed),
                                     "report_title":
                                         "Bellalun Viewer Windows Update 호환성 검증 자동화 상세 리포트",
                                     "report_title_short":
@@ -644,7 +667,26 @@ def _run_winupdate_from_regression(ctx, path):
         data = _json.load(f)
     lookup = winupdate.lookup_from_regression_json(data)
     wu_results = winupdate.build_wu_results(lookup)
-    return _finish_winupdate(ctx, wu_results, source_note=f"--from-regression {path}")
+    return _finish_winupdate(ctx, wu_results, source_note=f"--from-regression {path}",
+                             execution_mode="historical", chain_completed=False)
+
+
+def _prepare_wu_setting_ui(ctx, ui, usb_outcome):
+    """USB 실패의 판정을 보존하고 WU_10의 화면만 독립적으로 복구한다."""
+    if not isinstance(usb_outcome, dict):
+        return ui
+    imported = usb_outcome.get("import")
+    cleanup = usb_outcome.get("cleanup") or {}
+    recover = bool(usb_outcome.get("error")) or cleanup.get("ok") is False
+    if usb_outcome.get("drive"):
+        recover = recover or not isinstance(imported, dict)
+        if isinstance(imported, dict):
+            recover = recover or bool(imported.get("error")) or imported.get("closed") is not True
+    if not recover:
+        return ui
+    from core import flows
+    print("  [run-winupdate] USB 오류 화면을 재시작으로 정리한 뒤 WU_10을 수행합니다.")
+    return flows.cold_start(ctx.cfg, ctx.db, force_restart=True)[0]
 
 
 def _run_winupdate_chain(ctx):
@@ -755,7 +797,8 @@ def _run_winupdate_chain(ctx):
         lookup = winupdate.lookup_from_results(results)
         wu_results = winupdate.build_wu_results(lookup)
         return _finish_winupdate(ctx, wu_results, elapsed,
-                                 source_note="전용 체인(전제 실패로 조기 중단)")
+                                 source_note="전용 체인(전제 실패로 조기 중단)",
+                                 execution_mode="live", chain_completed=False)
 
     usb_outcome, wu10_result = None, None
     try:
@@ -765,6 +808,7 @@ def _run_winupdate_chain(ctx):
         except Exception as exc:
             usb_outcome = {"drive": None, "error": str(exc)}
             print(f"  [run-winupdate] USB Export/Import 예외: {exc}")
+        ui = _prepare_wu_setting_ui(ctx, ui, usb_outcome)
         wu10_result = winupdate.run_setting_display(ctx, ui)
     except Exception as exc:
         print(f"  [run-winupdate] WU_09/WU_10 준비 중 예외: {exc}")
@@ -780,10 +824,36 @@ def _run_winupdate_chain(ctx):
     lookup = winupdate.lookup_from_results(results)
     wu_results = winupdate.build_wu_results(
         lookup, live_extra={"usb": usb_outcome, "wu10": wu10_result})
-    return _finish_winupdate(ctx, wu_results, elapsed, source_note=f"전용 체인, {elapsed:.1f}분")
+    return _finish_winupdate(ctx, wu_results, elapsed, source_note=f"전용 체인, {elapsed:.1f}분",
+                             execution_mode="live", chain_completed=True)
 
 
 def main():
+    from bellalunauto.app import (historical_conversion, legacy_product_lock,
+                                 requires_product_control)
+    from bellalunauto.runtime import AlreadyRunning
+    arguments = sys.argv[1:]
+    prefix = argparse.ArgumentParser(add_help=False)
+    prefix.add_argument("--config")
+    _, remaining = prefix.parse_known_args(arguments)
+    control = (bool(remaining) and requires_product_control(remaining[0]) and
+               not historical_conversion(remaining) and
+               not any(value in ("-h", "--help") for value in remaining))
+    try:
+        with legacy_product_lock(arguments):
+            if control:
+                # Hold the product lock before any foreground/taskbar mutation.
+                # Restore both settings when dispatch returns or raises.
+                from core.ui import foreground_unlocked, taskbar_autohidden
+                with foreground_unlocked(), taskbar_autohidden():
+                    return _main()
+            return _main()
+    except AlreadyRunning:
+        print("[FAIL] 다른 BellalunAuto가 제품을 사용 중입니다. 실행이 끝난 뒤 다시 시도하세요.")
+        return 4
+
+
+def _main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
@@ -899,7 +969,7 @@ def main():
 
     results = []
     if args.cmd == "list":
-        scope_path = os.path.join(ctx.root, "automation_scope.json")
+        scope_path = os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json")
         with open(scope_path, encoding="utf-8") as f:
             scope = json.load(f)
         print(r"기준 문서: ..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx"
@@ -1355,17 +1425,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # **포그라운드 잠금을 명령 실행 내내 풀어 둔다.**
-    #
-    # 이 PC 의 `ForegroundLockTimeout` 이 INT_MAX 라 Windows 가 모든 포그라운드
-    # 전환을 거부했고, 그 때문에 재기동한 Viewer 가 올라오지 못해 로그인 직전
-    # 게이트가 TC 를 반복 중단시켰다(2026-08-28 실측). `core/ui.py` 의
-    # `foreground_unlocked` 주석 참고. 끝나면 원래 값으로 되돌린다.
-    #
-    # **작업표시줄도 명령 실행 내내 자동 숨김으로 바꿔 둔다.** 꺼져 있으면
-    # Viewer 메인 메뉴 버튼(화면 좌하단)을 작업표시줄이 덮어 클릭이 샌다
-    # (2026-09-08 WU_09 조사 중 실측). `taskbar_autohidden` 주석 참고.
-    from core.ui import foreground_unlocked, taskbar_autohidden
-
-    with foreground_unlocked(), taskbar_autohidden():
-        sys.exit(main())
+    sys.exit(main())
