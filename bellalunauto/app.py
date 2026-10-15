@@ -74,7 +74,7 @@ def completed_report(reports_dir, command, since):
     if command != 'run-winupdate':
         return None
     expected = {f'TC_WindowsUpdate_{i:02}' for i in range(1, 14)}
-    candidates = sorted(Path(reports_dir).glob('WindowsUpdate_*.json'),
+    candidates = sorted(Path(reports_dir).glob('Result_WindowsUpdate_*.json'),
                         key=lambda path: path.stat().st_mtime, reverse=True)
     for path in candidates:
         if path.stat().st_mtime < since:

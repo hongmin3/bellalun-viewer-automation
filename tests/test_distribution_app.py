@@ -10,6 +10,15 @@ from unittest.mock import patch
 
 
 class DistributionAppTests(unittest.TestCase):
+    def write_wu_report(self, folder, name='WindowsUpdate_20260101_010101', meta=None, count=13):
+        from core.result import TCResult, write_reports
+        results = []
+        for number in range(1, count + 1):
+            result = TCResult(f'TC_WindowsUpdate_{number:02}', 'Synthetic report protocol')
+            result.add(1, 'Synthetic assertion', 'PASS')
+            results.append(result)
+        return write_reports(results, str(folder), name, meta=meta or {})
+
     def app(self):
         self.assertIsNotNone(importlib.util.find_spec('bellalunauto.app'),
                              '배포 진입 계층이 필요하다')
@@ -42,23 +51,42 @@ class DistributionAppTests(unittest.TestCase):
         app = self.app()
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
-            report = folder/'WindowsUpdate_20260101_010101.json'
-            rows = [{'tc_id':f'TC_WindowsUpdate_{i:02}', 'verdict':'PASS'} for i in range(1,14)]
-            report.write_text(json.dumps({'results': rows,
-                'meta':{'execution_mode':'live','chain_completed':True}}), encoding='utf-8')
+            meta = {'execution_mode':'live','chain_completed':True}
+            paths = self.write_wu_report(folder, meta=meta)
+            report = Path(paths['json'])
+            self.assertEqual(report.name, 'Result_WindowsUpdate_20260101_010101.json')
             self.assertIsNotNone(app.completed_report(folder, 'run-winupdate', time.time()-2))
             self.assertIsNone(app.completed_report(folder, 'run-winupdate', time.time()+2))
-            report.write_text(json.dumps({'results': rows[:-1]}), encoding='utf-8')
+            self.write_wu_report(folder, meta=meta, count=12)
             self.assertIsNone(app.completed_report(folder, 'run-winupdate', time.time()-2))
+
+    def test_wu_completed_report_matches_actual_report_producer(self):
+        app = self.app()
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = self.write_wu_report(Path(tmp), meta={'execution_mode':'live','chain_completed':True})
+            summary = app.completed_report(Path(tmp), 'run-winupdate', time.time()-2)
+            self.assertIsNotNone(summary)
+            self.assertEqual(summary['path'], paths['json'])
+            self.assertEqual(summary['tc_count'], 13)
+            self.assertEqual(summary['verdicts'], {'PASS':13})
+
+    def test_basic_report_prefix_cannot_be_accepted_as_windows_update(self):
+        app = self.app()
+        with tempfile.TemporaryDirectory() as tmp:
+            # Even equivalent IDs/meta cannot turn a basic report filename into
+            # a completed Windows Update chain.
+            paths = self.write_wu_report(Path(tmp), name='20260101_010101',
+                                         meta={'execution_mode':'live','chain_completed':True})
+            self.assertEqual(Path(paths['json']).name, 'Result_20260101_010101.json')
+            self.assertIsNone(app.completed_report(Path(tmp), 'run-winupdate', time.time()-2))
 
     def test_historical_or_aborted_wu_is_not_a_completed_live_chain(self):
         app = self.app()
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
-            rows = [{'tc_id':f'TC_WindowsUpdate_{i:02}', 'verdict':'PASS'} for i in range(1,14)]
             for meta in ({}, {'execution_mode':'historical','chain_completed':False},
                          {'execution_mode':'live','chain_completed':False}):
-                (folder/'WindowsUpdate_1.json').write_text(json.dumps({'results':rows,'meta':meta}), encoding='utf-8')
+                self.write_wu_report(folder, name='WindowsUpdate_1', meta=meta)
                 with self.subTest(meta=meta):
                     self.assertIsNone(app.completed_report(folder, 'run-winupdate', time.time()-2))
 
