@@ -10,8 +10,18 @@
 - `AGENTS.md`는 키트 관리 블록(질문과 근거 보고)만 갱신했다.
 - 이 PC 확인: `python -m unittest discover -s tests -p "test_*.py"` 360개 OK(skip 18),
   readiness failed 0(WARN `SPEC_OPEN_QUESTIONS`). 정식 후보6 빌드의 단위 424개 기록과는 실행 환경이 달라 대체하지 않는다.
-- 이 PC에는 후보6 설치본·`work/` 실행 증거·승인 내부 자산·Nuitka·Inno Setup이 없다. Bellalun Service와
-  `MSSQL$BELLALUN`은 실행 중이다. WU 준비 실패 분석은 이 PC에서 재현부터 시작해야 한다.
+- 이관 직후 이 PC에는 후보6 설치본·실행 증거·승인 내부 자산·Nuitka·Inno Setup이 없었다. Bellalun Service와
+  `MSSQL$BELLALUN`은 실행 중이다.
+- 이후 사용자가 원래 PC의 설치 폴더와 설치판 작업 폴더를 바탕 화면에 복사했다(git 제외, 공개 금지).
+  설치 폴더 1007파일, EXE SHA256 `02c67e86…7e79`, build-info SHA256 `799cbf1f…ae2b`,
+  BASIC 리포트 `Result_20261015_153714.json` SHA256 `50ecd908…021a`가 인계 값과 일치한다.
+  setup 설치로 만든 것이 아니라 복사본이라 시작 메뉴·PATH·App Paths 등록은 없다.
+- 작업 폴더의 WU 실패 증거: 15:38:55(PDT) `Evidence/ui/dialog_startup_1.png`(경고 아이콘·OK 대화상자 일부),
+  15:39:06 `setup_startup_failed.png`(Viewer 로그인 화면, ID `service`, PW 빈칸)를 남겼다.
+  `core/dicom_settings.py`의 `setup_all` 기동 단계(`flows.cold_start`→Patient 화면 확인)에서 실패한 것으로 보이며,
+  예외 문구·기동 로그가 든 원래 PC의 `run-winupdate.log`는 아직 전달되지 않아 원인은 확정하지 않았다.
+- 아직 없는 원래 PC 자료: 저장소 `work/`의 `final-suites-20261015-133607/`, `release-1.0.0-candidate6/`(setup/ZIP/SHA256SUMS),
+  `approved-assets.json`, Inno Setup, `write_final_report.py`, `show_final_report.ps1`, 인계·체크포인트 md.
 
 ## 2026-10-15 인계: 후보6 기본 완료, WU 준비 실패
 
