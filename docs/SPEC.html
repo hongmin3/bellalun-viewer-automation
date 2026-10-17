@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="d4543d13dfff3d54bc10006239abbcf526d1bd1598bd7aa7991a9450633a19f3">
+<meta name="spec-source-sha256" content="9f90f218c048ecfc774c741eee14caec446f959ac4c78c9409cc0851640b2b6c">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -422,8 +422,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-003">
 <h3><span class="idtag">REQ-DIST-003</span> 컴파일과 내부 자료 배포</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/build_distribution.py</code>, <code>packaging/</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></span></div>
-<details class="history"><summary>변경 이력 4</summary>
+<details class="history"><summary>변경 이력 5</summary>
 <ul>
+<li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 후보8 산출물 독립 감사 12항목을 통과했다. 같은 AppId 업데이트, 제거, 기본 경로 재설치에서 PATH 중복이 없었고 작업 폴더 파일을 모두 보존했다. 새 셸·설치 폴더 밖 CWD·stdin 종류를 바꾼 자체진단 20항목과 App Paths 실행이 통과했다. 개발 도구 없는 PC/VM, Windows 10, 다른 관리자 계정 UAC는 검증하지 않았다.</li>
 <li><span class="hist">2026-10-17 · Fixed</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 저장소가 한글 경로(<code>C:\자동화\...</code>) 아래에 있으면 빌드가 컴파일 성공 뒤 <code>Nuitka 컴파일 보고서 XML 오류</code>로 멈추던 문제를 고쳤다. Nuitka 보고서는 <code>encoding='utf8'</code>을 선언하는데 XML 해석기가 이 이름을 1바이트 인코딩으로 다뤄 한글 경로를 읽지 못했다. 보고서를 UTF-8로 직접 읽어 해석한다.</li>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 승인 자료 manifest·해시 검사, Nuitka standalone·Inno Setup 빌드, 포터블 ZIP과 빌드 정보 생성을 구현했다. 사내 원문·Baseline·설치 산출물은 공개 배포 대상에서 제외한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: Inno Setup 6.7.3에서 사용할 수 없는 PATH 분할 함수를 명시적 토큰 분할로 교체하고 실제 설치 스크립트 컴파일 회귀 검사를 추가했다.</li>
@@ -444,9 +445,11 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-004">
 <h3><span class="idtag">REQ-DIST-004</span> 설치판 진단과 최종 실행 검증</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></span></div>
-<details class="history"><summary>변경 이력 9</summary>
+<details class="history"><summary>변경 이력 11</summary>
 <ul>
 <li><span class="hist">2026-10-17 · Added</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 설치판 EXE로 기본기능 전체와 실시간 WU 전체를 차례로 실행하는 <code>tools/run_installed_suites.py</code>를 추가했다. 설치 파일과 <code>build-info.json</code>의 크기·SHA256을 먼저 대조하고, 설치·작업 폴더 밖 실행 폴더에서 실행한다. 실행마다 새 Reports/Evidence/Log를 복사해 해시를 다시 대조하고, 새 전체 리포트 여부와 WU 목표(기존 수동 3건 외 10건 PASS)를 판정 기준 변경 없이 기록한다.</li>
+<li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 최종 설치판 후보8(<code>516632c</code>, EXE SHA256 <code>585213b4…704b</code>)을 한글·공백이 있는 다른 드라이브에 설치해 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며, FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 값 복귀다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. WU_09는 실제 USB로 Export·Import 되읽기를, WU_10은 56페이지와 24회 전환을 수행했다.</li>
+<li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 후보8 산출물 독립 감사 12항목을 통과했다. 같은 AppId 업데이트, 제거, 기본 경로 재설치에서 PATH 중복이 없었고 작업 폴더 파일을 모두 보존했다. 새 셸·설치 폴더 밖 CWD·stdin 종류를 바꾼 자체진단 20항목과 App Paths 실행이 통과했다. 개발 도구 없는 PC/VM, Windows 10, 다른 관리자 계정 UAC는 검증하지 않았다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 선택한 OCR 실행 경로를 공통 OCR 호출에 연결하고 XIPL 기동 준비 대기를 보강했다. 설치 자료·승인 Baseline을 출력으로 덮어쓰지 않도록 경로·링크 검사를 추가하고, 명시한 승인 자료 경로를 보존한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: XIPL 저장 영상의 한글 경로 OCR 실패를 영상 바이트의 stdin 전달로 보완했다. 이 수정 이후 새 정식 빌드와 설치 EXE 전체 재시험이 필요하다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: XIPL 준비 시 새 클릭 로그의 StudyKey가 조회한 DB 검사 키와 일치해야 View를 허용한다. 오래된 정렬에서 영상이 없는 검사를 여는 오류를 막는다.</li>
@@ -468,8 +471,10 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-WU-001">
 <h3><span class="idtag">REQ-WU-001</span> USB 왕복과 설정 전수 검사</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></span></div>
-<details class="history"><summary>변경 이력 7</summary>
+<details class="history"><summary>변경 이력 9</summary>
 <ul>
+<li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 최종 설치판 후보8(<code>516632c</code>, EXE SHA256 <code>585213b4…704b</code>)을 한글·공백이 있는 다른 드라이브에 설치해 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며, FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 값 복귀다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. WU_09는 실제 USB로 Export·Import 되읽기를, WU_10은 56페이지와 24회 전환을 수행했다.</li>
+<li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 후보7(<code>f5e40fa</code>)은 기본 PASS 23 / FAIL 2 / MANUAL 2, 실시간 WU PASS 9 / FAIL 1 / MANUAL 3이었다. 후보6을 멈춘 기동 실패는 다시 나지 않았고, WU_09 FAIL은 아래 판정 범위 결함이었다.</li>
 <li><span class="hist">2026-10-17 · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: WF_09 Step 8 보강 판정(3D-N·3D-W가 각각 Export)이 기대 Recon을 환자 전체에서 모으던 문제를 고쳤다. Export는 선택한 검사 하나만 내보내는데, WU 체인은 XIPL 묶음이 WF_09보다 먼저 같은 환자에 Recon 검사를 더 만든다. 후보7 실시간 WU에서 Export한 검사의 Recon 2건은 모두 들어 있었지만 다른 검사의 Recon 2건을 누락으로 세어 WU_09가 FAIL했다. 기대 집합을 Export한 검사로 한정하고, 판정 기준(두 Recon이 모두 Export되어야 함)은 유지한다.</li>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: USB Import 완료 메시지, 환자 범위 전후 DB UID, 실제 영상 파일과 Examined 클릭 로그를 연결하는 판정을 구현했다. 단독 실측에서 Imported 1 / Skipped 0, 신규 검사 1건·영상 3건, 파일 XML UID와 재검색 결과의 일치를 확인했다. 연결된 전체 흐름과 최종 설치판 검증은 별도로 수행한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 과거 회귀 변환과 실시간 실행을 구분하고, 새 live 전체 완료 메타데이터 없이 완료로 판단하지 않는다. USB 부재·실패·미완료와 설정 순회 실패의 판정도 보존한다.</li>
@@ -631,16 +636,15 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 </table></div>
 <p>implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
 이번 readiness 검사만으로 실제 제품 검증을 verified로 올리지 않는다.
-DIST/WU 구현과 단위시험, USB 단독 실측을 반영했으며 최종 설치판 검증은 미완료다.
-최종 동일 EXE의 두 전체 실행·설치 수명주기·개발 도구 없는 환경 검증은 별도 결과로 확인한다.</p>
+2026-10-18 최종 설치판으로 기본기능 전체와 실시간 WU 전체, 이 PC의 설치 수명주기를 확인했다(<code>docs/handoff-2026-10-18.md</code>).
+개발 도구 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC 검증은 아직 하지 않았다.</p>
 </section>
 <section class="chapter" id="sec-13">
 <h2>13. 미확정 사항</h2>
 <ul>
-<li>미완료 — 최종 동일 EXE에서 기본기능 전체·실시간 WU 전체와 설치 환경을 검증한다.
-USB 완료 메시지·신규 UID·실제 파일·Examined 교차 확인은 2026-10-15 단독 실측으로 확보했다.
-연결된 실행과 최종 설치판 전체 결과는 단독 실측과 구분하여 기록한다.
-근거: <code>NEXT_WORK.md</code> 상단 현재 상태. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.</li>
+<li>미완료 — 개발 도구(Python·Git·소스)가 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC에서의 설치판 검증.
+최종 동일 EXE의 기본기능 전체·실시간 WU 전체와 이 PC의 설치 수명주기는 2026-10-18에 확인했다.
+근거: <code>docs/handoff-2026-10-18.md</code>. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.</li>
 <li>확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
 근거: <code>automation_scope.json</code> 및 <code>NEXT_WORK.md</code>.
 영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.</li>

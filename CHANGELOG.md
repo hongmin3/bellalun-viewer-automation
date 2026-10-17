@@ -8,6 +8,12 @@
 
 - REQ-DIST-004: 설치판 EXE로 기본기능 전체와 실시간 WU 전체를 차례로 실행하는 `tools/run_installed_suites.py`를 추가했다. 설치 파일과 `build-info.json`의 크기·SHA256을 먼저 대조하고, 설치·작업 폴더 밖 실행 폴더에서 실행한다. 실행마다 새 Reports/Evidence/Log를 복사해 해시를 다시 대조하고, 새 전체 리포트 여부와 WU 목표(기존 수동 3건 외 10건 PASS)를 판정 기준 변경 없이 기록한다.
 
+### Validation
+
+- REQ-DIST-004, REQ-WU-001: 최종 설치판 후보8(`516632c`, EXE SHA256 `585213b4…704b`)을 한글·공백이 있는 다른 드라이브에 설치해 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며, FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 값 복귀다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. WU_09는 실제 USB로 Export·Import 되읽기를, WU_10은 56페이지와 24회 전환을 수행했다.
+- REQ-DIST-003, REQ-DIST-004: 후보8 산출물 독립 감사 12항목을 통과했다. 같은 AppId 업데이트, 제거, 기본 경로 재설치에서 PATH 중복이 없었고 작업 폴더 파일을 모두 보존했다. 새 셸·설치 폴더 밖 CWD·stdin 종류를 바꾼 자체진단 20항목과 App Paths 실행이 통과했다. 개발 도구 없는 PC/VM, Windows 10, 다른 관리자 계정 UAC는 검증하지 않았다.
+- REQ-WU-001: 후보7(`f5e40fa`)은 기본 PASS 23 / FAIL 2 / MANUAL 2, 실시간 WU PASS 9 / FAIL 1 / MANUAL 3이었다. 후보6을 멈춘 기동 실패는 다시 나지 않았고, WU_09 FAIL은 아래 판정 범위 결함이었다.
+
 ### Fixed
 
 - REQ-REGRESSION-001, REQ-WU-001: WF_09 Step 8 보강 판정(3D-N·3D-W가 각각 Export)이 기대 Recon을 환자 전체에서 모으던 문제를 고쳤다. Export는 선택한 검사 하나만 내보내는데, WU 체인은 XIPL 묶음이 WF_09보다 먼저 같은 환자에 Recon 검사를 더 만든다. 후보7 실시간 WU에서 Export한 검사의 Recon 2건은 모두 들어 있었지만 다른 검사의 Recon 2건을 누락으로 세어 WU_09가 FAIL했다. 기대 집합을 Export한 검사로 한정하고, 판정 기준(두 Recon이 모두 Export되어야 함)은 유지한다.

@@ -1,5 +1,20 @@
 # 진행 상태
 
+## 2026-10-18 최종 설치판 검증 완료 (두 번째 PC)
+
+목표였던 "최종 설치 EXE로 기본기능 전체와 실시간 WU 전체를 수행하고 WU_01/12/13 외 10건 PASS"를 달성했다.
+상세 결과·해시는 [최종 검증 결과](docs/handoff-2026-10-18.md)에 있다.
+
+- 빌드 도구: Inno Setup 6.7.3은 사용자 범위 설치, Nuitka 4.3은 Git 제외 `work/buildenv`에 설치했다.
+- 수정: 콘솔 창이 최전면을 쥘 때의 로그인 실패(`4cabebd`), 한글 경로 빌드 중단(`f5e40fa`),
+  WF09 3D Export 판정 범위(`516632c`). 설치판 실행 검증 도구 `tools/run_installed_suites.py`(`06842a9`).
+- 최종판 후보8(`516632c`): 기본 PASS 23 / FAIL 2 / MANUAL 2, 실시간 WU PASS 10 / MANUAL 3.
+  FAIL 2건은 기존 제품 결함(WF14 UPS, XIPL03 값 복귀)이다.
+- 이 PC 설치 수명주기(새 설치·업데이트·제거·기본 경로 재설치, 새 셸·여러 CWD·App Paths)를 확인했다.
+- 산출물 4개는 바탕 화면 `BellalunAuto 배포\1.0.0`, 실행 기록은 `D:\BellalunAuto 실행 기록\후보8-20261018_015140`(Git 제외).
+- 남은 일: 개발 도구 없는 PC/VM, Windows 10, 다른 관리자 계정 UAC 검증. 제품 결함 수정 후 재확인.
+- 승인 자료 manifest는 후보6 승인본과 같은 해시의 프로젝트 원본으로 `work/release-assets/approved-assets.json`에 재구성했다.
+
 ## 2026-10-15 두 번째 PC로 이관 병합
 
 원래 PC에서 push하지 못한 `codex/bellalunauto-distribution`(HEAD `dcfefd3`)을 Git bundle로 받아
