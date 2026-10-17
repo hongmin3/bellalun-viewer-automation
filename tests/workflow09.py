@@ -161,6 +161,30 @@ def _run_one(ctx, ui, r, patient_id, kind, anonymous, step_setup, step_done):
             "outcome": outcome}
 
 
+def recon_export_coverage(db, study_key, exported_uids):
+    """Export 한 **그 검사**의 Recon 이 모두 Export 산출물에 들어갔는지.
+
+    Export 는 검사 단위다. 예전에는 기대 Recon 을 환자 전체에서 모아, 같은 환자의
+    다른 검사(WU 체인에서 XIPL 묶음이 WF_09 전에 만든 검사)의 Recon 까지 '누락'으로
+    셌다(2026-10-18 후보7 실시간 WU, `tests/test_workflow09_recon_scope.py`).
+    """
+    rows = db.query(
+        "DATA",
+        "SELECT SeriesKey, ImageInstanceUID FROM INSTANCE "
+        "WHERE StudyKey=@study AND InstanceType=@t AND ImageInstanceUID IS NOT NULL "
+        "ORDER BY SeriesKey",
+        {"study": study_key, "t": sv.INSTANCE_RECON})
+    series = {}
+    for row in rows:
+        series[row["SeriesKey"]] = series.get(row["SeriesKey"], 0) + 1
+    recon_uids = {row["ImageInstanceUID"] for row in rows}
+    exported = sorted(recon_uids & set(exported_uids))
+    return {"recon_series": [{"SeriesKey": k, "n": n} for k, n in sorted(series.items())],
+            "expected_recon": len(recon_uids), "exported_recon": len(exported),
+            "missing_recon": sorted(recon_uids - set(exported_uids)),
+            "ok": len(recon_uids) >= 2 and len(exported) == len(recon_uids)}
+
+
 def workflow_09(ctx):
     r = TCResult("TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export")
     patient_id = (ctx.cfg.get("xipl") or {}).get(
@@ -250,17 +274,10 @@ def workflow_09(ctx):
         # 보려는 것이라, "3건 나갔다" 로는 3D-N 과 3D-W 가 둘 다 포함됐는지 알 수
         # 없다. 두 모드는 SOP Class 가 DBT 로 같아 객체만으로는 구분되지 않으므로
         # **DB 의 Recon Series 로 되짚는다**(WF_05 의 수신 판정과 같은 방법).
-        recon_uids = sv.db_identity(ctx, patient_id)["by_type"].get(
-            sv.INSTANCE_RECON, set())
-        recon_series = ctx.db.query(
-            "DATA",
-            "SELECT SeriesKey, COUNT(*) AS n FROM INSTANCE "
-            "WHERE StudyKey=@study AND InstanceType=@t "
-            "GROUP BY SeriesKey ORDER BY SeriesKey",
-            {"study": session["study_key"], "t": sv.INSTANCE_RECON})
         exported_uids = {o.get("SOPInstanceUID") for o in normal["objects"]
                          if o.get("SOPInstanceUID")}
-        exported_recon = sorted(recon_uids & exported_uids)
+        coverage = recon_export_coverage(ctx.db, session["study_key"], exported_uids)
+        recon_series = coverage["recon_series"]
         if len(recon_series) < 2:
             r.add(8, "3D-N / 3D-W 가 각각 Export", SKIP,
                   expected="Recon Series 2개(3D-N, 3D-W)",
@@ -271,12 +288,13 @@ def workflow_09(ctx):
         else:
             r.assert_true(
                 8, "3D-N / 3D-W 가 각각 Export",
-                len(exported_recon) == len(recon_uids) and len(recon_uids) >= 2,
-                expected=f"Recon {len(recon_uids)}건(3D-N·3D-W 각 1건)이 모두 "
-                         f"Export 산출물에 포함",
-                actual={"recon_series": [dict(x) for x in recon_series],
-                        "exported_recon": len(exported_recon),
-                        "missing_recon": sorted(recon_uids - exported_uids),
+                coverage["ok"],
+                expected=f"선택한 검사의 Recon {coverage['expected_recon']}건"
+                         f"(3D-N·3D-W 각 1건)이 모두 Export 산출물에 포함",
+                actual={"study_key": session["study_key"],
+                        "recon_series": recon_series,
+                        "exported_recon": coverage["exported_recon"],
+                        "missing_recon": coverage["missing_recon"],
                         "exported_sop_classes": sorted(
                             {o.get("SOPClassUID") for o in normal["objects"]})},
                 note="Export 는 검사 단위라 3D-W 를 픽스처에 넣으면 자동으로 "

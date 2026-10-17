@@ -341,7 +341,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
-| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_xipl_study_selection.py` | implemented |
+| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py` | TEST-TRACE-001; `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py` | implemented |

@@ -43,6 +43,18 @@ python -m pip install -r packaging/requirements-build.txt
 python tools/build_distribution.py --assets "D:\사내 배포 자료\approved-assets.json" --output "D:\사내 배포 결과\v1" --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
+빌드 PC 준비 예시는 다음과 같다(2026-10-17 두 번째 PC에서 확인).
+Inno Setup은 관리자 설치 없이 사용자 범위로 설치할 수 있다. Python 패키지는 Git 제외 가상환경에 둔다.
+
+```powershell
+winget install --id JRSoftware.InnoSetup --version 6.7.3 --exact --silent --override "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CURRENTUSER"
+python -m venv work\buildenv
+work\buildenv\Scripts\python.exe -m pip install -r packaging/requirements-build.txt
+work\buildenv\Scripts\python.exe tools/build_distribution.py --assets <승인 manifest> --output <빈 폴더> --iscc "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+```
+
+저장소가 한글 경로(예: `C:\자동화\...`) 아래에 있어도 빌드할 수 있다.
+
 `--output`은 비어 있거나 아직 없는 전용 폴더여야 한다. 빌드 실패 후에는 기존 폴더를 재사용하지 않고
 새 폴더를 지정한다. 로컬 내부 산출물 경로를 공개 Git 대상에서 제외한다.
 프로그램은 경로를 인수 배열로 전달하므로 공백/한글과 다른 드라이브 경로를 지원한다.
@@ -147,6 +159,13 @@ Tcl/Tk 8.6.15, OpenSSL 3.0.16, zlib 1.3.1의 공식 태그에서 가져온 라�
 별도 기록에 설치·재설치·업데이트·제거, 다른 드라이브/한글/공백/CWD,
 새 CMD/PowerShell/Win+R, 사용자 자료 보존, Python/Git/소스 없는 PC 또는 VM의 실제 수행 범위를 남긴다.
 최종 동일 EXE로 기본기능 전체와 실시간 WU 전체를 각각 수행하고 TC별 결과와 해시를 기록한다.
+이 실행은 `tools/run_installed_suites.py`로 한다. 설치 파일이 build-info와 같은지 먼저 대조하고,
+설치·작업 폴더 밖의 실행 폴더에서 두 전체를 차례로 수행한다. 실행마다 새 Reports/Evidence/Log를 복사해
+해시를 다시 대조하고 결과를 `verification.json`에 남긴다.
+
+```powershell
+python tools/run_installed_suites.py --exe "<설치 폴더>\BellalunAuto.exe" --build-info "<설치 폴더>\build-info.json" --workspace "<작업 폴더>" --out "<빈 실행 기록 폴더>"
+```
 WU_01/12/13은 기존 수동 범위로 구분하고 나머지 열 건의 PASS 여부를 명시한다.
 빌드·설치·기동만으로 제품 시험 검증 완료라고 기록하지 않는다.
 
