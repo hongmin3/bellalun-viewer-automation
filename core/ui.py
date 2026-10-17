@@ -205,6 +205,14 @@ SHELL_WINDOW_TITLES = ("Program Manager",)
 SHELL_WINDOW_CLASSES = ("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
 
 
+class ForegroundError(RuntimeError):
+    """다른 프로그램이 가려 키 입력 전에 Viewer 를 최전면으로 올리지 못했다.
+
+    호출부가 이 경우만 골라 재시도할 수 있게 따로 둔다. 잘못된 계정 선택 같은
+    다른 `RuntimeError` 는 재시도로 덮지 않는다.
+    """
+
+
 #: `SystemParametersInfoW` 의 포그라운드 잠금 타임아웃 항목.
 #  Windows 는 사용자가 다른 창을 쓰는 동안 프로그램이 포커스를 뺏지 못하도록
 #  이 시간(ms) 만큼 `SetForegroundWindow` 를 거부한다. UI 자동화는 그 잠금을
@@ -391,6 +399,43 @@ def push_window_back(hwnd):
         return bool(u32.SetWindowPos(
             hwnd, HWND_BOTTOM, 0, 0, 0, 0,
             SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE))
+    except Exception:                                  # noqa: BLE001
+        return False
+
+
+def switch_to_window(hwnd):
+    """`SwitchToThisWindow` 로 창을 전환한다. 키 입력을 만들지 않는다.
+
+    2026-10-17 실측: 최전면을 쥔 콘솔 창은 `force_foreground` 와
+    `push_window_back` 을 모두 이겨 Viewer 가 6회 연속 올라오지 못했다
+    (후보6 실시간 WU 의 `DICOM_Server_Setup` 실패와 같은 모양). 같은 콘솔을
+    상대로 이 호출은 1회에 Viewer 를 올렸다. 최대화된 Viewer 의 크기는 바꾸지
+    않는다(최소화된 창만 복원한다).
+    """
+    try:
+        u32.SwitchToThisWindow(hwnd, True)
+        return True
+    except Exception:                                  # noqa: BLE001
+        return False
+
+
+#: 어느 키에도 배정되지 않은 가상키(Microsoft 가상키 표의 "Unassigned").
+#  Alt 처럼 메뉴를 열거나 문자를 입력하지 않는다.
+_UNASSIGNED_VK = 0xE8
+
+
+def nudge_foreground_input():
+    """배정되지 않은 가상키를 한 번 눌렀다 뗀다.
+
+    Windows 는 **마지막 입력을 받은 프로세스**에게만 포그라운드 전환을
+    허락한다. 이 키는 그 순간 최전면인 **다른 프로그램**으로 들어가며 아무
+    동작도 일으키지 않는다. Viewer 에 입력을 주입하지 않도록 호출부
+    (`bring_to_front`)는 다른 프로그램이 최전면일 때만 이 함수를 부른다.
+    """
+    try:
+        u32.keybd_event(_UNASSIGNED_VK, 0, 0, 0)
+        u32.keybd_event(_UNASSIGNED_VK, 0, 2, 0)      # KEYEVENTF_KEYUP
+        return True
     except Exception:                                  # noqa: BLE001
         return False
 
@@ -938,9 +983,26 @@ class ViewerUi:
                         pushed_back.append(blocking["hwnd"])
                         force_foreground(hwnd)
                         time.sleep(settle)
+        # **위 단계를 모두 이기는 창이 있다** — 최전면을 쥔 콘솔 창(2026-10-17
+        # 실측, `switch_to_window` 주석). 다른 프로그램이 가리고 있을 때만
+        # 두 단계를 더 쓴다. 셸이 최전면이면(가린 창 없음) 키가 Viewer 로 갈 수
+        # 있으므로 가상키를 보내지 않는다.
+        escalation = None
+        if not self.is_foreground() and self.blocking_window():
+            switch_to_window(hwnd)
+            time.sleep(settle)
+            if self.is_foreground():
+                escalation = "switch"
+            elif self.blocking_window():
+                nudge_foreground_input()
+                force_foreground(hwnd)
+                time.sleep(settle)
+                if self.is_foreground():
+                    escalation = "nudge"
         return {"ok": self.is_foreground(),
                 "blocking": self.blocking_window(), "attempts": attempts,
-                "pushed_back": pushed_back or None}
+                "pushed_back": pushed_back or None,
+                "escalation": escalation}
 
     def require_front(self, what="키 입력"):
         """물리 키 입력 **직전**에 Viewer 가 최전면인지 보장한다.
@@ -970,7 +1032,7 @@ class ViewerUi:
         result = self.bring_to_front()
         if result["ok"]:
             return result
-        raise RuntimeError(
+        raise ForegroundError(
             f"{what} 전에 Viewer 를 최전면으로 올리지 못했습니다"
             f"(가린 창: {result['blocking'] or blocking}). 키 입력이 다른 "
             f"프로그램으로 들어가므로 중단합니다.")
@@ -1232,7 +1294,13 @@ class ViewerUi:
             # 시도한다. `flows.cold_start` 의 `login_attempts` 와 같은 방식이다.
             ok = False
             for attempt in range(1, login_attempts + 1):
-                ok = self.login(user_id, password)
+                # 최전면 확보 실패는 키를 보내기 전에 멈춘 것이라 다시 시도한다
+                # (`flows.cold_start` 의 같은 처리 주석 참고).
+                try:
+                    ok = self.login(user_id, password)
+                except ForegroundError as exc:
+                    ok = False
+                    notes.append(f"로그인 {attempt}회차 최전면 확보 실패: {exc}")
                 if ok:
                     if attempt > 1:
                         notes.append(f"로그인 {attempt}회차에 성공")

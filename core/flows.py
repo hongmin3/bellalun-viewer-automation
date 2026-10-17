@@ -8,7 +8,7 @@
 import os
 import time
 
-from core.ui import ViewerUi, children
+from core.ui import ForegroundError, ViewerUi, children
 
 
 # --- 화면별 컨트롤 ID -------------------------------------------------
@@ -1637,7 +1637,18 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                      f"(PID {blocking['pid']})" if blocking else
                      " (셸/미확인 창이 전면)"))
             say(f"로그인: {login['id']}" + (f" (재시도 {attempt - 1})" if attempt > 1 else ""))
-            ok = ui.login(login["id"], login["password"])
+            # 비밀번호를 치기 직전에 다른 프로그램이 최전면을 쥐면 `ui.login` 이
+            # `ForegroundError` 를 던진다. 예전에는 이 예외가 재시도 루프 밖으로
+            # 빠져나가 전제 준비가 한 번에 끝났다(2026-10-15 후보6 실시간 WU,
+            # 2026-10-17 콘솔 창으로 재현). 키는 나가지 않았으므로 다른 로그인
+            # 실패와 같이 횟수 안에서 다시 시도한다.
+            focus_error = None
+            try:
+                ok = ui.login(login["id"], login["password"])
+            except ForegroundError as exc:
+                ok = False
+                focus_error = str(exc)
+                say(f"로그인 전 최전면 확보 실패: {focus_error}")
             popped = guard.sweep()
             msgs = "; ".join(p["message"] or "(문구 미노출)" for p in popped)
             if ok and not ui.at_login_screen():
@@ -1646,6 +1657,8 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                 break
             if attempt >= attempts:
                 detail = f"마지막 팝업: {msgs} " if popped else ""
+                if focus_error:
+                    detail += f"마지막 최전면 실패: {focus_error} "
                 # 가려져서 실패한 것인지 바로 알 수 있게 최전면 창을 함께 남긴다.
                 front_now = ui.foreground_window()
                 occluded = ""
@@ -1658,7 +1671,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                 raise FlowError(
                     f"로그인에 {attempts}회 실패했습니다. {detail}"
                     f"(증거는 Evidence/ui 참조). 계정/비밀번호를 확인하십시오.{occluded}")
-            say(f"로그인 재시도 예정 (원인: {msgs or '로그인 화면 유지'})")
+            say(f"로그인 재시도 예정 (원인: {msgs or ('최전면 확보 실패' if focus_error else '로그인 화면 유지')})")
             time.sleep(1.5)
         say("로그인 완료")
     guard.sweep()
