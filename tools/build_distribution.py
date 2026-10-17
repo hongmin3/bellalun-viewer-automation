@@ -285,8 +285,10 @@ def compiler_provenance(report_path, scons_report_path):
         if not path.is_file():
             raise ValueError('Nuitka/SCons 원본 컴파일 보고서가 필요합니다')
     try:
-        report = ET.parse(report_path).getroot()
-    except ET.ParseError as error:
+        # Nuitka declares encoding='utf8'; expat treats that alias as a single-byte
+        # codec and rejects non-ASCII build paths. Decode as UTF-8 ourselves.
+        report = ET.fromstring(report_path.read_bytes().decode('utf-8'))
+    except (ET.ParseError, UnicodeDecodeError) as error:
         raise ValueError('Nuitka 컴파일 보고서 XML 오류') from error
     if (report.tag != 'nuitka-compilation-report' or report.get('completion') != 'yes'
             or report.get('nuitka_version') != PINNED['Nuitka'] or report.get('mode') != 'standalone'):

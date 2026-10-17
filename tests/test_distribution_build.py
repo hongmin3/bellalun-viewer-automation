@@ -275,6 +275,26 @@ class DistributionBuildTests(unittest.TestCase):
         self.assertEqual(actual['nuitka_report']['sha256'], hashlib.sha256(report.read_bytes()).hexdigest())
         self.assertEqual(actual['scons_report']['sha256'], hashlib.sha256(scons.read_bytes()).hexdigest())
 
+    def test_compiler_provenance_reads_utf8_report_with_korean_build_path(self):
+        """Nuitka 4.3 은 `encoding='utf8'` 을 선언하고 경로를 UTF-8 그대로 쓴다.
+
+        2026-10-17 실측: 저장소가 `C:\\자동화\\...` 아래에 있으면 expat 이 이 선언을
+        1바이트 인코딩으로 다뤄 `not well-formed (invalid token)` 으로 빌드가 멈췄다.
+        """
+        compiler, report, scons = self.compiler_reports()
+        report.write_bytes(
+            "<?xml version='1.0' encoding='utf8'?>\n"
+            '<nuitka-compilation-report nuitka_version="4.3" mode="standalone" completion="yes">'
+            '<scons_environment c_compiler="MinGW64" the_cc_name="gcc"/>'
+            '<command_line><option value="--output-dir=C:\\자동화\\빌드 결과" /></command_line>'
+            '</nuitka-compilation-report>'.encode('utf-8'))
+        def execute(command, **kwargs):
+            output = 'gcc 15.2.0\n' if command[-1] == '--version' else 'x86_64-w64-mingw32\n'
+            return subprocess.CompletedProcess(command, 0, stdout=output, stderr='')
+        with patch.object(self.builder.subprocess, 'run', execute):
+            actual = self.builder.compiler_provenance(report, scons)
+        self.assertEqual(actual['nuitka_report']['sha256'], hashlib.sha256(report.read_bytes()).hexdigest())
+
     def test_compiler_provenance_rejects_incomplete_report_or_missing_compiler(self):
         compiler, report, scons = self.compiler_reports()
         report.write_text('<nuitka-compilation-report nuitka_version="4.3" completion="interrupted"/>', encoding='utf-8')

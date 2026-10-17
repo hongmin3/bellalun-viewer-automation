@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="f880dc4dbe1abe8e94a13b3961427b92fb62210e84cb2501dbaa11825bf970ac">
+<meta name="spec-source-sha256" content="f90695da56e35d5d6c7f04ec6fa96802580ed0ba5d632f5754f80c74bf2f3571">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -421,8 +421,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-003">
 <h3><span class="idtag">REQ-DIST-003</span> 컴파일과 내부 자료 배포</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/build_distribution.py</code>, <code>packaging/</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 4</summary>
 <ul>
+<li><span class="hist">2026-10-17 · Fixed</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 저장소가 한글 경로(<code>C:\자동화\...</code>) 아래에 있으면 빌드가 컴파일 성공 뒤 <code>Nuitka 컴파일 보고서 XML 오류</code>로 멈추던 문제를 고쳤다. Nuitka 보고서는 <code>encoding='utf8'</code>을 선언하는데 XML 해석기가 이 이름을 1바이트 인코딩으로 다뤄 한글 경로를 읽지 못했다. 보고서를 UTF-8로 직접 읽어 해석한다.</li>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 승인 자료 manifest·해시 검사, Nuitka standalone·Inno Setup 빌드, 포터블 ZIP과 빌드 정보 생성을 구현했다. 사내 원문·Baseline·설치 산출물은 공개 배포 대상에서 제외한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: Inno Setup 6.7.3에서 사용할 수 없는 PATH 분할 함수를 명시적 토큰 분할로 교체하고 실제 설치 스크립트 컴파일 회귀 검사를 추가했다.</li>
 <li><span class="hist">2026-10-15 · Validation</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 후보4(<code>8d0cdcd</code>)의 실제 ZIP 바이트·승인 자산·라이선스·기본 설정 독립 감사 31항목, 한글·공백이 있는 다른 드라이브의 설치·교체·재설치·제거 보존 7단계, guardian 3사례, GUI 기동 경로와 자체진단 20항목을 통과했다.</li>
