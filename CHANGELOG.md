@@ -4,6 +4,11 @@
 
 ## 2026-10-18
 
+### Added
+
+- REQ-DIST-004: 자체진단에 "작업 폴더 경로 길이" 항목을 추가했다. Viewer가 쓰는 Export 증거의 상대 경로가 최대 117자이고 LongPathsEnabled 기본값은 0이라, 작업 폴더가 120자를 넘으면 시험 중간에 실패하기 전에 짧은 경로를 고르라고 안내한다.
+- REQ-DIST-004: `tools/run_installed_suites.py --clean-env`를 추가했다. PATH를 Windows 기본값만 두고 Python·Git·Node 관련 변수를 빼며, PYTHONHOME/PYTHONPATH는 없는 경로로 채워 개발 도구 없는 PC를 흉내 낸다.
+
 ### Fixed
 
 - REQ-DIST-001, REQ-REGRESSION-001: 경로에 작은따옴표(`'`)가 있으면 기준 DB BACKUP/RESTORE 문장과 PowerShell 버전·서명 조회가 문법 오류로 실패하던 문제를 고쳤다. 같은 파일의 FILELISTONLY·MOVE 절처럼 값을 이스케이프한다. 실측: 고치기 전 형태는 `Incorrect syntax near 'Brien'`으로 실패했고, 고친 형태의 `RESTORE VERIFYONLY`와 Viewer 버전 읽기는 `O'Brien 한글` 경로에서 성공했다.

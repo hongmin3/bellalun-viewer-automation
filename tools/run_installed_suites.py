@@ -38,6 +38,34 @@ WU_IDS = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
 WU_MANUAL = {"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"}
 SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
 
+#: `--clean-env` 에서 Windows 기본값 외에 남기는 환경 변수.
+KEEP_ENV = {"SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "PATHEXT", "TEMP", "TMP",
+            "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "ALLUSERSPROFILE",
+            "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES",
+            "COMMONPROGRAMFILES(X86)", "COMMONPROGRAMW6432", "PUBLIC", "HOMEDRIVE",
+            "HOMEPATH", "USERNAME", "USERDOMAIN", "COMPUTERNAME", "NUMBER_OF_PROCESSORS",
+            "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL",
+            "PROCESSOR_REVISION", "OS", "SESSIONNAME", "LOGONSERVER", "DRIVERDATA"}
+#: 다른 PC에 깨진 Python이 있어도 설치판이 영향받지 않는지 보려고 일부러 넣는 경로.
+POISON_DIR = r"C:\BellalunAuto-clean-env-no-such-dir"
+
+
+def clean_environment(base=None):
+    """Python·Git·Node가 없는 PC를 흉내 낸 최소 환경 변수.
+
+    PATH는 Windows 기본값만 둔다. PYTHONHOME/PYTHONPATH는 존재하지 않는 경로로
+    채워, 설치판 EXE가 PC의 다른 Python 설정을 읽지 않는지도 함께 확인한다.
+    """
+    base = os.environ if base is None else base
+    env = {k: v for k, v in base.items() if k.upper() in KEEP_ENV}
+    root = next((v for k, v in env.items() if k.upper() == "SYSTEMROOT"), r"C:\Windows")
+    env["PATH"] = ";".join([root + r"\system32", root, root + r"\System32\Wbem",
+                            root + r"\System32\WindowsPowerShell\v1.0",
+                            root + r"\System32\OpenSSH"])
+    env["PYTHONHOME"] = POISON_DIR + r"\home"
+    env["PYTHONPATH"] = POISON_DIR + r"\path"
+    return env
+
 
 def sha256(path):
     digest = hashlib.sha256()
@@ -108,7 +136,7 @@ def _report_rows(path):
     return data.get("meta") or {}, data.get("results", [])
 
 
-def run_suite(exe, workspace, config, command, out_dir, cwd):
+def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False):
     """설치판 EXE 로 한 전체 실행을 수행하고 결과 근거를 모은다."""
     from bellalunauto.app import completed_report
     from core import automation_health as health
@@ -120,7 +148,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd):
     args.append(command)
     started = time.time()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    env = dict(clean_environment() if clean_env else os.environ, PYTHONIOENCODING="utf-8")
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:
         log.write(f"# command: {args}\n# cwd: {cwd}\n# started: {started_at}\n")
         log.flush()
@@ -160,6 +188,8 @@ def main(argv=None):
     parser.add_argument("--config", type=Path, help="기본값: 작업 폴더의 config.json")
     parser.add_argument("--out", required=True, type=Path, help="비어 있거나 없는 실행 기록 폴더")
     parser.add_argument("--suites", default="run-regression,run-winupdate")
+    parser.add_argument("--clean-env", action="store_true",
+                        help="PATH를 Windows 기본값만 두고 Python 관련 변수를 깨진 값으로 바꿔 실행")
     args = parser.parse_args(argv)
 
     out = args.out.resolve()
@@ -172,7 +202,7 @@ def main(argv=None):
     verification = {"tool": "tools/run_installed_suites.py",
                     "created": datetime.now().astimezone().isoformat(timespec="seconds"),
                     "exe": str(args.exe), "workspace": str(args.workspace),
-                    "config": str(config), "cwd": str(cwd),
+                    "config": str(config), "cwd": str(cwd), "clean_env": args.clean_env,
                     "install": verify_install(args.exe, args.build_info),
                     "runs": []}
     path = out / "verification.json"
@@ -188,7 +218,8 @@ def main(argv=None):
         print(f"[{datetime.now():%H:%M:%S}] {command} 시작", flush=True)
         verification["current"] = command
         save()
-        result = run_suite(args.exe, args.workspace, config, command, out, cwd)
+        result = run_suite(args.exe, args.workspace, config, command, out, cwd,
+                           clean_env=args.clean_env)
         verification["runs"].append(result)
         save()
         print(f"[{datetime.now():%H:%M:%S}] {command} 종료: exit={result['exit_code']} "

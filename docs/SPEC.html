@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v6">
 <meta name="spec-html-renderer" content="v6">
-<meta name="spec-source-sha256" content="9805cea61ab55b52adf06a06b4c223b7e872cb80e97f9a88b7ab7a166b5e262d">
+<meta name="spec-source-sha256" content="09e03749f2968fe42929eb22770e1729028bc118dfb02f8c46137c597d3e29ac">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -447,8 +447,10 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-004">
 <h3><span class="idtag">REQ-DIST-004</span> 설치판 진단과 최종 실행 검증</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></span></div>
-<details class="history"><summary>변경 이력 11</summary>
+<details class="history"><summary>변경 이력 13</summary>
 <ul>
+<li><span class="hist">2026-10-18 · Added</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 자체진단에 &quot;작업 폴더 경로 길이&quot; 항목을 추가했다. Viewer가 쓰는 Export 증거의 상대 경로가 최대 117자이고 LongPathsEnabled 기본값은 0이라, 작업 폴더가 120자를 넘으면 시험 중간에 실패하기 전에 짧은 경로를 고르라고 안내한다.</li>
+<li><span class="hist">2026-10-18 · Added</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: <code>tools/run_installed_suites.py --clean-env</code>를 추가했다. PATH를 Windows 기본값만 두고 Python·Git·Node 관련 변수를 빼며, PYTHONHOME/PYTHONPATH는 없는 경로로 채워 개발 도구 없는 PC를 흉내 낸다.</li>
 <li><span class="hist">2026-10-17 · Added</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 설치판 EXE로 기본기능 전체와 실시간 WU 전체를 차례로 실행하는 <code>tools/run_installed_suites.py</code>를 추가했다. 설치 파일과 <code>build-info.json</code>의 크기·SHA256을 먼저 대조하고, 설치·작업 폴더 밖 실행 폴더에서 실행한다. 실행마다 새 Reports/Evidence/Log를 복사해 해시를 다시 대조하고, 새 전체 리포트 여부와 WU 목표(기존 수동 3건 외 10건 PASS)를 판정 기준 변경 없이 기록한다.</li>
 <li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 최종 설치판 후보8(<code>516632c</code>, EXE SHA256 <code>585213b4…704b</code>)을 한글·공백이 있는 다른 드라이브에 설치해 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며, FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 값 복귀다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. WU_09는 실제 USB로 Export·Import 되읽기를, WU_10은 56페이지와 24회 전환을 수행했다.</li>
 <li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 후보8 산출물 독립 감사 12항목을 통과했다. 같은 AppId 업데이트, 제거, 기본 경로 재설치에서 PATH 중복이 없었고 작업 폴더 파일을 모두 보존했다. 새 셸·설치 폴더 밖 CWD·stdin 종류를 바꾼 자체진단 20항목과 App Paths 실행이 통과했다. 개발 도구 없는 PC/VM, Windows 10, 다른 관리자 계정 UAC는 검증하지 않았다.</li>

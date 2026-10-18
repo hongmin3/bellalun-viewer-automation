@@ -83,5 +83,31 @@ class SnapshotTests(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(dst, "Reports", "new.json")))
 
 
+class CleanEnvironmentTests(unittest.TestCase):
+    """개발 도구 없는 PC를 흉내 내는 최소 환경(`--clean-env`)."""
+
+    BASE = {"SystemRoot": r"C:\WINDOWS", "windir": r"C:\WINDOWS", "TEMP": r"C:\T",
+            "USERPROFILE": r"C:\Users\u", "COMPUTERNAME": "PC",
+            "PATH": r"C:\Python312;C:\Program Files\Git\cmd;C:\WINDOWS\system32",
+            "PYTHONPATH": r"C:\src", "VIRTUAL_ENV": r"C:\venv", "GIT_DIR": r"C:\g",
+            "NODE_PATH": r"C:\n", "CONDA_PREFIX": r"C:\c"}
+
+    def test_path_is_windows_default_only(self):
+        env = runner.clean_environment(self.BASE)
+        parts = env["PATH"].split(";")
+        self.assertIn(r"C:\WINDOWS\system32", parts)
+        self.assertIn(r"C:\WINDOWS\System32\WindowsPowerShell\v1.0", parts)
+        self.assertFalse(any("Python" in p or "Git" in p for p in parts), parts)
+
+    def test_developer_variables_are_dropped_and_python_vars_poisoned(self):
+        env = runner.clean_environment(self.BASE)
+        for key in ("VIRTUAL_ENV", "GIT_DIR", "NODE_PATH", "CONDA_PREFIX"):
+            self.assertNotIn(key, env)
+        self.assertTrue(env["PYTHONHOME"].startswith(runner.POISON_DIR))
+        self.assertTrue(env["PYTHONPATH"].startswith(runner.POISON_DIR))
+        self.assertEqual(r"C:\Users\u", env["USERPROFILE"])
+        self.assertEqual("PC", env["COMPUTERNAME"])
+
+
 if __name__ == "__main__":
     unittest.main()

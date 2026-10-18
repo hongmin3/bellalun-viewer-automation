@@ -197,6 +197,29 @@ class DistributionAppTests(unittest.TestCase):
             self.assertFalse(next(row for row in rows if row['name']=='Viewer')['ok'])
             self.assertFalse(next(row for row in rows if row['name']=='Tesseract OCR')['ok'])
 
+    def test_diagnostics_reports_workspace_path_too_long_for_evidence(self):
+        """작업 폴더가 깊으면 Viewer Export 증거 경로가 Windows 260자 한도를 넘는다.
+
+        2026-10-18 실측: 증거 상대 경로는 최대 117자(Viewer가 쓰는 Export 결과)였고
+        LongPathsEnabled는 이 PC와 LTSC 기본값 모두 0이다. 실행 중간에 실패하기 전에
+        자체진단이 알린다.
+        """
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root/'config.json'
+            config.write_text('{}', encoding='utf-8')
+            short = app.diagnostics(Layout(root, root, config), check_connections=False)
+            row = next(r for r in short if r['name'] == '작업 폴더 경로 길이')
+            self.assertTrue(row['ok'], row)
+            deep = Path('D:/') / ('가' * (app.WORKSPACE_PATH_LIMIT + 1))
+            rows = app.diagnostics(Layout(root, deep, config), check_connections=False)
+            row = next(r for r in rows if r['name'] == '작업 폴더 경로 길이')
+            self.assertFalse(row['ok'])
+            self.assertIn(str(app.WORKSPACE_PATH_LIMIT), row['detail'])
+            self.assertIn('짧은', row['fix'])
+
     def test_guard_preserves_abnormal_exit_notification_and_cleanup(self):
         import io
         from contextlib import nullcontext

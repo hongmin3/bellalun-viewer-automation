@@ -97,6 +97,11 @@ def completed_report(reports_dir, command, since):
     return None
 
 
+#: 작업 폴더 경로 길이 상한(문자 수). Viewer가 쓰는 Export 증거의 상대 경로가 최대
+#  117자(2026-10-18 실측)이고 LongPathsEnabled 기본값은 0이라, 260자 한도 안에 여유를 둔다.
+WORKSPACE_PATH_LIMIT = 120
+
+
 def diagnostics(layout, check_connections=True):
     """조회만 수행한다. 화면 해상도·서비스·DB·설정을 바꾸지 않는다."""
     items = []
@@ -113,6 +118,11 @@ def diagnostics(layout, check_connections=True):
         config = {}
     add('실행 자료', (layout.resource_dir/'automation_scope.json').is_file(), layout.resource_dir,
         '승인된 내부 자료가 포함된 설치 패키지를 다시 설치하세요.')
+    length = len(str(layout.workspace))
+    add('작업 폴더 경로 길이', length <= WORKSPACE_PATH_LIMIT,
+        f'{length}자 (최대 {WORKSPACE_PATH_LIMIT}자): {layout.workspace}',
+        '작업 폴더를 더 짧은 경로(예: D:\\BellalunAuto 작업)로 다시 선택하세요. '
+        'Viewer가 저장하는 Export 증거 경로가 Windows 260자 한도를 넘으면 시험이 중간에 실패합니다.')
     def section(value):
         return value if isinstance(value, dict) else {}
     viewer, xipl = section(config.get('viewer')), section(config.get('xipl'))
