@@ -42,11 +42,19 @@ def installed_programs():
     return out
 
 
+def ps_literal(value):
+    """PowerShell 작은따옴표 문자열 리터럴. 값 안의 `'`는 `''`로 바꾼다.
+
+    경로를 `'...'` 안에 그대로 넣으면 `'`가 든 경로에서 명령이 깨진다.
+    """
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def file_version(path):
     """파일의 FileVersion. 없으면 None."""
     if not os.path.exists(path):
         return None
-    v = _ps(f"(Get-Item -LiteralPath '{path}').VersionInfo.FileVersion")
+    v = _ps(f"(Get-Item -LiteralPath {ps_literal(path)}).VersionInfo.FileVersion")
     return v.strip() or None
 
 

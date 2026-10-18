@@ -244,8 +244,7 @@ def backup_baseline(ctx):
     try:
         for db in DATABASES:
             path = os.path.join(staging, f"{db}.bak")
-            sql = (f"BACKUP DATABASE {_bracket(db)} TO DISK = N'{path}' "
-                   f"WITH INIT, FORMAT, STATS=10")
+            sql = _backup_sql(db, path)
             ctx.db.query("master", sql)
             saved[db] = path
     finally:
@@ -283,6 +282,18 @@ def baseline_state(ctx):
 
 def _quote(value):
     return str(value).replace("'", "''")
+
+
+def _backup_sql(db, path):
+    """기준 스냅샷 BACKUP 문장. 경로의 `'`는 `_quote`로 이스케이프한다."""
+    return (f"BACKUP DATABASE {_bracket(db)} TO DISK = N'{_quote(path)}' "
+            f"WITH INIT, FORMAT, STATS=10")
+
+
+def _restore_sql(db, path, move):
+    """기준 스냅샷 RESTORE 문장. FILELISTONLY·MOVE 절과 같은 방식으로 경로를 감싼다."""
+    return (f"RESTORE DATABASE {_bracket(db)} FROM DISK = N'{_quote(path)}' WITH REPLACE"
+            + ("".join(f", {m}" for m in move) if move else ""))
 
 
 def _move_clauses(ctx, db, bak_path):
@@ -350,8 +361,7 @@ def restore_baseline(ctx):
             b = _bracket(db)
             move = _move_clauses(ctx, db, path)
             moved[db] = move
-            restore = (f"RESTORE DATABASE {b} FROM DISK = N'{path}' WITH REPLACE"
-                       + ("".join(f", {m}" for m in move) if move else ""))
+            restore = _restore_sql(db, path, move)
             try:
                 ctx.db.query(
                     "master", f"ALTER DATABASE {b} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")

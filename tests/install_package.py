@@ -117,7 +117,7 @@ def _read_xml(path):
 
 def _authenticode(path):
     """코드 서명 상태와 서명자를 돌려준다. 확인 불가면 (None, 사유)."""
-    script = (f"$s = Get-AuthenticodeSignature -LiteralPath '{path}'; "
+    script = (f"$s = Get-AuthenticodeSignature -LiteralPath {sysinfo.ps_literal(path)}; "
               f"\"$($s.Status)|$($s.SignerCertificate.Subject)\"")
     try:
         out = subprocess.run(["powershell", "-NoProfile", "-Command", script],

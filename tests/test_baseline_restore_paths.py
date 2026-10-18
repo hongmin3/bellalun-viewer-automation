@@ -30,5 +30,25 @@ class BaselineRestorePathTests(unittest.TestCase):
                           "MOVE N'ACCOUNT_log' TO N'R:\\Existing\\custom-account.ldf'"])
 
 
+class BaselineSqlQuotingTests(unittest.TestCase):
+    """경로의 작은따옴표가 SQL 문자열을 끊지 않아야 한다(2026-10-18 경로 독립성 점검).
+
+    `RESTORE FILELISTONLY`와 MOVE 절은 이미 `_quote`를 쓰는데, 실제 RESTORE/BACKUP
+    문장만 쓰지 않아 `data_dir`에 `'`가 있으면 서비스를 멈춘 뒤 복원이 문법 오류로 실패했다.
+    """
+    PATH = r"Q:\O'Brien QA\BellalunData\Backup\Baseline\ACCOUNT.bak"
+
+    def test_restore_statement_escapes_quotes_in_path(self):
+        sql = dbreset._restore_sql('ACCOUNT', self.PATH, ["MOVE N'a' TO N'b'"])
+        self.assertIn(r"FROM DISK = N'Q:\O''Brien QA\BellalunData", sql)
+        self.assertTrue(sql.startswith('RESTORE DATABASE [ACCOUNT] '))
+        self.assertTrue(sql.endswith("WITH REPLACE, MOVE N'a' TO N'b'"))
+
+    def test_backup_statement_escapes_quotes_in_path(self):
+        sql = dbreset._backup_sql('ACCOUNT', self.PATH)
+        self.assertIn(r"TO DISK = N'Q:\O''Brien QA\BellalunData", sql)
+        self.assertTrue(sql.endswith('WITH INIT, FORMAT, STATS=10'))
+
+
 if __name__ == '__main__':
     unittest.main()

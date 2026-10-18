@@ -2,6 +2,12 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-10-18
+
+### Fixed
+
+- REQ-DIST-001, REQ-REGRESSION-001: 경로에 작은따옴표(`'`)가 있으면 기준 DB BACKUP/RESTORE 문장과 PowerShell 버전·서명 조회가 문법 오류로 실패하던 문제를 고쳤다. 같은 파일의 FILELISTONLY·MOVE 절처럼 값을 이스케이프한다. 실측: 고치기 전 형태는 `Incorrect syntax near 'Brien'`으로 실패했고, 고친 형태의 `RESTORE VERIFYONLY`와 Viewer 버전 읽기는 `O'Brien 한글` 경로에서 성공했다.
+
 ## 2026-10-17
 
 ### Added

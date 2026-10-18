@@ -184,10 +184,12 @@ def _file_version(path):
     """실행 파일의 파일 버전. 못 읽으면 None (추측하지 않는다)."""
     if not path or not os.path.exists(path):
         return None
+    from core import sysinfo
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
-             f"(Get-Item -LiteralPath '{path}').VersionInfo.FileVersion"],
+             f"(Get-Item -LiteralPath {sysinfo.ps_literal(path)})"
+             ".VersionInfo.FileVersion"],
             capture_output=True, timeout=30)
         return out.stdout.decode("utf-8", "replace").strip() or None
     except Exception:                                  # noqa: BLE001
