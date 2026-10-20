@@ -1,14 +1,17 @@
 # 다음 작업 (2026-10-15 BellalunAuto 구현·검증 회차)
 
-## 최신 인계 (2026-10-18)
+## 최신 인계 (2026-10-21)
 
-최종 설치판(후보8, `516632c`)으로 기본기능 전체와 실시간 WU 전체를 끝까지 수행했다.
-기본은 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2, WU는 13 TC 중 PASS 10 / MANUAL 3이다.
-WU 목표(WU_01/12/13 외 10건 PASS)를 달성했다. 결과와 해시는 [최종 검증 결과](docs/handoff-2026-10-18.md)에 있다.
+최신 설치판은 후보11(`56a0bc6`)이다. 개발 도구를 뺀 최소 환경과 특수문자 작업 폴더에서 기본기능 전체
+(PASS 23 / FAIL 2 / MANUAL 2)와 실시간 WU 전체(PASS 10 / MANUAL 3)를 끝까지 수행해 WU 목표를 달성했다.
+이 과정에서 최소 환경 실행 결함 3건(`XIPL_PATH` 누락 시 PC 꺼짐, 작업 폴더의 `%`, 늦게 열린 Export Manager)을 고쳤다.
+결과와 해시는 [호환성 검증 기록](docs/compatibility-2026-10-18.md)에 있다. 이전 최종판(후보8) 기록은
+[2026-10-18 검증 결과](docs/handoff-2026-10-18.md)다.
 
 남은 일은 다음 순서다.
 
-1. Python·Git이 없는 별도 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC에서 같은 패키지를 검증한다.
+1. USB를 연결해 후보11로 WU_09 USB 왕복을 재확인한다. 후보11 최소 환경 실행에서는 USB가 없어 SKIP이었다.
+   이어서 Python·Git이 없는 별도 PC 또는 VM, 실제 Windows 11 LTSC, Windows 10, 다른 관리자 계정 UAC에서 같은 패키지를 검증한다.
 2. 제품 결함 두 건(WF14 UPS 미복원, XIPL03 Step 9 값 복귀)은 제품 수정 후 재확인한다. 판정은 완화하지 않는다.
 3. Install_01 승인 Release Note, Install_02 OS Build 기준 자료를 받으면 자동 판정으로 올린다(5절 ①②).
 

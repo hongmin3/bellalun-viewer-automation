@@ -2,6 +2,12 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-10-21
+
+### Validation
+
+- REQ-DIST-004, REQ-WU-001: 후보11(`56a0bc6`, EXE SHA256 `2eb31efe…36f3`)을 개발 도구를 뺀 최소 환경과 `&`·괄호·작은따옴표·`#`·한글이 든 작업 폴더에서 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며 FAIL은 기존 제품 결함 WF14 UPS·XIPL03이다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. USB가 분리되어 있어 WU_09의 USB 왕복 단계는 SKIP으로 남았다.
+
 ## 2026-10-20
 
 ### Fixed
