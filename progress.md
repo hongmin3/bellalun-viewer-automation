@@ -8,7 +8,7 @@
   WU_09의 USB 왕복 단계는 USB 분리로 SKIP(`이동식 드라이브 없음`)이다.
 - 결과·해시: [호환성 검증 기록](docs/compatibility-2026-10-18.md) 6절. 실행 기록 `C:\BellalunAuto 실행 기록\후보11-cleanenv-20261020_211748`.
 - 다음: USB 연결 후 WU_09 USB 왕복 재확인 → 실제 LTSC·개발 도구 없는 PC·Windows 10·다른 관리자 UAC 검증.
-- 후보11 산출물은 `work/release-1.0.0-candidate11`(Git 제외)에 있다. 바탕 화면 `BellalunAuto 배포/1.0.0`은 아직 후보8이다.
+- 후보11 산출물은 `work/release-1.0.0-candidate11`(Git 제외)에 있다. 바탕 화면 `BellalunAuto 배포/1.0.0`을 후보11로 교체했고(해시 일치), 후보8은 `1.0.0-후보8(이전)`에 보존했다. 결과 요약은 바탕 화면 `BellalunAuto_최종결과_20261021.txt`다.
 
 ## 2026-10-20 최소 환경 실행 중 PC 꺼짐 원인 확인과 수정
 
