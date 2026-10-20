@@ -26,7 +26,11 @@
   - WU_09: WF09 Export 뒤 Export Manager가 20초를 넘겨 열려 FAIL(USB 단계는 USB 분리로 수행하지 않음).
   - WU_10·WU_11: 늦게 열린 Export Manager가 남아 최전면을 쥐어 Viewer 로그인 3회 실패. WU_11은 `%` 경로 문제도 겹친다.
   - 수정: Export Manager 대기 60초, Viewer 재기동 전 남은 Export Manager 정리. 단위 407개 OK(skip 2).
-- 다음: 후보11 빌드·설치 → `%` 없는 특수문자 작업 폴더로 최소 환경 기본·WU 전체 재실행.
+- 후보11 정식 빌드: 소스 `56a0bc6`(dirty=false), EXE SHA256 `2eb31efe…36f3`, setup SHA256 `43c439ea…bf0c`.
+  빌드 내 테스트 469개, 산출물 감사 12/12, PE 미해결 0, 업데이트 설치 후 EXE 해시 일치.
+  경계 시험 E1~E6 ALL OK(자체진단 23항목, `%` 작업 폴더는 그 항목만 FAIL·제품 실행은 exit 2로 UI 전 거부).
+- 2026-10-20 21:17 후보11 최소 환경 전체 실행 시작. 작업 폴더 `C:\BellalunAuto 작업 공간\후보11 검증 & 테스트 (1) O'Brien #한글`,
+  기록 `C:\BellalunAuto 실행 기록\후보11-cleanenv-20261020_211748`(Git 제외). USB 분리 상태다.
   USB를 다시 꽂으면 WU_09를 재확인한다.
 
 ## 2026-10-18 최종 설치판 검증 완료 (두 번째 PC)
