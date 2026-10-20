@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- REQ-DIST-001: 작업 폴더 경로에 `%`가 있으면 Viewer의 Setting Export 저장이 거부되어 WF14가 300초 뒤 FAIL하던 문제를 막았다. 제품을 조작하는 실행은 시작 전에 거부하고 해결 방법을 알리며, 자체진단에 "작업 폴더 경로 문자" 항목을 더했다. 실측: 후보10 최소 환경 실행에서 작업 폴더 `...O'Brien %TEMP% #한글` 아래 `WF14_Baseline_Settings.vms`를 Windows 저장 대화상자가 "파일 이름이 올바르지 않습니다"로 거부했다. `&`·괄호·작은따옴표·`#`·한글은 같은 실행에서 문제가 없었다.
 - REQ-DIST-004: BellalunAuto가 `XIPL_PATH` 없는 환경에서 Viewer를 띄우면 Viewer가 E2100을 기록하고 PC 전원을 끄던 문제를 막았다. Viewer·XIPL Studio는 실행 환경에 없는 등록 환경 변수를 레지스트리에서 보충해 띄우고, 그래도 `XIPL_PATH`가 맞지 않으면 Viewer를 띄우지 않고 해결 방법을 알린다. 자체진단에 "XIPL 설치 경로(XIPL_PATH)" 항목을 더했다. 실측: 2026-10-18 후보9 최소 환경 실행 1분 뒤 Viewer 로그에 `XIPL is not installed. [E2100]`이 남고 System 이벤트 1074(`VIEWER.exe`, 전원 끄기)가 기록됐다. 기존 XIPL 점검은 9784 포트만 봐서 21/21 PASS였다.
 
 ## 2026-10-18

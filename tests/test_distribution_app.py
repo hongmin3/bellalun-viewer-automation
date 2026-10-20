@@ -221,6 +221,38 @@ class DistributionAppTests(unittest.TestCase):
             self.assertIn(str(app.WORKSPACE_PATH_LIMIT), row['detail'])
             self.assertIn('짧은', row['fix'])
 
+    def test_diagnostics_reports_percent_in_workspace_path(self):
+        """작업 폴더 경로에 %가 있으면 Viewer Export 저장 대화상자가 경로를 거부한다.
+
+        2026-10-20 실측: `...O'Brien %TEMP% #한글\Evidence\...\WF14_Baseline_Settings.vms`를
+        Windows 저장 대화상자가 "파일 이름이 올바르지 않습니다"로 거부해 WF14가 300초 뒤 FAIL했다.
+        """
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root/'config.json'
+            config.write_text('{}', encoding='utf-8')
+            ok = app.diagnostics(Layout(root, root/"O'Brien & (1) #한글", config), check_connections=False)
+            self.assertTrue(next(r for r in ok if r['name'] == '작업 폴더 경로 문자')['ok'])
+            rows = app.diagnostics(Layout(root, root/'검증 %TEMP% 폴더', config), check_connections=False)
+            row = next(r for r in rows if r['name'] == '작업 폴더 경로 문자')
+            self.assertFalse(row['ok'])
+            self.assertIn('%', row['detail'])
+            self.assertIn('%', row['fix'])
+
+    def test_product_run_refuses_workspace_with_percent_before_ui(self):
+        app = self.app()
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)/'검증 %TEMP% 폴더'
+            workspace.mkdir()
+            (workspace/'config.json').write_text('{}', encoding='utf-8')
+            with patch.object(app, 'run_guarded') as guarded, patch.object(app, '_elevate') as elevate:
+                code = app.main(['--workspace', str(workspace), 'run-regression'])
+            self.assertEqual(2, code)
+            guarded.assert_not_called()
+            elevate.assert_not_called()
+
     def test_diagnostics_reports_missing_xipl_path(self):
         """Viewer는 XIPL_PATH가 없으면 E2100 뒤 PC 전원을 끈다(2026-10-18 실측).
 

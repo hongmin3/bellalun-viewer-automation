@@ -102,6 +102,17 @@ def completed_report(reports_dir, command, since):
 WORKSPACE_PATH_LIMIT = 120
 
 
+WORKSPACE_CHAR_FIX = ('작업 폴더를 %가 없는 경로로 다시 선택하세요. Windows 저장·열기 대화상자는 %이름%을 '
+                      '환경 변수로 바꿔 읽으므로 Viewer의 Setting Export·Import가 실패합니다.')
+
+
+def workspace_path_problem(workspace):
+    """Viewer 파일 대화상자가 받아들이지 못하는 작업 폴더 경로면 설명, 아니면 None."""
+    if '%' in str(workspace):
+        return f"경로에 '%'가 있습니다: {workspace}"
+    return None
+
+
 def diagnostics(layout, check_connections=True):
     """조회만 수행한다. 화면 해상도·서비스·DB·설정을 바꾸지 않는다."""
     items = []
@@ -128,6 +139,8 @@ def diagnostics(layout, check_connections=True):
     xipl_problem = product_env.xipl_problem(launch_env)
     add('XIPL 설치 경로(XIPL_PATH)', xipl_problem is None,
         xipl_problem or product_env.lookup(launch_env, 'XIPL_PATH'), product_env.XIPL_FIX)
+    char_problem = workspace_path_problem(layout.workspace)
+    add('작업 폴더 경로 문자', char_problem is None, char_problem or layout.workspace, WORKSPACE_CHAR_FIX)
     def section(value):
         return value if isinstance(value, dict) else {}
     viewer, xipl = section(config.get('viewer')), section(config.get('xipl'))
@@ -441,6 +454,11 @@ def main(argv=None):
         if control:
             if not layout.config_path.is_file():
                 raise FileNotFoundError('실행 화면의 PC별 설정을 먼저 저장하세요.')
+            char_problem = workspace_path_problem(layout.workspace)
+            if char_problem:
+                print(f'[FAIL] 작업 폴더 경로 문자: {char_problem}')
+                print(f'해결 방법: {WORKSPACE_CHAR_FIX}')
+                return 2
             if os.name == 'nt' and not ctypes.windll.shell32.IsUserAnAdmin():
                 if options.elevated:
                     raise PermissionError('관리자 권한으로 실행하지 못했습니다.')
