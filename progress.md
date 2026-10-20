@@ -22,7 +22,11 @@
   대화상자가 환경 변수로 바꿔 읽어 Export 파일 이름을 거부했다(`Evidence/Flow/14_Setting/99_error.png`).
 - 수정: 작업 폴더 경로에 `%`가 있으면 제품 조작 실행을 시작 전에 거부하고 자체진단에 "작업 폴더 경로 문자"를 더했다.
   단위 403개 OK(skip 2). 같은 작업 폴더의 실시간 WU 전체(19:16 시작)는 비교용으로 끝까지 둔다.
-- 다음: WU 종료 확인 → 후보11 빌드·설치 → `%` 없는 특수문자 작업 폴더로 최소 환경 기본·WU 전체 재실행.
+- 후보10 최소 환경 실시간 WU 전체(19:16~20:20): live, chain_completed=true. 13 TC PASS 7 / FAIL 3 / MANUAL 3.
+  - WU_09: WF09 Export 뒤 Export Manager가 20초를 넘겨 열려 FAIL(USB 단계는 USB 분리로 수행하지 않음).
+  - WU_10·WU_11: 늦게 열린 Export Manager가 남아 최전면을 쥐어 Viewer 로그인 3회 실패. WU_11은 `%` 경로 문제도 겹친다.
+  - 수정: Export Manager 대기 60초, Viewer 재기동 전 남은 Export Manager 정리. 단위 407개 OK(skip 2).
+- 다음: 후보11 빌드·설치 → `%` 없는 특수문자 작업 폴더로 최소 환경 기본·WU 전체 재실행.
   USB를 다시 꽂으면 WU_09를 재확인한다.
 
 ## 2026-10-18 최종 설치판 검증 완료 (두 번째 PC)

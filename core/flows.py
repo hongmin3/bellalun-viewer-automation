@@ -1556,6 +1556,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
         ui._pid = None
 
     if not ui.pid:
+        close_leftover_export_manager(say)
         exe = cfg["viewer"]["exe"]
         say(f"Viewer 실행: {exe}")
         ui.launch(exe, wait=int(cfg["viewer"].get("launch_wait", 18)))
@@ -1681,6 +1682,25 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
     say("DB 접속 확인")
 
     return ui, log
+
+
+def _find_process_pid(name):
+    return ViewerUi(name).pid
+
+
+def close_leftover_export_manager(say):
+    """Viewer를 새로 띄우기 전에 남은 Export Manager 창을 닫는다.
+
+    앞 TC가 Export Manager를 기다리다 실패한 뒤 창이 늦게 열리면, 그 창이 최전면을 쥐어
+    다음 로그인의 비밀번호 키 입력이 Viewer에 가지 않는다(2026-10-20 실측). Viewer를 새로
+    띄우는 시점에는 이전 Viewer가 연 Export 작업을 이어 갈 수 없으므로 정리한다.
+    """
+    from core import export_manager as em
+    pid = _find_process_pid(em.PROCESS)
+    if pid:
+        say(f"남은 Export Manager(PID {pid}) 정리")
+        _kill_viewer(pid)
+        time.sleep(1)
 
 
 def _kill_viewer(pid):

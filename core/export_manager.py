@@ -54,8 +54,12 @@ class ExportManagerError(RuntimeError):
     pass
 
 
-def attach(timeout=20):
-    """Export Manager 창이 뜰 때까지 기다린 뒤 그 UI 드라이버를 돌려준다."""
+def attach(timeout=60):
+    """Export Manager 창이 뜰 때까지 기다린 뒤 그 UI 드라이버를 돌려준다.
+
+    20초로는 부족했다. 2026-10-20 실시간 WU에서 Export 버튼 뒤 창이 20초를 넘겨 열렸다
+    (Export Manager 로그 20:15:41). 같은 실행의 기본기능 WF09는 20초 안에 열렸다.
+    """
     end = time.time() + timeout
     while time.time() < end:
         ui = ViewerUi(PROCESS)
