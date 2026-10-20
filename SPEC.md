@@ -215,6 +215,11 @@ Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파
 변경하지 않고 제품·DB·OCR·서버·자료·화면·권한의 누락과 해결 방법을 한국어로 표시한다.
 관리자 권한이 필요한 시험은 UAC를 요청하고 거부 시 종료한다. 기존 1920×1080·96 DPI·주 모니터 보호를 유지한다.
 
+Viewer와 XIPL Studio는 실행 환경에 없는 시스템·사용자 등록 환경 변수를 보충해 띄운다. 이미 있는 값과 PATH는 바꾸지 않는다.
+Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KEEPALIVE.exe`가 없으면 Viewer를 띄우지 않고
+해결 방법을 한국어로 알린다. 자체진단도 같은 항목을 표시한다.
+이유: Viewer는 XIPL을 찾지 못하면 E2100을 기록한 뒤 PC 전원을 끈다(2026-10-18 실측).
+
 설치 폴더 밖 CWD·한글/공백 경로·다른 설치 드라이브·새 셸·설치/재설치/업데이트/제거와
 사용자 자료 보존을 검증한다. 개발 도구/소스 없는 PC 또는 VM 검증의 실제 수행 범위를 기록한다.
 최종 배포 EXE로 기본기능 전체와 실시간 Windows Update 전체를 각각 수행한다.
@@ -349,7 +354,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py` | implemented |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py` | implemented |
 | REQ-DIST-003 | `tools/build_distribution.py`, `packaging/` | TEST-DIST-002; `tests/test_distribution_build.py` | implemented |
-| REQ-DIST-004 | `bellalunauto/app.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
+| REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | implemented |
 
 implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.

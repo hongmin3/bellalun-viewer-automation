@@ -71,7 +71,9 @@ class XiplStudio:
             raise ValueError("XIPL 시작 대기 시간은 0 이상이어야 합니다.")
         launched = None
         if not self.ui.pid:
-            launched = subprocess.Popen([self.exe], cwd=os.path.dirname(self.exe))
+            from core.product_env import product_environment
+            launched = subprocess.Popen([self.exe], cwd=os.path.dirname(self.exe),
+                                        env=product_environment())
         end = time.monotonic() + timeout
         pid = self.ui.pid
         while not pid and time.monotonic() < end:

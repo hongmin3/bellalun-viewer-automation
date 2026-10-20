@@ -39,6 +39,8 @@ WU_MANUAL = {"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"
 SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
 
 #: `--clean-env` 에서 Windows 기본값 외에 남기는 환경 변수.
+#  XIPL_PATH 같은 제품 등록 변수도 일부러 뺀다. 줄어든 환경에서 시작돼도 설치판이
+#  Viewer 실행 전에 레지스트리 값으로 보충하는지(core/product_env.py)를 함께 확인한다.
 KEEP_ENV = {"SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "PATHEXT", "TEMP", "TMP",
             "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "ALLUSERSPROFILE",
             "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES",

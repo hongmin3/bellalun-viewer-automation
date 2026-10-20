@@ -551,7 +551,10 @@ class ViewerUi:
         # working directory.  Always launch from the installation directory so
         # a caller's automation workspace cannot be treated as application
         # runtime storage.
-        subprocess.Popen([exe_path], cwd=os.path.dirname(os.path.abspath(exe_path)))
+        # XIPL_PATH가 없으면 Viewer가 PC 전원을 끄므로 확인한 환경으로만 띄운다.
+        from core.product_env import viewer_environment
+        env = viewer_environment()
+        subprocess.Popen([exe_path], cwd=os.path.dirname(os.path.abspath(exe_path)), env=env)
         time.sleep(wait)
         self._pid = None
         return self.pid

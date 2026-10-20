@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 import tempfile
 import time
 import unittest
@@ -219,6 +220,36 @@ class DistributionAppTests(unittest.TestCase):
             self.assertFalse(row['ok'])
             self.assertIn(str(app.WORKSPACE_PATH_LIMIT), row['detail'])
             self.assertIn('짧은', row['fix'])
+
+    def test_diagnostics_reports_missing_xipl_path(self):
+        """Viewer는 XIPL_PATH가 없으면 E2100 뒤 PC 전원을 끈다(2026-10-18 실측).
+
+        9784 포트 점검만으로는 이 상태를 못 잡았다. 자체진단이 실행 환경 기준으로 알린다.
+        """
+        from unittest import mock
+        from core import product_env
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root/'config.json'
+            config.write_text('{}', encoding='utf-8')
+            without_xipl = {k: v for k, v in os.environ.items() if k.upper() != 'XIPL_PATH'}
+            with mock.patch.object(product_env, 'registered_environment', return_value={}), \
+                    mock.patch.dict(os.environ, without_xipl, clear=True):
+                rows = app.diagnostics(Layout(root, root, config), check_connections=False)
+            row = next(r for r in rows if r['name'] == 'XIPL 설치 경로(XIPL_PATH)')
+            self.assertFalse(row['ok'])
+            self.assertIn('전원', row['fix'])
+            server = root/'xipl'/'SERVER_X64'
+            server.mkdir(parents=True)
+            (server/'XIPL.KEEPALIVE.exe').write_bytes(b'')
+            with mock.patch.object(product_env, 'registered_environment',
+                                   return_value={'XIPL_PATH': str(root/'xipl')}), \
+                    mock.patch.dict(os.environ, without_xipl, clear=True):
+                rows = app.diagnostics(Layout(root, root, config), check_connections=False)
+            row = next(r for r in rows if r['name'] == 'XIPL 설치 경로(XIPL_PATH)')
+            self.assertTrue(row['ok'], row)
 
     def test_guard_preserves_abnormal_exit_notification_and_cleanup(self):
         import io

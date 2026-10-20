@@ -2,6 +2,12 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-10-20
+
+### Fixed
+
+- REQ-DIST-004: BellalunAuto가 `XIPL_PATH` 없는 환경에서 Viewer를 띄우면 Viewer가 E2100을 기록하고 PC 전원을 끄던 문제를 막았다. Viewer·XIPL Studio는 실행 환경에 없는 등록 환경 변수를 레지스트리에서 보충해 띄우고, 그래도 `XIPL_PATH`가 맞지 않으면 Viewer를 띄우지 않고 해결 방법을 알린다. 자체진단에 "XIPL 설치 경로(XIPL_PATH)" 항목을 더했다. 실측: 2026-10-18 후보9 최소 환경 실행 1분 뒤 Viewer 로그에 `XIPL is not installed. [E2100]`이 남고 System 이벤트 1074(`VIEWER.exe`, 전원 끄기)가 기록됐다. 기존 XIPL 점검은 9784 포트만 봐서 21/21 PASS였다.
+
 ## 2026-10-18
 
 ### Added

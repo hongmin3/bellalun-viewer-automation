@@ -123,6 +123,11 @@ def diagnostics(layout, check_connections=True):
         f'{length}자 (최대 {WORKSPACE_PATH_LIMIT}자): {layout.workspace}',
         '작업 폴더를 더 짧은 경로(예: D:\\BellalunAuto 작업)로 다시 선택하세요. '
         'Viewer가 저장하는 Export 증거 경로가 Windows 260자 한도를 넘으면 시험이 중간에 실패합니다.')
+    from core import product_env
+    launch_env = product_env.product_environment()
+    xipl_problem = product_env.xipl_problem(launch_env)
+    add('XIPL 설치 경로(XIPL_PATH)', xipl_problem is None,
+        xipl_problem or product_env.lookup(launch_env, 'XIPL_PATH'), product_env.XIPL_FIX)
     def section(value):
         return value if isinstance(value, dict) else {}
     viewer, xipl = section(config.get('viewer')), section(config.get('xipl'))
