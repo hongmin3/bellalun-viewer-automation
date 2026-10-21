@@ -10,8 +10,8 @@
 
 남은 일은 다음 순서다.
 
-1. USB를 연결해 후보11로 WU_09 USB 왕복을 재확인한다. 후보11 최소 환경 실행에서는 USB가 없어 SKIP이었다.
-   이어서 Python·Git이 없는 별도 PC 또는 VM, 실제 Windows 11 LTSC, Windows 10, 다른 관리자 계정 UAC에서 같은 패키지를 검증한다.
+1. Python·Git이 없는 별도 PC 또는 VM, 실제 Windows 11 LTSC, Windows 10, 다른 관리자 계정 UAC에서 같은 패키지를 검증한다.
+   WU_09 USB 왕복은 2026-10-21 다른 USB로 후보11 재확인을 마쳤다(PASS).
 2. 제품 결함 두 건(WF14 UPS 미복원, XIPL03 Step 9 값 복귀)은 제품 수정 후 재확인한다. 판정은 완화하지 않는다.
 3. Install_01 승인 Release Note, Install_02 OS Build 기준 자료를 받으면 자동 판정으로 올린다(5절 ①②).
 

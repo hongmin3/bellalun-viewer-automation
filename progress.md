@@ -1,5 +1,13 @@
 # 진행 상태
 
+## 2026-10-21 USB 연결 WU_09 재확인 완료
+
+- 이전과 다른 USB(`D:`, `VXVUE1`, FAT32 14.6GB)를 연결하고 후보11 `--clean-env` 실시간 WU 전체를 다시 수행했다(18:27~20:16).
+  live, chain_completed=true, PASS 10 / FAIL 0 / MANUAL 3. WU_09의 USB Export와 Import 되읽기(완료 신호 확인)가 PASS다.
+- USB의 기존 폴더 두 개는 보존했다. 자동화는 `BellalunWU09`만 만들었고, 제품 UPSHandler가 `D:/BellalunData/Log`에 로그를 썼다(제품 동작).
+- 같은 날 AI-Worker(qa-test-02)의 JOB-50 사용량 표시판 적용을 읽기 전용으로 확인했다. 설치 파일 해시가 배포본과 같고 실제 조회가 `status: ok`였다.
+- 남은 일: 실제 LTSC·개발 도구 없는 PC·Windows 10·다른 관리자 UAC 검증, 제품 결함 2건 재확인, Install_01·02 기준 자료.
+
 ## 2026-10-21 후보11 최소 환경 전체 실행 완료
 
 - 후보11(`56a0bc6`) `--clean-env` 기본기능 전체(10-20 21:17~23:22): 27 TC PASS 23 / FAIL 2 / MANUAL 2.

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v7">
 <meta name="spec-html-renderer" content="v7">
-<meta name="spec-source-sha256" content="3302e8d59aef86266832d22ea13281060b338550e1a80493a15de67a5d0e7ef5">
+<meta name="spec-source-sha256" content="1dfa451bd95e061fa7fe93d36da51c2bd663292689c4c07044a5e5e27ef7545f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -488,8 +488,9 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-WU-001">
 <h3><span class="idtag">REQ-WU-001</span> USB 왕복과 설정 전수 검사</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></span></div>
-<details class="history"><summary>변경 이력 11</summary>
+<details class="history"><summary>변경 이력 12</summary>
 <ul>
+<li><span class="hist">2026-10-21 · Validation</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 이전과 다른 USB(FAT32 14.6GB)를 연결하고 후보11 최소 환경 실시간 WU 전체를 다시 수행했다. PASS 10 / FAIL 0 / MANUAL 3이며 WU_09의 USB Export와 Import 되읽기가 Import 완료 신호까지 확인되어 PASS다. USB의 기존 폴더는 그대로 남았다.</li>
 <li><span class="hist">2026-10-21 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 후보11(<code>56a0bc6</code>, EXE SHA256 <code>2eb31efe…36f3</code>)을 개발 도구를 뺀 최소 환경과 <code>&amp;</code>·괄호·작은따옴표·<code>#</code>·한글이 든 작업 폴더에서 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며 FAIL은 기존 제품 결함 WF14 UPS·XIPL03이다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. USB가 분리되어 있어 WU_09의 USB 왕복 단계는 SKIP으로 남았다.</li>
 <li><span class="hist">2026-10-20 · Fixed</span> <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: WU_09에서 Export Manager가 늦게 열리면 그 창이 남아 WU_10·WU_11의 Viewer 로그인까지 실패하던 문제를 고쳤다. Export Manager 창 대기를 20초에서 60초로 늘리고, Viewer를 새로 띄우기 전에 남은 Export Manager를 닫는다. 실측: 후보10 실시간 WU에서 WF09 Export 뒤 창이 20초를 넘겨 20:15:41에 열렸고, 이어진 두 TC가 <code>최전면 창이 Viewer가 아닙니다: 'Export Manager'</code>로 FAIL했다. 같은 실행의 기본기능 WF09는 PASS였다.</li>
 <li><span class="hist">2026-10-17 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 최종 설치판 후보8(<code>516632c</code>, EXE SHA256 <code>585213b4…704b</code>)을 한글·공백이 있는 다른 드라이브에 설치해 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며, FAIL은 기존 제품 결함 WF14 UPS·XIPL_03 값 복귀다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. WU_09는 실제 USB로 Export·Import 되읽기를, WU_10은 56페이지와 24회 전환을 수행했다.</li>

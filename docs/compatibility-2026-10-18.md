@@ -85,6 +85,7 @@ build-info와 대조한 뒤 실행했다. USB는 세 실행 모두 분리 상태
 | 후보10 실시간 WU (19:16~20:20) | 13 TC: PASS 7 / FAIL 3 / MANUAL 3 | WU_09 Export Manager 20초 초과, 남은 창 때문에 WU_10·WU_11 로그인 실패 |
 | 후보11 기본기능 (10-20 21:17~23:22) | 27 TC: PASS 23 / FAIL 2 / MANUAL 2 | FAIL은 기존 제품 결함 WF14 UPS·XIPL03뿐이며 후보8과 같다 |
 | 후보11 실시간 WU (23:22~10-21 01:03) | live, chain_completed=true. 13 TC: PASS 10 / MANUAL 3 | WU 목표 충족. WU_09의 USB 왕복 단계는 `이동식 드라이브 없음`으로 SKIP |
+| 후보11 실시간 WU, USB 연결 (10-21 18:27~20:16) | live, chain_completed=true. 13 TC: PASS 10 / MANUAL 3, SKIP은 CD 1건 | 이전과 다른 USB(`VXVUE1`, FAT32 14.6GB)로 WU_09 USB Export·Import 되읽기 PASS |
 
 후보11 실행의 작업 폴더는 `C:\BellalunAuto 작업 공간\후보11 검증 & 테스트 (1) O'Brien #한글`이다.
 Viewer는 최소 환경에서도 E2100 없이 기동했고 전원 끄기 이벤트는 없었다.
@@ -94,9 +95,13 @@ Viewer는 최소 환경에서도 E2100 없이 기동했고 전원 끄기 이벤�
 | `Result_20261020_232159.json` (기본) | `b608ef2249d5c25b52dc12fc66c298fc48183a72a76d3017cccd66a11dab4862` |
 | `Result_WindowsUpdate_20261021_010312.json` (WU) | `1ea800a4147aab2c563c55e0a583f889820ade893bbda9f36484395ee21dabda` |
 | `verification.json` (실행 기록) | `cb8dc03a60de87f95cb2fe67b8a6f1bf094baf01603cd2fead685ef4f2f083a7` |
+| `Result_WindowsUpdate_20261021_201620.json` (USB 연결 WU) | `d9bdd4a692ec799feec6278ba943824dd51a5c9e1866a2da86b6d5f4e971058a` |
+| `verification.json` (USB 연결 WU 실행 기록) | `2265ff6eb7c91a06149b46d72919de74edd52bca43eea485bb90c3cea98c67fd` |
 
 실행 기록은 `C:\BellalunAuto 실행 기록\후보11-cleanenv-20261020_211748`이다(사내 PC 로컬, Git 제외).
-보존본 해시 대조는 기본 288개, WU 245개 모두 일치했다.
+보존본 해시 대조는 기본 288개, WU 245개 모두 일치했다. USB 연결 WU 실행 기록은 `C:\BellalunAuto 실행 기록\후보11-usb-wu-20261021_182716`이고 보존본 247개가 일치했다.
+
+> **참고** USB가 `D:`로 잡히면 제품의 UPSHandler(V1.0.2.2)가 Viewer 기동과 함께 `D:\BellalunData\Log\UPSHandler`에 로그를 쓴다. 자동화의 데이터 폴더(`C:\BellalunData`)와 무관한 제품 동작이다. 자동화는 USB에 `BellalunWU09`만 만들고, 기존 폴더는 건드리지 않았다.
 
 ## 7. 이 PC에서 검증할 수 없는 것
 
@@ -108,6 +113,5 @@ Viewer는 최소 환경에서도 E2100 없이 기동했고 전원 끄기 이벤�
 | 다른 관리자 계정·UAC 승인 화면 | 계정 생성은 PC 전체 변경, UAC 보안 화면은 자동 조작 불가 | 일반 권한 자체진단(E5) |
 | 화면 배율 100% 외·1920×1080 외 | 배율 변경은 로그아웃 필요 | 자체진단이 두 항목을 FAIL로 안내 |
 | 한글 사용자 계정 이름 | 계정 생성 필요 | 한글·특수문자 작업/설치 경로 시험 |
-| 후보11의 WU_09 USB 왕복 | USB가 분리되어 있었다 | 후보8(같은 USB 코드)에서 실제 USB Export·Import 되읽기 PASS |
 
 실제 LTSC PC에서는 같은 설치 파일로 `selfcheck` 후 `tools/run_installed_suites.py`로 두 전체 실행을 한 번 수행해 확인한다.
