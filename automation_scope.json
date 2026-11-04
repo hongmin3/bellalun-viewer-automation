@@ -267,7 +267,7 @@
     "tc_id": "TC_Basic_WorkFlow_16",
     "title": "Kiosk 및 System Launcher",
     "level": "MANUAL",
-    "reason": "**사용자 지정 수동 TC (2026-08-21).** 제품을 조작하는 자동화 코드를 구현하지 않는다. 회귀에는 체크리스트 누락 방지를 위한 MANUAL 판정 한 건만 기록한다. 개정본 Step 이 시스템 재시작(Step 3)과 PC 종료(Step 12)를 요구해 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는 재시작 후 Kiosk 조건에서만 나타난다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않다(Program Files 전수 탐색으로 확인). 따라서 **사용자가 수동으로 동작 확인**한다.",
+    "reason": "**사용자 지정 수동 TC (2026-08-21).** 제품을 조작하는 자동화 코드를 구현하지 않는다. 회귀에는 체크리스트 누락 방지를 위한 SKIP 판정 한 건만 기록한다(2026-11-05 사용자 결정으로 MANUAL → SKIP). 개정본 Step 이 시스템 재시작(Step 3)과 PC 종료(Step 12)를 요구해 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는 재시작 후 Kiosk 조건에서만 나타난다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않다(Program Files 전수 탐색으로 확인). 따라서 **사용자가 수동으로 동작 확인**한다.",
     "coverage": {
       "category": "사용자 지정 수동",
       "gap": "**사용자가 이 TC 전체를 수동 수행으로 지정했다(2026-08-21).** 자동화 코드를 만들지 않고 실행하지도 않는다. 개정본 Step 자체가 시스템 재시작(Step 3)·PC 종료(Step 12)·재시작 후에만 나타나는 System Launcher(Step 4~9)를 요구해 자동화 세션이 함께 죽는다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 이 PC 에 설치되어 있지 않다.",

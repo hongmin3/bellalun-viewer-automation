@@ -36,11 +36,13 @@ FILLS = {
     "Pass":   PatternFill("solid", fgColor="C6EFCE"),
     "Fail":   PatternFill("solid", fgColor="FFC7CE"),
     "Manual": PatternFill("solid", fgColor="FFEB9C"),
+    "Skip":   PatternFill("solid", fgColor="E7E6E6"),
 }
 FONTS = {
     "Pass":   Font(color="006100", bold=True),
     "Fail":   Font(color="9C0006", bold=True),
     "Manual": Font(color="9C6500", bold=True),
+    "Skip":   Font(color="808080", bold=True),
 }
 
 _VERDICT_LABEL = {"PASS": "Pass", "FAIL": "Fail", "MANUAL": "Manual",
@@ -54,8 +56,9 @@ def verdict_label(verdict):
     return _VERDICT_LABEL.get(str(verdict).upper(), str(verdict))
 
 
-#: Comment 열에 사유를 적는 판정 - Fail/Manual/Blocked만. Pass/Skip은 비워 둔다.
-_REASON_LABELS = {"Fail", "Manual", "Blocked"}
+#: Comment 열에 사유를 적는 판정 - Pass만 비워 둔다. Skip도 적는다 — 사람이 직접 하는
+#: TC(REQ-VERDICT-002)와 변환 경로의 미수행이 왜 Skip인지 보여야 한다.
+_REASON_LABELS = {"Fail", "Manual", "Blocked", "Skip"}
 
 
 def _reason_for(result, max_items=3):

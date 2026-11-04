@@ -16,7 +16,7 @@ r"""설정·계정·시스템 계열 TC의 판정부.
 | `workflow_10_evaluate` | `tests/workflow10.py` (`run-wf10`) — 1~7단계 전부 |
 | `workflow_13_evaluate` | `tests/workflow13.py` (`run-wf13`) |
 | `workflow_14_evaluate` | `tests/workflow14.py` (`run-wf14`) + `core/setting_transfer.py` + `core/setting_values.py` |
-| `WF_16` 판정부 | **삭제** — 사용자 지정 수동 TC라 `tests/workflow16.py`가 MANUAL 한 건만 기록한다 |
+| `WF_16` 판정부 | **삭제** — 사람이 직접 하는 TC라 `tests/workflow16.py`가 SKIP 한 건만 기록한다(REQ-VERDICT-002) |
 
 남겨 둔 이유: pre/post 스냅샷만으로 판정하는 형태가 다른 TC 를 설계할 때 참고가
 되고, 지우면 다음 사람이 같은 것을 다시 만들 수 있다. **다만 `run.py` 에 연결하지

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="eb0d1815beac79690b97b7b0f75809627f1640b56c814657966bffcf0c34c26d">
+<meta name="spec-source-sha256" content="1f0ba23f2b5c709123ab42c3ded1c12c2a55c933926586465c45faea98818f6a">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.2.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-04</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>17</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>16</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>18</b><span>implemented</span></div></div>
+<div class="stats"><div class="stat"><b>18</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>17</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>19</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -108,6 +108,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-TRACE-001">REQ-TRACE-001 <span>사양 근거 추적</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TRACE-002">REQ-TRACE-002 <span>Windows Update 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-VERDICT-002">REQ-VERDICT-002 <span>사람이 직접 하는 TC는 SKIP</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-REPORT-001">REQ-REPORT-001 <span>체크리스트별 결과 보고</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-001">REQ-DIST-001 <span>설치와 실행 경로</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-002">REQ-DIST-002 <span>실행 화면과 프로세스 관리</span></a></li>
@@ -131,6 +132,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-TRACE-001">TEST-TRACE-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-VERDICT-001">TEST-VERDICT-001</a></li>
+<li class="toc-id kind-test"><a href="#TEST-VERDICT-002">TEST-VERDICT-002</a></li>
 <li class="toc-id kind-test"><a href="#TEST-REPORT-001">TEST-REPORT-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-001">TEST-DIST-001 <span>배포 실행과 경로</span></a></li>
@@ -161,6 +163,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="이름">Windows Update 추적성과 정적 자체검사</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="이름">체크리스트별 결과 보고</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">DIST</span> 팀원용 설치와 실행</th></tr>
@@ -422,6 +425,32 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <p><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>, <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code>.</p>
 </div></section>
 </section>
+<section class="card kind-req" id="REQ-VERDICT-002">
+<h3><span class="idtag">REQ-VERDICT-002</span> 사람이 직접 하는 TC는 SKIP</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-05 (사람이 직접 하는 TC를 SKIP으로) · Changed</span> <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>(신규): 사람이 직접 수행하는 TC(WU_01·12·13, 기본기능 WF_16)를 MANUAL이 아니라 SKIP으로 기록한다(사용자 결정). WU 체크리스트 사본은 Skip 사유도 L열에 적고 Skip 칸을 회색으로 칠한다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>사람이 직접 수행해야 해서 자동화하지 않는 TC는 MANUAL이 아니라 SKIP으로 기록한다(2026-11-05 사용자 결정).
+대상은 <code>tests/winupdate.py</code>의 <code>HUMAN_ONLY_TCS</code>다: WU_01(OS Update·패키지 설치), WU_12(OS User 계정), WU_13(KIOSK), 기본기능 WF_16(Kiosk·System Launcher).</p>
+</div></section>
+<section class="field"><h4>규칙</h4><div class="field-body">
+<ul>
+<li>확인 항목 하나를 <code>blocks_verdict=false</code>인 SKIP으로 남기므로 TC 판정은 SKIP이다. note 첫 줄은 &quot;사람이 직접 수행하는 TC — 자동화 대상 아님(SKIP)&quot;이다.</li>
+<li>WU 체크리스트 사본은 Skip 판정의 사유도 Result 옆 L열에 적는다.</li>
+<li>자동화가 수행했지만 근거가 모자라 확인하지 못한 경우(Install_01 기준 자료 없음, USB 왕복 미확인 등)는 이 규칙 대상이 아니며 MANUAL로 남는다.</li>
+</ul>
+</div></section>
+<section class="field"><h4>관련 구현</h4><div class="field-body">
+<p><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code>.</p>
+</div></section>
+<section class="field"><h4>관련 테스트</h4><div class="field-body">
+<p><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>, <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code>.</p>
+</div></section>
+</section>
 <section class="card kind-req" id="REQ-REPORT-001">
 <h3><span class="idtag">REQ-REPORT-001</span> 체크리스트별 결과 보고</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_xipl_preparation_report.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a></span></div>
@@ -560,8 +589,9 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 같은 커밋의 검증 결과를 요구하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-05 (사람이 직접 하는 TC를 SKIP으로) · Changed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 릴리스 게이트 WU 목표를 PASS 10 / SKIP 3(WU_01·12·13)으로 바꿨다. 사람 전용 TC가 MANUAL이거나 다른 TC가 SKIP이면 거부한다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: <code>tools/release_gate.py</code>와 <code>build_distribution.py --gate-wu --gate-basic</code>을 넣었다. 리포트 meta에 <code>source_commit</code>·<code>source_dirty</code>를 남기고, 같은 커밋·수정 없는 소스의 결과만 통과시킨다. 통과하지 못한 빌드는 <code>-candidate</code> 이름과 표시 파일을 남긴다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Validation</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 후보11 리포트(<code>56a0bc6</code>)는 <code>source_commit</code>이 없어 거부된다. 그 밖의 항목(실시간·체인 완료·PASS 10 / MANUAL 3·전체 회귀·알려진 결함 외 FAIL 없음)은 통과했다.</li>
 </ul>
@@ -572,7 +602,7 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="field"><h4>순서</h4><div class="field-body">
 <ol>
 <li>리포트 meta의 <code>source_commit</code>이 빌드 커밋과 같고 <code>source_dirty</code>가 <code>false</code>인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).</li>
-<li>WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / MANUAL 3(WU_01·12·13)인지 본다.</li>
+<li>WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)인지 본다.</li>
 <li>기본기능 결과가 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지 본다.</li>
 </ol>
 </div></section>
@@ -582,7 +612,7 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="field"><h4>안 될 때</h4><div class="field-body">
 <p>게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 <code>-candidate</code>를 붙이고 <code>게이트-미통과-후보.txt</code>와 build-info에 사유를 남긴다.</p>
 <aside class="callout callout-info"><span class="callout-label">참고</span>
-<p>VXvue의 &quot;전 항목 PASS·흔들림 0&quot; 기준과 다르다. Bellalun은 사용자가 정한 MANUAL과 등록된 알려진 결함만 허용한다.
+<p>VXvue의 &quot;전 항목 PASS·흔들림 0&quot; 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 <strong>예외</strong> 리포트 문장 완전성 검사(<code>--language</code>)는 선택 사항이다.</p>
 </aside>
 </div></section>
@@ -680,7 +710,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 </tbody>
 </table></div>
 <p><strong>결정(2026-11-04, 사용자 위임):</strong> <code>manual</code>을 쓴다. USB 왕복을 확인하지 못했는데 PASS로 남으면
-<a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>의 목표(PASS 10 / MANUAL 3)에 미검증이 섞여 게이트를 통과하기 때문이다.
+<a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>의 목표(PASS 10 / SKIP 3)에 미검증이 섞여 게이트를 통과하기 때문이다. 자동화가 수행했지만 확인하지 못한 경우라 <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>의 사람 전용 SKIP과 구분한다.
 USB가 연결된 실시간 실행은 그대로 PASS가 될 수 있고, <code>--from-regression</code> 변환의 WU_09는 MANUAL이다.
 <code>flag</code>·<code>current</code>는 비교용으로 코드와 시험에 남긴다.</p>
 <p><code>--from-regression</code> 변환은 실시간 체인과 같은 함수(<code>build_wu_results</code>)를 지나므로 같은 규칙을 쓴다.
@@ -902,6 +932,15 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 각 제품 기능의 성공 증명은 TC별 실물/저장 결과로 별도 확인한다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-VERDICT-002">
+<h3><span class="idtag">TEST-VERDICT-002</span></h3>
+<div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></span></div>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>.</li>
+<li>절차: <code>tests/test_human_only_skip.py</code>로 WU_01·12·13과 WF_16이 SKIP이고 사유가 note와 체크리스트 사본 L열에 남는지, <code>tests/test_release_gate.py</code>로 게이트가 PASS 10 / SKIP 3만 통과시키고 사람 전용 TC의 MANUAL·다른 TC의 SKIP을 거부하는지 확인한다.</li>
+<li>Expected Result: 사람이 할 TC는 SKIP과 사유로 보이고 게이트 목표가 그 셋으로 고정된다.</li>
+</ul>
+</section>
 <section class="card kind-test" id="TEST-REPORT-001">
 <h3><span class="idtag">TEST-REPORT-001</span></h3>
 <div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></span></div>
@@ -1024,6 +1063,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="Implementation"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_xipl_preparation_report.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="Implementation"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a></td><td data-label="Implementation"><code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>

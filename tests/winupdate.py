@@ -89,6 +89,21 @@ KNOWN_DEFECT_EXCLUDE = {
 }
 
 
+# 사람이 직접 수행하는 TC(사용자 지정 수동). 2026-11-05 사용자 결정으로 MANUAL 이 아니라
+# SKIP 으로 기록한다(SPEC REQ-VERDICT-002). 자동화가 확인하지 않는다는 뜻이므로 판정을
+# 끌어내리지 않는 SKIP(`blocks_verdict=False`)이고, 사유는 체크리스트 L열에 남는다.
+HUMAN_ONLY_TCS = ("TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13",
+                  "TC_Basic_WorkFlow_16")
+HUMAN_ONLY_NOTE = "사람이 직접 수행하는 TC — 자동화 대상 아님(SKIP)"
+
+
+def human_only_skip(result, title, reason, expected):
+    """사람 전용 TC 를 SKIP 한 건으로 기록한다. note 첫 줄이 L열 사유가 된다."""
+    return result.skip(0, title, f"{HUMAN_ONLY_NOTE}. {reason}",
+                       expected=expected, actual="자동화 미수행 (사람이 직접 수행)",
+                       blocks_verdict=False)
+
+
 # USB 왕복을 확인하지 못했을 때(이동식 드라이브 없음, `--from-regression` 변환)
 # WU_09 를 어떻게 표시할지(REQ-WU-003). USB 단계를 SKIP 하는 정책 자체는 유지하고,
 # 표시만 아래 셋 중 하나로 정한다.
@@ -96,7 +111,8 @@ KNOWN_DEFECT_EXCLUDE = {
 #   "flag"     : PASS 는 유지하되 리포트 L열·비-PASS 목록에 "USB 왕복 미확인"을 표시한다.
 #   "current"  : 기존 표시(PASS, 별도 표시 없음).
 # 2026-11-04 사용자 결정으로 "manual"을 쓴다(SPEC.md REQ-WU-003). 확인하지 못한 USB 왕복이
-# PASS 로 남으면 릴리스 게이트의 PASS 10 / MANUAL 3 목표에 미검증이 섞이기 때문이다.
+# PASS 로 남으면 릴리스 게이트의 PASS 10 / SKIP 3 목표에 미검증이 섞이기 때문이다.
+# 사람 전용 TC(HUMAN_ONLY_TCS)와 달리 자동화가 수행했는데 확인하지 못한 경우라 MANUAL 로 둔다.
 USB_UNVERIFIED_POLICY = "manual"
 USB_UNVERIFIED_LABEL = "USB 왕복 미확인"
 
@@ -456,39 +472,33 @@ def _wu_01(lookup):
         "실측 OS": pc.get("os_caption"),
         "실측 OS Build": upd.get("build_full") or pc.get("os_build"),
     }
-    r.manual(
-        0, "OS Update 수행과 패키지 설치는 사람이 직접 확인한다",
-        "**사용자 지정 수동 TC.** OS Update 수행과 패키지 설치 행위 자체는 "
-        f"사람 몫이라 자동화 대상이 아니다(TC_Basic_WorkFlow_16과 같은 방식). "
-        f"참고 근거: {ref}",
-        expected="시험자가 WU 체크리스트 Step 1을 수동 수행",
-        actual="자동화 미수행 (사용자 지정 수동, 참고 근거 첨부)")
+    human_only_skip(
+        r, "OS Update 수행과 패키지 설치는 사람이 직접 확인한다",
+        "OS Update 수행과 패키지 설치 행위 자체는 사람 몫이다(TC_Basic_WorkFlow_16과 "
+        f"같은 방식). 참고 근거: {ref}",
+        expected="시험자가 WU 체크리스트 Step 1을 수동 수행")
     r.wu_basis = f"참고: TC_Basic_Install_01/02, core.sysinfo"
     return r
 
 
 def _wu_12():
     r = TCResult("TC_WindowsUpdate_12", WU_TITLES["TC_WindowsUpdate_12"])
-    r.manual(
-        0, "OS User 계정 로그인/권한 확인은 사람이 직접 확인한다",
-        "**사용자 지정 수동 TC(2026-09-07 사용자 확정).** OS User 그룹 "
-        "계정은 스스로를 승격할 수 없고, UI 자동화는 그 계정의 대화형 세션 "
-        "안에서만 동작해 완전 자동화가 불가능하다고 판단했다.",
-        expected="시험자가 WU 체크리스트 Step 1~3을 수동 수행",
-        actual="자동화 미수행 (사용자 지정 수동)")
+    human_only_skip(
+        r, "OS User 계정 로그인/권한 확인은 사람이 직접 확인한다",
+        "2026-09-07 사용자 확정. OS User 그룹 계정은 스스로를 승격할 수 없고, UI "
+        "자동화는 그 계정의 대화형 세션 안에서만 동작해 완전 자동화가 불가능하다.",
+        expected="시험자가 WU 체크리스트 Step 1~3을 수동 수행")
     r.wu_basis = "자동화 대상 아님(사용자 확정)"
     return r
 
 
 def _wu_13():
     r = TCResult("TC_WindowsUpdate_13", WU_TITLES["TC_WindowsUpdate_13"])
-    r.manual(
-        0, "KIOSK 모드 설정/해제와 System Launcher는 사람이 직접 확인한다",
-        "**사용자 지정 수동 TC.** 기본기능 TC_Basic_WorkFlow_16과 동일한 "
-        "사유(시스템 재기동·KIOSK 전환·Shutdown 등 파괴적 동작)로 이미 "
-        "사용자 지정 수동이다.",
-        expected="시험자가 WU 체크리스트 Step 1~7을 수동 수행",
-        actual="자동화 미수행 (사용자 지정 수동)")
+    human_only_skip(
+        r, "KIOSK 모드 설정/해제와 System Launcher는 사람이 직접 확인한다",
+        "기본기능 TC_Basic_WorkFlow_16과 같은 사유(시스템 재기동·KIOSK 전환·"
+        "Shutdown 등 파괴적 동작)다.",
+        expected="시험자가 WU 체크리스트 Step 1~7을 수동 수행")
     r.wu_basis = "자동화 대상 아님(TC_Basic_WorkFlow_16과 동일 사유)"
     return r
 

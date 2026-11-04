@@ -1244,7 +1244,7 @@ def _main():
                    help="TC_Basic_WorkFlow_15 Pre-send Preview 표시 및 전송")
     sub.add_parser("run-wf16",
                    help="TC_Basic_WorkFlow_16 Kiosk 및 System Launcher "
-                        "(**사용자 지정 수동** — MANUAL 판정만 기록, UI 조작 없음)")
+                        "(**사람이 직접 수행** — SKIP 판정만 기록, UI 조작 없음)")
     sub.add_parser("run-xipl", help="XIPL 01~06 실제 UI 자동화 및 Pass/Fail 판정")
     sub.add_parser("run-xipl-01", help="Viewer/XIPL Histogram, W1/W2, PIM TC01만 실행")
     sub.add_parser("run-xipl-02", help="Viewer 2D Image Processing TC02만 실행")
@@ -1418,7 +1418,7 @@ def _main():
     ui_commands = {"setup-dicom", "setup-storage", "setup-print", "run-ui", "run-wf01", "run-wf02", "run-wf03", "run-wf04", "run-wf05", "run-wf06", "run-wf07",
                    "run-wf08", "run-wf09", "run-wf10", "run-wf11", "run-wf12", "run-wf13",
                    # `run-wf16` 은 2026-08-21 부터 UI 를 건드리지 않는다
-                   # (사용자 지정 수동 — MANUAL 판정만 기록). 그래서 관리자 권한·
+                   # (사람이 직접 수행 — SKIP 판정만 기록). 그래서 관리자 권한·
                    # 해상도 게이트 대상에서 뺀다.
                    "run-wf14", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",

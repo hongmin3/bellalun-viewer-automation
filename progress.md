@@ -1,5 +1,11 @@
 # 진행 상태
 
+## 2026-11-05 사람이 직접 하는 TC를 SKIP으로 (REQ-VERDICT-002)
+
+- 사용자 결정: 사람이 직접 해야 하는 TC는 기본적으로 SKIP. 대상 WU_01·12·13, WF_16(`tests/winupdate.py` `HUMAN_ONLY_TCS`).
+- 릴리스 게이트 WU 목표는 PASS 10 / SKIP 3. 2026-11-05 이전 리포트에는 같은 셋이 MANUAL로 남아 있다.
+- 그대로 둔 것: 자동화가 수행했지만 확인하지 못한 MANUAL(Install_01 기준 자료 없음, USB 왕복 미확인)과 `run.py list`의 자동화 등급 표시(`level`).
+
 ## 2026-11-04 WU 자동화 정비 (Issue #79, 기존 #2~#9 통합)
 
 - 완료(코드·단위시험·읽기 전용 실측): REQ-WU-002~006, REQ-TRACE-002, REQ-DIST-005. 단위 643개 OK(skip 2), 정적 검사 7종 이상 없음.

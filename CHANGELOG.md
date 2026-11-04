@@ -2,6 +2,18 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-11-05 (사람이 직접 하는 TC를 SKIP으로)
+
+### Changed
+
+- REQ-VERDICT-002(신규): 사람이 직접 수행하는 TC(WU_01·12·13, 기본기능 WF_16)를 MANUAL이 아니라 SKIP으로 기록한다(사용자 결정). WU 체크리스트 사본은 Skip 사유도 L열에 적고 Skip 칸을 회색으로 칠한다.
+- REQ-DIST-005: 릴리스 게이트 WU 목표를 PASS 10 / SKIP 3(WU_01·12·13)으로 바꿨다. 사람 전용 TC가 MANUAL이거나 다른 TC가 SKIP이면 거부한다.
+- 자동화가 수행했지만 근거가 모자라 확인하지 못한 MANUAL(Install_01 기준 자료 없음, USB 왕복 미확인 등)과 `automation_scope.json`의 자동화 등급 `level`은 바꾸지 않았다.
+
+### Validation
+
+- 단위시험 649개 통과(skip 2), 정적 검사 7종 이상 없음. 실제 기준 WU 체크리스트로 사본을 만드는 시험(`tests/test_human_only_skip.py`)으로 Skip 판정과 L열 사유를 확인했다. Viewer 실행은 하지 않았다.
+
 ## 2026-11-04 (WU 자동화 정비)
 
 ### Added

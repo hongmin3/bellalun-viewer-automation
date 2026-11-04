@@ -173,6 +173,20 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 #### 관련 테스트
 TEST-VERDICT-001, `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py`.
 
+### REQ-VERDICT-002 사람이 직접 하는 TC는 SKIP
+
+#### 하는 일
+사람이 직접 수행해야 해서 자동화하지 않는 TC는 MANUAL이 아니라 SKIP으로 기록한다(2026-11-05 사용자 결정).
+대상은 `tests/winupdate.py`의 `HUMAN_ONLY_TCS`다: WU_01(OS Update·패키지 설치), WU_12(OS User 계정), WU_13(KIOSK), 기본기능 WF_16(Kiosk·System Launcher).
+#### 규칙
+- 확인 항목 하나를 `blocks_verdict=false`인 SKIP으로 남기므로 TC 판정은 SKIP이다. note 첫 줄은 "사람이 직접 수행하는 TC — 자동화 대상 아님(SKIP)"이다.
+- WU 체크리스트 사본은 Skip 판정의 사유도 Result 옆 L열에 적는다.
+- 자동화가 수행했지만 근거가 모자라 확인하지 못한 경우(Install_01 기준 자료 없음, USB 왕복 미확인 등)는 이 규칙 대상이 아니며 MANUAL로 남는다.
+#### 관련 구현
+`tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py`.
+#### 관련 테스트
+TEST-VERDICT-002, `tests/test_human_only_skip.py`, `tests/test_release_gate.py`.
+
 ### REQ-REPORT-001 체크리스트별 결과 보고
 
 #### 목적
@@ -260,13 +274,13 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 정식 빌드 전에 빌드할 소스와 같은 커밋에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과가 목표를 채웠는지 확인한다.
 #### 순서
 1. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
-2. WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / MANUAL 3(WU_01·12·13)인지 본다.
+2. WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
 3. 기본기능 결과가 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지 본다.
 #### 결과
 `python tools/release_gate.py`가 항목별 통과·실패와 거부 사유를 보여 준다. `tools/build_distribution.py --gate-wu --gate-basic`은 빌드 전에 같은 판정을 한다.
 #### 안 될 때
 게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 `-candidate`를 붙이고 `게이트-미통과-후보.txt`와 build-info에 사유를 남긴다.
-> **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사용자가 정한 MANUAL과 등록된 알려진 결함만 허용한다.
+> **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 > **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
 
 ### REQ-WU-001 USB 왕복과 설정 전수 검사
@@ -325,7 +339,7 @@ USB 왕복을 확인하지 못했을 때 WU_09 표시 정책(`tests/winupdate.py
 | `current` | PASS | 기존 표시 |
 
 **결정(2026-11-04, 사용자 위임):** `manual`을 쓴다. USB 왕복을 확인하지 못했는데 PASS로 남으면
-REQ-DIST-005의 목표(PASS 10 / MANUAL 3)에 미검증이 섞여 게이트를 통과하기 때문이다.
+REQ-DIST-005의 목표(PASS 10 / SKIP 3)에 미검증이 섞여 게이트를 통과하기 때문이다. 자동화가 수행했지만 확인하지 못한 경우라 REQ-VERDICT-002의 사람 전용 SKIP과 구분한다.
 USB가 연결된 실시간 실행은 그대로 PASS가 될 수 있고, `--from-regression` 변환의 WU_09는 MANUAL이다.
 `flag`·`current`는 비교용으로 코드와 시험에 남긴다.
 
@@ -499,6 +513,12 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - Expected Result: 잘못된 창에서의 조작이 성공으로 둔갑하지 않고 검증 한계가 남는다.
   각 제품 기능의 성공 증명은 TC별 실물/저장 결과로 별도 확인한다.
 
+### TEST-VERDICT-002
+
+- 검증 대상: REQ-VERDICT-002.
+- 절차: `tests/test_human_only_skip.py`로 WU_01·12·13과 WF_16이 SKIP이고 사유가 note와 체크리스트 사본 L열에 남는지, `tests/test_release_gate.py`로 게이트가 PASS 10 / SKIP 3만 통과시키고 사람 전용 TC의 MANUAL·다른 TC의 SKIP을 거부하는지 확인한다.
+- Expected Result: 사람이 할 TC는 SKIP과 사유로 보이고 게이트 목표가 그 셋으로 고정된다.
+
 ### TEST-REPORT-001
 
 - 검증 대상: REQ-REPORT-001.
@@ -593,6 +613,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
+| REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py` | implemented |

@@ -34,7 +34,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 WU_IDS = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
-#: 기존 사용자 지정 수동 범위. 목표 판정에서 빼고 나머지 10건의 PASS 를 요구한다.
+#: 사람이 직접 하는 범위(REQ-VERDICT-002, 판정 SKIP). 목표 판정에서 빼고 나머지 10건의 PASS 를 요구한다.
 WU_MANUAL = {"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"}
 SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
 

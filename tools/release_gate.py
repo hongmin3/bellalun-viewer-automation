@@ -3,7 +3,7 @@
 
 Bellalun 정책은 VXvue 의 "전 항목 PASS·flake 0" 정책과 **다르다.**
 
-* MANUAL 은 사용자 결정으로 허용한다. WU 는 사용자 지정 수동 TC(WU_01·12·13)만,
+* 사람이 직접 하는 TC 는 SKIP 이다. WU 는 사람 전용 TC(WU_01·12·13)만 SKIP 을 허용하고,
   기본기능 회귀는 MANUAL TC 를 그대로 허용하고 목록만 보고한다.
 * FAIL 은 `tests/winupdate.py::KNOWN_DEFECT_EXCLUDE` 에 등록된 (tc_id, check
   title) 기존 알려진 제품 결함만 허용한다. 그 결함 때문에 TC 가 중단되며 생긴
@@ -35,11 +35,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.automation_health import FULL_REGRESSION_MARKERS  # noqa: E402
-from tests.winupdate import KNOWN_DEFECT_EXCLUDE  # noqa: E402
+from tests.winupdate import HUMAN_ONLY_TCS, KNOWN_DEFECT_EXCLUDE  # noqa: E402
 
 WU_IDS = tuple(f"TC_WindowsUpdate_{i:02}" for i in range(1, 14))
-#: 사용자 지정 수동 TC. 이 셋만 MANUAL 이어야 하고 나머지 10건은 PASS 여야 한다.
-WU_MANUAL = frozenset({"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"})
+#: 사람이 직접 하는 TC. 이 셋만 SKIP 이어야 하고 나머지 10건은 PASS 여야 한다
+#: (2026-11-05 사용자 결정으로 MANUAL → SKIP, REQ-VERDICT-002).
+WU_HUMAN_ONLY = frozenset(t for t in HUMAN_ONLY_TCS if t.startswith("TC_WindowsUpdate_"))
 #: `run.py::pad_aborted_steps` 가 채우는 미수행 Step 의 제목·실제값.
 PAD_TITLE = re.compile(r"^Step \d+ 미수행$")
 PAD_ACTUAL = "수행하지 않음(앞선 단계에서 TC 가 중단됨)"
@@ -106,13 +107,13 @@ def _evaluate_wu(report, checks, reasons):
            "WU_01~13 13건" if ok_ids else f"WU_01~13 정확히 13건이어야 합니다 (실제 {len(ids)}건)")
     verdicts = {row.get("tc_id"): row.get("verdict") for row in results}
     passed = sorted(t for t, v in verdicts.items() if v == "PASS")
-    manual = sorted(t for t, v in verdicts.items() if v == "MANUAL")
-    other = sorted(f"{t}={v}" for t, v in verdicts.items() if v not in ("PASS", "MANUAL"))
-    ok = len(passed) == 10 and set(manual) == WU_MANUAL and not other
-    detail = f"PASS {len(passed)} / MANUAL {len(manual)}"
+    skipped = sorted(t for t, v in verdicts.items() if v == "SKIP")
+    other = sorted(f"{t}={v}" for t, v in verdicts.items() if v not in ("PASS", "SKIP"))
+    ok = len(passed) == 10 and set(skipped) == WU_HUMAN_ONLY and not other
+    detail = f"PASS {len(passed)} / SKIP {len(skipped)}"
     if not ok:
-        detail += (" — 목표는 PASS 10 / MANUAL 3(WU_01·12·13)"
-                   + (f"; MANUAL {', '.join(manual)}" if set(manual) != WU_MANUAL else "")
+        detail += (" — 목표는 PASS 10 / SKIP 3(사람 전용 WU_01·12·13)"
+                   + (f"; SKIP {', '.join(skipped)}" if set(skipped) != WU_HUMAN_ONLY else "")
                    + (f"; 그 밖 {', '.join(other)}" if other else ""))
     _check(checks, reasons, "WU 목표 판정", ok, detail)
 

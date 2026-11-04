@@ -39,7 +39,7 @@ def _identity(commit=SHA, dirty=False):
 
 
 def wu_report(**meta):
-    rows = [_tc(tc, "MANUAL" if tc in gate.WU_MANUAL else "PASS") for tc in gate.WU_IDS]
+    rows = [_tc(tc, "SKIP" if tc in gate.WU_HUMAN_ONLY else "PASS") for tc in gate.WU_IDS]
     base = {"execution_mode": "live", "chain_completed": True, **_identity()}
     base.update(meta)
     return {"meta": base, "results": rows}
@@ -99,7 +99,7 @@ class EvaluateTests(unittest.TestCase):
         self.assertFalse(self._run(wu=wu_report(chain_completed=False))["passed"])
         self.assertFalse(self._run(wu=wu_report(chain_completed="true"))["passed"])
 
-    def test_wu_requires_exactly_13_tcs_and_pass10_manual3(self):
+    def test_wu_requires_exactly_13_tcs_and_pass10_skip3(self):
         wu = wu_report()
         wu["results"].pop()
         self.assertFalse(self._run(wu=wu)["passed"])
@@ -108,7 +108,13 @@ class EvaluateTests(unittest.TestCase):
         result = self._run(wu=wu)
         self.assertTrue(any("WU 목표 판정" in r for r in result["reasons"]))
         wu = wu_report()
-        wu["results"][0]["verdict"] = "PASS"       # WU_01 은 MANUAL 이어야 한다
+        wu["results"][0]["verdict"] = "PASS"       # WU_01 은 사람 전용 SKIP 이어야 한다
+        self.assertFalse(self._run(wu=wu)["passed"])
+        wu = wu_report()
+        wu["results"][0]["verdict"] = "MANUAL"     # 사람 전용 TC 는 2026-11-05 부터 SKIP
+        self.assertFalse(self._run(wu=wu)["passed"])
+        wu = wu_report()
+        wu["results"][8]["verdict"] = "SKIP"       # 사람 전용 밖의 SKIP 은 목표 미달
         self.assertFalse(self._run(wu=wu)["passed"])
         wu = wu_report()
         wu["results"][4]["verdict"] = "FAIL"

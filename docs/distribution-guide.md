@@ -68,7 +68,7 @@ python tools/build_distribution.py --assets <승인 manifest> --output <빈 폴�
 게이트는 다음을 모두 만족해야 통과한다.
 
 - 두 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`다.
-- WU 결과가 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / MANUAL 3(WU_01·12·13)이다.
+- WU 결과가 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13)이다. 2026-11-05 이전 리포트는 같은 셋이 MANUAL로 기록돼 있다.
 - 기본기능 결과가 전체 회귀이고, `KNOWN_DEFECT_EXCLUDE`에 등록된 결함 밖의 FAIL·BLOCKED가 없다.
 
 게이트 입력이 없거나 통과하지 못해도 빌드는 할 수 있다. 그때 산출물 이름에 `-candidate`가 붙고
