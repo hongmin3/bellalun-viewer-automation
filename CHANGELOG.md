@@ -7,9 +7,9 @@
 ### Added
 
 - REQ-WU-002: 실시간 WU 체인이 단계마다 시간 상한과 Viewer 응답 없음(120초 연속)을 감시한다. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤 그 단계 TC를 BLOCKED로 기록하고, Viewer를 다시 띄워 다음 단계를 계속한다. 단계가 끝날 때마다 `work/winupdate_checkpoint.json`에 저장하고 `run-winupdate --resume`으로 남은 단계만 이어 실행한다. 실행 중 절전을 막는다.
-- REQ-WU-003: SKIP마다 판정을 막는지(`blocks_verdict`)를 적는다. WU_09 CD SKIP은 막지 않는다. USB 미확인 표시 정책(`manual`/`flag`/`current`)을 넣었고 사용자 결정 전에는 `current`다.
+- REQ-WU-003: SKIP마다 판정을 막는지(`blocks_verdict`)를 적는다. WU_09 CD SKIP은 막지 않는다. USB 미확인 표시 정책(`manual`/`flag`/`current`)을 넣었고, 사용자 위임 결정으로 `manual`(USB 왕복 미확인이면 WU_09 MANUAL)을 쓴다.
 - REQ-WU-004: 실행 전 점검(해상도·DPI·메모리·USB 유무·재부팅 대기·시계·작업 폴더 경로)과 `verified_environments.json` 대조를 넣었다. 미등록 환경은 WARN으로 리포트와 체크리스트 사본 L열에 남긴다. 로그인 직후 핵심 컨트롤 화면 계약이 맞지 않으면 BLOCKED로 체인을 멈춘다.
-- REQ-WU-005: 실시간 실행마다 OS 빌드+UBR·KB 목록·마지막 업데이트 설치 시각을 기록하고 직전 기록과의 비교표를 '업데이트 전후' 시트와 meta에 남긴다. `run.py update-watch`는 빌드·KB가 바뀌었을 때만 `run-winupdate`를 한 번 실행하고, 예약 등록은 `--apply`가 있을 때만 한다.
+- REQ-WU-005: 실시간 실행마다 OS 빌드+UBR·KB 목록·마지막 업데이트 설치 시각을 기록하고 직전 기록과의 비교표를 '업데이트 전후' 시트와 meta에 남긴다. `run.py update-watch`는 빌드·KB가 바뀌었을 때만 `run-winupdate`를 한 번 실행하고, 예약 등록은 `--apply`가 있을 때만 한다. 사용자 결정으로 예약 작업은 등록하지 않고 필요할 때 사람이 직접 실행한다.
 - REQ-WU-006: Viewer 소멸·단계 중단 때 `Evidence/failure/`에 로그 ±30초·메모리·GDI/USER 핸들·전면 창·WER 덤프 판정을 남긴다. Setting 순회는 페이지별 핸들 수를 기록한다. `tools/wu_flake_stats.py`로 여러 리포트의 판정 갈림을 센다.
 - REQ-TRACE-002: WU_01~13을 `automation_scope.json`·`traceability.json`에 넣었다. `run.py list`는 WU 합계를 따로 보여 준다. `tools/wu_selfcheck.py`가 WU 매핑 일치, 예외 경로 PASS, 공유 `ctypes.windll` 원형 변경을 검사한다.
 - REQ-DIST-005: `tools/release_gate.py`와 `build_distribution.py --gate-wu --gate-basic`을 넣었다. 리포트 meta에 `source_commit`·`source_dirty`를 남기고, 같은 커밋·수정 없는 소스의 결과만 통과시킨다. 통과하지 못한 빌드는 `-candidate` 이름과 표시 파일을 남긴다.
@@ -21,6 +21,8 @@
 
 ### Changed
 
+- REQ-TRACE-002: `core/ui.py`가 공유 `ctypes.windll.user32`의 `SendInput`·`WindowFromPoint`·`GetAncestor` 서명을 바꾸던 6곳을 모듈 전용 `ctypes.WinDLL("user32")` 사본으로 옮겼다(사용자 승인). `wu_selfcheck` 검사 c의 기준선이 비었다.
+- 공용 QA 서버 검증 자료 관리의 Bellalun Test Case 구역에 WU 체크리스트(R-25-782)를 등록했다.
 - REQ-VERDICT-001: WU_09 사양 문장을 현재 동작(교차 확인으로 PASS/FAIL, 근거 미수집만 MANUAL)에 맞췄다. `tests/winupdate.py`의 대비용 MANUAL 분기 주석도 고쳤다.
 - 문서: README의 최신 검증 결과를 후보11 최소 환경 실행과 10-21 USB 재확인으로, 배포 가이드의 검증 호스트를 Win11 Pro 26200(LTSC 실측은 후보5·6까지)으로 고쳤다. SPEC 13절에 미검증 환경 표를 두었다.
 

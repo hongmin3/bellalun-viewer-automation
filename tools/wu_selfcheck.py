@@ -47,16 +47,9 @@ CTYPES_FUNC_ATTRS = {"restype", "argtypes", "errcheck"}
 #: `PASS if ok else FAIL` 처럼 조건으로 고르는 식은 직접 기록이 아니라 세지 않는다.
 EXCEPT_PASS_BASELINE = ()
 
-#: 검사 c 기준선 — 기존 위반(사용자 확인 전까지 보고만 한다). 2026-11-04 실측:
-#: `core/ui.py` 모듈 수준에서 공유 `ctypes.windll.user32` 함수 서명을 지정한다.
-WINDLL_BASELINE = (
-    "core/ui.py::<module>: u32.SendInput.argtypes = ...",
-    "core/ui.py::<module>: u32.SendInput.restype = ...",
-    "core/ui.py::<module>: u32.WindowFromPoint.argtypes = ...",
-    "core/ui.py::<module>: u32.WindowFromPoint.restype = ...",
-    "core/ui.py::<module>: u32.GetAncestor.argtypes = ...",
-    "core/ui.py::<module>: u32.GetAncestor.restype = ...",
-)
+#: 검사 c 기준선 — 기존 위반(사용자 확인 전까지 보고만 한다). 2026-11-04 실측 6건이던
+#: `core/ui.py` 모듈 수준 서명 지정은 사용자 승인으로 전용 `WinDLL` 사본으로 옮겨 0건이다.
+WINDLL_BASELINE = ()
 
 
 # ---------------------------------------------------------------------

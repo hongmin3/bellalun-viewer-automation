@@ -60,14 +60,18 @@ class _INPUT(ctypes.Structure):
 INPUT_KEYBOARD = 1
 KEYEVENTF_UNICODE = 0x0004
 
-u32.SendInput.argtypes = (w.UINT, ctypes.POINTER(_INPUT), ctypes.c_int)
-u32.SendInput.restype = w.UINT
+# 서명(argtypes/restype)은 이 모듈 전용 WinDLL 사본에만 지정한다. 공유
+# `ctypes.windll.user32` 의 함수 서명을 바꾸면 같은 프로세스의 다른 모듈 호출이
+# 조용히 달라진다(tools/wu_selfcheck.py 검사 c).
+_u32p = ctypes.WinDLL("user32")
+_u32p.SendInput.argtypes = (w.UINT, ctypes.POINTER(_INPUT), ctypes.c_int)
+_u32p.SendInput.restype = w.UINT
 
-u32.WindowFromPoint.argtypes = (w.POINT,)
-u32.WindowFromPoint.restype = w.HWND
+_u32p.WindowFromPoint.argtypes = (w.POINT,)
+_u32p.WindowFromPoint.restype = w.HWND
 GA_ROOT = 2
-u32.GetAncestor.argtypes = (w.HWND, ctypes.c_uint)
-u32.GetAncestor.restype = w.HWND
+_u32p.GetAncestor.argtypes = (w.HWND, ctypes.c_uint)
+_u32p.GetAncestor.restype = w.HWND
 
 
 def send_unicode(ch):
@@ -77,7 +81,7 @@ def send_unicode(ch):
         inp = _INPUT(type=INPUT_KEYBOARD)
         inp.u.ki = _KEYBDINPUT(wVk=0, wScan=ord(ch), dwFlags=flags,
                                time=0, dwExtraInfo=None)
-        sent += u32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(_INPUT))
+        sent += _u32p.SendInput(1, ctypes.byref(inp), ctypes.sizeof(_INPUT))
     return sent
 
 
@@ -157,10 +161,10 @@ def _window_at_point(point):
     로 올라간다.
     """
     pt = w.POINT(int(point[0]), int(point[1]))
-    hwnd = u32.WindowFromPoint(pt)
+    hwnd = _u32p.WindowFromPoint(pt)
     if not hwnd:
         return None
-    return u32.GetAncestor(hwnd, GA_ROOT) or hwnd
+    return _u32p.GetAncestor(hwnd, GA_ROOT) or hwnd
 
 
 def top_windows(pid):

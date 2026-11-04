@@ -73,8 +73,9 @@ class SkipVerdictMatrixTests(unittest.TestCase):
         # WU_10 의 변환 경로 SKIP 은 TC 전체가 SKIP 이라 PASS 가 될 수 없다.
         self.assertEqual(skips, [("TC_WindowsUpdate_10", "Setting 화면 표시")])
 
-    def test_default_policy_is_current_until_user_decides(self):
-        self.assertEqual(winupdate.USB_UNVERIFIED_POLICY, "current")
+    def test_default_policy_is_manual_by_user_decision(self):
+        # 2026-11-04 사용자 결정(SPEC REQ-WU-003): USB 왕복 미확인은 PASS 로 두지 않는다.
+        self.assertEqual(winupdate.USB_UNVERIFIED_POLICY, "manual")
 
 
 class BlocksVerdictResultTests(unittest.TestCase):

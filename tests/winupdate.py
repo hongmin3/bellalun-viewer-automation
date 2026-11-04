@@ -95,8 +95,9 @@ KNOWN_DEFECT_EXCLUDE = {
 #   "manual"   : USB SKIP 이 판정을 막는다(blocks_verdict=True) → WU_09 는 PASS 가 아니라 MANUAL.
 #   "flag"     : PASS 는 유지하되 리포트 L열·비-PASS 목록에 "USB 왕복 미확인"을 표시한다.
 #   "current"  : 기존 표시(PASS, 별도 표시 없음).
-# 사용자 결정 전에는 기존 동작("current")을 유지한다. 결정은 SPEC.md REQ-WU-003 에 적는다.
-USB_UNVERIFIED_POLICY = "current"
+# 2026-11-04 사용자 결정으로 "manual"을 쓴다(SPEC.md REQ-WU-003). 확인하지 못한 USB 왕복이
+# PASS 로 남으면 릴리스 게이트의 PASS 10 / MANUAL 3 목표에 미검증이 섞이기 때문이다.
+USB_UNVERIFIED_POLICY = "manual"
 USB_UNVERIFIED_LABEL = "USB 왕복 미확인"
 
 

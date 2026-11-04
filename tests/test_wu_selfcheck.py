@@ -189,12 +189,14 @@ class WindllCheckTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_cli_exits_zero_and_prints_baseline(self):
+    def test_cli_exits_zero_with_empty_baselines(self):
         result = subprocess.run([sys.executable, str(ROOT / "tools" / "wu_selfcheck.py")],
                                 capture_output=True, text=True, encoding="utf-8",
                                 timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("(기준선)", result.stdout)
+        # 기준선이 모두 비어 있다(core/ui.py 6건은 전용 WinDLL 사본으로 옮겼다).
+        self.assertNotIn("(기준선)", result.stdout)
+        self.assertIn("현재 0건 / 기준선 0건", result.stdout)
 
 
 if __name__ == "__main__":
