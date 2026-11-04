@@ -341,7 +341,7 @@ def stage_resources(root, distribution, assets):
     resources = distribution / 'resources'
     resources.mkdir(exist_ok=True)
     _write_json(resources / 'config.example.json', default_config(resource_dir=root))
-    for name in ('automation_scope.json', 'traceability.json'):
+    for name in ('automation_scope.json', 'traceability.json', 'verified_environments.json'):
         shutil.copyfile(root / name, resources / name)
     stage_assets(assets, distribution)
     # Do not expose local absolute source paths in installed metadata.
@@ -381,6 +381,36 @@ def stage_resources(root, distribution, assets):
     _write_json(licenses / 'public-runtime-provenance.json', license_manifest)
 
 
+def _release_gate():
+    # tools/ 는 패키지가 아니고 시험은 이 파일을 경로로 읽으므로 파일 위치로 불러온다.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('bellalun_release_gate',
+                                                  Path(__file__).with_name('release_gate.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def artifact_names(version, gate):
+    """게이트 미통과 후보는 산출물 이름에 -candidate 를 붙여 정식본과 구별한다."""
+    tag = '' if gate.get('passed') else '-candidate'
+    return f'BellalunAuto-{version}{tag}-portable.zip', f'BellalunAuto-{version}{tag}-setup.exe'
+
+
+CANDIDATE_MARKER = '게이트-미통과-후보.txt'
+
+
+def write_candidate_marker(directory, gate):
+    """후보 빌드면 표식 파일을 남긴다. 통과 빌드는 아무것도 쓰지 않는다."""
+    if gate.get('passed'):
+        return None
+    path = Path(directory) / CANDIDATE_MARKER
+    lines = ['이 빌드는 릴리스 게이트를 통과하지 않은 후보입니다. 정식 배포에 쓰지 마십시오.', '']
+    lines += [f'- {reason}' for reason in gate.get('reasons') or []]
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    return path
+
+
 def build(args):
     root = ROOT
     output = Path(args.output).expanduser().absolute()
@@ -399,6 +429,12 @@ def build(args):
         raise ValueError('빌드 메타데이터에 필요한 Git을 찾지 못했습니다')
     commit = subprocess.check_output([git, 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     dirty = bool(subprocess.check_output([git, 'status', '--porcelain'], cwd=root, text=True).strip())
+    # 정식 빌드 전에 릴리스 게이트를 판정한다. 미통과·미지정이면 후보로만 만든다.
+    gate = _release_gate().gate_for_build(getattr(args, 'gate_wu', None),
+                                          getattr(args, 'gate_basic', None), commit, dirty)
+    print(f"릴리스 게이트: {gate['label']}")
+    for reason in gate['reasons']:
+        print(f'  - {reason}')
     compile_dir = output / 'compile'
     if args.skip_compile:
         if not args.compiled_dir:
@@ -420,6 +456,7 @@ def build(args):
     distribution = output / f'BellalunAuto-{__version__}'
     shutil.copytree(compiled, distribution)
     stage_resources(root, distribution, assets)
+    write_candidate_marker(distribution, gate)
     audit_distribution(distribution)
     versions['c_compiler'] = provenance['compiler']
     versions['tcl_tk'] = tk_provenance(distribution)
@@ -434,11 +471,14 @@ def build(args):
                             'pe_subsystem': pe_subsystem, 'windows_console_mode': 'hide'},
             'compatibility': assets['compatibility'],
             'skipped': {'compile': args.skip_compile, 'tests': args.skip_tests},
+            'release_gate': gate,
             'third_party_source_allowed_roots': sorted(THIRD_PARTY_ROOTS),
             'files': inventory(distribution)}
     _write_json(distribution / 'build-info.json', info)
     _write_json(output / 'build-info.json', info)
-    archive = output / f'BellalunAuto-{__version__}-portable.zip'
+    write_candidate_marker(output, gate)
+    archive_name, installer_name = artifact_names(__version__, gate)
+    archive = output / archive_name
     with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as stream:
         for file in sorted(distribution.rglob('*')):
             if file.is_file():
@@ -449,9 +489,11 @@ def build(args):
     installer = output / f'BellalunAuto-{__version__}-setup.exe'
     if not installer.is_file():
         raise ValueError('설치 파일 누락')
+    if installer.name != installer_name:
+        installer = installer.rename(output / installer_name)
     artifacts = [archive, installer, output / 'build-info.json']
     (output / 'SHA256SUMS.txt').write_text(''.join(f'{sha256(file)}  {file.name}\n' for file in artifacts), encoding='utf-8')
-    print(f'빌드 완료: {output}')
+    print(f"빌드 완료({gate['label']}): {output}")
     return 0
 
 
@@ -468,6 +510,8 @@ def main(argv=None):
     parser.add_argument('--compiled-dir', type=Path)
     parser.add_argument('--compilation-report', type=Path, help='--skip-compile 원본 Nuitka XML 보고서')
     parser.add_argument('--scons-report', type=Path, help='--skip-compile 원본 SCons 보고서')
+    parser.add_argument('--gate-wu', type=Path, help='릴리스 게이트: 실시간 WU 리포트 JSON')
+    parser.add_argument('--gate-basic', type=Path, help='릴리스 게이트: 기본기능 전체 회귀 리포트 JSON')
     args = parser.parse_args(argv)
     try:
         return build(args)

@@ -2,6 +2,33 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-11-04 (WU 자동화 정비)
+
+### Added
+
+- REQ-WU-002: 실시간 WU 체인이 단계마다 시간 상한과 Viewer 응답 없음(120초 연속)을 감시한다. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤 그 단계 TC를 BLOCKED로 기록하고, Viewer를 다시 띄워 다음 단계를 계속한다. 단계가 끝날 때마다 `work/winupdate_checkpoint.json`에 저장하고 `run-winupdate --resume`으로 남은 단계만 이어 실행한다. 실행 중 절전을 막는다.
+- REQ-WU-003: SKIP마다 판정을 막는지(`blocks_verdict`)를 적는다. WU_09 CD SKIP은 막지 않는다. USB 미확인 표시 정책(`manual`/`flag`/`current`)을 넣었고 사용자 결정 전에는 `current`다.
+- REQ-WU-004: 실행 전 점검(해상도·DPI·메모리·USB 유무·재부팅 대기·시계·작업 폴더 경로)과 `verified_environments.json` 대조를 넣었다. 미등록 환경은 WARN으로 리포트와 체크리스트 사본 L열에 남긴다. 로그인 직후 핵심 컨트롤 화면 계약이 맞지 않으면 BLOCKED로 체인을 멈춘다.
+- REQ-WU-005: 실시간 실행마다 OS 빌드+UBR·KB 목록·마지막 업데이트 설치 시각을 기록하고 직전 기록과의 비교표를 '업데이트 전후' 시트와 meta에 남긴다. `run.py update-watch`는 빌드·KB가 바뀌었을 때만 `run-winupdate`를 한 번 실행하고, 예약 등록은 `--apply`가 있을 때만 한다.
+- REQ-WU-006: Viewer 소멸·단계 중단 때 `Evidence/failure/`에 로그 ±30초·메모리·GDI/USER 핸들·전면 창·WER 덤프 판정을 남긴다. Setting 순회는 페이지별 핸들 수를 기록한다. `tools/wu_flake_stats.py`로 여러 리포트의 판정 갈림을 센다.
+- REQ-TRACE-002: WU_01~13을 `automation_scope.json`·`traceability.json`에 넣었다. `run.py list`는 WU 합계를 따로 보여 준다. `tools/wu_selfcheck.py`가 WU 매핑 일치, 예외 경로 PASS, 공유 `ctypes.windll` 원형 변경을 검사한다.
+- REQ-DIST-005: `tools/release_gate.py`와 `build_distribution.py --gate-wu --gate-basic`을 넣었다. 리포트 meta에 `source_commit`·`source_dirty`를 남기고, 같은 커밋·수정 없는 소스의 결과만 통과시킨다. 통과하지 못한 빌드는 `-candidate` 이름과 표시 파일을 남긴다.
+
+### Fixed
+
+- REQ-WU-003: `--from-regression` 변환에서 XIPL_03 알려진 결함이 있으면 WU_05가 FAIL로 나오던 문제를 고쳤다. 변환 JSON의 "Step N 미수행" 채움 행이 연쇄 중단 제외를 막았다. 후보11 기본 결과 변환이 PASS 8 / FAIL 1에서 실시간 경로와 같은 PASS 9 / FAIL 0이 됐다.
+- REQ-WU-005: update-watch 예약 작업이 일반 권한으로 등록되어 `run-winupdate`의 관리자 권한 점검에서 막히던 설계를 `RunLevel Highest`로 고쳤다.
+
+### Changed
+
+- REQ-VERDICT-001: WU_09 사양 문장을 현재 동작(교차 확인으로 PASS/FAIL, 근거 미수집만 MANUAL)에 맞췄다. `tests/winupdate.py`의 대비용 MANUAL 분기 주석도 고쳤다.
+- 문서: README의 최신 검증 결과를 후보11 최소 환경 실행과 10-21 USB 재확인으로, 배포 가이드의 검증 호스트를 Win11 Pro 26200(LTSC 실측은 후보5·6까지)으로 고쳤다. SPEC 13절에 미검증 환경 표를 두었다.
+
+### Validation
+
+- 단위시험 643개 통과(skip 2). 정적 검사 7종 이상 없음. Viewer 조작 없이 이 PC에서 실행 전 점검(OK 8 / WARN 2 / BLOCK 0, 검증 환경 `win11-pro-26200`), 업데이트 근거 기록·비교(26200.9818, KB 6건, 변화 없음), 예약 명령 출력(등록 안 함), 과거 결과 변환, 반복 통계를 실행했다.
+- REQ-DIST-005: 후보11 리포트(`56a0bc6`)는 `source_commit`이 없어 거부된다. 그 밖의 항목(실시간·체인 완료·PASS 10 / MANUAL 3·전체 회귀·알려진 결함 외 FAIL 없음)은 통과했다.
+
 ## 2026-11-04
 
 ### Changed

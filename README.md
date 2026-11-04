@@ -6,16 +6,18 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-**2026-10-18 최종 설치판 검증:** 최종 설치 EXE로 기본기능 전체와 실시간 Windows Update 전체를 끝까지 수행했습니다.
-기본기능은 27 TC 중 PASS 23 / FAIL 2(기존 제품 결함) / MANUAL 2입니다.
+**최신 설치판 검증(후보11, 2026-10-20~21):** 개발 도구를 뺀 최소 환경에서 후보11 설치 EXE로 기본기능 전체와
+실시간 Windows Update 전체를 끝까지 수행했습니다. 기본기능은 27 TC 중 PASS 23 / FAIL 2(기존 제품 결함) / MANUAL 2입니다.
 Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목표를 달성했습니다.
-결과·해시·남은 미검증 환경은 [최종 검증 결과](docs/handoff-2026-10-18.md)에 있습니다.
+2026-10-21에는 이전과 다른 USB를 연결해 실시간 WU 전체를 다시 수행했고, WU_09의 USB Export와 Import 되읽기까지 PASS입니다.
+결과·해시는 [호환성 검증 기록](docs/compatibility-2026-10-18.md) 6절, 후보8 결과는 [최종 검증 결과](docs/handoff-2026-10-18.md)에 있습니다.
+실제 LTSC·Windows 10·개발 도구 없는 PC·다른 관리자 계정은 아직 검증하지 않았습니다(`SPEC.md` 13절).
 
 ---
 
 ## 팀원 PC에서 시작하기
 
-다음은 검증·승인된 내부 패키지를 전달받은 뒤의 절차입니다. 이 PC에서 검증한 범위는 [최종 검증 결과](docs/handoff-2026-10-18.md)를 봅니다.
+다음은 검증·승인된 내부 패키지를 전달받은 뒤의 절차입니다. 검증한 범위는 [호환성 검증 기록](docs/compatibility-2026-10-18.md)을 봅니다.
 팀원용 `BellalunAuto`는 기존 자동화 엔진을 실행하는 설치 프로그램과 한국어 실행 화면을 제공합니다.
 배포 PC에는 Python·pip·Git·소스 저장소를 설치하지 않습니다. Viewer·SQL Server·XIPL·OCR와
 시험용 외부 서버는 준비되어 있어야 합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
@@ -127,7 +129,7 @@ Bellalun Viewer\
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
 | 최신 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정했으며 수정 후 전체 실행은 대기 중 |
-| 남은 검증 | USB 연결 흐름과 WF14 재실측, 최종 동일 EXE의 기본기능 전체·실시간 WU 전체 및 설치 검증. 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
+| 남은 검증 | 실제 LTSC·Windows 10·개발 도구 없는 PC·다른 관리자 계정·한글 계정 설치판 검증(후보11 최소 환경 실행과 USB 연결 WU는 2026-10-21 완료). 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
 | 과거 기준 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건: PASS 23 / FAIL 2 / MANUAL 2 (119.9분), 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1. 당시 남은 FAIL은 문서화한 UPS 복원과 XIPL_03 기본값 복귀였음 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 73건, 위반 0 |
@@ -173,7 +175,9 @@ python run.py verify-install-package
 
 ```
 python run.py run-winupdate                       # 필요한 TC만 순서대로 실제 실행
+python run.py run-winupdate --resume              # 중단된 실행을 저장점에서 이어 실행
 python run.py run-winupdate --from-regression <전체 회귀 결과.json>   # 재실행 없이 변환
+python run.py update-watch                        # OS 빌드·KB가 바뀌었을 때만 run-winupdate 1회
   → MWL 조회·영상 조작(Zoom/Pan/Rotation 등)·2D/3D Image Processing
   → DICOM 전송(2D/3D)·Print·Export(USB 자동 탐지, 없으면 SKIP)
   → Setting 화면 표시(전 메뉴 순회 + 탭 빠른 클릭)·Setting Import/Export
@@ -182,9 +186,14 @@ python run.py run-winupdate --from-regression <전체 회귀 결과.json>   # �
      결함이지만 이 체크리스트 판정에는 영향 없는 항목을 별도로 명시)
 ```
 
-과거 2026-09-07 라이브 전체 실행: TC 13건 PASS 9 / FAIL 0 / MANUAL 4였습니다.
-당시 USB Import도 MANUAL이었으며 이 결과는 현재 변경판의 전체 검증을 뜻하지 않습니다.
-2026-10-15에는 USB 완료·신규 UID·파일·Examined 교차 확인을 단독 실측했고 연결 흐름을 재검증 중입니다.
+실시간 체인은 시작 전에 해상도·DPI·메모리·USB 유무·재부팅 대기·검증된 환경을 점검합니다.
+단계마다 시간 상한과 Viewer 응답 없음을 감시하고, 끝난 단계를 `work/winupdate_checkpoint.json`에 저장합니다.
+끊긴 실행은 `--resume`으로 남은 단계만 이어 실행하며 재개 여부를 리포트에 적습니다.
+
+USB 연결 흐름: 후보8 이후 실시간 WU 체인에서 USB 왕복을 PASS로 확인했습니다.
+2026-10-21 후보11에서 이전과 다른 USB로 다시 수행해 Export와 Import 되읽기(완료 신호·재생성 UID·파일·Examined 재검색)가 PASS였습니다.
+USB가 없으면 USB 단계는 SKIP이고, 그때 WU_09 표시 방식은 `SPEC.md` REQ-WU-003을 따릅니다.
+과거 2026-09-07 라이브 전체 실행(PASS 9 / MANUAL 4, USB Import MANUAL)은 교차 확인 구현 전 결과입니다.
 
 ---
 

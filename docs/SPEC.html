@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="a3fbc34b8955479092efa695f5f41060536349a8814c35de408ed60f80b1d7a3">
+<meta name="spec-source-sha256" content="c204617c8296aa25482470d157dfb007a2b06c6f8f740f74dbc4e89a18fb926f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,8 +92,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.1.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-10-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>10</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>9</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>11</b><span>implemented</span></div></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.2.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-04</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="stats"><div class="stat"><b>17</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>16</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>18</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -106,13 +106,20 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-2"><a href="#sec-5">5. 기능 요구사항</a></li>
 <li class="toc-id kind-req"><a href="#REQ-REGRESSION-001">REQ-REGRESSION-001 <span>기준 체크리스트 실행</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TRACE-001">REQ-TRACE-001 <span>사양 근거 추적</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-TRACE-002">REQ-TRACE-002 <span>Windows Update 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-REPORT-001">REQ-REPORT-001 <span>체크리스트별 결과 보고</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-001">REQ-DIST-001 <span>설치와 실행 경로</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-002">REQ-DIST-002 <span>실행 화면과 프로세스 관리</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-003">REQ-DIST-003 <span>컴파일과 내부 자료 배포</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-004">REQ-DIST-004 <span>설치판 진단과 최종 실행 검증</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-DIST-005">REQ-DIST-005 <span>같은 커밋의 검증 결과를 요구하는 릴리스 게이트</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-WU-001">REQ-WU-001 <span>USB 왕복과 설정 전수 검사</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-WU-002">REQ-WU-002 <span>실시간 WU 체인의 시간 상한·응답 없음 감지·재개</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-WU-003">REQ-WU-003 <span>SKIP과 최종 판정의 관계</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-WU-004">REQ-WU-004 <span>실행 전 점검과 검증된 환경 대조</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-WU-005">REQ-WU-005 <span>Windows Update 전후 근거와 변화 감지 실행</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-WU-006">REQ-WU-006 <span>실패 증거와 반복 실행 통계</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-KNOW-001">REQ-KNOW-001 <span>지식 폴더 서버 동기화</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
@@ -129,6 +136,13 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-DIST-001">TEST-DIST-001 <span>배포 실행과 경로</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-002">TEST-DIST-002 <span>패키지 경계</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-WU-001">TEST-WU-001 <span>완료 근거와 설정 순회</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-WU-002">TEST-WU-002 <span>체인 시간 상한·재개</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-WU-003">TEST-WU-003 <span>SKIP 판정 조합</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-WU-004">TEST-WU-004 <span>실행 전 점검</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-WU-005">TEST-WU-005 <span>업데이트 근거와 update-watch</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-WU-006">TEST-WU-006 <span>실패 증거와 통계</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-TRACE-002">TEST-TRACE-002 <span>WU 추적성과 정적 자체검사</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-DIST-005">TEST-DIST-005 <span>릴리스 게이트</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-KNOW-001">TEST-KNOW-001 <span>지식 폴더 동기화</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
@@ -144,6 +158,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="이름">기준 체크리스트 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">TRACE</span> 사양 근거 추적</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="이름">사양 근거 추적</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="이름">Windows Update 추적성과 정적 자체검사</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
@@ -153,8 +168,14 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a></td><td data-label="이름">실행 화면과 프로세스 관리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="이름">컴파일과 내부 자료 배포</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/build_distribution.py</code>, <code>packaging/</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="이름">설치판 진단과 최종 실행 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
-<tr class="group"><th colspan="5"><span class="gcode">WU</span> USB 왕복과 설정 검사</th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a></td><td data-label="이름">같은 커밋의 검증 결과를 요구하는 릴리스 게이트</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
+<tr class="group"><th colspan="5"><span class="gcode">WU</span> Windows Update 체크리스트 실행·판정·근거</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="이름">USB 왕복과 설정 전수 검사</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-002">REQ-WU-002</a></td><td data-label="이름">실시간 WU 체인의 시간 상한·응답 없음 감지·재개</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/wu_chain.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-003">REQ-WU-003</a></td><td data-label="이름">SKIP과 최종 판정의 관계</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-004">REQ-WU-004</a></td><td data-label="이름">실행 전 점검과 검증된 환경 대조</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/env_preflight.py</code>, <code>core/environment_match.py</code>, <code>core/screen_contract.py</code>, <code>verified_environments.json</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-004">TEST-WU-004</a>; <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-005">REQ-WU-005</a></td><td data-label="이름">Windows Update 전후 근거와 변화 감지 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="이름">실패 증거와 반복 실행 통계</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">KNOW</span> 지식 폴더 서버 동기화</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="이름">지식 폴더 서버 동기화</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
@@ -250,7 +271,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <tr><td>VERDICT</td><td>근거에 따른 판정</td></tr>
 <tr><td>REPORT</td><td>체크리스트별 결과 보고</td></tr>
 <tr><td>DIST</td><td>팀원용 설치와 실행</td></tr>
-<tr><td>WU</td><td>USB 왕복과 설정 검사</td></tr>
+<tr><td>WU</td><td>Windows Update 체크리스트 실행·판정·근거</td></tr>
 <tr><td>KNOW</td><td>지식 폴더 서버 동기화</td></tr>
 <tr><td>BOUNDARY</td><td>비공개 자료 보호</td></tr>
 </tbody>
@@ -335,9 +356,42 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <p><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>, <code>tests/test_result_reports.py</code>.</p>
 </div></section>
 </section>
+<section class="card kind-req" id="REQ-TRACE-002">
+<h3><span class="idtag">REQ-TRACE-002</span> Windows Update 추적성과 정적 자체검사</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a>: WU_01~13을 <code>automation_scope.json</code>·<code>traceability.json</code>에 넣었다. <code>run.py list</code>는 WU 합계를 따로 보여 준다. <code>tools/wu_selfcheck.py</code>가 WU 매핑 일치, 예외 경로 PASS, 공유 <code>ctypes.windll</code> 원형 변경을 검사한다.</li>
+</ul>
+</details>
+<section class="field"><h4>목적</h4><div class="field-body">
+<p>WU 체크리스트 13건도 기본기능 TC처럼 자동화 범위와 근거 연결을 데이터로 관리하고, 매핑이 어긋나면 바로 알 수 있게 한다.</p>
+</div></section>
+<section class="field"><h4>동작</h4><div class="field-body">
+<p><code>automation_scope.json</code>과 <code>traceability.json</code>에 TC_WindowsUpdate_01~13을 <code>&quot;checklist&quot;: &quot;windows_update&quot;</code>로 둔다.
+항목마다 등급, 재사용하는 기본 TC(<code>reuses</code>), 판정 제외 결함(<code>known_defect_exclude</code>), MANUAL 사유를 적는다.
+<code>python run.py list</code>는 WU 13건을 기본기능 합계와 따로 보여 준다. 기본기능 리포트의 커버리지 집계에는 넣지 않는다.</p>
+<p><code>python tools/wu_selfcheck.py</code>는 다음을 검사한다.</p>
+<ol>
+<li><code>tests/winupdate.py</code>의 WU 제목·재사용 TC·제외 결함과 두 데이터 파일이 서로 맞는다.</li>
+<li><code>except</code> 블록 안에서 PASS를 기록하지 않는다.</li>
+<li>공유 <code>ctypes.windll</code> 함수의 <code>restype</code>·<code>argtypes</code>를 바꾸지 않는다(전용 <code>ctypes.WinDLL</code> 사본은 허용).</li>
+</ol>
+<p class="why"><span class="why-label">이유</span> 공유 함수 원형을 바꾸면 같은 함수를 쓰는 다른 모듈의 인자 변환이 예고 없이 달라진다.</p>
+</div></section>
+<section class="field"><h4>예외 처리</h4><div class="field-body">
+<p>기존 위반은 기준선 목록으로 보고만 한다. 새 위반이 생기거나 기준선 항목이 사라지면 실패한다.
+WU 체크리스트 행·제목은 로컬 기준 체크리스트(R-25-782)와 대조한다. 공용 QA 서버에는 이 체크리스트가 없다(2026-11-04 확인).</p>
+</div></section>
+</section>
 <section class="card kind-req" id="REQ-VERDICT-001">
 <h3><span class="idtag">REQ-VERDICT-001</span> 관찰 근거에 따른 판정</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a></span><span class="meta nohist"><b>변경 이력</b> CHANGELOG에 이 ID로 기록된 변경 없음</span></div>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Changed</span> <a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a>: WU_09 사양 문장을 현재 동작(교차 확인으로 PASS/FAIL, 근거 미수집만 MANUAL)에 맞췄다. <code>tests/winupdate.py</code>의 대비용 MANUAL 분기 주석도 고쳤다.</li>
+</ul>
+</details>
 <section class="field"><h4>목적</h4><div class="field-body">
 <p>PASS는 조작 성공 자체가 아닌 제품 화면 또는 저장·전송된 결과의 근거로 결정한다.</p>
 </div></section>
@@ -356,7 +410,8 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 </div></section>
 <section class="field"><h4>예외 처리</h4><div class="field-body">
 <p>주 모니터 밖 창을 재사용할 때 조작 전에 중단한다. 근거 부족을 숨기지 않는다.
-WU_09는 되읽기 완료 신호와 교차 확인이 검증되기 전에는 MANUAL을 유지한다.</p>
+WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Examined 재검색을 교차 확인해 PASS 또는 FAIL로 정한다.
+교차 확인 근거를 수집하지 못한 예외적인 결과만 MANUAL로 남긴다. USB가 없을 때의 표시는 <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>을 따른다.</p>
 </div></section>
 <section class="field"><h4>관련 구현</h4><div class="field-body">
 <p><code>core/result.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code>, <code>core/usb_media.py</code>.</p>
@@ -500,6 +555,36 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 최종 배포 EXE로 기본기능 전체와 실시간 Windows Update 전체를 각각 수행한다.
 빌드 성공·설치 성공·기동 성공·제품 시험 성공을 구분하며 미수행 검증은 완료로 쓰지 않는다.</p>
 </section>
+<section class="card kind-req" id="REQ-DIST-005">
+<h3><span class="idtag">REQ-DIST-005</span> 같은 커밋의 검증 결과를 요구하는 릴리스 게이트</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: <code>tools/release_gate.py</code>와 <code>build_distribution.py --gate-wu --gate-basic</code>을 넣었다. 리포트 meta에 <code>source_commit</code>·<code>source_dirty</code>를 남기고, 같은 커밋·수정 없는 소스의 결과만 통과시킨다. 통과하지 못한 빌드는 <code>-candidate</code> 이름과 표시 파일을 남긴다.</li>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Validation</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 후보11 리포트(<code>56a0bc6</code>)는 <code>source_commit</code>이 없어 거부된다. 그 밖의 항목(실시간·체인 완료·PASS 10 / MANUAL 3·전체 회귀·알려진 결함 외 FAIL 없음)은 통과했다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>정식 빌드 전에 빌드할 소스와 같은 커밋에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과가 목표를 채웠는지 확인한다.</p>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>리포트 meta의 <code>source_commit</code>이 빌드 커밋과 같고 <code>source_dirty</code>가 <code>false</code>인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).</li>
+<li>WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / MANUAL 3(WU_01·12·13)인지 본다.</li>
+<li>기본기능 결과가 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지 본다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>결과</h4><div class="field-body">
+<p><code>python tools/release_gate.py</code>가 항목별 통과·실패와 거부 사유를 보여 준다. <code>tools/build_distribution.py --gate-wu --gate-basic</code>은 빌드 전에 같은 판정을 한다.</p>
+</div></section>
+<section class="field"><h4>안 될 때</h4><div class="field-body">
+<p>게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 <code>-candidate</code>를 붙이고 <code>게이트-미통과-후보.txt</code>와 build-info에 사유를 남긴다.</p>
+<aside class="callout callout-info"><span class="callout-label">참고</span>
+<p>VXvue의 &quot;전 항목 PASS·흔들림 0&quot; 기준과 다르다. Bellalun은 사용자가 정한 MANUAL과 등록된 알려진 결함만 허용한다.
+<strong>예외</strong> 리포트 문장 완전성 검사(<code>--language</code>)는 선택 사항이다.</p>
+</aside>
+</div></section>
+</section>
 <section class="card kind-req" id="REQ-WU-001">
 <h3><span class="idtag">REQ-WU-001</span> USB 왕복과 설정 전수 검사</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></span></div>
@@ -528,6 +613,165 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 과거 회귀 변환을 실시간 TC9/10 실행으로 표시하지 않는다.</p>
 <p>기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
 알려진 제품 결함은 FAIL을 유지하고 미충족 조건과 실제 근거를 보고한다.</p>
+</section>
+<section class="card kind-req" id="REQ-WU-002">
+<h3><span class="idtag">REQ-WU-002</span> 실시간 WU 체인의 시간 상한·응답 없음 감지·재개</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/wu_chain.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-002">REQ-WU-002</a>: 실시간 WU 체인이 단계마다 시간 상한과 Viewer 응답 없음(120초 연속)을 감시한다. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤 그 단계 TC를 BLOCKED로 기록하고, Viewer를 다시 띄워 다음 단계를 계속한다. 단계가 끝날 때마다 <code>work/winupdate_checkpoint.json</code>에 저장하고 <code>run-winupdate --resume</code>으로 남은 단계만 이어 실행한다. 실행 중 절전을 막는다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>실시간 WU 체인(기준 DB 복원 → Install_01/02 → DICOM 서버 설정 → 화면 계약 → WF01~06 → XIPL 묶음 → WF08 → WF09 → WF14 → USB 왕복 → WU_10)이 한 단계에서 멈춰도 끝까지 가고, 끊기면 남은 단계만 이어 실행한다.</p>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>실행하는 동안 PC가 절전이나 화면 꺼짐에 들어가지 않게 한다. Windows 전원 설정은 바꾸지 않는다.</li>
+<li>단계마다 시간 상한을 두고 Viewer가 계속 응답하지 않는지(<code>SendMessageTimeoutW</code>, <code>SMTO_ABORTIFHUNG</code>, 120초 연속) 감시한다.</li>
+<li>넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤, 그 단계의 TC를 BLOCKED와 사유로 기록한다.</li>
+<li>다음 단계는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다. 전제 단계(기준 DB 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 체인을 멈춘다.</li>
+<li>단계가 끝날 때마다 <code>work/winupdate_checkpoint.json</code>에 결과를 원자적으로 저장한다(임시 파일에 쓴 뒤 바꿔 넣는다).</li>
+<li><code>run-winupdate --resume</code>은 저장점의 완료 단계 결과를 다시 쓰고 남은 단계만 실행한다. 리포트 meta에 <code>resumed</code>·<code>reused_stages</code>·<code>stage_trips</code>를 남긴다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>설정</h4><div class="field-body">
+<p>단계별 시간 상한은 <code>config.json &gt; winupdate.stage_timeouts</code>로 바꿀 수 있다. 기본값은 <code>core/wu_chain.py</code>의 <code>STAGE_TIMEOUTS</code>다.</p>
+</div></section>
+<section class="field"><h4>안 될 때</h4><div class="field-body">
+<p>저장점이 없거나, 내용 해시가 맞지 않거나, 체인 구성이 다르거나, 이미 끝난 체인이면 재개하지 않고 종료 코드 2로 알린다.</p>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<p>설치판의 실시간 WU 완료 인정 조건(<code>live</code>, <code>chain_completed</code>, 13 TC)의 뜻은 바꾸지 않는다. 재개한 실행도 13 TC를 모두 갖춰야 <code>chain_completed</code>가 참이다.</p>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-WU-003">
+<h3><span class="idtag">REQ-WU-003</span> SKIP과 최종 판정의 관계</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a>, <a class="idref" href="#TEST-WU-003">TEST-WU-003</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>: SKIP마다 판정을 막는지(<code>blocks_verdict</code>)를 적는다. WU_09 CD SKIP은 막지 않는다. USB 미확인 표시 정책(<code>manual</code>/<code>flag</code>/<code>current</code>)을 넣었고 사용자 결정 전에는 <code>current</code>다.</li>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>: <code>--from-regression</code> 변환에서 XIPL_03 알려진 결함이 있으면 WU_05가 FAIL로 나오던 문제를 고쳤다. 변환 JSON의 &quot;Step N 미수행&quot; 채움 행이 연쇄 중단 제외를 막았다. 후보11 기본 결과 변환이 PASS 8 / FAIL 1에서 실시간 경로와 같은 PASS 9 / FAIL 0이 됐다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>건너뛴 확인 범위가 최종 판정에 숨지 않게 한다. WU의 SKIP마다 판정을 막는지(<code>blocks_verdict</code>)를 적는다.</p>
+</div></section>
+<section class="field"><h4>규칙</h4><div class="field-body">
+<div class="table-wrap"><table>
+<thead><tr><th>SKIP</th><th>blocks_verdict</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>WU_09 CD Export/Import</td><td>false</td><td>무인 실행에서 공디스크·버너를 보장할 수 없어 사용자가 자동화 대상에서 뺐다</td></tr>
+<tr><td>WU_09 USB(이동식 드라이브 없음·<code>--from-regression</code>)</td><td>표시 정책에 따름</td><td>아래 표</td></tr>
+<tr><td>WU_10 <code>--from-regression</code></td><td>해당 없음</td><td>TC 전체가 SKIP이라 PASS가 되지 않는다</td></tr>
+</tbody>
+</table></div>
+<p><code>blocks_verdict</code>가 참인 SKIP이 남으면 TC 판정은 PASS가 아니라 MANUAL이다. FAIL·BLOCKED가 있으면 그 판정이 우선한다.
+기본기능 TC의 SKIP 규칙(판정을 막지 않음)은 바꾸지 않는다.</p>
+<p>USB 왕복을 확인하지 못했을 때 WU_09 표시 정책(<code>tests/winupdate.py</code>의 <code>USB_UNVERIFIED_POLICY</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr><th>정책</th><th>WU_09 판정</th><th>표시</th></tr></thead>
+<tbody>
+<tr><td><code>manual</code></td><td>MANUAL</td><td>USB SKIP이 판정을 막는다</td></tr>
+<tr><td><code>flag</code></td><td>PASS</td><td>리포트 L열과 meta <code>usb_unverified</code>에 &quot;USB 왕복 미확인&quot;</td></tr>
+<tr><td><code>current</code></td><td>PASS</td><td>기존 표시</td></tr>
+</tbody>
+</table></div>
+<aside class="callout callout-warn"><span class="callout-label">주의</span>
+<p>어느 정책을 쓸지는 사용자 결정 전이다(13절). 결정 전에는 <code>current</code>를 유지한다.</p>
+</aside>
+<p><code>--from-regression</code> 변환은 실시간 체인과 같은 함수(<code>build_wu_results</code>)를 지나므로 같은 규칙을 쓴다.
+변환 JSON에 있는 &quot;Step N 미수행&quot; 채움 행은 알려진 결함의 연쇄 중단 기록으로 보고 실시간 경로와 같은 판정을 낸다.</p>
+<p>WU_11(WF14 Setting Import/Export)은 기준 기록(S0) → 변경 확인(S1이 S0과 다름) → Import 후 복원(S2가 S0과 같음)의 세 단계 비교를 이미 수행한다.
+WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아니다.</p>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-WU-004">
+<h3><span class="idtag">REQ-WU-004</span> 실행 전 점검과 검증된 환경 대조</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/env_preflight.py</code>, <code>core/environment_match.py</code>, <code>core/screen_contract.py</code>, <code>verified_environments.json</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-004">TEST-WU-004</a>; <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-004">TEST-WU-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-004">REQ-WU-004</a>: 실행 전 점검(해상도·DPI·메모리·USB 유무·재부팅 대기·시계·작업 폴더 경로)과 <code>verified_environments.json</code> 대조를 넣었다. 미등록 환경은 WARN으로 리포트와 체크리스트 사본 L열에 남긴다. 로그인 직후 핵심 컨트롤 화면 계약이 맞지 않으면 BLOCKED로 체인을 멈춘다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>실시간 WU 체인을 시작하기 전에 PC 상태를 점검하고, 이 PC가 검증된 환경 목록에 있는지 리포트에 남긴다.</p>
+</div></section>
+<section class="field"><h4>점검 항목</h4><div class="field-body">
+<div class="table-wrap"><table>
+<thead><tr><th>항목</th><th>결과</th><th>실행 차단</th></tr></thead>
+<tbody>
+<tr><td>해상도 1920×1080, 96 DPI</td><td>다르면 BLOCK</td><td>예</td></tr>
+<tr><td>작업 폴더 경로에 <code>%</code></td><td>있으면 BLOCK</td><td>예</td></tr>
+<tr><td>사용 가능 메모리</td><td>1 GiB 미만 BLOCK, 2 GiB 미만 WARN</td><td>1 GiB 미만만</td></tr>
+<tr><td>작업 폴더 경로 120자 초과</td><td>WARN</td><td>아니오</td></tr>
+<tr><td>이동식 드라이브 없음</td><td>WARN(&quot;WU_09 USB 단계 SKIP 예정&quot;)</td><td>아니오</td></tr>
+<tr><td>Windows Update 재부팅 대기, 시계 이상</td><td>WARN</td><td>아니오</td></tr>
+<tr><td>작업표시줄 자동 숨김</td><td>기록만(제품 조작 중에는 자동화가 관리)</td><td>아니오</td></tr>
+<tr><td>검증된 환경 대조(OS 에디션, 빌드+UBR, 해상도, DPI, Viewer 버전)</td><td>미등록이면 WARN</td><td>아니오</td></tr>
+<tr><td>로그인 직후 핵심 컨트롤 화면 계약(2284·2285·2015)</td><td>다르면 BLOCKED</td><td>예(전제 단계)</td></tr>
+</tbody>
+</table></div>
+</div></section>
+<section class="field"><h4>결과</h4><div class="field-body">
+<p>대조 결과는 WU 체크리스트 사본 3행(OS Build 실측값) 옆 L열과 HTML/JSON 리포트의 실행 환경에 적힌다.
+검증된 환경 목록은 <code>verified_environments.json</code>이며 근거 문서를 항목마다 적는다.</p>
+</div></section>
+<section class="field"><h4>안 될 때</h4><div class="field-body">
+<p>실행 차단 항목이 있으면 저장점을 만들지 않고 종료 코드 2로 멈춘다. 미등록 환경은 판정을 막지 않는다.</p>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-WU-005">
+<h3><span class="idtag">REQ-WU-005</span> Windows Update 전후 근거와 변화 감지 실행</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-005">TEST-WU-005</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>: 실시간 실행마다 OS 빌드+UBR·KB 목록·마지막 업데이트 설치 시각을 기록하고 직전 기록과의 비교표를 '업데이트 전후' 시트와 meta에 남긴다. <code>run.py update-watch</code>는 빌드·KB가 바뀌었을 때만 <code>run-winupdate</code>를 한 번 실행하고, 예약 등록은 <code>--apply</code>가 있을 때만 한다.</li>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>: update-watch 예약 작업이 일반 권한으로 등록되어 <code>run-winupdate</code>의 관리자 권한 점검에서 막히던 설계를 <code>RunLevel Highest</code>로 고쳤다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>실시간 실행마다 OS 빌드+UBR, 설치된 KB 목록, 마지막 업데이트 설치 시각을 <code>work/update-evidence/history.jsonl</code>에 기록하고 직전 기록과 비교한다.</p>
+</div></section>
+<section class="field"><h4>결과</h4><div class="field-body">
+<p>비교표는 WU 체크리스트 사본의 Issues 시트 뒤 '업데이트 전후' 시트와 리포트 meta <code>update_evidence</code>에 남는다.
+WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.</p>
+</div></section>
+<section class="field"><h4>update-watch</h4><div class="field-body">
+<p><code>python run.py update-watch</code>는 빌드나 KB가 직전 기록과 다를 때만 <code>run-winupdate</code>를 한 번 실행한다. 첫 기록(기준 없음)과 변화 없음에는 실행하지 않는다.
+실행 전에 기록을 먼저 저장하므로 실행이 실패해도 같은 변화로 다시 돌지 않는다.
+<code>--install-task</code>/<code>--remove-task</code>는 <code>--apply</code>가 없으면 명령만 보여 준다. 예약 작업은 관리자 권한(<code>RunLevel Highest</code>)과 로그온한 사용자 세션으로 등록한다.</p>
+<aside class="callout callout-warn"><span class="callout-label">주의</span>
+<p><code>run-winupdate</code>는 기준 DB를 복원한다. 무인 실행과 예약 등록은 사용자 승인 뒤 <code>--apply</code>로만 한다(13절).</p>
+</aside>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<p>OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 PowerShell(WMI)은 60초 시간 제한을 두고, 실패하면 <code>kb_error</code>로 남기며 KB 변화로 세지 않는다.
+과거 결과 변환은 이 PC의 실행이 아니므로 기록하지 않는다.</p>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-WU-006">
+<h3><span class="idtag">REQ-WU-006</span> 실패 증거와 반복 실행 통계</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: Viewer 소멸·단계 중단 때 <code>Evidence/failure/</code>에 로그 ±30초·메모리·GDI/USER 핸들·전면 창·WER 덤프 판정을 남긴다. Setting 순회는 페이지별 핸들 수를 기록한다. <code>tools/wu_flake_stats.py</code>로 여러 리포트의 판정 갈림을 센다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>원인을 아직 모르는 Viewer 종료(NEXT_WORK 3-B)와 <code>my_settings</code>(193) 미발견(3-C)을 조사할 근거를 모은다.</p>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>Viewer가 사라지거나 단계 감시가 끊으면 <code>Evidence/failure/</code>에 JSON을 남긴다. 사건 전후 30초 제품 로그, 메모리 여유, Viewer GDI/USER 핸들 수, 전면 창, 기존 WER 덤프 판정을 담는다.</li>
+<li>Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 <code>page_handles</code>에 기록한다. WU_10 판정의 actual에는 페이지별 증가 요약도 붙는다.</li>
+<li>캡처 직전 전면 창이 Viewer가 아니면 오염 후보로 알 수 있게 <code>failure_evidence.capture_guard</code>를 제공한다.</li>
+<li><code>python tools/wu_flake_stats.py &lt;리포트들&gt;</code>은 여러 리포트에서 TC·단계별 판정이 갈린 횟수를 센다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<p>기록한 핸들 증가는 원인 확정이 아니다. 증거 수집 실패는 판정과 실행을 막지 않는다.</p>
+</div></section>
 </section>
 <section class="card kind-req" id="REQ-KNOW-001">
 <h3><span class="idtag">REQ-KNOW-001</span> 지식 폴더 서버 동기화</h3>
@@ -692,6 +936,69 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 <p>기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
 USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.</p>
 </section>
+<section class="card kind-test" id="TEST-WU-002">
+<h3><span class="idtag">TEST-WU-002</span> 체인 시간 상한·재개</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-WU-002">REQ-WU-002</a>.</li>
+<li>절차: <code>tests/test_wu_chain.py</code>가 가짜 단계·가짜 시계·가짜 응답 검사로 다음을 확인한다.
+<ul>
+<li>시간 초과와 연속 응답 없음은 BLOCKED가 되고 Viewer를 끝내기 전에 증거를 남긴다.</li>
+<li>손상·수정·다른 체인·끝난 저장점은 재개하지 않는다.</li>
+<li>체인 중간에 끊긴 뒤 <code>--resume</code>은 완료 단계를 다시 실행하지 않는다.</li>
+<li>전제 BLOCKED와 사전 점검 차단에서 멈춘다.</li>
+</ul>
+</li>
+<li>Expected Result: 완료 단계는 한 번만 실행되고 리포트 meta에 재사용 단계가 남는다. 실제 Viewer 체인의 중단·재개는 사용자 승인 뒤 별도로 수행한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-WU-003">
+<h3><span class="idtag">TEST-WU-003</span> SKIP 판정 조합</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>.</li>
+<li>절차: <code>tests/test_wu_skip_policy.py</code>로 USB 있음/없음/오류/변환 × 세 표시 정책의 WU_09 판정, CD SKIP의 <code>blocks_verdict=false</code>, WU SKIP의 선언 누락, 변환 경로의 미수행 채움 행 판정을 고정한다.</li>
+<li>Expected Result: 표의 판정과 표시가 나오고 변환과 실시간 경로의 판정이 같다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-WU-004">
+<h3><span class="idtag">TEST-WU-004</span> 실행 전 점검</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-WU-004">REQ-WU-004</a>.</li>
+<li>절차: <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code>가 가짜 시스템 정보로 항목별 OK/WARN/BLOCK, 미등록 환경 WARN, 화면 계약 불일치 BLOCK을 확인한다. 실제 PC에서는 <code>python -m core.env_preflight</code>를 Viewer 조작 없이 실행한다.</li>
+<li>Expected Result: 실행 차단은 표의 항목에서만 생기고 미등록 환경은 막지 않는다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-WU-005">
+<h3><span class="idtag">TEST-WU-005</span> 업데이트 근거와 update-watch</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>.</li>
+<li>절차: <code>tests/test_update_evidence.py</code>로 빌드·KB 변화 감지, 변화 없음·첫 기록에서 미실행, 변화 시 한 번 실행, 실행 실패 뒤 기록 보존, 손상 줄 건너뛰기, WMI 시간 초과, <code>--apply</code> 없이 예약 미등록을 확인한다.</li>
+<li>Expected Result: 실행 조건과 기록이 위 규칙과 같고 예약 명령은 실행되지 않는다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-WU-006">
+<h3><span class="idtag">TEST-WU-006</span> 실패 증거와 통계</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>.</li>
+<li>절차: <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.</li>
+<li>Expected Result: 증거 수집은 예외를 내지 않고, 통계는 갈린 TC·단계를 센다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-TRACE-002">
+<h3><span class="idtag">TEST-TRACE-002</span> WU 추적성과 정적 자체검사</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a>.</li>
+<li>절차: <code>tests/test_wu_selfcheck.py</code>가 검사마다 일부러 틀린 입력을 넣어 실패하는지, 현재 저장소가 기준선과 같은지 확인한다. <code>python tools/wu_selfcheck.py</code>와 <code>python tools/traceability.py</code>를 실행한다.</li>
+<li>Expected Result: WU 매핑 위반 0건, 새 위반은 실패.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-DIST-005">
+<h3><span class="idtag">TEST-DIST-005</span> 릴리스 게이트</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>.</li>
+<li>절차: <code>tests/test_release_gate.py</code>로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.</li>
+<li>Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.</li>
+</ul>
+</section>
 <section class="card kind-test" id="TEST-KNOW-001">
 <h3><span class="idtag">TEST-KNOW-001</span> 지식 폴더 동기화</h3>
 <div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></span></div>
@@ -719,20 +1026,42 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="Implementation"><code>tools/build_distribution.py</code>, <code>packaging/</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="Implementation"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="Implementation"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a></td><td data-label="Implementation"><code>tools/release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-002">REQ-WU-002</a></td><td data-label="Implementation"><code>core/wu_chain.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-003">REQ-WU-003</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-004">REQ-WU-004</a></td><td data-label="Implementation"><code>core/env_preflight.py</code>, <code>core/environment_match.py</code>, <code>core/screen_contract.py</code>, <code>verified_environments.json</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-004">TEST-WU-004</a>; <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-005">REQ-WU-005</a></td><td data-label="Implementation"><code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="Implementation"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="Implementation"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 </tbody>
 </table></div>
 <p>implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
-이번 readiness 검사만으로 실제 제품 검증을 verified로 올리지 않는다.
+이번 readiness 검사만으로 실제 제품 검증을 verified로 올리지 않는다.</p>
+<p>이 저장소에는 게이트 검증 명령(<code>botyard.json</code>의 <code>verify</code>)이 없어 단위시험이 있어도 verified로 표시하지 않는다(2026-11-04 판단).
 2026-10-18 최종 설치판으로 기본기능 전체와 실시간 WU 전체, 이 PC의 설치 수명주기를 확인했다(<code>docs/handoff-2026-10-18.md</code>).
 개발 도구 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC 검증은 아직 하지 않았다.</p>
 </section>
 <section class="chapter" id="sec-13">
 <h2>13. 미확정 사항</h2>
 <ul>
-<li>미완료 — 개발 도구(Python·Git·소스)가 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC에서의 설치판 검증.
-최종 동일 EXE의 기본기능 전체·실시간 WU 전체와 이 PC의 설치 수명주기는 2026-10-18에 확인했다.
-근거: <code>docs/handoff-2026-10-18.md</code>. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.</li>
+<li>미검증 — 아래 표의 환경에서 설치판을 실행하지 않았다. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.
+확인한 범위는 <a href="../docs/handoff-2026-10-18.md">최종 검증 결과</a>(후보8)와 <a href="../docs/compatibility-2026-10-18.md">호환성 검증 기록</a> 6절(후보11)이다.</li>
+</ul>
+<div class="table-wrap"><table>
+<thead><tr><th>환경</th><th>지금까지</th></tr></thead>
+<tbody>
+<tr><td>실제 Windows 11 LTSC</td><td>후보5·6까지만 실행했다. 후보7 이후는 실행하지 않았다</td></tr>
+<tr><td>Windows 10</td><td>지원 대상이지만 실행한 적이 없다</td></tr>
+<tr><td>개발 도구 없는 PC</td><td>후보10·11은 같은 PC에서 개발 도구를 뺀 최소 환경으로만 실행했다</td></tr>
+<tr><td>다른 관리자 계정·한글 사용자 계정</td><td>실행하지 않았다</td></tr>
+<tr><td>1920×1080·96 DPI 밖의 해상도·배율</td><td>실행 전 점검이 막으므로 지원 범위 밖이다</td></tr>
+</tbody>
+</table></div>
+<ul>
+<li>확인 필요 — USB가 없을 때 WU_09 표시 정책(<a class="idref" href="#REQ-WU-003">REQ-WU-003</a>의 <code>manual</code>/<code>flag</code>/<code>current</code>). 결정 전에는 <code>current</code>를 유지한다. 결정 담당: 사용자.</li>
+<li>확인 필요 — <code>update-watch</code>의 무인 실행과 예약 등록 허용 여부. <code>run-winupdate</code>가 기준 DB를 복원하므로 승인 전에는 <code>--apply</code>로 등록하지 않는다. 결정 담당: 사용자.</li>
+<li>확인 필요 — 공유 <code>ctypes.windll</code> 원형을 바꾸는 기존 6건(<code>core/ui.py</code> 모듈 수준 <code>SendInput</code>·<code>WindowFromPoint</code>·<code>GetAncestor</code>)을 전용 <code>WinDLL</code> 사본으로 옮길지. 지금은 기준선으로 보고만 한다. 결정 담당: 사용자.</li>
 <li>확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
 근거: <code>automation_scope.json</code> 및 <code>NEXT_WORK.md</code>.
 영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.</li>

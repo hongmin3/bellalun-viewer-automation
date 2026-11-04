@@ -20,7 +20,23 @@ python tools/check_cleanup_stop.py
 python tools/check_regression_names.py
 python tools/traceability.py
 python tools/check_docs_sync.py
+python tools/wu_selfcheck.py
 python -m pytest tests -q
+```
+
+`tools/wu_selfcheck.py`는 WU 매핑(`tests/winupdate.py`)과 `automation_scope.json`·`traceability.json`의
+일치, `except` 블록 안의 PASS 기록, 공유 `ctypes.windll` 함수의 `restype`·`argtypes` 변경을 검사한다.
+기존 위반(`core/ui.py` 모듈 수준 6건)은 기준선으로 보고만 하고, 새 위반이 생기면 실패한다.
+
+## Viewer 조작 없는 실측 명령
+
+```powershell
+python -m core.env_preflight --config config.json        # 실행 전 점검·검증된 환경 대조
+python -m core.update_evidence --show                     # OS 빌드·KB 기록과 직전 기록 비교(저장 안 함)
+python run.py update-watch --install-task                 # 예약 등록 명령만 출력(--apply 없으면 등록 안 함)
+python tools/wu_flake_stats.py "Reports/Result_WindowsUpdate_*.json"   # 회차별 판정이 갈린 TC·단계
+python tools/release_gate.py --wu <WU json> --basic <기본 json> --commit <SHA>
+python run.py run-winupdate --from-regression <기본 json>  # 과거 결과 변환(Viewer·DB 미사용)
 ```
 
 외부 문서 timestamp 등으로 실패하면 숨기지 말고 변경 관련성과 원인을 구분해 보고한다.

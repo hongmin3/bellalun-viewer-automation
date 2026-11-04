@@ -4,9 +4,9 @@
 
 | 항목 | 값 |
 |---|---|
-| Document Version | 1.1.0 |
+| Document Version | 1.2.0 |
 | Project Version | BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-10-15 |
+| Last Updated | 2026-11-04 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -82,7 +82,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | VERDICT | 근거에 따른 판정 |
 | REPORT | 체크리스트별 결과 보고 |
 | DIST | 팀원용 설치와 실행 |
-| WU | USB 왕복과 설정 검사 |
+| WU | Windows Update 체크리스트 실행·판정·근거 |
 | KNOW | 지식 폴더 서버 동기화 |
 | BOUNDARY | 비공개 자료 보호 |
 
@@ -130,6 +130,26 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 #### 관련 테스트
 TEST-TRACE-001, `tests/test_result_reports.py`.
 
+### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
+
+#### 목적
+WU 체크리스트 13건도 기본기능 TC처럼 자동화 범위와 근거 연결을 데이터로 관리하고, 매핑이 어긋나면 바로 알 수 있게 한다.
+#### 동작
+`automation_scope.json`과 `traceability.json`에 TC_WindowsUpdate_01~13을 `"checklist": "windows_update"`로 둔다.
+항목마다 등급, 재사용하는 기본 TC(`reuses`), 판정 제외 결함(`known_defect_exclude`), MANUAL 사유를 적는다.
+`python run.py list`는 WU 13건을 기본기능 합계와 따로 보여 준다. 기본기능 리포트의 커버리지 집계에는 넣지 않는다.
+
+`python tools/wu_selfcheck.py`는 다음을 검사한다.
+
+1. `tests/winupdate.py`의 WU 제목·재사용 TC·제외 결함과 두 데이터 파일이 서로 맞는다.
+2. `except` 블록 안에서 PASS를 기록하지 않는다.
+3. 공유 `ctypes.windll` 함수의 `restype`·`argtypes`를 바꾸지 않는다(전용 `ctypes.WinDLL` 사본은 허용).
+
+이유: 공유 함수 원형을 바꾸면 같은 함수를 쓰는 다른 모듈의 인자 변환이 예고 없이 달라진다.
+#### 예외 처리
+기존 위반은 기준선 목록으로 보고만 한다. 새 위반이 생기거나 기준선 항목이 사라지면 실패한다.
+WU 체크리스트 행·제목은 로컬 기준 체크리스트(R-25-782)와 대조한다. 공용 QA 서버에는 이 체크리스트가 없다(2026-11-04 확인).
+
 ### REQ-VERDICT-001 관찰 근거에 따른 판정
 
 #### 목적
@@ -145,7 +165,8 @@ TC expected result와 화면·DB·파일·수신 결과 등 actual evidence.
 검증하지 못한 동작은 PASS가 되지 않으며 증거로 결과를 재검토할 수 있다.
 #### 예외 처리
 주 모니터 밖 창을 재사용할 때 조작 전에 중단한다. 근거 부족을 숨기지 않는다.
-WU_09는 되읽기 완료 신호와 교차 확인이 검증되기 전에는 MANUAL을 유지한다.
+WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Examined 재검색을 교차 확인해 PASS 또는 FAIL로 정한다.
+교차 확인 근거를 수집하지 못한 예외적인 결과만 MANUAL로 남긴다. USB가 없을 때의 표시는 REQ-WU-003을 따른다.
 #### 관련 구현
 `core/result.py`, `core/flows.py`, `tests/winupdate.py`, `core/usb_media.py`.
 #### 관련 테스트
@@ -232,6 +253,21 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 최종 배포 EXE로 기본기능 전체와 실시간 Windows Update 전체를 각각 수행한다.
 빌드 성공·설치 성공·기동 성공·제품 시험 성공을 구분하며 미수행 검증은 완료로 쓰지 않는다.
 
+### REQ-DIST-005 같은 커밋의 검증 결과를 요구하는 릴리스 게이트
+
+#### 하는 일
+정식 빌드 전에 빌드할 소스와 같은 커밋에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과가 목표를 채웠는지 확인한다.
+#### 순서
+1. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
+2. WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / MANUAL 3(WU_01·12·13)인지 본다.
+3. 기본기능 결과가 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지 본다.
+#### 결과
+`python tools/release_gate.py`가 항목별 통과·실패와 거부 사유를 보여 준다. `tools/build_distribution.py --gate-wu --gate-basic`은 빌드 전에 같은 판정을 한다.
+#### 안 될 때
+게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 `-candidate`를 붙이고 `게이트-미통과-후보.txt`와 build-info에 사유를 남긴다.
+> **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사용자가 정한 MANUAL과 등록된 알려진 결함만 허용한다.
+> **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
+
 ### REQ-WU-001 USB 왕복과 설정 전수 검사
 
 WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.
@@ -245,6 +281,107 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 
 기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
 알려진 제품 결함은 FAIL을 유지하고 미충족 조건과 실제 근거를 보고한다.
+
+### REQ-WU-002 실시간 WU 체인의 시간 상한·응답 없음 감지·재개
+
+#### 하는 일
+실시간 WU 체인(기준 DB 복원 → Install_01/02 → DICOM 서버 설정 → 화면 계약 → WF01~06 → XIPL 묶음 → WF08 → WF09 → WF14 → USB 왕복 → WU_10)이 한 단계에서 멈춰도 끝까지 가고, 끊기면 남은 단계만 이어 실행한다.
+#### 순서
+1. 실행하는 동안 PC가 절전이나 화면 꺼짐에 들어가지 않게 한다. Windows 전원 설정은 바꾸지 않는다.
+2. 단계마다 시간 상한을 두고 Viewer가 계속 응답하지 않는지(`SendMessageTimeoutW`, `SMTO_ABORTIFHUNG`, 120초 연속) 감시한다.
+3. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤, 그 단계의 TC를 BLOCKED와 사유로 기록한다.
+4. 다음 단계는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다. 전제 단계(기준 DB 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 체인을 멈춘다.
+5. 단계가 끝날 때마다 `work/winupdate_checkpoint.json`에 결과를 원자적으로 저장한다(임시 파일에 쓴 뒤 바꿔 넣는다).
+6. `run-winupdate --resume`은 저장점의 완료 단계 결과를 다시 쓰고 남은 단계만 실행한다. 리포트 meta에 `resumed`·`reused_stages`·`stage_trips`를 남긴다.
+#### 설정
+단계별 시간 상한은 `config.json > winupdate.stage_timeouts`로 바꿀 수 있다. 기본값은 `core/wu_chain.py`의 `STAGE_TIMEOUTS`다.
+#### 안 될 때
+저장점이 없거나, 내용 해시가 맞지 않거나, 체인 구성이 다르거나, 이미 끝난 체인이면 재개하지 않고 종료 코드 2로 알린다.
+#### 지킬 것
+설치판의 실시간 WU 완료 인정 조건(`live`, `chain_completed`, 13 TC)의 뜻은 바꾸지 않는다. 재개한 실행도 13 TC를 모두 갖춰야 `chain_completed`가 참이다.
+
+### REQ-WU-003 SKIP과 최종 판정의 관계
+
+#### 하는 일
+건너뛴 확인 범위가 최종 판정에 숨지 않게 한다. WU의 SKIP마다 판정을 막는지(`blocks_verdict`)를 적는다.
+#### 규칙
+
+| SKIP | blocks_verdict | 이유 |
+|---|---|---|
+| WU_09 CD Export/Import | false | 무인 실행에서 공디스크·버너를 보장할 수 없어 사용자가 자동화 대상에서 뺐다 |
+| WU_09 USB(이동식 드라이브 없음·`--from-regression`) | 표시 정책에 따름 | 아래 표 |
+| WU_10 `--from-regression` | 해당 없음 | TC 전체가 SKIP이라 PASS가 되지 않는다 |
+
+`blocks_verdict`가 참인 SKIP이 남으면 TC 판정은 PASS가 아니라 MANUAL이다. FAIL·BLOCKED가 있으면 그 판정이 우선한다.
+기본기능 TC의 SKIP 규칙(판정을 막지 않음)은 바꾸지 않는다.
+
+USB 왕복을 확인하지 못했을 때 WU_09 표시 정책(`tests/winupdate.py`의 `USB_UNVERIFIED_POLICY`):
+
+| 정책 | WU_09 판정 | 표시 |
+|---|---|---|
+| `manual` | MANUAL | USB SKIP이 판정을 막는다 |
+| `flag` | PASS | 리포트 L열과 meta `usb_unverified`에 "USB 왕복 미확인" |
+| `current` | PASS | 기존 표시 |
+
+> **주의** 어느 정책을 쓸지는 사용자 결정 전이다(13절). 결정 전에는 `current`를 유지한다.
+
+`--from-regression` 변환은 실시간 체인과 같은 함수(`build_wu_results`)를 지나므로 같은 규칙을 쓴다.
+변환 JSON에 있는 "Step N 미수행" 채움 행은 알려진 결함의 연쇄 중단 기록으로 보고 실시간 경로와 같은 판정을 낸다.
+
+WU_11(WF14 Setting Import/Export)은 기준 기록(S0) → 변경 확인(S1이 S0과 다름) → Import 후 복원(S2가 S0과 같음)의 세 단계 비교를 이미 수행한다.
+WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아니다.
+
+### REQ-WU-004 실행 전 점검과 검증된 환경 대조
+
+#### 하는 일
+실시간 WU 체인을 시작하기 전에 PC 상태를 점검하고, 이 PC가 검증된 환경 목록에 있는지 리포트에 남긴다.
+#### 점검 항목
+
+| 항목 | 결과 | 실행 차단 |
+|---|---|---|
+| 해상도 1920×1080, 96 DPI | 다르면 BLOCK | 예 |
+| 작업 폴더 경로에 `%` | 있으면 BLOCK | 예 |
+| 사용 가능 메모리 | 1 GiB 미만 BLOCK, 2 GiB 미만 WARN | 1 GiB 미만만 |
+| 작업 폴더 경로 120자 초과 | WARN | 아니오 |
+| 이동식 드라이브 없음 | WARN("WU_09 USB 단계 SKIP 예정") | 아니오 |
+| Windows Update 재부팅 대기, 시계 이상 | WARN | 아니오 |
+| 작업표시줄 자동 숨김 | 기록만(제품 조작 중에는 자동화가 관리) | 아니오 |
+| 검증된 환경 대조(OS 에디션, 빌드+UBR, 해상도, DPI, Viewer 버전) | 미등록이면 WARN | 아니오 |
+| 로그인 직후 핵심 컨트롤 화면 계약(2284·2285·2015) | 다르면 BLOCKED | 예(전제 단계) |
+
+#### 결과
+대조 결과는 WU 체크리스트 사본 3행(OS Build 실측값) 옆 L열과 HTML/JSON 리포트의 실행 환경에 적힌다.
+검증된 환경 목록은 `verified_environments.json`이며 근거 문서를 항목마다 적는다.
+#### 안 될 때
+실행 차단 항목이 있으면 저장점을 만들지 않고 종료 코드 2로 멈춘다. 미등록 환경은 판정을 막지 않는다.
+
+### REQ-WU-005 Windows Update 전후 근거와 변화 감지 실행
+
+#### 하는 일
+실시간 실행마다 OS 빌드+UBR, 설치된 KB 목록, 마지막 업데이트 설치 시각을 `work/update-evidence/history.jsonl`에 기록하고 직전 기록과 비교한다.
+#### 결과
+비교표는 WU 체크리스트 사본의 Issues 시트 뒤 '업데이트 전후' 시트와 리포트 meta `update_evidence`에 남는다.
+WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.
+#### update-watch
+`python run.py update-watch`는 빌드나 KB가 직전 기록과 다를 때만 `run-winupdate`를 한 번 실행한다. 첫 기록(기준 없음)과 변화 없음에는 실행하지 않는다.
+실행 전에 기록을 먼저 저장하므로 실행이 실패해도 같은 변화로 다시 돌지 않는다.
+`--install-task`/`--remove-task`는 `--apply`가 없으면 명령만 보여 준다. 예약 작업은 관리자 권한(`RunLevel Highest`)과 로그온한 사용자 세션으로 등록한다.
+> **주의** `run-winupdate`는 기준 DB를 복원한다. 무인 실행과 예약 등록은 사용자 승인 뒤 `--apply`로만 한다(13절).
+#### 지킬 것
+OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 PowerShell(WMI)은 60초 시간 제한을 두고, 실패하면 `kb_error`로 남기며 KB 변화로 세지 않는다.
+과거 결과 변환은 이 PC의 실행이 아니므로 기록하지 않는다.
+
+### REQ-WU-006 실패 증거와 반복 실행 통계
+
+#### 하는 일
+원인을 아직 모르는 Viewer 종료(NEXT_WORK 3-B)와 `my_settings`(193) 미발견(3-C)을 조사할 근거를 모은다.
+#### 순서
+1. Viewer가 사라지거나 단계 감시가 끊으면 `Evidence/failure/`에 JSON을 남긴다. 사건 전후 30초 제품 로그, 메모리 여유, Viewer GDI/USER 핸들 수, 전면 창, 기존 WER 덤프 판정을 담는다.
+2. Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 `page_handles`에 기록한다. WU_10 판정의 actual에는 페이지별 증가 요약도 붙는다.
+3. 캡처 직전 전면 창이 Viewer가 아니면 오염 후보로 알 수 있게 `failure_evidence.capture_guard`를 제공한다.
+4. `python tools/wu_flake_stats.py <리포트들>`은 여러 리포트에서 TC·단계별 판정이 갈린 횟수를 센다.
+#### 지킬 것
+기록한 핸들 증가는 원인 확정이 아니다. 증거 수집 실패는 판정과 실행을 막지 않는다.
 
 ### REQ-KNOW-001 지식 폴더 서버 동기화
 
@@ -390,6 +527,52 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
 USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.
 
+### TEST-WU-002 체인 시간 상한·재개
+
+- 검증 대상: REQ-WU-002.
+- 절차: `tests/test_wu_chain.py`가 가짜 단계·가짜 시계·가짜 응답 검사로 다음을 확인한다.
+  - 시간 초과와 연속 응답 없음은 BLOCKED가 되고 Viewer를 끝내기 전에 증거를 남긴다.
+  - 손상·수정·다른 체인·끝난 저장점은 재개하지 않는다.
+  - 체인 중간에 끊긴 뒤 `--resume`은 완료 단계를 다시 실행하지 않는다.
+  - 전제 BLOCKED와 사전 점검 차단에서 멈춘다.
+- Expected Result: 완료 단계는 한 번만 실행되고 리포트 meta에 재사용 단계가 남는다. 실제 Viewer 체인의 중단·재개는 사용자 승인 뒤 별도로 수행한다.
+
+### TEST-WU-003 SKIP 판정 조합
+
+- 검증 대상: REQ-WU-003.
+- 절차: `tests/test_wu_skip_policy.py`로 USB 있음/없음/오류/변환 × 세 표시 정책의 WU_09 판정, CD SKIP의 `blocks_verdict=false`, WU SKIP의 선언 누락, 변환 경로의 미수행 채움 행 판정을 고정한다.
+- Expected Result: 표의 판정과 표시가 나오고 변환과 실시간 경로의 판정이 같다.
+
+### TEST-WU-004 실행 전 점검
+
+- 검증 대상: REQ-WU-004.
+- 절차: `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py`가 가짜 시스템 정보로 항목별 OK/WARN/BLOCK, 미등록 환경 WARN, 화면 계약 불일치 BLOCK을 확인한다. 실제 PC에서는 `python -m core.env_preflight`를 Viewer 조작 없이 실행한다.
+- Expected Result: 실행 차단은 표의 항목에서만 생기고 미등록 환경은 막지 않는다.
+
+### TEST-WU-005 업데이트 근거와 update-watch
+
+- 검증 대상: REQ-WU-005.
+- 절차: `tests/test_update_evidence.py`로 빌드·KB 변화 감지, 변화 없음·첫 기록에서 미실행, 변화 시 한 번 실행, 실행 실패 뒤 기록 보존, 손상 줄 건너뛰기, WMI 시간 초과, `--apply` 없이 예약 미등록을 확인한다.
+- Expected Result: 실행 조건과 기록이 위 규칙과 같고 예약 명령은 실행되지 않는다.
+
+### TEST-WU-006 실패 증거와 통계
+
+- 검증 대상: REQ-WU-006.
+- 절차: `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.
+- Expected Result: 증거 수집은 예외를 내지 않고, 통계는 갈린 TC·단계를 센다.
+
+### TEST-TRACE-002 WU 추적성과 정적 자체검사
+
+- 검증 대상: REQ-TRACE-002.
+- 절차: `tests/test_wu_selfcheck.py`가 검사마다 일부러 틀린 입력을 넣어 실패하는지, 현재 저장소가 기준선과 같은지 확인한다. `python tools/wu_selfcheck.py`와 `python tools/traceability.py`를 실행한다.
+- Expected Result: WU 매핑 위반 0건, 새 위반은 실패.
+
+### TEST-DIST-005 릴리스 게이트
+
+- 검증 대상: REQ-DIST-005.
+- 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.
+- Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.
+
 ### TEST-KNOW-001 지식 폴더 동기화
 
 - 검증 대상: REQ-KNOW-001.
@@ -412,18 +595,38 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-003 | `tools/build_distribution.py`, `packaging/` | TEST-DIST-002; `tests/test_distribution_build.py` | implemented |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |
+| REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | implemented |
+| REQ-DIST-005 | `tools/release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; `tests/test_release_gate.py`, `tests/test_distribution_build.py` | implemented |
+| REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py` | implemented |
+| REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py` | implemented |
+| REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | implemented |
+| REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | implemented |
+| REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | implemented |
 
 implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
 이번 readiness 검사만으로 실제 제품 검증을 verified로 올리지 않는다.
+
+이 저장소에는 게이트 검증 명령(`botyard.json`의 `verify`)이 없어 단위시험이 있어도 verified로 표시하지 않는다(2026-11-04 판단).
 2026-10-18 최종 설치판으로 기본기능 전체와 실시간 WU 전체, 이 PC의 설치 수명주기를 확인했다(`docs/handoff-2026-10-18.md`).
 개발 도구 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC 검증은 아직 하지 않았다.
 
 ## 13. 미확정 사항
 
-- 미완료 — 개발 도구(Python·Git·소스)가 없는 PC 또는 VM, Windows 10, 다른 관리자 계정 UAC에서의 설치판 검증.
-  최종 동일 EXE의 기본기능 전체·실시간 WU 전체와 이 PC의 설치 수명주기는 2026-10-18에 확인했다.
-  근거: `docs/handoff-2026-10-18.md`. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.
+- 미검증 — 아래 표의 환경에서 설치판을 실행하지 않았다. 담당: 자동화 유지보수 담당자와 제품 QA 담당자.
+  확인한 범위는 [최종 검증 결과](docs/handoff-2026-10-18.md)(후보8)와 [호환성 검증 기록](docs/compatibility-2026-10-18.md) 6절(후보11)이다.
+
+| 환경 | 지금까지 |
+|---|---|
+| 실제 Windows 11 LTSC | 후보5·6까지만 실행했다. 후보7 이후는 실행하지 않았다 |
+| Windows 10 | 지원 대상이지만 실행한 적이 없다 |
+| 개발 도구 없는 PC | 후보10·11은 같은 PC에서 개발 도구를 뺀 최소 환경으로만 실행했다 |
+| 다른 관리자 계정·한글 사용자 계정 | 실행하지 않았다 |
+| 1920×1080·96 DPI 밖의 해상도·배율 | 실행 전 점검이 막으므로 지원 범위 밖이다 |
+
+- 확인 필요 — USB가 없을 때 WU_09 표시 정책(REQ-WU-003의 `manual`/`flag`/`current`). 결정 전에는 `current`를 유지한다. 결정 담당: 사용자.
+- 확인 필요 — `update-watch`의 무인 실행과 예약 등록 허용 여부. `run-winupdate`가 기준 DB를 복원하므로 승인 전에는 `--apply`로 등록하지 않는다. 결정 담당: 사용자.
+- 확인 필요 — 공유 `ctypes.windll` 원형을 바꾸는 기존 6건(`core/ui.py` 모듈 수준 `SendInput`·`WindowFromPoint`·`GetAncestor`)을 전용 `WinDLL` 사본으로 옮길지. 지금은 기준선으로 보고만 한다. 결정 담당: 사용자.
 - 확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
   근거: `automation_scope.json` 및 `NEXT_WORK.md`.
   영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.

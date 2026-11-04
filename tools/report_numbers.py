@@ -55,6 +55,8 @@ def scope_counts():
     path = os.path.join(ROOT, "automation_scope.json")
     with open(path, encoding="utf-8") as f:
         rows = json.load(f)
+    # Windows Update 체크리스트 항목은 개정본(기본기능) 수치에 섞지 않는다.
+    rows = [r for r in rows if r.get("checklist") != "windows_update"]
     levels = {}
     for row in rows:
         levels[row.get("level")] = levels.get(row.get("level"), 0) + 1

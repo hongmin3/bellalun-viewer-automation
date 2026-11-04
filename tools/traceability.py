@@ -17,6 +17,9 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 6. 인용한 `quote` 가 그 문서 원문에 **실제로 있는가**(공백 무시 비교)
 7. 사양서 인용의 `page` / `srs` 가 실측값과 같은가
 8. `steps` 번호가 체크리스트 Step Description 의 범위 안인가
+9. Windows Update 항목(`checklist: windows_update`)은 기본기능 체크리스트가 아니라
+   WU 체크리스트(`Checklist` 시트)와 대조하고, `reuses` 의 기본 TC 가 이 파일에
+   있는가. WU 원본 xlsx 는 저장소 밖이라 없으면 WU 행 대조만 건너뛰고 알린다.
 
 ## 출력
 
@@ -40,6 +43,12 @@ from core import checklist, specs
 
 TRACE_PATH = "traceability.json"
 SCOPE_PATH = "automation_scope.json"
+WU_CHECKLIST = "windows_update"
+WU_CHECKLIST_NAME = "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx"
+WU_SHEET = "Checklist"
+
+#: 위반은 아니지만 알릴 것(WU 원본 없음, WU 약칭 사용 등). `check()` 가 채운다.
+NOTES = []
 
 MANUALS = {
     "Operation Manual": "Bellalun Viewer Operation Manual.V1.0.12W1_KO_확인완료.txt",
@@ -142,6 +151,39 @@ def locate_in_spec(ctx, source, quote, prefer=None):
     return None, None
 
 
+def wu_source_path():
+    """WU 체크리스트 원본. `run.py::_winupdate_source_path` 와 같이 상위 폴더를 찾는다."""
+    here = os.path.abspath(".")
+    for _ in range(4):
+        here = os.path.dirname(here)
+        candidate = os.path.join(here, WU_CHECKLIST_NAME)
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def _check_wu(item, wu_rows, basic_ids, problems):
+    """WU 항목의 체크리스트 대조. 기본기능 체크리스트와는 대조하지 않는다."""
+    tc_id = item["tc_id"]
+    if wu_rows:
+        row = wu_rows.get(tc_id)
+        if row is None:
+            problems.append(f"WU 체크리스트에 없는 tc_id: {tc_id}")
+        elif item.get("title") and squash(item["title"]) != squash(row.get("title")):
+            # WU_TITLES 는 일부 행에서 Title 대신 Function 열 표기(약칭)를 쓴다.
+            if squash(item["title"]) == squash(row.get("function")):
+                NOTES.append(f"{tc_id}: title 이 체크리스트 Title 이 아니라 Function 열 "
+                             "표기(약칭)와 같다")
+            else:
+                problems.append(f"{tc_id}: WU 체크리스트 Title 불일치 — 추적성 "
+                                f"{item['title']!r}")
+    if not (item.get("requirements") or item.get("reuses") or item.get("pending_reason")):
+        problems.append(f"{tc_id}: 인용·reuses 가 없는데 pending_reason 도 없다")
+    for ref in item.get("reuses") or []:
+        if ref not in basic_ids:
+            problems.append(f"{tc_id}: reuses 의 {ref} 가 기본 TC 추적성에 없다")
+
+
 def _step_count(text):
     """Step Description 원문에서 마지막 단계 번호."""
     numbers = [int(n) for n in re.findall(r"^\s*(\d+)\.", text or "", re.M)]
@@ -167,10 +209,28 @@ def check():
         if tc_id not in listed:
             problems.append(f"체크리스트에 있으나 추적성에 없다: {tc_id}")
 
+    NOTES.clear()
+    wu_items = [x for x in trace["tc"] if x.get("checklist") == WU_CHECKLIST]
+    basic_ids = {x["tc_id"] for x in trace["tc"] if x.get("checklist") != WU_CHECKLIST}
+    wu_rows = {}
+    if wu_items:
+        wu_xlsx = wu_source_path()
+        if wu_xlsx:
+            wu_rows = checklist.read_tc_rows(wu_xlsx, WU_SHEET)
+            for tc_id in wu_rows:
+                if tc_id not in listed:
+                    problems.append(f"WU 체크리스트에 있으나 추적성에 없다: {tc_id}")
+        else:
+            NOTES.append(f"WU 체크리스트 원본({WU_CHECKLIST_NAME})이 없어 WU "
+                         f"{len(wu_items)}건의 행·Title 대조를 건너뛰었다")
+
     for item in trace["tc"]:
         tc_id = item["tc_id"]
-        row = rows.get(tc_id)
-        if row is None:
+        is_wu = item.get("checklist") == WU_CHECKLIST
+        row = {} if is_wu else rows.get(tc_id)
+        if is_wu:
+            _check_wu(item, wu_rows, basic_ids, problems)
+        elif row is None:
             problems.append(f"체크리스트에 없는 tc_id: {tc_id}")
             continue
         if item.get("title") and row.get("title") and \
@@ -188,7 +248,7 @@ def check():
         if item.get("command") and item["command"] not in commands:
             problems.append(f"{tc_id}: run.py 에 없는 명령 "
                             f"{item['command']!r}")
-        if not item.get("requirements") and not item.get("pending_reason"):
+        if not is_wu and not item.get("requirements") and not item.get("pending_reason"):
             problems.append(f"{tc_id}: 인용이 없는데 pending_reason 도 없다")
 
         last_step = _step_count(row.get("steps"))
@@ -247,8 +307,9 @@ def main():
     trace, problems = check()
     total = sum(len(x.get("requirements", [])) for x in trace["tc"])
     covered = [x for x in trace["tc"] if x.get("requirements")]
-    print(f"TC {len(trace['tc'])}건 / 인용 있는 TC {len(covered)}건 / "
-          f"인용 {total}건")
+    wu_count = sum(1 for x in trace["tc"] if x.get("checklist") == WU_CHECKLIST)
+    print(f"TC {len(trace['tc']) - wu_count}건 / 인용 있는 TC {len(covered)}건 / "
+          f"인용 {total}건" + (f" (+ Windows Update TC {wu_count}건)" if wu_count else ""))
 
     if "--reverse" in sys.argv:
         print()
@@ -268,10 +329,15 @@ def main():
                                                else "")) for r in reqs})
                 print(f"  {item['tc_id']:<28} {len(reqs)}건  "
                       f"{' / '.join(anchors)}")
+            elif item.get("reuses"):
+                print(f"  {item['tc_id']:<28} 재사용  "
+                      f"{' + '.join(item['reuses'])}")
             else:
                 print(f"  {item['tc_id']:<28} 미확정  "
                       f"{item.get('pending_reason', '')}")
 
+    for line in NOTES:
+        print("  참고:", line)
     if problems:
         print()
         print(f"*** 위반 {len(problems)}건 ***")

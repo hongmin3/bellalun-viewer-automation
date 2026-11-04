@@ -429,5 +429,289 @@
     "title": "3D-Wide 촬영 등록 및 획득",
     "level": "SUPPORT",
     "reason": "개정본 TC가 아니다(이전 체크리스트의 TC_System_compatibility_04에 해당). 3D-Wide Preset 등록과 Demo F8 촬영, INSTANCE_GROUP.Type=1·ExposureMode=2을 자동 판정한다(tests/system_compat.py, run-sys3d). 장비 LCD 표시와 2430 패들·회전 각도(-15~15도)는 실물 System이 필요해 MANUAL"
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_01",
+    "title": "패키지 설치 확인",
+    "checklist": "windows_update",
+    "level": "MANUAL",
+    "reason": "사용자 지정 수동 TC. OS Update 수행과 패키지 설치 행위 자체는 사람이 한다(TC_Basic_WorkFlow_16과 같은 방식). TC_Basic_Install_01/02 판정과 실측 OS·Build 는 참고 근거로만 첨부한다.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_Install_01",
+        "role": "참고"
+      },
+      {
+        "tc_id": "TC_Basic_Install_02",
+        "role": "참고"
+      }
+    ],
+    "coverage": {
+      "category": "사용자 지정 수동",
+      "gap": "OS Update 수행과 패키지 설치는 시험자가 직접 수행한다. 자동화는 참고 근거(Install_01/02 판정, 실측 OS Build)만 남긴다.",
+      "unblock": "자동화 대상 아님(사용자 확정)."
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_02",
+    "title": "MWL 조회",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_01 + TC_Basic_WorkFlow_02(Step 6/7 제외 — WU_03 소관) + TC_Basic_WorkFlow_04.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_01",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_Basic_WorkFlow_02",
+        "role": "판정",
+        "exclude_steps": [
+          6,
+          7
+        ]
+      },
+      {
+        "tc_id": "TC_Basic_WorkFlow_04",
+        "role": "판정"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_03",
+    "title": "영상 조작",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_02 Step 6/7(Tool 적용)만 사용한다.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_02",
+        "role": "판정",
+        "only_steps": [
+          6,
+          7
+        ]
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "WF_02 Step 6/7 결과만 WU 판정에 반영한다(같은 증거를 WU_02와 중복 귀속하지 않는다).",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_04",
+    "title": "Image Processing(2D)",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_XIPL_compatibility_02/04/06.",
+    "reuses": [
+      {
+        "tc_id": "TC_XIPL_compatibility_02",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_XIPL_compatibility_04",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_XIPL_compatibility_06",
+        "role": "판정"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_05",
+    "title": "Image Processing(3D)",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_XIPL_compatibility_03/07. XIPL_03 의 이미 확인된 결함 1건(재진입 시 3D 파라미터 유지)은 WU Expected 가 요구하지 않아 판정에서 제외하고 Issues 시트에 남긴다.",
+    "reuses": [
+      {
+        "tc_id": "TC_XIPL_compatibility_03",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_XIPL_compatibility_07",
+        "role": "판정"
+      }
+    ],
+    "known_defect_exclude": [
+      {
+        "tc_id": "TC_XIPL_compatibility_03",
+        "title": "Apply 후 TEST_3D 이름과 Recon/Syn 10개 값 유지",
+        "kind": "기존 알려진 제품 결함"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "판정 제외 결함 1건(XIPL_03 재진입 시 파라미터 유지)은 WU 집계에서 빼고 Issues 시트에 기록한다. 원본 XIPL_03 판정은 바꾸지 않는다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_06",
+    "title": "DICOM 전송(2D)",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_04 + TC_Basic_WorkFlow_06.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_04",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_Basic_WorkFlow_06",
+        "role": "판정"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_07",
+    "title": "DICOM 전송(3D)",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_05 + TC_Basic_WorkFlow_06.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_05",
+        "role": "판정"
+      },
+      {
+        "tc_id": "TC_Basic_WorkFlow_06",
+        "role": "판정"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_08",
+    "title": "DICOM Print",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_08.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_08",
+        "role": "판정"
+      }
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다.",
+      "unblock": "-"
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_09",
+    "title": "Study Export",
+    "checklist": "windows_update",
+    "level": "PARTIAL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_09 + USB Export/Import 신규 로직(tests/winupdate.py::run_usb_export_import). CD 경로는 SKIP.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_09",
+        "role": "판정"
+      }
+    ],
+    "new_logic": [
+      "tests/winupdate.py::run_usb_export_import"
+    ],
+    "coverage": {
+      "category": "부분 자동 — 남은 항목 있음",
+      "gap": "CD Export/Import 는 공디스크·버너가 무인 실행에서 보장되지 않아 SKIP 이다(사용자 확정). USB 는 이동식 드라이브가 없으면 SKIP, `--from-regression` 변환 경로에서는 USB 결과가 없어 SKIP 이다.",
+      "unblock": "USB 는 이동식 드라이브를 꽂고 `run-winupdate` 로 직접 실행. CD 는 시험자 수동 확인."
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_10",
+    "title": "Setting 화면 표시",
+    "checklist": "windows_update",
+    "level": "FULL",
+    "reason": "대응하는 기존 TC 가 없어 신규 구현했다(tests/winupdate.py::run_setting_display — setting_values.read_all 전수 순회 + 인접 탭 빠른 전환).",
+    "reuses": [],
+    "new_logic": [
+      "tests/winupdate.py::run_setting_display"
+    ],
+    "coverage": {
+      "category": "자동 판정(구현 완료)",
+      "gap": "`run-winupdate` 전용 체인에서만 수행한다. `--from-regression` 변환 경로에는 결과가 없어 SKIP 이다.",
+      "unblock": "`run-winupdate` 로 직접 실행."
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_11",
+    "title": "Setting Import/Export",
+    "checklist": "windows_update",
+    "level": "PARTIAL",
+    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_14. 이미 확인된 UPS 설정 복원 결함(같은 결함을 확인하는 check 2건)은 WU Expected 가 UPS 를 특정하지 않아 판정에서 제외하고 Issues 시트에 남긴다.",
+    "reuses": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_14",
+        "role": "판정"
+      }
+    ],
+    "known_defect_exclude": [
+      {
+        "tc_id": "TC_Basic_WorkFlow_14",
+        "title": "Setting > Device > UPS 설정이 Export 시점 값으로 복원",
+        "kind": "기존 알려진 제품 결함"
+      },
+      {
+        "tc_id": "TC_Basic_WorkFlow_14",
+        "title": "Setting 화면 컨트롤 값 항목 단위 복원(보강 근거)",
+        "kind": "기존 알려진 제품 결함"
+      }
+    ],
+    "coverage": {
+      "category": "부분 자동 — 남은 항목 있음",
+      "gap": "원본 WF_14 의 수동 항목(숨은 목록 행)은 그대로 MANUAL 로 승계된다. 판정 제외 결함(UPS 설정 복원)은 WU 집계에서 빼고 Issues 시트에 기록한다. 원본 WF_14 판정은 바꾸지 않는다.",
+      "unblock": "WF_14 의 남은 수동 항목이 자동화되면 함께 해소된다."
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_12",
+    "title": "OS User 계정",
+    "checklist": "windows_update",
+    "level": "MANUAL",
+    "reason": "사용자 지정 수동 TC(2026-09-07 사용자 확정). OS User 그룹 계정은 스스로를 승격할 수 없고 UI 자동화는 그 계정의 대화형 세션 안에서만 동작해 완전 자동화가 불가능하다.",
+    "reuses": [],
+    "coverage": {
+      "category": "사용자 지정 수동",
+      "gap": "별도 OS User 계정의 대화형 세션에서 로그인·실행해야 한다.",
+      "unblock": "자동화 대상 아님(사용자 확정)."
+    }
+  },
+  {
+    "tc_id": "TC_WindowsUpdate_13",
+    "title": "KIOSK 설정",
+    "checklist": "windows_update",
+    "level": "MANUAL",
+    "reason": "사용자 지정 수동 TC. TC_Basic_WorkFlow_16과 같은 사유(시스템 재기동·KIOSK 전환·Shutdown 등 파괴적 동작)다.",
+    "reuses": [],
+    "coverage": {
+      "category": "사용자 지정 수동",
+      "gap": "KIOSK 모드 설정/해제와 System Launcher 는 시스템 재기동을 동반하는 파괴적 동작이다.",
+      "unblock": "자동화 대상 아님(TC_Basic_WorkFlow_16과 동일 사유)."
+    }
   }
 ]

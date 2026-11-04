@@ -75,13 +75,24 @@ def _command_line():
     return subprocess.list2cmdline([sys.executable, entrypoint] + sys.argv[1:])
 
 
+def _source_identity_meta(ctx):
+    """릴리스 게이트가 읽는 실행 소스 커밋·수정 여부. 실패해도 리포트는 만든다."""
+    try:
+        from core.source_identity import source_identity
+        return source_identity(getattr(ctx, "root", "."))
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  source-identity: 확인 실패 — {exc}")
+        return {"source_commit": None, "source_dirty": None,
+                "source_identity_origin": "unknown"}
+
+
 def _report_meta(ctx, results):
     """HTML 리포트에 실을 부가 정보를 모은다.
 
     실패해도 리포트 생성 자체는 살린다 — 대신 **조용히 넘기지 않고** 이유를
     출력한다(체크리스트 기록이 죽은 코드였던 2026-08-18 사례와 같은 처리).
     """
-    meta = {"command": _command_line()}
+    meta = {"command": _command_line(), **_source_identity_meta(ctx)}
     try:
         from core import checklist, sysinfo, tc_modules
         source = checklist.source_path(ctx)
@@ -104,7 +115,8 @@ def _report_meta(ctx, results):
                  "gap": (x.get("coverage") or {}).get("gap"),
                  "unblock": (x.get("coverage") or {}).get("unblock")}
                 for x in scope_rows
-                if x.get("level") != "SUPPORT" and x.get("coverage")]
+                if x.get("level") != "SUPPORT" and x.get("coverage")
+                and x.get("checklist") != "windows_update"]
         except Exception as exc:                       # noqa: BLE001
             print(f"  report-meta: automation_scope.json 읽기 실패 — {exc}")
         xipl_cfg = ctx.cfg.get("xipl") or {}
@@ -406,6 +418,17 @@ def recover_viewer_after_termination(ctx, tc_id, produced, started):
     from core.result import FAIL, PASS
     info = automation_health.process_exit_message("VIEWER", started)
     target = produced[0]
+    try:
+        from core import failure_evidence
+        evidence_path, _payload = failure_evidence.collect_failure_evidence(
+            os.path.join(ctx.evidence_root, "failure"), tc_id=tc_id, reason=info.get("message"),
+            event_time=time.time(), viewer_pid=None, log_path=_viewer_log_path(ctx),
+            crash_since=started)
+        if evidence_path:
+            info = dict(info, failure_evidence=evidence_path)
+            target.attach(evidence_path)
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  failure-evidence: 기록 실패 — {exc}")
     target.cleanup(
         0, "회귀 중 Viewer 비정상 종료 감지", FAIL,
         expected="TC 수행 중 Viewer 프로세스 유지",
@@ -599,15 +622,27 @@ def _winupdate_env(ctx):
 
 
 def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
-                      *, execution_mode="live", chain_completed=False):
+                      *, execution_mode="live", chain_completed=False, extra_meta=None):
     """WU 판정을 xlsx(K열 삽입 + Issues 탭)와 JSON/CSV/HTML 리포트로 남긴다."""
     from core import winupdate_report
     for r in wu_results:
         r.finalize()
     env = dict(_winupdate_env(ctx))
+    preflight = (extra_meta or {}).get("preflight") or {}
+    if preflight.get("summary"):
+        env.update(preflight["summary"])
     env["실행 방식"] = "과거 결과 변환" if execution_mode == "historical" else "실시간 제품 시험"
+    update_rows, update_meta = _wu_update_evidence(ctx, execution_mode)
+    from tests.winupdate import usb_unverified
+    usb_flags = [r.tc_id for r in wu_results if usb_unverified(r)]
     env["체인 완료"] = ("해당 없음" if execution_mode == "historical" else
                          "완료" if chain_completed else "조기 중단")
+    if (extra_meta or {}).get("resumed"):
+        reused = ", ".join((extra_meta or {}).get("reused_stages") or []) or "없음"
+        env["재개"] = f"저장점에서 재개(재사용 단계: {reused})"
+    trips = (extra_meta or {}).get("stage_trips") or {}
+    if trips:
+        env["단계 중단"] = "; ".join(f"{k}: {v.get('reason')}" for k, v in trips.items())
     if source_note:
         env["근거"] = source_note
     print(f"  실행 방식: {env['실행 방식']} / 체인 완료: {env['체인 완료']}")
@@ -623,7 +658,8 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
         out = os.path.join(ctx.reports_root,
                            f"WindowsUpdate_Checklist_Result_{stamp}.xlsx")
         try:
-            info = winupdate_report.write_results(source, wu_results, env=env, out_path=out)
+            info = winupdate_report.write_results(source, wu_results, env=env, out_path=out,
+                                                  update_rows=update_rows)
             result_paths["xlsx"] = info["path"]
             print(f"  winupdate xlsx: {info['path']} "
                   f"(기록 {len(info['written'])}건, 미매칭 {len(info['unmatched'])}건, "
@@ -634,6 +670,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
     from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
                               meta={"command": _command_line(), "env": env,
+                                    **_source_identity_meta(ctx),
+                                    "usb_unverified": usb_flags,
+                                    "update_evidence": update_meta,
                                     "execution_mode": execution_mode,
                                     "chain_completed": bool(chain_completed),
                                     "report_title":
@@ -641,7 +680,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
                                     "report_title_short":
                                         "Bellalun Viewer Windows Update 호환성 검증 자동화 결과",
                                     "source_doc": WINUPDATE_CHECKLIST_NAME,
-                                    "source_sheet": _WU_SHEET})
+                                    "source_sheet": _WU_SHEET,
+                                    **{k: v for k, v in (extra_meta or {}).items()
+                                       if k != "chain_completed"}})
     result_paths.update(json_paths)
 
     for r in wu_results:
@@ -655,6 +696,68 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
         print(f"  근거: {source_note}")
     announce_done(wu_results, elapsed_minutes, result_paths)
     return 1 if any(r.verdict == "FAIL" for r in wu_results) else 0
+
+
+def _wu_update_evidence(ctx, execution_mode):
+    """실시간 실행마다 OS 빌드·KB·마지막 업데이트 설치 시각을 기록하고 직전 기록과 비교한다.
+
+    과거 결과 변환은 이 PC의 실행이 아니므로 기록하지 않는다(REQ-WU-005).
+    반환: (업데이트 전후 표 행, 리포트 meta).
+    """
+    if execution_mode == "historical":
+        return None, {"recorded": False, "reason": "과거 결과 변환은 기록하지 않음"}
+    try:
+        from core import update_evidence
+        work_dir = os.path.join(ctx.root, "work")
+        previous = update_evidence.load_last(work_dir)
+        current = update_evidence.collect()
+        update_evidence.save(current, work_dir)
+        comparison = update_evidence.compare(previous, current)
+        rows = update_evidence.report_rows(comparison)
+        print("  업데이트 전후: " + ("첫 기록(기준 없음)" if comparison.get("first_record")
+                                  else "변화 있음" if comparison.get("changed") else "변화 없음"))
+        return rows[1:] if rows and tuple(rows[0]) == tuple(update_evidence.REPORT_HEADER) else rows, \
+            {"recorded": True, **update_evidence.meta_summary(comparison)}
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  업데이트 근거: 기록 실패 — {exc}")
+        return None, {"recorded": False, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def _wu_preflight(ctx):
+    """실시간 WU 체인 전 사전 점검과 검증된 환경 대조(REQ-WU-004). 조회만 한다."""
+    from core import env_preflight
+    result = env_preflight.run_preflight(ctx.cfg, ctx.root)
+    for item in result["items"]:
+        # 제품 조작 명령은 실행 동안 작업표시줄을 스스로 자동 숨김으로 둔다(core.ui.taskbar_autohidden).
+        if item.get("key") == "taskbar_autohide":
+            item.update(level=env_preflight.OK, actual="자동화가 실행 동안 자동 숨김으로 관리",
+                        hint="실행이 끝나면 원래 설정으로 되돌린다.")
+    result["blocked"] = any(i["level"] == env_preflight.BLOCK and i["blocks_run"]
+                            for i in result["items"])
+    for line in env_preflight.format_lines(result):
+        print(f"  {line}")
+    return result
+
+
+def _wu_screen_contract_stage(ctx):
+    """로그인 직후 핵심 컨트롤 화면 계약 확인. 맞지 않으면 BLOCKED로 체인을 멈춘다."""
+    from core import flows, screen_contract
+    from core.result import TCResult, PASS
+    r = TCResult("AUTOMATION_SCREEN_CONTRACT", "로그인 직후 핵심 컨트롤 화면 계약")
+    r.stop_on_fail = False
+    ui, _startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)
+    flows.ensure_patient_screen(ui)
+    outcome = screen_contract.check(ui)
+    if outcome["ok"]:
+        r.add(0, "로그인 직후 핵심 컨트롤 표시", PASS,
+              expected=list(outcome["checked"]), actual=outcome)
+    else:
+        r.blocked(0, "로그인 직후 핵심 컨트롤 표시",
+                  screen_contract.describe(outcome) + "\n해제 조건: 설치된 Viewer 판과 "
+                  "자동화가 아는 화면 구성이 같은지 확인한다.\n이 실행으로 말할 수 없는 것: "
+                  "이후 모든 WU TC의 제품 동작.",
+                  expected=list(outcome["checked"]), actual=outcome)
+    return [r]
 
 
 def _run_winupdate_from_regression(ctx, path):
@@ -691,36 +794,15 @@ def _prepare_wu_setting_ui(ctx, ui, usb_outcome):
     return flows.cold_start(ctx.cfg, ctx.db, force_restart=True)[0]
 
 
-def _run_winupdate_chain(ctx):
-    """WU 체크리스트에 필요한 TC만 순서대로 실제 실행하는 전용 체인.
+WU_PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup",
+                    "AUTOMATION_SCREEN_CONTRACT"}
+WU_TAIL_STAGES = ("WU09_USB", "TC_WindowsUpdate_10")
 
-    `run-regression`과 같은 전제 게이트·guarded 실행 방식을 쓰되, WU 매핑에
-    없는 WF_07/10/11/12/13/15/16, XIPL_01/05는 건너뛴다. WF_03은 WU 매핑에는
-    없지만 WF_08(Print)이 만드는 Print Overlay의 전제라 그대로 포함한다
-    (run-regression과 같은 이유 — `run.py` chain 주석 참고).
-    """
-    from tests.install import install_01, install_02
-    from tests.workflow01 import run as run_workflow01
-    from tests.workflow02 import run as run_workflow02
-    from tests.workflow03 import run as run_overlay
-    from tests.workflow04 import run as run_send
-    from tests.workflow05 import run as run_3d
-    from tests.workflow06 import run as run_all_images
-    from tests.workflow08 import run as run_film_print
-    from tests.workflow09 import run as run_export
-    from tests.workflow14 import run as run_setting_transfer
-    from tests.xipl_flows import (_prepare, compatibility_02, compatibility_03,
-                                  compatibility_04, compatibility_06, compatibility_07)
+
+def _wu_reset_stage(ctx):
+    """WU 체인 첫 단계: 기준 DB 스냅샷 복원과 제품 서비스 재기동."""
     from core.dbreset import has_baseline, restore_baseline, baseline_state
     from core.result import TCResult, FAIL
-    from core import flows
-    from tests import winupdate
-
-    started = datetime.now()
-    print(f"[run-winupdate] 시작 {started:%Y-%m-%d %H:%M:%S} — "
-          "WU 체크리스트에 필요한 TC만 순서대로 실행합니다.")
-
-    results = []
     reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "WU 체인 전 기준 상태 복원")
     reset.stop_on_fail = False
     if has_baseline(ctx):
@@ -739,7 +821,24 @@ def _run_winupdate_chain(ctx):
         reset.manual(0, "DB 기준 스냅샷 복원",
                      "기준 스냅샷(.bak)을 찾지 못해 복원을 건너뛰었습니다.",
                      expected="기준 스냅샷 존재", actual=baseline_state(ctx))
-    results.append(reset)
+    return [reset]
+
+
+def _wu_chain_stages():
+    """WU 체인 단계 목록 (함수, 단계 ID, 제목). 이 순서가 저장점의 체인 구성이 된다."""
+    from tests.install import install_01, install_02
+    from tests.workflow01 import run as run_workflow01
+    from tests.workflow02 import run as run_workflow02
+    from tests.workflow03 import run as run_overlay
+    from tests.workflow04 import run as run_send
+    from tests.workflow05 import run as run_3d
+    from tests.workflow06 import run as run_all_images
+    from tests.workflow08 import run as run_film_print
+    from tests.workflow09 import run as run_export
+    from tests.workflow14 import run as run_setting_transfer
+    from tests.xipl_flows import (_prepare, compatibility_02, compatibility_03,
+                                  compatibility_04, compatibility_06, compatibility_07)
+    from core.result import TCResult
 
     def _run_xipl_subset(ctx):
         try:
@@ -756,13 +855,15 @@ def _run_winupdate_chain(ctx):
             out.extend([compatibility_04(ctx), r6, compatibility_07(ctx)])
             return out
         return [compatibility_02(ctx, session), compatibility_03(ctx, session),
-               compatibility_04(ctx), compatibility_06(ctx, session),
-               compatibility_07(ctx)]
+                compatibility_04(ctx), compatibility_06(ctx, session),
+                compatibility_07(ctx)]
 
-    chain = [
+    return [
+        (_wu_reset_stage, "AUTOMATION_ENVIRONMENT_RESET", "WU 체인 전 기준 상태 복원"),
         (install_01, "TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인"),
         (install_02, "TC_Basic_Install_02", "Viewer 실행 전 필수 환경 확인"),
         (setup_all, "DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결"),
+        (_wu_screen_contract_stage, "AUTOMATION_SCREEN_CONTRACT", "로그인 직후 핵심 컨트롤 화면 계약"),
         (run_workflow01, "TC_Basic_WorkFlow_01", "MWL 및 Local 검사 생성"),
         (run_workflow02, "TC_Basic_WorkFlow_02", "공통 2D/3D 검사 촬영 및 Tool 적용"),
         (run_overlay, "TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정"),
@@ -775,59 +876,260 @@ def _run_winupdate_chain(ctx):
         (run_setting_transfer, "TC_Basic_WorkFlow_14", "Setting Export 및 Import"),
     ]
 
-    PRECONDITIONS = {"AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"}
-    aborted_precondition = reset if reset.verdict == "FAIL" else None
-    for fn, tc_id, title in chain:
-        tc_started = time.time()
-        produced = guarded(fn, ctx, tc_id, title)
-        results.extend(produced)
-        recover_viewer_after_termination(ctx, tc_id, produced, tc_started)
-        if tc_id in PRECONDITIONS:
-            broken = [x for x in produced if x.verdict == "FAIL"]
-            if broken:
-                aborted_precondition = broken[0]
-                break
 
-    if aborted_precondition is not None:
-        print("!" * 74)
-        print(f"  전제 준비 실패 — run-winupdate 를 중단합니다: "
-              f"{aborted_precondition.tc_id}")
-        print("!" * 74)
-        shutdown = shutdown_viewer("전제 준비 실패로 run-winupdate 중단")
-        print(f"  viewer-shutdown: {shutdown}")
-        elapsed = (datetime.now() - started).total_seconds() / 60
-        lookup = winupdate.lookup_from_results(results)
-        wu_results = winupdate.build_wu_results(lookup)
-        return _finish_winupdate(ctx, wu_results, elapsed,
-                                 source_note="전용 체인(전제 실패로 조기 중단)",
-                                 execution_mode="live", chain_completed=False)
-
-    usb_outcome, wu10_result = None, None
+def _wu_restart_after_trip(ctx, stage_id, trip):
+    """감시자가 끊은 단계 뒤에는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다."""
+    from core import flows
+    print(f"  [run-winupdate] {stage_id} 중단({trip['kind']}): {trip['reason']}")
+    print("  [run-winupdate] Viewer를 다시 띄운 뒤 다음 단계를 계속합니다.")
     try:
-        ui, _startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)
-        try:
-            usb_outcome = winupdate.run_usb_export_import(ctx, ui)
-        except Exception as exc:
-            usb_outcome = {"drive": None, "error": str(exc)}
-            print(f"  [run-winupdate] USB Export/Import 예외: {exc}")
-        ui = _prepare_wu_setting_ui(ctx, ui, usb_outcome)
-        wu10_result = winupdate.run_setting_display(ctx, ui)
-    except Exception as exc:
-        print(f"  [run-winupdate] WU_09/WU_10 준비 중 예외: {exc}")
-        if wu10_result is None:
-            wu10_result = TCResult("TC_WindowsUpdate_10",
-                                   winupdate.WU_TITLES["TC_WindowsUpdate_10"])
-            wu10_result.abort(0, "TC_WindowsUpdate_10 실행", exc)
+        return flows.cold_start(ctx.cfg, ctx.db, force_restart=True)[0]
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  [run-winupdate] 재기동 실패(다음 단계가 스스로 다시 시도합니다): {exc}")
+        return None
 
-    shutdown = shutdown_viewer("run-winupdate 종료")
-    print(f"  viewer-shutdown: {shutdown}")
+
+def _wu_trip_evidence(ctx, stage_id):
+    """감시자가 Viewer를 끝내기 직전의 실패 증거(로그 구간·메모리·GDI/USER 핸들)."""
+    def collect(monitor):
+        from core import failure_evidence, wu_chain
+        failure_evidence.collect_failure_evidence(
+            os.path.join(ctx.evidence_root, "failure"), tc_id=stage_id,
+            reason=f"{monitor.kind}: {monitor.reason}", event_time=time.time(),
+            viewer_pid=wu_chain._viewer_pid(), log_path=_viewer_log_path(ctx))
+    return collect
+
+
+def _wu_precondition_broken(produced):
+    from tests.winupdate import _view
+    return [x for x in produced if _view(x).get("verdict") in ("FAIL", "BLOCKED")]
+
+
+def _run_winupdate_chain(ctx, resume=False):
+    """WU 체크리스트에 필요한 TC만 순서대로 실제 실행하는 전용 체인.
+
+    `run-regression`과 같은 전제 게이트·guarded 실행 방식을 쓰되, WU 매핑에
+    없는 WF_07/10/11/12/13/15/16, XIPL_01/05는 건너뛴다. WF_03은 WU 매핑에는
+    없지만 WF_08(Print)이 만드는 Print Overlay의 전제라 그대로 포함한다
+    (run-regression과 같은 이유 — `run.py` chain 주석 참고).
+
+    단계마다 시간 상한과 Viewer 응답 없음을 감시하고(REQ-WU-002), 끝난 단계는
+    `work/winupdate_checkpoint.json`에 원자적으로 저장한다. `resume=True`이면 저장점의
+    완료 단계 결과를 그대로 쓰고 남은 단계만 실행한다. 손상·다른 체인의 저장점은 거부한다.
+    """
+    from core.result import TCResult
+    from core import flows, wu_chain
+    from tests import winupdate
+
+    # 사전 점검이 실행을 막으면 저장점을 만들거나 옮기지 않고 끝낸다.
+    from core import env_preflight
+    preflight = _wu_preflight(ctx)
+    preflight_meta = {"summary": env_preflight.summary_for_report(preflight),
+                      "items": preflight["items"], "environment": preflight["environment"],
+                      "fingerprint": preflight["fingerprint"]}
+    if preflight["blocked"]:
+        print("[run-winupdate] 실행 전 점검에서 실행을 막는 항목이 있어 시작하지 않습니다.")
+        return 2
+
+    stages = _wu_chain_stages()
+    stage_ids = [sid for _, sid, _ in stages] + list(WU_TAIL_STAGES)
+    identity = wu_chain.chain_identity(stage_ids)
+    path = wu_chain.checkpoint_path(ctx.root)
+    if resume:
+        try:
+            checkpoint = wu_chain.Checkpoint.load(path, identity)
+        except wu_chain.CheckpointError as exc:
+            print(f"[run-winupdate --resume] 재개하지 않습니다: {exc}")
+            print("  저장점 없이 처음부터 실행하려면 --resume 없이 다시 실행하십시오.")
+            return 2
+        checkpoint.mark_resumed()
+        print(f"[run-winupdate --resume] 저장점의 완료 단계 {len(checkpoint.completed_stages)}개를 "
+              f"재사용하고 남은 단계만 실행합니다: {path}")
+    else:
+        moved = wu_chain.set_aside(path)
+        if moved:
+            print(f"  [run-winupdate] 이전 저장점을 보관했습니다: {moved}")
+        checkpoint = wu_chain.Checkpoint(path, identity)
+        checkpoint.save()
+
+    started = datetime.now()
+    print(f"[run-winupdate] 시작 {started:%Y-%m-%d %H:%M:%S} — "
+          "WU 체크리스트에 필요한 TC만 순서대로 실행합니다.")
+
+    results, reused, trips = [], [], {}
+
+    def meta_extra():
+        return {"resumed": bool(resume), "resume_count": checkpoint.resume_count,
+                "reused_stages": list(reused), "stage_trips": dict(trips),
+                "checkpoint": path, "preflight": preflight_meta}
+
+    aborted_precondition = None
+    with wu_chain.keep_awake():
+        for fn, stage_id, title in stages:
+            if checkpoint.done(stage_id):
+                produced = checkpoint.results(stage_id)
+                reused.append(stage_id)
+                print(f"  [재개] {stage_id}: 저장점 결과 재사용")
+            else:
+                tc_started = time.time()
+                produced, trip = wu_chain.run_stage(fn, ctx, stage_id, title, guarded=guarded,
+                                                   before_kill=_wu_trip_evidence(ctx, stage_id))
+                if trip:
+                    trips[stage_id] = trip
+                    if stage_id not in WU_PRECONDITIONS:
+                        _wu_restart_after_trip(ctx, stage_id, trip)
+                else:
+                    recover_viewer_after_termination(ctx, stage_id, produced, tc_started)
+                checkpoint.complete(stage_id, produced, trip=trip)
+            results.extend(produced)
+            if stage_id in WU_PRECONDITIONS:
+                broken = _wu_precondition_broken(produced)
+                if broken:
+                    aborted_precondition = broken[0]
+                    break
+
+        if aborted_precondition is not None:
+            failed_id = winupdate._view(aborted_precondition)["tc_id"]
+            print("!" * 74)
+            print(f"  전제 준비 실패 — run-winupdate 를 중단합니다: {failed_id}")
+            print("!" * 74)
+            shutdown = shutdown_viewer("전제 준비 실패로 run-winupdate 중단")
+            print(f"  viewer-shutdown: {shutdown}")
+            elapsed = (datetime.now() - started).total_seconds() / 60
+            lookup = winupdate.lookup_from_results(results)
+            wu_results = winupdate.build_wu_results(lookup)
+            return _finish_winupdate(ctx, wu_results, elapsed,
+                                     source_note="전용 체인(전제 실패로 조기 중단)",
+                                     execution_mode="live", chain_completed=False,
+                                     extra_meta=meta_extra())
+
+        holder = {"ui": None, "usb": checkpoint.extra("usb")}
+
+        def _usb_stage(ctx):
+            ui, _startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)
+            holder["ui"] = ui
+            try:
+                holder["usb"] = winupdate.run_usb_export_import(ctx, ui)
+            except Exception as exc:
+                holder["usb"] = {"drive": None, "error": str(exc)}
+                print(f"  [run-winupdate] USB Export/Import 예외: {exc}")
+            return []
+
+        def _wu10_stage(ctx):
+            ui = holder["ui"]
+            if ui is None:
+                ui = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)[0]
+            ui = _prepare_wu_setting_ui(ctx, ui, holder["usb"])
+            return [winupdate.run_setting_display(ctx, ui)]
+
+        if checkpoint.done("WU09_USB"):
+            reused.append("WU09_USB")
+            print("  [재개] WU09_USB: 저장점 결과 재사용")
+        else:
+            holder["usb"] = None
+            _produced, trip = wu_chain.run_stage(_usb_stage, ctx, "WU09_USB",
+                                                 "USB Export/Import", guarded=guarded,
+                                                 before_kill=_wu_trip_evidence(ctx, "WU09_USB"))
+            if trip:
+                trips["WU09_USB"] = trip
+                holder["usb"] = {"drive": (holder["usb"] or {}).get("drive"),
+                                 "blocked": trip["reason"], "kind": trip["kind"]}
+                holder["ui"] = _wu_restart_after_trip(ctx, "WU09_USB", trip)
+            elif holder["usb"] is None:
+                holder["usb"] = {"drive": None, "error": "USB 단계가 결과 없이 끝났습니다."}
+            checkpoint.set_extra("usb", holder["usb"])
+            checkpoint.complete("WU09_USB", [], trip=trips.get("WU09_USB"))
+        usb_outcome = holder["usb"]
+
+        wu10_result = None
+        if checkpoint.done("TC_WindowsUpdate_10"):
+            saved = checkpoint.results("TC_WindowsUpdate_10")
+            wu10_result = wu_chain.result_from_dict(saved[0]) if saved else None
+            reused.append("TC_WindowsUpdate_10")
+            print("  [재개] TC_WindowsUpdate_10: 저장점 결과 재사용")
+        else:
+            produced, trip = wu_chain.run_stage(
+                _wu10_stage, ctx, "TC_WindowsUpdate_10",
+                winupdate.WU_TITLES["TC_WindowsUpdate_10"], guarded=guarded,
+                before_kill=_wu_trip_evidence(ctx, "TC_WindowsUpdate_10"))
+            if trip:
+                trips["TC_WindowsUpdate_10"] = trip
+            wu10_result = produced[0] if produced else None
+            if wu10_result is None:
+                wu10_result = TCResult("TC_WindowsUpdate_10",
+                                       winupdate.WU_TITLES["TC_WindowsUpdate_10"])
+                wu10_result.abort(0, "TC_WindowsUpdate_10 실행", "결과를 만들지 못했습니다.")
+            checkpoint.complete("TC_WindowsUpdate_10", [wu10_result],
+                                trip=trips.get("TC_WindowsUpdate_10"))
+
+        shutdown = shutdown_viewer("run-winupdate 종료")
+        print(f"  viewer-shutdown: {shutdown}")
 
     elapsed = (datetime.now() - started).total_seconds() / 60
     lookup = winupdate.lookup_from_results(results)
     wu_results = winupdate.build_wu_results(
         lookup, live_extra={"usb": usb_outcome, "wu10": wu10_result})
-    return _finish_winupdate(ctx, wu_results, elapsed, source_note=f"전용 체인, {elapsed:.1f}분",
-                             execution_mode="live", chain_completed=True)
+    note = f"전용 체인, {elapsed:.1f}분"
+    if resume:
+        note += f", 저장점에서 재개 {checkpoint.resume_count}회"
+    code = _finish_winupdate(ctx, wu_results, elapsed, source_note=note,
+                             execution_mode="live", chain_completed=True,
+                             extra_meta=meta_extra())
+    checkpoint.finish()
+    return code
+
+
+def cmd_update_watch(args):
+    """빌드·KB 변화가 있을 때만 run-winupdate 를 한 번 실행한다(REQ-WU-005).
+
+    `--install-task`/`--remove-task` 는 `--apply` 가 없으면 명령만 보여 준다. 무인 실행과
+    예약 등록은 사용자 승인 뒤 `--apply` 로만 한다. 변화 감지 자체는 조회와 기록만 한다.
+    """
+    import subprocess
+    from core import update_evidence as ue
+    here = os.path.dirname(os.path.abspath(__file__))
+    if args.install_task or args.remove_task:
+        if args.remove_task:
+            cmd = ue.remove_task_command()
+            shown = subprocess.list2cmdline(cmd)
+        else:
+            from core import knowledge_sync as ksync
+            run_py = os.path.join(here, "run.py")
+            cmd = ue.install_task_command(ksync.pythonw(), run_py)
+            shown = "PowerShell:\n" + ue.task_script(ksync.pythonw(), run_py)
+        print("예약 작업(%s) 명령: %s" % (ue.TASK_NAME, shown))
+        if not args.apply:
+            print("등록·삭제하지 않았다. 확인한 뒤 --apply를 붙인다.")
+            return 0
+        return subprocess.call(cmd)
+    config_path = args.config if os.path.isabs(args.config) else os.path.join(here, args.config)
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = {}
+    del cfg  # 변화 감지는 설정값을 쓰지 않는다. 설정 파일 존재만 run-winupdate 가 다시 확인한다.
+    # Context.root 와 같은 규칙: BELLALUN_WORKSPACE 또는 config 파일 폴더.
+    root = os.path.abspath(os.environ.get("BELLALUN_WORKSPACE") or os.path.dirname(config_path))
+
+    def run_winupdate():
+        if getattr(sys, "frozen", False):
+            command = [sys.executable, "--config", config_path, "run-winupdate"]
+        else:
+            command = [sys.executable, os.path.join(here, "run.py"), "--config", config_path,
+                       "run-winupdate"]
+        print("[update-watch] 변화를 감지해 run-winupdate를 실행합니다: "
+              + subprocess.list2cmdline(command))
+        return subprocess.call(command, cwd=here)
+
+    outcome = ue.watch(os.path.join(root, "work"), run_winupdate, log=print)
+    print(f"[update-watch] {outcome['reason']}")
+    for row in ue.report_rows(outcome["comparison"]):
+        print("  " + " | ".join("" if v is None else str(v) for v in row))
+    if outcome.get("error"):
+        print(f"[update-watch] run-winupdate 실행 오류: {outcome['error']}")
+        return 1
+    return int(outcome.get("exit_code") or 0) if outcome["ran"] else 0
 
 
 def cmd_sync_knowledge(args):
@@ -963,6 +1265,19 @@ def _main():
         help="이미 끝난 전체 회귀 결과(Reports/Result_YYYYMMDD_HHMMSS.json)를 "
              "재실행 없이 WU 체크리스트로 변환한다. run-winupdate 전용 체인과 "
              "같은 매핑 표(tests/winupdate.py)를 공유한다.")
+    winupdate_parser.add_argument(
+        "--resume", action="store_true",
+        help="중단된 실시간 체인을 work/winupdate_checkpoint.json 저장점에서 이어 실행한다. "
+             "완료 단계 결과는 재사용하고 남은 단계만 실행한다(REQ-WU-002).")
+    watch_parser = sub.add_parser(
+        "update-watch",
+        help="OS 빌드·KB가 직전 기록과 달라졌을 때만 run-winupdate를 1회 실행한다(REQ-WU-005).")
+    watch_parser.add_argument("--install-task", action="store_true",
+                              help="update-watch 예약 작업 등록 명령을 보여 준다(--apply 시 등록).")
+    watch_parser.add_argument("--remove-task", action="store_true",
+                              help="update-watch 예약 작업 삭제 명령을 보여 준다(--apply 시 삭제).")
+    watch_parser.add_argument("--apply", action="store_true",
+                              help="--install-task/--remove-task 명령을 실제로 실행한다.")
     sub.add_parser("run-auto", help="비파괴 정적 점검 + DICOM + UI Demo 흐름")
     sub.add_parser("portability-check", help="해상도/DPI/필수 경로 이식성 사전 점검")
     sub.add_parser("probe-preset3d",
@@ -1000,6 +1315,8 @@ def _main():
     # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
     if args.cmd == "sync-knowledge":
         return cmd_sync_knowledge(args)
+    if args.cmd == "update-watch":
+        return cmd_update_watch(args)
 
     # 설치 패키지 점검은 **설치 이전** PC 에서 돈다. `Context` 는 BellalunData 를
     # 못 찾으면 예외를 던지는데(신규 설치 전에는 없는 것이 정상) 그러면 이 명령은
@@ -1038,8 +1355,10 @@ def _main():
               "  (시트: 개정 TC)")
         print("SUPPORT = 개정본 TC가 아닌 자동화 보조 항목")
         print()
-        counts, categories = {}, {}
+        counts, categories, wu_counts = {}, {}, {}
         for item in scope:
+            if item.get("checklist") == "windows_update":
+                continue
             counts[item["level"]] = counts.get(item["level"], 0) + 1
             title = item.get("title") or ""
             print(f"[{item['level']:<7}] {item['tc_id']:<32} {title}")
@@ -1054,8 +1373,24 @@ def _main():
                     print(f"{'':>10}  · 못 한 지점: {cov['gap']}")
                 if cov.get("unblock"):
                     print(f"{'':>10}  · 해제 조건: {cov['unblock']}")
+        wu_items = [x for x in scope if x.get("checklist") == "windows_update"]
+        if wu_items:
+            print()
+            print(f"Windows Update 체크리스트({WINUPDATE_CHECKLIST_NAME}, 시트: Checklist)")
+            for item in wu_items:
+                wu_counts[item["level"]] = wu_counts.get(item["level"], 0) + 1
+                print(f"[{item['level']:<7}] {item['tc_id']:<32} {item.get('title') or ''}")
+                print(f"{'':>10}  {item['reason']}")
+                reuses = ", ".join(r.get("tc_id", "") for r in item.get("reuses") or [])
+                if reuses:
+                    print(f"{'':>10}  · 재사용 TC: {reuses}")
+                for defect in item.get("known_defect_exclude") or []:
+                    print(f"{'':>10}  · 판정 제외 결함: {defect.get('tc_id')} / {defect.get('title')}")
         print()
         print("합계: " + " / ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+        if wu_counts:
+            print("WU 합계: " + " / ".join(f"{k} {v}" for k, v in sorted(wu_counts.items()))
+                  + f" (총 {sum(wu_counts.values())}건)")
         if categories:
             print("커버리지 분류(개정본 TC만):")
             for name, n in sorted(categories.items(), key=lambda x: -x[1]):
@@ -1355,7 +1690,7 @@ def _main():
         announce_done(results, elapsed, LAST_REPORT_PATHS)
         return code
     if args.cmd == "run-winupdate":
-        return _run_winupdate_chain(ctx)
+        return _run_winupdate_chain(ctx, resume=bool(getattr(args, "resume", False)))
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
     elif args.cmd == "setup-storage":

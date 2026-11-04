@@ -26,6 +26,7 @@ Expected 가 요구하지 않는 항목에서 난 FAIL 중 **사용자가 이미
 
 import os
 from pathlib import Path
+import re
 import time
 
 from core.result import TCResult, PASS, FAIL, MANUAL, SKIP, BLOCKED
@@ -88,6 +89,36 @@ KNOWN_DEFECT_EXCLUDE = {
 }
 
 
+# USB 왕복을 확인하지 못했을 때(이동식 드라이브 없음, `--from-regression` 변환)
+# WU_09 를 어떻게 표시할지(REQ-WU-003). USB 단계를 SKIP 하는 정책 자체는 유지하고,
+# 표시만 아래 셋 중 하나로 정한다.
+#   "manual"   : USB SKIP 이 판정을 막는다(blocks_verdict=True) → WU_09 는 PASS 가 아니라 MANUAL.
+#   "flag"     : PASS 는 유지하되 리포트 L열·비-PASS 목록에 "USB 왕복 미확인"을 표시한다.
+#   "current"  : 기존 표시(PASS, 별도 표시 없음).
+# 사용자 결정 전에는 기존 동작("current")을 유지한다. 결정은 SPEC.md REQ-WU-003 에 적는다.
+USB_UNVERIFIED_POLICY = "current"
+USB_UNVERIFIED_LABEL = "USB 왕복 미확인"
+
+
+def usb_skip_blocks_verdict(policy=None):
+    return (policy or USB_UNVERIFIED_POLICY) == "manual"
+
+
+def usb_unverified(result):
+    """WU_09 결과에 판정을 막지 않은 USB SKIP 이 있으면 표시 문구를, 없으면 None."""
+    if getattr(result, "tc_id", None) != "TC_WindowsUpdate_09":
+        return None
+    for check in result.checks:
+        if check.title == "USB Export/Import" and check.status == SKIP:
+            return USB_UNVERIFIED_LABEL
+    return None
+
+
+#: `run.py::pad_aborted_steps` 가 남기는 미수행 행(제목·실제값).
+_PADDED_TITLE = re.compile(r"^Step \d+ 미수행$")
+_PADDED_ACTUAL = "수행하지 않음(앞선 단계에서 TC 가 중단됨)"
+
+
 def _view(obj):
     """TCResult 또는 회귀 JSON `results[i]` dict를 같은 인터페이스로 감싼다."""
     if hasattr(obj, "as_dict"):
@@ -141,6 +172,12 @@ def _copy_checks(wu_result, view, basis_label, only_steps=None, exclude_keys=Non
             return False
         if (tc_id, check.get("title")) in exclude_keys:
             return False  # 이미 title 매칭으로 빠지는 것과는 별개로 센다
+        if (_PADDED_TITLE.match(str(check.get("title") or ""))
+                and str(check.get("actual") or "") == _PADDED_ACTUAL):
+            # `--from-regression` 의 JSON 에는 `run.py::pad_aborted_steps` 가 채운 미수행
+            # 행이 있다. 실시간 체인은 채우기 전 결과로 매핑하므로 이 행이 없다. 같은
+            # 중단의 연쇄 기록으로 보고 두 경로의 판정을 맞춘다(REQ-WU-003).
+            return True
         text = str(check.get("title") or "") + str(check.get("actual") or "")
         return abort_keyword in text
 
@@ -161,7 +198,8 @@ def _copy_checks(wu_result, view, basis_label, only_steps=None, exclude_keys=Non
         wu_result.add(
             step, f"[{tc_id}] {check.get('title')}",
             check.get("status"), expected=check.get("expected"),
-            actual=check.get("actual"), note=check.get("note"), stop=False)
+            actual=check.get("actual"), note=check.get("note"), stop=False,
+            blocks_verdict=check.get("blocks_verdict"))
         copied += 1
     return copied
 
@@ -215,7 +253,8 @@ def _wu_02(lookup):
                 continue
             r.add(check.get("step"), f"[TC_Basic_WorkFlow_02] {check.get('title')}",
                  check.get("status"), expected=check.get("expected"),
-                 actual=check.get("actual"), note=check.get("note"), stop=False)
+                 actual=check.get("actual"), note=check.get("note"), stop=False,
+                 blocks_verdict=check.get("blocks_verdict"))
     else:
         _copy_checks(r, wf02, "TC_Basic_WorkFlow_02")
     _copy_checks(r, wf04, "TC_Basic_WorkFlow_04")
@@ -281,21 +320,33 @@ def _wu_08(lookup):
     return r
 
 
-def _wu_09(lookup, usb_outcome):
+def _wu_09(lookup, usb_outcome, policy=None):
     r = TCResult("TC_WindowsUpdate_09", WU_TITLES["TC_WindowsUpdate_09"])
     wf09 = lookup.get("TC_Basic_WorkFlow_09")
     _copy_checks(r, wf09, "TC_Basic_WorkFlow_09")
+    usb_blocks = usb_skip_blocks_verdict(policy)
+    # CD SKIP 은 판정을 막지 않는다(blocks_verdict=False). 무인 실행에서 공디스크·버너를
+    # 보장할 수 없어 사용자가 CD 경로를 자동화 대상에서 뺐다. WU_09 판정은 USB 매체
+    # 왕복과 WF_09 Export 로 정한다.
     r.skip(0, "CD Export/Import",
           "공디스크·버너는 무인 실행에서 보장되지 않는다(사용자 확정) — "
           "CD 경로는 자동화 대상이 아니다.",
-          expected="사용자 수동 확인", actual="자동화 대상 아님")
+          expected="사용자 수동 확인", actual="자동화 대상 아님",
+          blocks_verdict=False)
     if usb_outcome is None:
         r.skip(0, "USB Export/Import",
               "run-winupdate --from-regression 변환 경로에는 USB 결과가 "
               "없다(과거 회귀에는 이 항목이 없었다) — run-winupdate로 직접 "
               "실행해야 확인할 수 있다.",
               expected="USB 드라이브로 Export 후 되읽기 Import",
-              actual="이 실행 경로에서는 수행하지 않음")
+              actual="이 실행 경로에서는 수행하지 않음",
+              blocks_verdict=usb_blocks)
+    elif usb_outcome.get("blocked"):
+        r.blocked(0, "USB Export/Import",
+                  f"{usb_outcome['blocked']} 감시자가 USB 왕복 단계를 중단했다.\n"
+                  "해제 조건: 원인을 확인한 뒤 run-winupdate --resume 으로 다시 실행한다.",
+                  expected="USB 드라이브로 Export 후 되읽기 Import",
+                  actual={"kind": usb_outcome.get("kind"), "drive": usb_outcome.get("drive")})
     elif usb_outcome.get("error"):
         r.add(0, "USB Export/Import", FAIL,
              expected="USB 드라이브로 Export 후 되읽기 Import",
@@ -305,7 +356,8 @@ def _wu_09(lookup, usb_outcome):
         r.skip(0, "USB Export/Import",
               "이 PC에 이동식(USB) 드라이브가 꽂혀 있지 않아 건너뛴다"
               "(GetDriveTypeW 기준, 사용자 확정 정책).",
-              expected="USB 드라이브 존재", actual="이동식 드라이브 없음")
+              expected="USB 드라이브 존재", actual="이동식 드라이브 없음",
+              blocks_verdict=usb_blocks)
     else:
         export_ok = bool(usb_outcome.get("export", {}).get("files"))
         r.assert_true(
@@ -348,16 +400,17 @@ def _wu_09(lookup, usb_outcome):
                   actual={"import": imp, "verification": verification}, stop=False,
                   note=verification["reason"])
         else:
-            # Import 클릭과 중복 팝업 처리까지는 자동화했지만, 되읽기 **완료**를
-            # 교차 확인하는 단계(Examined 재검색 등)를 아직 붙이지 못했다
-            # (2026-09-09, 사용자 요청으로 그 직전에 중단). 클릭만으로 PASS 를
-            # 주지 않는다 — 이 저장소는 로그 한 줄로 PASS 를 판정하지 않는다.
+            # 대비용 경로다. 되읽기 완료 교차 확인(완료 신호·재생성 UID·영상 파일·
+            # Examined 재검색)은 b3838e7 에서 구현되어 정상 실행은 바로 위 분기에서
+            # PASS/FAIL 로 판정한다. Import 근거(`evidence`)를 수집하지 못한 예외적인
+            # 결과만 여기로 온다. 클릭만으로 PASS 를 주지 않는다 — 이 저장소는 로그
+            # 한 줄로 PASS 를 판정하지 않는다.
             r.manual(
                 0, "USB Import 되읽기",
                 "Import Study 목록에 대상 검사가 나타났고 행 선택 후 Import 를 "
                 "수행했다(중복 팝업이 뜨면 'Use existing data' 처리). 되읽기 "
-                "**완료** 여부를 Examined 재검색으로 교차 확인하는 단계는 아직 "
-                "구현하지 않았다 — 그 부분만 사람이 확인한다.",
+                "**완료** 교차 확인에 쓸 근거를 이번 실행에서 수집하지 못했다 — "
+                "그 부분만 사람이 확인한다.",
                 expected="뷰어로 import 성공",
                 actual=imp)
     r.wu_basis = _basis_line(wf09) + " + USB 신규 로직(core/usb_media.py)"
@@ -439,10 +492,13 @@ def _wu_13():
     return r
 
 
-def build_wu_results(lookup, live_extra=None):
-    """13개 WU TCResult 를 만든다. `run()`/`from_regression()` 공유 진입점."""
+def build_wu_results(lookup, live_extra=None, usb_policy=None):
+    """13개 WU TCResult 를 만든다. `run()`/`from_regression()` 공유 진입점.
+
+    두 경로가 같은 함수를 쓰므로 USB 미확인 표시 정책도 같게 적용된다.
+    """
     live_extra = live_extra or {}
-    return [
+    results = [
         _wu_01(lookup),
         _wu_02(lookup),
         _wu_03(lookup),
@@ -451,17 +507,33 @@ def build_wu_results(lookup, live_extra=None):
         _wu_06(lookup),
         _wu_07(lookup),
         _wu_08(lookup),
-        _wu_09(lookup, live_extra.get("usb")),
+        _wu_09(lookup, live_extra.get("usb"), usb_policy),
         _wu_10(live_extra.get("wu10")),
         _wu_11(lookup),
         _wu_12(),
         _wu_13(),
     ]
+    if (usb_policy or USB_UNVERIFIED_POLICY) == "flag":
+        for result in results:
+            label = usb_unverified(result)
+            if label:
+                result.wu_flags = [label]
+    return results
 
 
 # ---------------------------------------------------------------------
 # TC_WindowsUpdate_10 — 신규 구현 (대응하는 기존 TC 없음)
 # ---------------------------------------------------------------------
+
+def _handle_growth(page_handles):
+    if not page_handles:
+        return None
+    try:
+        from core.failure_evidence import handle_growth
+        return handle_growth(page_handles)
+    except Exception as exc:                           # noqa: BLE001
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
 
 def _quick_tab_check(ui):
     """탭을 빠르게 오가도 선택한 탭 화면이 바르게 표시되는지 본다(신규 로직).
@@ -524,7 +596,10 @@ def run_setting_display(ctx, ui):
                     "empty_pages": empty_pages, "page_render": renders,
                     "render_unvisited": sorted(expected_pages - rendered_pages),
                     "render_unexpected": sorted(rendered_pages - expected_pages),
-                    "viewer_died": sweep.get("viewer_died")},
+                    "viewer_died": sweep.get("viewer_died"),
+                    # 3-B 조사용 증거. 원인 판정이 아니다(REQ-WU-006).
+                    "page_handles": sweep.get("page_handles"),
+                    "handle_growth": _handle_growth(sweep.get("page_handles"))},
             note="setting_values.read_all 전수 순회를 그대로 재사용한다(경량화 "
                  "하지 않는다 — 사용자 지시). NEXT_WORK.md 3-B 간헐 종료가 "
                  "재현되면 축소하지 않고 이 판정에 그대로 남긴다.")

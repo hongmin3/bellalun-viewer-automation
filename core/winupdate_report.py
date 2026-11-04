@@ -88,7 +88,7 @@ def _find_header_row(ws):
 
 
 def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None,
-                  issues=None):
+                  issues=None, update_rows=None):
     """WU 판정을 체크리스트 사본에 기록한다.
 
     results: `TCResult` 리스트(`tc_id`가 `TC_WindowsUpdate_01`.. 형식). 각
@@ -99,6 +99,10 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
     issues: [{"tc_id":, "kind":, "detail":, "impact":, "basis":}] — 별도
       'Issues' 시트에 기록한다. `kind`는 "기존 알려진 제품 결함" 또는
       "신규 발견"을 구분해서 넣는다.
+    update_rows: [(항목, 이전, 현재, 변화)] — Windows Update 전/후 비교표.
+      Issues 시트 바로 뒤 '업데이트 전후' 시트에 기록한다(REQ-WU-005).
+    env의 "환경 대조"는 OS Build 실측값 옆(L열)에 적는다(REQ-WU-004).
+    결과 객체의 `wu_flags`(예: "USB 왕복 미확인")는 PASS여도 L열에 적는다(REQ-WU-003).
     """
     if not os.path.isfile(source_xlsx):
         raise FileNotFoundError(source_xlsx)
@@ -140,6 +144,9 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
         if value:
             cell = ws.cell(row, NEW_RESULT_COL, value)
             cell.alignment = Alignment(horizontal="center", vertical="center")
+    if env.get("환경 대조") and "os_build" in ENV_ROWS:
+        match_cell = ws.cell(ENV_ROWS["os_build"], NEW_COMMENT_COL, env["환경 대조"])
+        match_cell.alignment = Alignment(vertical="top", wrap_text=True)
 
     # Keep the conversion/live distinction visible without moving TC cells.
     if env.get("실행 방식"):
@@ -190,7 +197,8 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
         if label in FILLS:
             cell.fill = FILLS[label]
             cell.font = FONTS[label]
-        reason = _reason_for(result)
+        flags = [str(f) for f in (getattr(result, "wu_flags", None) or []) if f]
+        reason = "; ".join(flags + ([_reason_for(result)] if _reason_for(result) else []))
         if reason:
             reason_cell = ws.cell(row, NEW_COMMENT_COL, reason)
             reason_cell.alignment = Alignment(vertical="top", wrap_text=True)
@@ -231,6 +239,25 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
             c.alignment = Alignment(vertical="top", wrap_text=True)
             c = iws.cell(i, 5, item.get("basis", ""))
             c.alignment = Alignment(vertical="top", wrap_text=True)
+
+    if update_rows:
+        if "업데이트 전후" in wb.sheetnames:
+            del wb["업데이트 전후"]
+        position = (wb.sheetnames.index("Issues") + 1 if "Issues" in wb.sheetnames
+                    else len(wb.sheetnames))
+        uws = wb.create_sheet("업데이트 전후", position)
+        for col, name in enumerate(("항목", "이전 실행", "이번 실행", "변화"), 1):
+            cell = uws.cell(1, col, name)
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        for col, width in enumerate((24, 45, 45, 10), 1):
+            uws.column_dimensions[uws.cell(1, col).column_letter].width = width
+        for i, row_values in enumerate(update_rows, 2):
+            for col, value in enumerate(list(row_values)[:4], 1):
+                if isinstance(value, bool):
+                    value = "변화" if value else "같음"
+                c = uws.cell(i, col, "" if value is None else str(value))
+                c.alignment = Alignment(vertical="top", wrap_text=True)
 
     wb.save(out_path)
     return {"path": out_path, "written": written, "unmatched": unmatched,

@@ -5,6 +5,12 @@
     "sheet": "개정 TC",
     "documents": "..\\지식"
   },
+  "_baseline_windows_update": {
+    "checklist": "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx",
+    "sheet": "Checklist",
+    "rows": "6~18",
+    "note": "WU 항목(checklist=windows_update)은 사양을 직접 인용하지 않고 `reuses` 의 기본 TC 추적성을 따른다. 원본 xlsx 는 저장소 밖(프로젝트 루트)에 두며 없으면 tools/traceability.py 가 WU 행 대조를 건너뛴다."
+  },
   "_measured": "2026-08-24",
   "tc": [
     {
@@ -998,6 +1004,167 @@
       "level": "MANUAL",
       "requirements": [],
       "pending_reason": "허용 기준 미확정"
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_01",
+      "title": "패키지 설치 확인",
+      "checklist": "windows_update",
+      "level": "MANUAL",
+      "module": "tests/winupdate.py::_wu_01",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_Install_01",
+        "TC_Basic_Install_02"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_02",
+      "title": "MWL 조회",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_02",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_01",
+        "TC_Basic_WorkFlow_02",
+        "TC_Basic_WorkFlow_04"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_03",
+      "title": "영상 조작",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_03",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_02"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_04",
+      "title": "Image Processing(2D)",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_04",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_XIPL_compatibility_02",
+        "TC_XIPL_compatibility_04",
+        "TC_XIPL_compatibility_06"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_05",
+      "title": "Image Processing(3D)",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_05",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_XIPL_compatibility_03",
+        "TC_XIPL_compatibility_07"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_06",
+      "title": "DICOM 전송(2D)",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_06",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_04",
+        "TC_Basic_WorkFlow_06"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_07",
+      "title": "DICOM 전송(3D)",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_07",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_05",
+        "TC_Basic_WorkFlow_06"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_08",
+      "title": "DICOM Print",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::_wu_08",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_08"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_09",
+      "title": "Study Export",
+      "checklist": "windows_update",
+      "level": "PARTIAL",
+      "module": "tests/winupdate.py::_wu_09",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_09"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_10",
+      "title": "Setting 화면 표시",
+      "checklist": "windows_update",
+      "level": "FULL",
+      "module": "tests/winupdate.py::run_setting_display",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [],
+      "pending_reason": "신규 구현 — 사양 인용 미등록"
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_11",
+      "title": "Setting Import/Export",
+      "checklist": "windows_update",
+      "level": "PARTIAL",
+      "module": "tests/winupdate.py::_wu_11",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [
+        "TC_Basic_WorkFlow_14"
+      ]
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_12",
+      "title": "OS User 계정",
+      "checklist": "windows_update",
+      "level": "MANUAL",
+      "module": "tests/winupdate.py::_wu_12",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [],
+      "pending_reason": "사용자 지정 수동(automation_scope 참고)"
+    },
+    {
+      "tc_id": "TC_WindowsUpdate_13",
+      "title": "KIOSK 설정",
+      "checklist": "windows_update",
+      "level": "MANUAL",
+      "module": "tests/winupdate.py::_wu_13",
+      "command": "run-winupdate",
+      "requirements": [],
+      "reuses": [],
+      "pending_reason": "사용자 지정 수동(automation_scope 참고)"
     }
   ]
 }

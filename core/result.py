@@ -97,21 +97,28 @@ def step_label(step):
 
 
 class Check:
-    def __init__(self, step, title, status, expected="", actual="", note=""):
+    def __init__(self, step, title, status, expected="", actual="", note="",
+                 blocks_verdict=None):
         self.step = step
         self.title = title
         self.status = status
         self.expected = expected
         self.actual = actual
         self.note = note
+        #: SKIP 이 TC 판정을 막는지(REQ-WU-003). None 은 기존 규칙(막지 않음)이다.
+        #: True 인 SKIP 이 남으면 TC 판정이 PASS 가 되지 않고 MANUAL 이 된다.
+        self.blocks_verdict = blocks_verdict
 
     def as_dict(self):
-        return {
+        data = {
             "step": self.step, "title": self.title, "status": self.status,
             "expected": str(self.expected), "actual": str(self.actual), "note": self.note,
             "unblock_condition": self.unblock_condition,
             "not_verified": self.not_verified,
         }
+        if self.blocks_verdict is not None:
+            data["blocks_verdict"] = bool(self.blocks_verdict)
+        return data
 
     @property
     def unblock_condition(self):
@@ -168,7 +175,7 @@ class TCResult:
 
     # --- 등록 헬퍼 -----------------------------------------------------
     def add(self, step, title, status, expected="", actual="", note="",
-            stop=True):
+            stop=True, blocks_verdict=None):
         """판정 하나를 기록한다.
 
         `stop=False` 는 **중단 신호를 내지 않는다.** `abort()` 와 `run.py` 의
@@ -183,7 +190,8 @@ class TCResult:
         now_wall = datetime.now()
         now = time.perf_counter()
         self._step_cursor_wall, self._step_cursor = now_wall, now
-        self.checks.append(Check(step, title, status, expected, actual, note))
+        self.checks.append(Check(step, title, status, expected, actual, note,
+                                 blocks_verdict=blocks_verdict))
         check = self.checks[-1]
         if (status == FAIL and stop and self.stop_on_fail
                 and not self._stopped):
@@ -281,15 +289,19 @@ class TCResult:
     def manual(self, step, title, note, expected="", actual=""):
         return self.add(step, title, MANUAL, expected, actual, note)
 
-    def skip(self, step, title, note, expected="", actual=""):
+    def skip(self, step, title, note, expected="", actual="", blocks_verdict=None):
         """수행하지 않은 확인 항목.
 
         **SKIP 은 TC 판정을 MANUAL 로 끌어내리지 않는다**(`verdict` 참고).
         "확인해야 하는데 사람이 해야 한다"(MANUAL)와 "이 환경에서는 확인 대상이
         아니다"(SKIP)는 다르기 때문이다. 그래서 SKIP 을 쓸 때는 `note` 에
         **왜 대상이 아닌지**를 반드시 남긴다.
+
+        `blocks_verdict=True` 는 "이 SKIP 때문에 확인하지 못한 범위가 판정에 필요하다"는
+        뜻이다. 그런 SKIP 이 남으면 TC 는 PASS 가 아니라 MANUAL 이 된다(REQ-WU-003).
         """
-        return self.add(step, title, SKIP, expected, actual, note)
+        return self.add(step, title, SKIP, expected, actual, note,
+                        blocks_verdict=blocks_verdict)
 
     def blocked(self, step, title, note, expected="", actual=""):
         """필수 선행 환경이 없어 확인 자체를 시작할 수 없는 항목."""
@@ -325,6 +337,9 @@ class TCResult:
         if c[BLOCKED]:
             return BLOCKED
         if c[MANUAL]:
+            return MANUAL
+        if any(chk.status == SKIP and chk.blocks_verdict for chk in self.checks):
+            # 판정에 필요한 범위를 건너뛰었다 — PASS 로 올리지 않는다(REQ-WU-003).
             return MANUAL
         if c[PASS]:
             return PASS
@@ -753,7 +768,12 @@ def _render_html(results, meta, siblings=None):
     # 실패/수동확인 결과보다 먼저 읽히게 된다. 본문에서 빼서 문서 끝 부록으로
     # 옮기고 접어 둔다(`cov` 에 모았다가 siblings 앞에서 렌더링한다).
     cov = []
-    coverage = meta.get("coverage") or []
+    # Windows Update 체크리스트 항목(`automation_scope.json` 의 `checklist:
+    # windows_update`)은 기본기능 기준 TC 총계에 섞지 않는다. 호출부가 `checklist`
+    # 필드를 넘기지 않는 경우도 있어 TC ID 접두어로도 거른다.
+    coverage = [x for x in (meta.get("coverage") or [])
+                if x.get("checklist") != "windows_update"
+                and not str(x.get("tc_id") or "").startswith("TC_WindowsUpdate_")]
     if coverage:
         groups = _coverage_groups(coverage)
         # 타일은 **자동화 등급**(`automation_scope.json` 의 `level`) 으로 센다.

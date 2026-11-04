@@ -303,7 +303,8 @@ def page_rendered(observation):
 
 
 def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
-             capture_dir=None, on_event=None):
+             capture_dir=None, on_event=None, record_handles=True,
+             handle_probe=None):
     """Setting 전 그룹/페이지를 순회하며 컨트롤 값을 읽는다.
 
     `capture_dir` 를 주면 페이지 캡처도 함께 남긴다(사람이 눈으로 볼 증거).
@@ -316,12 +317,19 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
     pages/compare의 값 계약은 유지한다. 별도 page_render는 버튼만 있는 페이지도
     실제 콘텐츠가 렌더됐는지 검증할 수 있도록 패널/안정화/하위 컨트롤을 남긴다.
 
+    `page_handles` 는 페이지를 읽은 직후의 Viewer GDI/USER 핸들 수다
+    ({page: {"gdi", "user", "error"}}). NEXT_WORK.md 3-B(51페이지 이후 종료)의
+    관측용이며 **판정에 쓰지 않는다.** 읽기 실패는 삼키고 ``error``로 남긴다.
+    `record_handles=False` 면 기록하지 않고, `handle_probe(pid)` 로 읽는 방법을
+    바꿀 수 있다(기본 `failure_evidence.gui_handles`).
+
     `viewer_died` 는 순회 도중 **Viewer 프로세스가 사라진** 경우다. 그때는 남은
     페이지를 "못 읽었다" 로만 적으면 원인이 보이지 않는다 — 2026-08-25 에 이
     상황을 "패널을 찾지 못했습니다" 로만 보고해, 제품이 종료된 사실을 알아채는 데
     한참 걸렸다. 사라진 것을 확인하면 **거기서 멈추고** 그 사실을 남긴다.
     """
     pages, missing, shots, renders = {}, {}, {}, {}
+    page_handles = {}
     pane = None
     died = False
     start_pid = ui.pid
@@ -382,12 +390,30 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
                 path = os.path.join(capture_dir, f"{key}.png")
                 pane_image.save(path)
                 shots[key] = path
+            if record_handles:
+                page_handles[key] = _page_handles(handle_probe, start_pid)
             if on_event:
                 on_event(f"{key}: {len(pages[key])}개 값 settled={settled}")
     return {"pages": pages, "missing": missing, "shots": shots,
             "page_render": renders,
+            "page_handles": page_handles,
             "pane": list(pane) if pane else None,
             "viewer_died": died or _viewer_gone(ui, start_pid)}
+
+
+def _page_handles(probe, pid):
+    """페이지 하나의 Viewer GDI/USER 핸들 수. 어떤 실패도 순회를 깨지 않는다."""
+    try:
+        if probe is None:
+            from core.failure_evidence import gui_handles as probe
+        value = probe(pid)
+        if not isinstance(value, dict):
+            return {"gdi": None, "user": None,
+                    "error": f"핸들 판독 결과 형식 오류: {type(value).__name__}"}
+        return {"gdi": value.get("gdi"), "user": value.get("user"),
+                "error": value.get("error")}
+    except Exception as exc:                           # noqa: BLE001
+        return {"gdi": None, "user": None, "error": f"{type(exc).__name__}: {exc}"}
 
 
 #: Viewer 가 사라졌을 때 남기는 사유. 화면 문제와 구분하려고 문구를 고정한다.

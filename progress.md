@@ -1,5 +1,13 @@
 # 진행 상태
 
+## 2026-11-04 WU 자동화 정비 (Issue #79, 기존 #2~#9 통합)
+
+- 완료(코드·단위시험·읽기 전용 실측): REQ-WU-002~006, REQ-TRACE-002, REQ-DIST-005. 단위 643개 OK(skip 2), 정적 검사 7종 이상 없음.
+- 사용자 결정 대기: USB 미확인 WU_09 표시 정책(지금 `current`), update-watch 무인 실행·예약 등록(`--apply` 안 함), `core/ui.py` 공유 windll 원형 6건 수정 여부.
+- 승인 대기 실제 실행: 체인 중간 강제 종료 → `--resume` 재개(목표 PASS 10 / MANUAL 3 비교), Setting 순회 1회의 페이지별 핸들 기록 확인.
+- 공용 QA 서버에는 WU 체크리스트 R-25-782가 없다. 행·제목은 로컬 기준 체크리스트로 대조했고 WU_12 제목이 Function 열 표기와 같다는 참고 1건이 있다.
+- 다음 시작점: 사용자 답을 받은 뒤 `tests/winupdate.py`의 `USB_UNVERIFIED_POLICY`와 SPEC REQ-WU-003·13절을 고치고, 승인되면 실제 실행을 한다.
+
 ## 2026-11-04 지식 폴더 서버 동기화 추가 (REQ-KNOW-001)
 
 - `run.py sync-knowledge`와 `core/knowledge_sync.py`를 추가했다. VXvue 저장소의 같은 방식을 옮겼고, 두 저장소는 서로 의존하지 않는다.

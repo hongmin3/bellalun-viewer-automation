@@ -32,8 +32,11 @@ Viewer·SQL Server·Tesseract OCR과 시험에 필요한 외부 서버/USB는 �
 
 Windows x64 CPython **3.12.10**, Nuitka **4.3**, Inno Setup **6.7.3**을 사용한다.
 지원 대상 OS는 Windows 10/11 x64이며 설치 프로그램은 최소 Windows 10을 요구한다.
-현재 개발·검증 호스트는 Windows 11 IoT Enterprise LTSC(26100)이다.
+최근 후보(후보8·10·11)의 빌드와 전체 실행 호스트는 Windows 11 Pro(빌드 26200)이다.
+Windows 11 IoT Enterprise LTSC(26100) 실측은 후보5·6까지이며 후보7 이후는 LTSC에서 실행하지 않았다.
 Windows 10은 별도 호스트 검증이 아직 없으며 지원 대상과 실제 검증 범위를 구분한다.
+검증된 호스트 목록은 `verified_environments.json`이고, 실시간 WU 실행 전 점검이 실행 PC와 대조해
+미등록 환경을 WARN으로 리포트에 남긴다(판정은 막지 않는다).
 Python 의존성 전체는 `packaging/requirements-build.txt`에서 고정한다.
 Nuitka는 지정된 MinGW64를 사용하며 `--assume-yes-for-downloads`로 해당 컴파일 도구를 준비한다.
 빌드 담당자가 사전에 도구를 설치한다. 스크립트는 Python 패키지나 Inno Setup을 자동 설치하지 않는다.
@@ -52,6 +55,26 @@ python -m venv work\buildenv
 work\buildenv\Scripts\python.exe -m pip install -r packaging/requirements-build.txt
 work\buildenv\Scripts\python.exe tools/build_distribution.py --assets <승인 manifest> --output <빈 폴더> --iscc "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
 ```
+
+### 릴리스 게이트 (REQ-DIST-005)
+
+정식 빌드에는 같은 커밋·수정 없는 소스에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과를 함께 준다.
+
+```powershell
+python tools/release_gate.py --wu <Result_WindowsUpdate_*.json> --basic <Result_*.json> --commit-from-git
+python tools/build_distribution.py --assets <승인 manifest> --output <빈 폴더> --iscc <ISCC.exe> --gate-wu <WU json> --gate-basic <기본 json>
+```
+
+게이트는 다음을 모두 만족해야 통과한다.
+
+- 두 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`다.
+- WU 결과가 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / MANUAL 3(WU_01·12·13)이다.
+- 기본기능 결과가 전체 회귀이고, `KNOWN_DEFECT_EXCLUDE`에 등록된 결함 밖의 FAIL·BLOCKED가 없다.
+
+게이트 입력이 없거나 통과하지 못해도 빌드는 할 수 있다. 그때 산출물 이름에 `-candidate`가 붙고
+`게이트-미통과-후보.txt`와 build-info의 `release_gate`에 사유가 남는다.
+
+> **참고** 2026-11-04 전의 리포트에는 `source_commit`이 없어 게이트가 거부한다. 후보11 결과도 이 사유 하나로 거부된다.
 
 저장소가 한글 경로(예: `C:\자동화\...`) 아래에 있어도 빌드할 수 있다.
 
