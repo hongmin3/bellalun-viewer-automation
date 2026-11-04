@@ -122,10 +122,13 @@ def snapshot(workspace, since, destination):
 
 
 def wu_target(rows):
-    """WU_01/12/13 외 10건이 모두 PASS 인지. 없는 행·SKIP 은 PASS 가 아니다."""
+    """WU_01/12/13 은 SKIP, 나머지 10건은 모두 PASS 인지(릴리스 게이트와 같은 기준).
+
+    없는 행은 PASS 가 아니고, 사람 전용 밖의 SKIP 도 PASS 가 아니다.
+    """
     by_id = {row.get("tc_id"): row.get("verdict") for row in rows}
     not_pass = [(tc, by_id.get(tc) or "MISSING") for tc in WU_IDS
-                if tc not in WU_MANUAL and by_id.get(tc) != "PASS"]
+                if by_id.get(tc) != ("SKIP" if tc in WU_MANUAL else "PASS")]
     return {"met": not not_pass, "required": len(WU_IDS) - len(WU_MANUAL),
             "passed": sum(1 for tc in WU_IDS
                           if tc not in WU_MANUAL and by_id.get(tc) == "PASS"),
@@ -170,7 +173,9 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False):
     if report:
         result["report_sha256"] = sha256(report["path"])
         meta, rows = _report_rows(report["path"])
-        result["meta"] = {k: meta.get(k) for k in ("execution_mode", "chain_completed", "command")}
+        result["meta"] = {k: meta.get(k) for k in ("execution_mode", "chain_completed", "command",
+                                                   "source_commit", "source_dirty",
+                                                   "source_identity_origin")}
         result["tc_verdicts"] = {row.get("tc_id"): row.get("verdict") for row in rows}
         if command == "run-winupdate":
             result["wu_target"] = wu_target(rows)

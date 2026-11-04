@@ -974,10 +974,30 @@ def select_3d_raw(ui, index):
         ui.click(raw[0], settle=1)
 
 
-def open_process(ui):
-    ui.click(_visible(ui, PROC)[0], settle=2)
-    if not _visible(ui, PARAM_COMBO):
-        raise RuntimeError("Viewer Image Processing window did not open")
+def _wait_visible(ui, ctrl_id, timeout, poll=0.5):
+    end = time.time() + timeout
+    while True:
+        hits = _visible(ui, ctrl_id)
+        if hits or time.time() >= end:
+            return hits
+        time.sleep(poll)
+
+
+def open_process(ui, timeout=30):
+    """Process 버튼을 눌러 Image Processing 창이 열릴 때까지 기다린다.
+
+    촬영 직후·취소 직후에는 버튼이나 창이 늦게 나온다. 2초 뒤 한 번만 보던 예전
+    방식은 2026-11-05 XIPL_04 Step 8에서 창을 놓쳤다. 창이 끝내 안 열리면 클릭을
+    한 번 더 하고, 그래도 안 열리면 같은 오류를 낸다.
+    """
+    for attempt in range(2):
+        button = _wait_visible(ui, PROC, timeout / 2)
+        if not button:
+            break
+        ui.click(button[0], settle=1)
+        if _wait_visible(ui, PARAM_COMBO, timeout / 2):
+            return
+    raise RuntimeError("Viewer Image Processing window did not open")
 
 
 def open_post_reconstruction(ui):
@@ -1306,7 +1326,14 @@ def change_all_3d_parameters(ui):
 # 으로 고쳤다 — 그 두 키는 아무도 읽지 않아 조정해도 아무 일이 없었다.
 
 
-def cancel_window(ui):
+def cancel_window(ui, timeout=15):
+    """Cancel을 누르고 처리 창이 닫힐 때까지 기다린다. 닫혔으면 True."""
     hits = _visible(ui, CANCEL)
     if hits:
         ui.click(hits[0], settle=1)
+    end = time.time() + timeout
+    while _visible(ui, PARAM_COMBO):
+        if time.time() >= end:
+            return False
+        time.sleep(0.5)
+    return True

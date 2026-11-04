@@ -4,7 +4,8 @@ r"""TC_Basic_WorkFlow_16 — Kiosk 및 System Launcher.
 기준 문서: ``..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`` 시트 ``개정 TC``.
 
 2026-08-21 사용자 지시로 이 TC 전체를 수동 수행한다. 자동화 코드는 두지 않고,
-회귀 보고서와 체크리스트에서 TC가 빠지지 않도록 MANUAL 한 건만 기록한다.
+회귀 보고서와 체크리스트에서 TC가 빠지지 않도록 SKIP 한 건만 기록한다
+(2026-11-05부터 사람이 직접 하는 TC는 SKIP, REQ-VERDICT-002).
 
 수동 사유
   * Step 3은 시스템 재시작, Step 12는 PC 종료라 자동화 세션이 함께 종료된다.

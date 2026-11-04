@@ -150,6 +150,20 @@ class CheckpointTests(unittest.TestCase):
         cp.complete("A", _passing("A")(None))
         return cp
 
+    def test_resume_uses_source_identity_of_first_run(self):
+        # 재개 실행이 다른 커밋이면 리포트가 그 차이를 알 수 있어야 한다(REQ-DIST-005).
+        import run
+        first = type("Ctx", (), {"source_identity_at_start": {"source_commit": "a" * 40,
+                                                              "source_dirty": False}})()
+        cp = self.saved()
+        run._bind_checkpoint_source(first, cp, resume=False)
+        cp.save()
+        later = type("Ctx", (), {"source_identity_at_start": {"source_commit": "b" * 40,
+                                                              "source_dirty": False}})()
+        loaded = wu_chain.Checkpoint.load(self.path, self.identity)
+        run._bind_checkpoint_source(later, loaded, resume=True)
+        self.assertEqual(later.source_identity_at_start["source_commit"], "a" * 40)
+
     def test_roundtrip_and_atomic_file(self):
         self.saved()
         loaded = wu_chain.Checkpoint.load(self.path, self.identity)

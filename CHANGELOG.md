@@ -2,6 +2,22 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-11-05 (릴리스 게이트 실행 전 검토)
+
+### Fixed
+
+- REQ-DIST-005: 리포트가 소스 커밋을 작성 시점에만 읽어, 실행 도중 커밋이 바뀌면 이전 코드로 돈 결과가 새 커밋의 깨끗한 결과로 기록될 수 있었다. 실행 시작 때 값을 함께 남기고(`source_commit_at_start`) 두 값이 다르면 `source_dirty`를 참으로 둔다.
+- REQ-DIST-005: WU `--resume`이 이전 커밋에서 만든 단계 결과를 재사용해도 리포트가 알 수 없었다. 새 체인의 저장점에 시작 때 소스 식별을 남기고, 재개는 그 값을 시작 값으로 쓴다.
+- REQ-DIST-005: 설치판을 저장소 checkout 작업 폴더에서 돌리면 EXE의 build-info 대신 그 checkout의 커밋을 기록했다. EXE 옆 build-info를 먼저 읽는다.
+- REQ-DIST-005: 기본기능 게이트가 어떤 TC의 SKIP이든 그냥 통과시키고 목록에도 없었다. 사람이 직접 하는 TC(WF_16) 밖의 SKIP은 거부하고 SKIP 목록을 보고한다.
+- REQ-DIST-004: 설치판 실행 기록(`tools/run_installed_suites.py`)의 WU 목표가 WU_01·12·13의 SKIP을 요구하지 않아 게이트보다 느슨했다. 게이트와 같은 기준으로 맞추고 리포트의 소스 식별을 실행 기록에 옮긴다.
+- REQ-REGRESSION-001: Viewer Image Processing 창 열기를 상태로 기다린다. 예전에는 Process 클릭 2초 뒤 한 번만 확인했다. 2026-11-05 WU 체인의 XIPL_04 Step 8(취소 직후 다른 영상으로 다시 열기)에서 한 번 창을 놓쳤다. 이제 버튼과 창을 각각 최대 15초 기다리고, 안 열리면 한 번 더 누른다. 취소(`cancel_window`)도 창이 닫힐 때까지 기다린다.
+- REQ-WU-005·`tests/workflow16.py`: 사람이 직접 하는 TC를 MANUAL로 적은 옛 문구를 SKIP으로 고쳤다.
+
+### Validation
+
+- 단위시험(신규 시험 포함)과 정적 검사 7종. 실제 Viewer 확인은 같은 커밋의 게이트 실행(기본기능 전체 → 실시간 WU)에서 한다.
+
 ## 2026-11-05 (사람이 직접 하는 TC를 SKIP으로)
 
 ### Changed

@@ -78,12 +78,27 @@ def _command_line():
 def _source_identity_meta(ctx):
     """릴리스 게이트가 읽는 실행 소스 커밋·수정 여부. 실패해도 리포트는 만든다."""
     try:
-        from core.source_identity import source_identity
-        return source_identity(getattr(ctx, "root", "."))
+        from core.source_identity import combine_run_identity, source_identity
+        return combine_run_identity(getattr(ctx, "source_identity_at_start", None),
+                                    source_identity(getattr(ctx, "root", ".")))
     except Exception as exc:                           # noqa: BLE001
         print(f"  source-identity: 확인 실패 — {exc}")
         return {"source_commit": None, "source_dirty": None,
                 "source_identity_origin": "unknown"}
+
+
+def _bind_checkpoint_source(ctx, checkpoint, resume):
+    """WU 저장점과 실행 시작 소스 식별을 잇는다.
+
+    새 체인은 시작 값을 저장점에 남기고, 재개는 저장점의 값을 시작 값으로 쓴다.
+    그래서 재개 실행의 커밋이 처음 실행과 다르면 리포트의 `source_dirty`가 참이 된다.
+    """
+    if resume:
+        first = checkpoint.extra("source_identity")
+        if first:
+            ctx.source_identity_at_start = first
+    else:
+        checkpoint.set_extra("source_identity", getattr(ctx, "source_identity_at_start", None))
 
 
 def _report_meta(ctx, results):
@@ -943,6 +958,7 @@ def _run_winupdate_chain(ctx, resume=False):
             print("  저장점 없이 처음부터 실행하려면 --resume 없이 다시 실행하십시오.")
             return 2
         checkpoint.mark_resumed()
+        _bind_checkpoint_source(ctx, checkpoint, resume=True)
         print(f"[run-winupdate --resume] 저장점의 완료 단계 {len(checkpoint.completed_stages)}개를 "
               f"재사용하고 남은 단계만 실행합니다: {path}")
     else:
@@ -950,6 +966,7 @@ def _run_winupdate_chain(ctx, resume=False):
         if moved:
             print(f"  [run-winupdate] 이전 저장점을 보관했습니다: {moved}")
         checkpoint = wu_chain.Checkpoint(path, identity)
+        _bind_checkpoint_source(ctx, checkpoint, resume=False)
         checkpoint.save()
 
     started = datetime.now()
@@ -1332,6 +1349,8 @@ def _main():
                                  probe_all=args.probe_options))
 
     ctx = Context(args.config)
+    # 실행 도중 커밋이 바뀐 결과를 새 커밋의 결과로 기록하지 않도록 시작 때 값을 둔다(REQ-DIST-005).
+    ctx.source_identity_at_start = _source_identity_meta(ctx)
     # **FAIL 이 나면 그 TC 를 즉시 중단한다**(2026-08-24 사용자 지시). 어차피 그
     # TC 는 사람이 직접 봐야 하므로, 남은 Step 을 계속 수행해 전체 시간을 늘리지
     # 않는다. 남은 Step 은 `pad_aborted_steps` 가 미수행(FAIL)으로 채운다.

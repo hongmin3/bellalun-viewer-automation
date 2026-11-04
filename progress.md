@@ -1,5 +1,14 @@
 # 진행 상태
 
+## 2026-11-05 릴리스 게이트 실행과 정식 빌드 (Issue #80)
+
+- 검토: WU·기본기능 자동화를 다시 읽었다. 판정을 틀리게 하는 차단 결함은 없었다. 아래 6건을 시험을 먼저 쓰고 고쳤다(CHANGELOG 2026-11-05 릴리스 게이트 실행 전 검토).
+  - 실행 중 커밋 변경과 재개 커밋 혼합을 `source_dirty`로 드러냄.
+  - 설치판 build-info 우선, 기본기능 SKIP 제한, 설치판 실행 기록의 WU 목표를 게이트와 같게 맞춤.
+  - XIPL Image Processing 창 상태 대기(지난 WU_04 FAIL 원인 후보).
+- 주의: 키트 훅(`C:\자동화\tools\project-auto-hook.js`)이 `auto/`에서 프롬프트를 받을 때 `AGENTS.md` 관리 블록을 LF로 다시 써 줄바꿈이 섞인다. 그러면 Git이 수정됨으로 보고 `source_dirty`가 참이 된다(내용 차이 0줄, 07:26 관찰). 회귀 중에는 `auto/`에서 프롬프트를 받지 않는다.
+- 다음: 이 커밋에서 `work/gate_run_job.py`(기본기능 전체 → 실시간 WU → 게이트)를 분리 실행한다. 통과하면 같은 커밋으로 정식 빌드 → 설치 → `tools/run_installed_suites.py`로 설치판 두 전체를 다시 수행한다. 결과 기록 커밋은 그 뒤에 한다.
+
 ## 2026-11-05 사람이 직접 하는 TC를 SKIP으로 (REQ-VERDICT-002)
 
 - 사용자 결정: 사람이 직접 해야 하는 TC는 기본적으로 SKIP. 대상 WU_01·12·13, WF_16(`tests/winupdate.py` `HUMAN_ONLY_TCS`).

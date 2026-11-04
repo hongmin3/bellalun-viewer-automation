@@ -4,7 +4,7 @@
 Bellalun 정책은 VXvue 의 "전 항목 PASS·flake 0" 정책과 **다르다.**
 
 * 사람이 직접 하는 TC 는 SKIP 이다. WU 는 사람 전용 TC(WU_01·12·13)만 SKIP 을 허용하고,
-  기본기능 회귀는 MANUAL TC 를 그대로 허용하고 목록만 보고한다.
+  기본기능 회귀는 사람 전용 TC(WF_16)만 SKIP 을 허용하고, MANUAL TC 는 그대로 허용하고 목록만 보고한다.
 * FAIL 은 `tests/winupdate.py::KNOWN_DEFECT_EXCLUDE` 에 등록된 (tc_id, check
   title) 기존 알려진 제품 결함만 허용한다. 그 결함 때문에 TC 가 중단되며 생긴
   연쇄 기록도 허용한다(아래 `classify_fail`). 그 밖의 FAIL·BLOCKED 는 거부한다.
@@ -149,9 +149,12 @@ def _evaluate_basic(report, checks, reasons, known_defects):
            f"전체 회귀 {len(results)} TC" if not missing else
            f"전체 회귀가 아닙니다(개별 실행 또는 조기 종료) — 표식 누락 {', '.join(missing)}")
     blocked, real, tolerated, unverified, manual = [], [], [], [], []
+    skipped, stray_skip = [], []
     for row in results:
         tc_id = row.get("tc_id")
         rows = row.get("checks") or []
+        if row.get("verdict") == "SKIP":
+            (skipped if tc_id in HUMAN_ONLY_TCS else stray_skip).append(tc_id)
         if row.get("verdict") == "BLOCKED" or any(c.get("status") == "BLOCKED" for c in rows):
             blocked.append(tc_id)
         if row.get("verdict") == "MANUAL":
@@ -173,6 +176,9 @@ def _evaluate_basic(report, checks, reasons, known_defects):
            "없음" if not blocked else f"BLOCKED TC {', '.join(blocked)}")
     _check(checks, reasons, "기본기능 알려진 결함 외 FAIL 없음", not real,
            "없음" if not real else f"허용 목록 밖 FAIL {len(real)}건: {'; '.join(real)}")
+    _check(checks, reasons, "기본기능 SKIP 은 사람 전용 TC 만", not stray_skip,
+           ", ".join(skipped) or "SKIP 없음" if not stray_skip else
+           f"사람 전용이 아닌 TC 가 SKIP 입니다: {', '.join(stray_skip)}")
     checks.append({"name": "허용된 알려진 결함", "passed": True,
                    "detail": "; ".join(tolerated) or "없음"})
     checks.append({"name": "알려진 결함 중단으로 미검증된 Step", "passed": True,

@@ -21,25 +21,32 @@ def _wu_rows(verdicts):
 
 class WuTargetTests(unittest.TestCase):
     def test_all_ten_pass_meets_target(self):
-        rows = _wu_rows(["MANUAL"] + ["PASS"] * 10 + ["MANUAL", "MANUAL"])
+        rows = _wu_rows(["SKIP"] + ["PASS"] * 10 + ["SKIP", "SKIP"])
         out = runner.wu_target(rows)
         self.assertTrue(out["met"])
         self.assertEqual([], out["not_pass"])
 
     def test_one_fail_misses_target_and_names_it(self):
-        rows = _wu_rows(["MANUAL"] + ["PASS"] * 8 + ["FAIL", "PASS"] + ["MANUAL"] * 2)
+        rows = _wu_rows(["SKIP"] + ["PASS"] * 8 + ["FAIL", "PASS"] + ["SKIP"] * 2)
         out = runner.wu_target(rows)
         self.assertFalse(out["met"])
         self.assertEqual([("TC_WindowsUpdate_10", "FAIL")], out["not_pass"])
 
     def test_missing_row_is_not_a_pass(self):
-        rows = _wu_rows(["MANUAL"] + ["PASS"] * 9)          # WU_11~13 없음
+        rows = _wu_rows(["SKIP"] + ["PASS"] * 9)          # WU_11~13 없음
         out = runner.wu_target(rows)
         self.assertFalse(out["met"])
         self.assertIn(("TC_WindowsUpdate_11", "MISSING"), out["not_pass"])
 
+    def test_human_only_tc_must_be_skip_like_release_gate(self):
+        # 2026-11-05 부터 사람 전용 TC 는 SKIP 이다(REQ-VERDICT-002). MANUAL 이면 목표 미달.
+        rows = _wu_rows(["MANUAL"] + ["PASS"] * 10 + ["SKIP", "SKIP"])
+        out = runner.wu_target(rows)
+        self.assertFalse(out["met"])
+        self.assertIn(("TC_WindowsUpdate_01", "MANUAL"), out["not_pass"])
+
     def test_skip_is_not_accepted_as_pass(self):
-        rows = _wu_rows(["MANUAL"] + ["PASS"] * 8 + ["SKIP", "PASS"] + ["MANUAL"] * 2)
+        rows = _wu_rows(["SKIP"] + ["PASS"] * 8 + ["SKIP", "PASS"] + ["SKIP"] * 2)
         self.assertFalse(runner.wu_target(rows)["met"])
 
 

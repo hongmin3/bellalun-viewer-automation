@@ -274,8 +274,10 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 정식 빌드 전에 빌드할 소스와 같은 커밋에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과가 목표를 채웠는지 확인한다.
 #### 순서
 1. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
+   실행 시작 때 값도 함께 읽는다. 시작 때 커밋(`source_commit_at_start`)이 리포트 때와 다르거나 시작 때부터 수정이 있었으면 `source_dirty`를 참으로 남긴다.
+   WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
 2. WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
-3. 기본기능 결과가 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지 본다.
+3. 기본기능 결과가 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다.
 #### 결과
 `python tools/release_gate.py`가 항목별 통과·실패와 거부 사유를 보여 준다. `tools/build_distribution.py --gate-wu --gate-basic`은 빌드 전에 같은 판정을 한다.
 #### 안 될 때
@@ -379,7 +381,7 @@ WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아�
 실시간 실행마다 OS 빌드+UBR, 설치된 KB 목록, 마지막 업데이트 설치 시각을 `work/update-evidence/history.jsonl`에 기록하고 직전 기록과 비교한다.
 #### 결과
 비교표는 WU 체크리스트 사본의 Issues 시트 뒤 '업데이트 전후' 시트와 리포트 meta `update_evidence`에 남는다.
-WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.
+WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(REQ-VERDICT-002), Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.
 #### update-watch
 `python run.py update-watch`는 빌드나 KB가 직전 기록과 다를 때만 `run-winupdate`를 한 번 실행한다. 첫 기록(기준 없음)과 변화 없음에는 실행하지 않는다.
 실행 전에 기록을 먼저 저장하므로 실행이 실패해도 같은 변화로 다시 돌지 않는다.

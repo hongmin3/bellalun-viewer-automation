@@ -120,6 +120,15 @@ class EvaluateTests(unittest.TestCase):
         wu["results"][4]["verdict"] = "FAIL"
         self.assertFalse(self._run(wu=wu)["passed"])
 
+    def test_basic_skip_only_for_human_only_tcs_and_reported(self):
+        ok = self._run(basic=basic_report([_tc("TC_Basic_WorkFlow_16", "SKIP")]))
+        self.assertTrue(ok["passed"], ok["reasons"])
+        listed = [c for c in ok["checks"] if "SKIP" in c["name"]]
+        self.assertTrue(listed and "TC_Basic_WorkFlow_16" in listed[0]["detail"])
+        bad = self._run(basic=basic_report([_tc("TC_Basic_WorkFlow_07", "SKIP")]))
+        self.assertFalse(bad["passed"])
+        self.assertTrue(any("TC_Basic_WorkFlow_07" in r for r in bad["reasons"]))
+
     def test_single_tc_basic_report_is_not_full_regression(self):
         single = {"meta": _identity(), "results": [_tc("TC_Basic_WorkFlow_03", "PASS")]}
         result = self._run(basic=single)
@@ -192,11 +201,46 @@ class IdentityTests(unittest.TestCase):
             self.assertEqual(identity, {"source_commit": SHA, "source_dirty": False,
                                         "source_identity_origin": "build-info"})
 
+    def test_installed_exe_build_info_wins_over_git_workspace(self):
+        # 설치판을 저장소 checkout 작업 폴더에서 돌려도 EXE 의 빌드 커밋을 기록한다.
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / "build-info.json").write_text(json.dumps(
+                {"source_commit": SHA, "source_dirty": False}), encoding="utf-8")
+            identity = gate.source_identity(ROOT, executable=folder / "BellalunAuto.exe")
+        self.assertEqual(identity["source_identity_origin"], "build-info")
+        self.assertEqual(identity["source_commit"], SHA)
+
     def test_unknown_identity_is_not_guessed(self):
         with tempfile.TemporaryDirectory() as temp:
             identity = gate.source_identity(temp, executable=Path(temp) / "x.exe")
         self.assertIsNone(identity["source_commit"])
         self.assertEqual(identity["source_identity_origin"], "unknown")
+
+    def test_commit_changed_during_run_is_reported_dirty(self):
+        # 실행 도중 HEAD 가 바뀌면 리포트 시점 커밋만 보고 깨끗하다고 하면 안 된다.
+        from core.source_identity import combine_run_identity
+        start, end = _identity(SHA), _identity("b" * 40)
+        merged = combine_run_identity(start, end)
+        self.assertEqual(merged["source_commit"], "b" * 40)
+        self.assertEqual(merged["source_commit_at_start"], SHA)
+        self.assertIs(merged["source_dirty"], True)
+        self.assertFalse(gate.evaluate(wu_report(**merged), basic_report(), "b" * 40)["passed"])
+
+    def test_dirty_at_start_stays_dirty_and_unchanged_run_keeps_end_identity(self):
+        from core.source_identity import combine_run_identity
+        self.assertIs(combine_run_identity(_identity(dirty=True), _identity())["source_dirty"], True)
+        same = combine_run_identity(_identity(), _identity())
+        self.assertEqual(same, {**_identity(), "source_commit_at_start": SHA})
+        self.assertEqual(combine_run_identity(None, _identity()), _identity())
+
+    def test_report_meta_uses_identity_captured_at_run_start(self):
+        import run
+        ctx = type("Ctx", (), {"root": str(ROOT),
+                               "source_identity_at_start": _identity("c" * 40)})()
+        meta = run._source_identity_meta(ctx)
+        self.assertEqual(meta["source_commit_at_start"], "c" * 40)
+        self.assertIs(meta["source_dirty"], True)
 
 
 class CliTests(unittest.TestCase):

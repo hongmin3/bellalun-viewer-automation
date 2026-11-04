@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="1f0ba23f2b5c709123ab42c3ded1c12c2a55c933926586465c45faea98818f6a">
+<meta name="spec-source-sha256" content="1c33dccfc7559f75f9ce8e7dc613793faa5fd0015610371a0c036a62a3a9599e">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -282,8 +282,9 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <section class="card kind-req" id="REQ-REGRESSION-001">
 <h3><span class="idtag">REQ-REGRESSION-001</span> 기준 체크리스트 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></span></div>
-<details class="history"><summary>변경 이력 7</summary>
+<details class="history"><summary>변경 이력 8</summary>
 <ul>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: Viewer Image Processing 창 열기를 상태로 기다린다. 예전에는 Process 클릭 2초 뒤 한 번만 확인했다. 2026-11-05 WU 체인의 XIPL_04 Step 8(취소 직후 다른 영상으로 다시 열기)에서 한 번 창을 놓쳤다. 이제 버튼과 창을 각각 최대 15초 기다리고, 안 열리면 한 번 더 누른다. 취소(<code>cancel_window</code>)도 창이 닫힐 때까지 기다린다.</li>
 <li><span class="hist">2026-10-18 · Fixed</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 경로에 작은따옴표(<code>'</code>)가 있으면 기준 DB BACKUP/RESTORE 문장과 PowerShell 버전·서명 조회가 문법 오류로 실패하던 문제를 고쳤다. 같은 파일의 FILELISTONLY·MOVE 절처럼 값을 이스케이프한다. 실측: 고치기 전 형태는 <code>Incorrect syntax near 'Brien'</code>으로 실패했고, 고친 형태의 <code>RESTORE VERIFYONLY</code>와 Viewer 버전 읽기는 <code>O'Brien 한글</code> 경로에서 성공했다.</li>
 <li><span class="hist">2026-10-17 · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: WF_09 Step 8 보강 판정(3D-N·3D-W가 각각 Export)이 기대 Recon을 환자 전체에서 모으던 문제를 고쳤다. Export는 선택한 검사 하나만 내보내는데, WU 체인은 XIPL 묶음이 WF_09보다 먼저 같은 환자에 Recon 검사를 더 만든다. 후보7 실시간 WU에서 Export한 검사의 Recon 2건은 모두 들어 있었지만 다른 검사의 Recon 2건을 누락으로 세어 WU_09가 FAIL했다. 기대 집합을 Export한 검사로 한정하고, 판정 기준(두 Recon이 모두 Export되어야 함)은 유지한다.</li>
 <li><span class="hist">2026-10-17 · Fixed</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 다른 프로그램의 콘솔 창이 최전면을 쥐면 로그인 직전 Viewer를 올리지 못해 <code>DICOM_Server_Setup</code>이 바로 FAIL하던 문제를 고쳤다. 후보6 실시간 WU 조기 종료와 같은 모양(PW 빈칸 로그인 화면, 약 10초)을 콘솔 창으로 재현했다. 기존 단계가 실패하고 다른 프로그램이 가리고 있을 때만 <code>SwitchToThisWindow</code>와 배정되지 않은 가상키를 차례로 쓴다. 로그인 중 최전면 확보 실패는 키를 보내기 전에 멈춘 것이므로 정해진 횟수 안에서 다시 시도하고, 가린 창 이름을 기동 기록에 남긴다.</li>
@@ -427,7 +428,7 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 </section>
 <section class="card kind-req" id="REQ-VERDICT-002">
 <h3><span class="idtag">REQ-VERDICT-002</span> 사람이 직접 하는 TC는 SKIP</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
 <details class="history"><summary>변경 이력 1</summary>
 <ul>
 <li><span class="hist">2026-11-05 (사람이 직접 하는 TC를 SKIP으로) · Changed</span> <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>(신규): 사람이 직접 수행하는 TC(WU_01·12·13, 기본기능 WF_16)를 MANUAL이 아니라 SKIP으로 기록한다(사용자 결정). WU 체크리스트 사본은 Skip 사유도 L열에 적고 Skip 칸을 회색으로 칠한다.</li>
@@ -555,8 +556,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-004">
 <h3><span class="idtag">REQ-DIST-004</span> 설치판 진단과 최종 실행 검증</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></span></div>
-<details class="history"><summary>변경 이력 15</summary>
+<details class="history"><summary>변경 이력 16</summary>
 <ul>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 설치판 실행 기록(<code>tools/run_installed_suites.py</code>)의 WU 목표가 WU_01·12·13의 SKIP을 요구하지 않아 게이트보다 느슨했다. 게이트와 같은 기준으로 맞추고 리포트의 소스 식별을 실행 기록에 옮긴다.</li>
 <li><span class="hist">2026-10-21 · Validation</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 후보11(<code>56a0bc6</code>, EXE SHA256 <code>2eb31efe…36f3</code>)을 개발 도구를 뺀 최소 환경과 <code>&amp;</code>·괄호·작은따옴표·<code>#</code>·한글이 든 작업 폴더에서 실행했다. 기본기능 전체는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 2이며 FAIL은 기존 제품 결함 WF14 UPS·XIPL03이다. 실시간 WU 전체는 끝까지 수행되어 PASS 10 / MANUAL 3으로 목표를 달성했다. USB가 분리되어 있어 WU_09의 USB 왕복 단계는 SKIP으로 남았다.</li>
 <li><span class="hist">2026-10-20 · Fixed</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: BellalunAuto가 <code>XIPL_PATH</code> 없는 환경에서 Viewer를 띄우면 Viewer가 E2100을 기록하고 PC 전원을 끄던 문제를 막았다. Viewer·XIPL Studio는 실행 환경에 없는 등록 환경 변수를 레지스트리에서 보충해 띄우고, 그래도 <code>XIPL_PATH</code>가 맞지 않으면 Viewer를 띄우지 않고 해결 방법을 알린다. 자체진단에 &quot;XIPL 설치 경로(XIPL_PATH)&quot; 항목을 더했다. 실측: 2026-10-18 후보9 최소 환경 실행 1분 뒤 Viewer 로그에 <code>XIPL is not installed. [E2100]</code>이 남고 System 이벤트 1074(<code>VIEWER.exe</code>, 전원 끄기)가 기록됐다. 기존 XIPL 점검은 9784 포트만 봐서 21/21 PASS였다.</li>
 <li><span class="hist">2026-10-18 · Added</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>: 자체진단에 &quot;작업 폴더 경로 길이&quot; 항목을 추가했다. Viewer가 쓰는 Export 증거의 상대 경로가 최대 117자이고 LongPathsEnabled 기본값은 0이라, 작업 폴더가 120자를 넘으면 시험 중간에 실패하기 전에 짧은 경로를 고르라고 안내한다.</li>
@@ -589,8 +591,12 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 같은 커밋의 검증 결과를 요구하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 7</summary>
 <ul>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 리포트가 소스 커밋을 작성 시점에만 읽어, 실행 도중 커밋이 바뀌면 이전 코드로 돈 결과가 새 커밋의 깨끗한 결과로 기록될 수 있었다. 실행 시작 때 값을 함께 남기고(<code>source_commit_at_start</code>) 두 값이 다르면 <code>source_dirty</code>를 참으로 둔다.</li>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: WU <code>--resume</code>이 이전 커밋에서 만든 단계 결과를 재사용해도 리포트가 알 수 없었다. 새 체인의 저장점에 시작 때 소스 식별을 남기고, 재개는 그 값을 시작 값으로 쓴다.</li>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 설치판을 저장소 checkout 작업 폴더에서 돌리면 EXE의 build-info 대신 그 checkout의 커밋을 기록했다. EXE 옆 build-info를 먼저 읽는다.</li>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 기본기능 게이트가 어떤 TC의 SKIP이든 그냥 통과시키고 목록에도 없었다. 사람이 직접 하는 TC(WF_16) 밖의 SKIP은 거부하고 SKIP 목록을 보고한다.</li>
 <li><span class="hist">2026-11-05 (사람이 직접 하는 TC를 SKIP으로) · Changed</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 릴리스 게이트 WU 목표를 PASS 10 / SKIP 3(WU_01·12·13)으로 바꿨다. 사람 전용 TC가 MANUAL이거나 다른 TC가 SKIP이면 거부한다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: <code>tools/release_gate.py</code>와 <code>build_distribution.py --gate-wu --gate-basic</code>을 넣었다. 리포트 meta에 <code>source_commit</code>·<code>source_dirty</code>를 남기고, 같은 커밋·수정 없는 소스의 결과만 통과시킨다. 통과하지 못한 빌드는 <code>-candidate</code> 이름과 표시 파일을 남긴다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Validation</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 후보11 리포트(<code>56a0bc6</code>)는 <code>source_commit</code>이 없어 거부된다. 그 밖의 항목(실시간·체인 완료·PASS 10 / MANUAL 3·전체 회귀·알려진 결함 외 FAIL 없음)은 통과했다.</li>
@@ -601,9 +607,11 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 </div></section>
 <section class="field"><h4>순서</h4><div class="field-body">
 <ol>
-<li>리포트 meta의 <code>source_commit</code>이 빌드 커밋과 같고 <code>source_dirty</code>가 <code>false</code>인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).</li>
+<li>리포트 meta의 <code>source_commit</code>이 빌드 커밋과 같고 <code>source_dirty</code>가 <code>false</code>인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
+실행 시작 때 값도 함께 읽는다. 시작 때 커밋(<code>source_commit_at_start</code>)이 리포트 때와 다르거나 시작 때부터 수정이 있었으면 <code>source_dirty</code>를 참으로 남긴다.
+WU 재개(<code>--resume</code>)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.</li>
 <li>WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)인지 본다.</li>
-<li>기본기능 결과가 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지 본다.</li>
+<li>기본기능 결과가 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다.</li>
 </ol>
 </div></section>
 <section class="field"><h4>결과</h4><div class="field-body">
@@ -757,8 +765,9 @@ WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아�
 <section class="card kind-req" id="REQ-WU-005">
 <h3><span class="idtag">REQ-WU-005</span> Windows Update 전후 근거와 변화 감지 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-005">TEST-WU-005</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-05 (릴리스 게이트 실행 전 검토) · Fixed</span> <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>·<code>tests/workflow16.py</code>: 사람이 직접 하는 TC를 MANUAL로 적은 옛 문구를 SKIP으로 고쳤다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>: 실시간 실행마다 OS 빌드+UBR·KB 목록·마지막 업데이트 설치 시각을 기록하고 직전 기록과의 비교표를 '업데이트 전후' 시트와 meta에 남긴다. <code>run.py update-watch</code>는 빌드·KB가 바뀌었을 때만 <code>run-winupdate</code>를 한 번 실행하고, 예약 등록은 <code>--apply</code>가 있을 때만 한다. 사용자 결정으로 예약 작업은 등록하지 않고 필요할 때 사람이 직접 실행한다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>: update-watch 예약 작업이 일반 권한으로 등록되어 <code>run-winupdate</code>의 관리자 권한 점검에서 막히던 설계를 <code>RunLevel Highest</code>로 고쳤다.</li>
 </ul>
@@ -768,7 +777,7 @@ WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아�
 </div></section>
 <section class="field"><h4>결과</h4><div class="field-body">
 <p>비교표는 WU 체크리스트 사본의 Issues 시트 뒤 '업데이트 전후' 시트와 리포트 meta <code>update_evidence</code>에 남는다.
-WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.</p>
+WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>), Install_01/02 결과와 OS·Build는 참고 근거로만 붙인다.</p>
 </div></section>
 <section class="field"><h4>update-watch</h4><div class="field-body">
 <p><code>python run.py update-watch</code>는 빌드나 KB가 직전 기록과 다를 때만 <code>run-winupdate</code>를 한 번 실행한다. 첫 기록(기준 없음)과 변화 없음에는 실행하지 않는다.
