@@ -42,6 +42,7 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 - 기존 기본기능/XIPL 결과를 이용하는 Windows Update 전용 흐름과 리포트.
 - TC별 자동화 범위·사양 근거 추적성, 판정 및 생성 증거.
 - Python·Git·소스가 필요 없는 Windows x64 팀원용 실행파일·설치 프로그램과 설정 화면.
+- 상위 `지식` 폴더를 검증 자료 관리 서버의 최신 판으로 맞추는 동기화(받는 PC에서만).
 
 ### 제외
 
@@ -82,6 +83,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | REPORT | 체크리스트별 결과 보고 |
 | DIST | 팀원용 설치와 실행 |
 | WU | USB 왕복과 설정 검사 |
+| KNOW | 지식 폴더 서버 동기화 |
 | BOUNDARY | 비공개 자료 보호 |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
@@ -242,6 +244,46 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
 알려진 제품 결함은 FAIL을 유지하고 미충족 조건과 실제 근거를 보고한다.
 
+### REQ-KNOW-001 지식 폴더 서버 동기화
+
+#### 목적
+
+사양서·매뉴얼·TC·QA 지침의 원본은 담당자 PC가 검증 자료 관리 서버에 올린다. 다른 PC의 상위 `지식` 폴더가
+옛 판에 머물지 않도록, 서버의 Bellalun Viewer 자료 화면에 있는 문서를 그대로 받아 와 맞춘다.
+
+#### 입력
+
+`config.json`의 `knowledge_sync`(서버 주소, 제품 이름, 받는 PC 이름 목록, 다운로드 링크가 없는 구역을 받을 SSH 대상·경로).
+
+#### 선행 조건
+
+이 PC 이름이 받는 PC 목록에 있고, 서버 기록의 업로드 PC가 이 PC가 아니다.
+
+#### 동작
+
+`python run.py sync-knowledge`가 서버 목록을 읽고 문서마다 판 표시와 로컬 내용 해시를 기록과 비교한다.
+바뀐 문서만 임시 폴더로 받아 크기(SSH는 SHA-256도)가 맞을 때만 넣는다. 같은 문서의 옛 판은 지우지 않고
+`_이전판/<날짜>/`로 옮긴다. `--dry-run`은 받아서 비교만 하고, `--install-task --apply`는 평일 예약 작업을 등록한다.
+
+#### 기대 결과
+
+`지식` 폴더에 서버와 같은 문서가 있고, 서버에 없는 로컬 자료(텍스트 캐시·작성 규칙 문서 등)는 그대로 남는다.
+실행 기록은 상위 `logs/knowledge-sync/<날짜>.log`에 남는다.
+
+#### 예외 처리
+
+설정이 비었거나 이 PC가 목록에 없거나 업로드 PC면 폴더를 바꾸지 않고 멈춘다. 크기·해시가 다르거나
+파일이 열려 있어 옮기지 못하면 그 문서만 실패로 알리고 옛 판을 유지하며 종료 코드 1을 돌려준다.
+폴더 밖을 가리키는 파일 이름은 받지 않는다.
+
+#### 관련 구현
+
+`core/knowledge_sync.py`, `run.py`
+
+#### 관련 테스트
+
+TEST-KNOW-001
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -264,6 +306,7 @@ Reports/Evidence/work 등은 실행 산출물이며 기준 원본을 대체하�
 Release Note·OS Build 기대값은 승인된 입력으로만 채운다.
 권한·화면/DPI·OCR·DB·제품 경로 등 환경 조건은 README와 기존 portability 검사 경로를 따른다.
 현재 설정·기본 회귀 순서·baseline 복원 동작은 이번 도입에서 변경하지 않는다.
+`knowledge_sync` 절은 REQ-KNOW-001의 서버 주소·받는 PC를 담으며 서버 주소는 코드에 두지 않는다.
 
 ## 9. 오류 처리 정책
 
@@ -345,6 +388,14 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
 USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.
 
+### TEST-KNOW-001 지식 폴더 동기화
+
+- 검증 대상: REQ-KNOW-001.
+- 선행 조건: 임시 폴더와 가짜 서버(네트워크·실제 `지식` 폴더를 쓰지 않는다).
+- 절차: `tests/test_knowledge_sync.py`로 목록 해석, 같은 문서 판별, 바뀐 문서만 받기,
+  옛 판 보관, 서버에 없는 로컬 자료 보존, 크기 불일치·위험한 이름·받는 PC 확인을 검증한다.
+- Expected Result: 실패한 문서는 옛 판을 유지하고 종료 코드 1이며, `--dry-run`은 폴더를 바꾸지 않는다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -358,6 +409,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py` | implemented |
 | REQ-DIST-003 | `tools/build_distribution.py`, `packaging/` | TEST-DIST-002; `tests/test_distribution_build.py` | implemented |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
+| REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | implemented |
 
 implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.

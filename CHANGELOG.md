@@ -2,6 +2,16 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-11-04
+
+### Added
+
+- REQ-KNOW-001: `python run.py sync-knowledge`를 추가했다. 상위 `지식` 폴더를 검증 자료 관리 서버의 Bellalun Viewer 자료 화면과 같게 맞춘다. 바뀐 문서만 받아 크기(SSH는 SHA-256도)를 확인한 뒤 넣고, 같은 문서의 옛 판은 `_이전판/<날짜>/`로 옮긴다. 서버에 없는 로컬 자료는 그대로 둔다. `--install-task --apply`로 평일 11:00 예약 작업을 등록한다.
+
+### Validation
+
+- REQ-KNOW-001: 이 PC에서 실제로 맞췄다. 서버 13건 가운데 새 판 4건(통합 사양서 261030, QC Manual, QA 지침, Skill 지침)을 넣고 9건은 내용이 같아 그대로 두었다. 13건 모두 서버 기록의 SHA-256과 같다. 다시 돌리면 13건 모두 그대로였고, 예약 작업으로 한 번 실행한 결과도 종료 코드 0이었다.
+
 ## 2026-10-21
 
 ### Validation

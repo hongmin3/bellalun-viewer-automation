@@ -830,6 +830,55 @@ def _run_winupdate_chain(ctx):
                              execution_mode="live", chain_completed=True)
 
 
+def cmd_sync_knowledge(args):
+    """상위 `지식/`을 검증 자료 관리 서버의 최신 판으로 맞춘다(REQ-KNOW-001)."""
+    import subprocess
+    import time
+    from core import knowledge_sync as ksync
+    here = os.path.dirname(os.path.abspath(__file__))
+    if args.install_task or args.remove_task:
+        if args.remove_task:
+            cmd = ksync.remove_task_command()
+            shown = subprocess.list2cmdline(cmd)
+        else:
+            run_py = os.path.join(here, "run.py")
+            cmd = ksync.install_task_command(ksync.pythonw(), run_py)
+            shown = "PowerShell:\n" + ksync.task_script(ksync.pythonw(), run_py)
+        print("예약 작업(%s) 명령: %s" % (ksync.TASK_NAME, shown))
+        if not args.apply:
+            print("등록·삭제하지 않았다. 확인한 뒤 --apply를 붙인다.")
+            return 0
+        return subprocess.call(cmd)
+    lines = []
+
+    def log(line):
+        lines.append("%s %s" % (time.strftime("%H:%M:%S"), line))
+        print(line)
+
+    folder = ""
+    try:
+        config_path = args.config if os.path.isabs(args.config) else os.path.join(here, args.config)
+        with open(config_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+        folder = ksync.knowledge_dir(cfg, here)
+        code = ksync.run(cfg, here, dry_run=args.dry_run, log=log)["exit_code"]
+    except Exception as exc:                                          # noqa: BLE001
+        log("동기화 실패: %s: %s" % (type(exc).__name__, exc))
+        code = 1
+    if folder:
+        try:
+            path = ksync.log_path(folder)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as f:
+                f.write("\n".join(["== sync-knowledge%s (종료 코드 %d)" % (" --dry-run" if args.dry_run else "", code)]
+                                  + lines) + "\n")
+            print("기록: %s" % path)
+        except OSError as exc:
+            print("동기화 기록 저장 실패: %s" % type(exc).__name__)
+            code = 1
+    return code
+
+
 def main():
     from bellalunauto.app import (historical_conversion, legacy_product_lock,
                                  requires_product_control)
@@ -939,7 +988,18 @@ def _main():
         help="드롭다운 항목을 **전부 눌러 보며** 목록 전문을 사양과 대조한다"
              "(느리다. 기본은 한 번만 열어 개수·화면으로 확인)")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
+    sync_parser = sub.add_parser(
+        "sync-knowledge", help="상위 지식 폴더를 검증 자료 관리 서버의 최신 판으로 맞춘다(REQ-KNOW-001)")
+    sync_parser.add_argument("--dry-run", action="store_true",
+                             help="서버 문서를 받아 비교만 하고 지식 폴더는 바꾸지 않는다")
+    sync_parser.add_argument("--install-task", action="store_true", help="평일 11:00 예약 작업 등록 명령을 보인다")
+    sync_parser.add_argument("--remove-task", action="store_true", help="예약 작업 삭제 명령을 보인다")
+    sync_parser.add_argument("--apply", action="store_true", help="--install-task/--remove-task를 실제로 실행한다")
     args = ap.parse_args()
+
+    # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
+    if args.cmd == "sync-knowledge":
+        return cmd_sync_knowledge(args)
 
     # 설치 패키지 점검은 **설치 이전** PC 에서 돈다. `Context` 는 BellalunData 를
     # 못 찾으면 예외를 던지는데(신규 설치 전에는 없는 것이 정상) 그러면 이 명령은

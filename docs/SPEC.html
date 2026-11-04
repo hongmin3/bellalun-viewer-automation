@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="botyard render-spec-html v7">
-<meta name="spec-html-renderer" content="v7">
-<meta name="spec-source-sha256" content="1dfa451bd95e061fa7fe93d36da51c2bd663292689c4c07044a5e5e27ef7545f">
+<meta name="generator" content="botyard render-spec-html v8">
+<meta name="spec-html-renderer" content="v8">
+<meta name="spec-source-sha256" content="cea290ccebcb30482806a75c732aec0061286c97ad69b7bc1c2e3959ee9b883e">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.1.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-10-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>9</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>8</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>10</b><span>implemented</span></div></div>
+<div class="stats"><div class="stat"><b>10</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>9</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>11</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -113,6 +113,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-DIST-003">REQ-DIST-003 <span>컴파일과 내부 자료 배포</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-004">REQ-DIST-004 <span>설치판 진단과 최종 실행 검증</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-WU-001">REQ-WU-001 <span>USB 왕복과 설정 전수 검사</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-KNOW-001">REQ-KNOW-001 <span>지식 폴더 서버 동기화</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
 <li class="toc-2"><a href="#sec-7">7. 데이터 사양</a></li>
@@ -128,6 +129,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-DIST-001">TEST-DIST-001 <span>배포 실행과 경로</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-002">TEST-DIST-002 <span>패키지 경계</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-WU-001">TEST-WU-001 <span>완료 근거와 설정 순회</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-KNOW-001">TEST-KNOW-001 <span>지식 폴더 동기화</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -153,6 +155,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="이름">설치판 진단과 최종 실행 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">WU</span> USB 왕복과 설정 검사</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="이름">USB 왕복과 설정 전수 검사</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td></tr>
+<tr class="group"><th colspan="5"><span class="gcode">KNOW</span> 지식 폴더 서버 동기화</th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="이름">지식 폴더 서버 동기화</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -205,6 +209,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li>기존 기본기능/XIPL 결과를 이용하는 Windows Update 전용 흐름과 리포트.</li>
 <li>TC별 자동화 범위·사양 근거 추적성, 판정 및 생성 증거.</li>
 <li>Python·Git·소스가 필요 없는 Windows x64 팀원용 실행파일·설치 프로그램과 설정 화면.</li>
+<li>상위 <code>지식</code> 폴더를 검증 자료 관리 서버의 최신 판으로 맞추는 동기화(받는 PC에서만).</li>
 </ul>
 <h3>제외</h3>
 <ul>
@@ -246,6 +251,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <tr><td>REPORT</td><td>체크리스트별 결과 보고</td></tr>
 <tr><td>DIST</td><td>팀원용 설치와 실행</td></tr>
 <tr><td>WU</td><td>USB 왕복과 설정 검사</td></tr>
+<tr><td>KNOW</td><td>지식 폴더 서버 동기화</td></tr>
 <tr><td>BOUNDARY</td><td>비공개 자료 보호</td></tr>
 </tbody>
 </table></div>
@@ -514,6 +520,46 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 <p>기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
 알려진 제품 결함은 FAIL을 유지하고 미충족 조건과 실제 근거를 보고한다.</p>
 </section>
+<section class="card kind-req" id="REQ-KNOW-001">
+<h3><span class="idtag">REQ-KNOW-001</span> 지식 폴더 서버 동기화</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
+<ul>
+<li><span class="hist">2026-11-04 · Added</span> <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a>: <code>python run.py sync-knowledge</code>를 추가했다. 상위 <code>지식</code> 폴더를 검증 자료 관리 서버의 Bellalun Viewer 자료 화면과 같게 맞춘다. 바뀐 문서만 받아 크기(SSH는 SHA-256도)를 확인한 뒤 넣고, 같은 문서의 옛 판은 <code>_이전판/&lt;날짜&gt;/</code>로 옮긴다. 서버에 없는 로컬 자료는 그대로 둔다. <code>--install-task --apply</code>로 평일 11:00 예약 작업을 등록한다.</li>
+<li><span class="hist">2026-11-04 · Validation</span> <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a>: 이 PC에서 실제로 맞췄다. 서버 13건 가운데 새 판 4건(통합 사양서 261030, QC Manual, QA 지침, Skill 지침)을 넣고 9건은 내용이 같아 그대로 두었다. 13건 모두 서버 기록의 SHA-256과 같다. 다시 돌리면 13건 모두 그대로였고, 예약 작업으로 한 번 실행한 결과도 종료 코드 0이었다.</li>
+</ul>
+</details>
+<section class="field"><h4>목적</h4><div class="field-body">
+<p>사양서·매뉴얼·TC·QA 지침의 원본은 담당자 PC가 검증 자료 관리 서버에 올린다. 다른 PC의 상위 <code>지식</code> 폴더가
+옛 판에 머물지 않도록, 서버의 Bellalun Viewer 자료 화면에 있는 문서를 그대로 받아 와 맞춘다.</p>
+</div></section>
+<section class="field"><h4>입력</h4><div class="field-body">
+<p><code>config.json</code>의 <code>knowledge_sync</code>(서버 주소, 제품 이름, 받는 PC 이름 목록, 다운로드 링크가 없는 구역을 받을 SSH 대상·경로).</p>
+</div></section>
+<section class="field"><h4>선행 조건</h4><div class="field-body">
+<p>이 PC 이름이 받는 PC 목록에 있고, 서버 기록의 업로드 PC가 이 PC가 아니다.</p>
+</div></section>
+<section class="field"><h4>동작</h4><div class="field-body">
+<p><code>python run.py sync-knowledge</code>가 서버 목록을 읽고 문서마다 판 표시와 로컬 내용 해시를 기록과 비교한다.
+바뀐 문서만 임시 폴더로 받아 크기(SSH는 SHA-256도)가 맞을 때만 넣는다. 같은 문서의 옛 판은 지우지 않고
+<code>_이전판/&lt;날짜&gt;/</code>로 옮긴다. <code>--dry-run</code>은 받아서 비교만 하고, <code>--install-task --apply</code>는 평일 예약 작업을 등록한다.</p>
+</div></section>
+<section class="field"><h4>기대 결과</h4><div class="field-body">
+<p><code>지식</code> 폴더에 서버와 같은 문서가 있고, 서버에 없는 로컬 자료(텍스트 캐시·작성 규칙 문서 등)는 그대로 남는다.
+실행 기록은 상위 <code>logs/knowledge-sync/&lt;날짜&gt;.log</code>에 남는다.</p>
+</div></section>
+<section class="field"><h4>예외 처리</h4><div class="field-body">
+<p>설정이 비었거나 이 PC가 목록에 없거나 업로드 PC면 폴더를 바꾸지 않고 멈춘다. 크기·해시가 다르거나
+파일이 열려 있어 옮기지 못하면 그 문서만 실패로 알리고 옛 판을 유지하며 종료 코드 1을 돌려준다.
+폴더 밖을 가리키는 파일 이름은 받지 않는다.</p>
+</div></section>
+<section class="field"><h4>관련 구현</h4><div class="field-body">
+<p><code>core/knowledge_sync.py</code>, <code>run.py</code></p>
+</div></section>
+<section class="field"><h4>관련 테스트</h4><div class="field-body">
+<p><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a></p>
+</div></section>
+</section>
 </section>
 <section class="chapter" id="sec-6">
 <h2>6. 비기능 요구사항</h2>
@@ -538,7 +584,8 @@ Reports/Evidence/work 등은 실행 산출물이며 기준 원본을 대체하�
 <p><code>config.example.json</code>은 공개 템플릿이고 <code>config.json</code>은 로컬 환경값이다.
 Release Note·OS Build 기대값은 승인된 입력으로만 채운다.
 권한·화면/DPI·OCR·DB·제품 경로 등 환경 조건은 README와 기존 portability 검사 경로를 따른다.
-현재 설정·기본 회귀 순서·baseline 복원 동작은 이번 도입에서 변경하지 않는다.</p>
+현재 설정·기본 회귀 순서·baseline 복원 동작은 이번 도입에서 변경하지 않는다.
+<code>knowledge_sync</code> 절은 <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a>의 서버 주소·받는 PC를 담으며 서버 주소는 코드에 두지 않는다.</p>
 </section>
 <section class="chapter" id="sec-9">
 <h2>9. 오류 처리 정책</h2>
@@ -636,6 +683,17 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 <p>기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
 USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.</p>
 </section>
+<section class="card kind-test" id="TEST-KNOW-001">
+<h3><span class="idtag">TEST-KNOW-001</span> 지식 폴더 동기화</h3>
+<div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></span></div>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a>.</li>
+<li>선행 조건: 임시 폴더와 가짜 서버(네트워크·실제 <code>지식</code> 폴더를 쓰지 않는다).</li>
+<li>절차: <code>tests/test_knowledge_sync.py</code>로 목록 해석, 같은 문서 판별, 바뀐 문서만 받기,
+옛 판 보관, 서버에 없는 로컬 자료 보존, 크기 불일치·위험한 이름·받는 PC 확인을 검증한다.</li>
+<li>Expected Result: 실패한 문서는 옛 판을 유지하고 종료 코드 1이며, <code>--dry-run</code>은 폴더를 바꾸지 않는다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -651,6 +709,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="Implementation"><code>tools/build_distribution.py</code>, <code>packaging/</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="Implementation"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="Implementation"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 </tbody>
 </table></div>

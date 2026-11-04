@@ -124,5 +124,13 @@
   "regression": {
     "_comment": "stop_tc_on_fail=true 면 어떤 Step 이 FAIL 하는 순간 그 TC 를 중단하고 다음 TC 로 넘어간다(2026-08-24 사용자 지시 — 어차피 그 TC 는 사람이 직접 보므로 남은 Step 을 수행해 전체 시간을 늘리지 않는다). 남은 Step 은 리포트에 '미수행(FAIL)'로 채워진다. false 로 두면 예전처럼 끝까지 수행한다.",
     "stop_tc_on_fail": true
+  },
+  "knowledge_sync": {
+    "_comment": "../지식 폴더를 검증 자료 관리 서버 최신 판으로 맞춘다(run.py sync-knowledge, REQ-KNOW-001). hosts에 받는 PC 이름(COMPUTERNAME)을 적어야 돈다. 지식 폴더를 서버로 올리는 담당자 PC는 적지 않는다. ssh_*가 비면 링크 없는 QA 지침·Skill 지침은 받지 않고 로컬 판을 둔다.",
+    "server_url": "",
+    "product": "bellalun-viewer",
+    "ssh_target": "",
+    "ssh_dir": "",
+    "hosts": []
   }
 }

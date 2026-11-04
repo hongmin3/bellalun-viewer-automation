@@ -496,6 +496,22 @@ DB 기준 스냅샷은 저장소 기준 상대경로로 찾아 `sys.master_files
 - 새 PC에 DB 데이터 파일이 없으면 `reset-environment`가 `.bak`에서 새로 만듭니다
   (`sys.master_files` 기반 `WITH MOVE`). 드라이브 문자가 달라도 됩니다.
 
+### 지식 폴더를 서버 최신 판으로 맞추기
+
+사양서·매뉴얼·TC·QA 지침의 원본은 담당자 PC가 검증 자료 관리 서버에 올립니다. 다른 PC는 아래 명령으로
+상위 `지식` 폴더를 서버와 같게 맞춥니다. `config.json`의 `knowledge_sync`에 서버 주소와 이 PC 이름(`hosts`)을
+적어야 돌고, 서버로 올리는 담당자 PC에서는 돌지 않습니다.
+
+```powershell
+python run.py sync-knowledge --dry-run              # 받아서 비교만 한다
+python run.py sync-knowledge                        # 실제로 맞춘다
+python run.py sync-knowledge --install-task --apply # 평일 11:00 예약 작업(Bellalun_Knowledge_Sync) 등록
+```
+
+같은 문서의 옛 판은 지우지 않고 `지식/_이전판/<날짜>/`로 옮깁니다. 서버에 없는 로컬 자료(텍스트 캐시,
+작성 규칙 문서)는 그대로 둡니다. 사양서1·사양서2처럼 권 번호가 다른 문서도 따로 둡니다. 자동화의 사양 근거
+조회(`core/specs.py`)가 아직 그 두 권을 찾기 때문입니다. 실행 기록은 프로젝트 루트 `logs/knowledge-sync/`에 남습니다.
+
 ---
 
 ## 10. 문서
