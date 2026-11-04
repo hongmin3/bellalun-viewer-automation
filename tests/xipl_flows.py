@@ -1110,7 +1110,7 @@ def _verify_preset_inherits_default(ctx, ui):
 
     실제 촬영까지는 하지 않는다 — 이 TC의 Step 5~8이 이미 **기존** Preset
     행으로 "Recon Parameter 가 영상에 실제로 적용된다"는 경로를 .img 교차
-    검증까지 마쳤다(사양서1 SRS 03-50-230). 이 보강 체크는 "새 행이 생기는
+    검증까지 마쳤다(사양서 SRS 03-50-230). 이 보강 체크는 "새 행이 생기는
     순간 그 시점 General Default 를 물려받는가"만 확인한다 — CC+Roll=RL 조합을
     추가한 직후 `VIEW_POSITION_PRESET.XIPLParamName`이 그 순간의
     `PROCEDURE_COMMON.Default{Narrow,Wide}Recon`과 같은지 DB로 대조하고,
@@ -2085,9 +2085,9 @@ def compatibility_06(ctx, session):
 #
 # | 문서 | 확인한 내용 |
 # |---|---|
-# | 사양서1 186쪽 **SRS 03-10-110** | "3D Viewposition은 촬영 모드 (Narrow / Wide)에 **따라 각각** Reconstruction Parameter를 설정한다.(.xtp)" / "기본 영상 처리 파라미터는 Setting > Procedure > General 에서 설정할 수 있다" / "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설정해 놓은 영상 처리 파라미터로 영상처리를 진행한다" / "2D License의 경우 Reconstruction Parameter 설정 항목이 표시되지 않는다" |
-# | 사양서1 196쪽 **SRS 03-30-20** | 설정 가능한 3D Viewposition = `CC, MLO, LM, SIO, ML, LMO, ISO, XCCL, XCCM, AT, TAN`, "FB 및 CV는 촬영 불가" |
-# | 사양서1 277쪽 **SRS 03-50-230** | "영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다" / "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다" / Post Reconstruction↔XTP 항목 매핑표 |
+# | 사양서 668쪽 **SRS 03-10-110** | "3D Viewposition은 촬영 모드 (Narrow / Wide)에 **따라 각각** Reconstruction Parameter를 설정한다.(.xtp)" / "기본 영상 처리 파라미터는 Setting > Procedure > General 에서 설정할 수 있다" / "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설정해 놓은 영상 처리 파라미터로 영상처리를 진행한다" / "2D License의 경우 Reconstruction Parameter 설정 항목이 표시되지 않는다" |
+# | 사양서 678쪽 **SRS 03-30-20** | 설정 가능한 3D Viewposition = `CC, MLO, LM, SIO, ML, LMO, ISO, XCCL, XCCM, AT, TAN`, "FB 및 CV는 촬영 불가" |
+# | 사양서 767쪽 **SRS 03-50-230** | "영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다" / "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다" / Post Reconstruction↔XTP 항목 매핑표 |
 # | Service Manual `Procedure 그룹 > General 메뉴` | `Reconstruction parameter for 3D-N` = "3D Narrow 촬영 View Position에 적용되는 Recon 파라미터", `for 3D-W` = Wide. "Preset에 새로 추가하는 View Position이나 영상 처리 파라미터 및 Recon 파라미터가 등록되어 있지 않은 View Position을 촬영할 때, Default로 설정한 파라미터를 적용합니다." "Tomo 촬영을 지원하지 않는 시스템이 연결되어 있거나 2D 전용 License가 등록되어 있을 경우, Reconstruction Parameter를 설정하는 항목은 표시되지 않습니다." |
 # | Service Manual `Preset 메뉴` | 목록 열 = `Name / Alias / XIPL Param(2D) / Recon Param(3D)`. "Preset은 2D / 3D-N / 3D-W 각각 총 40개씩" |
 #
@@ -2103,9 +2103,9 @@ def compatibility_06(ctx, session):
 # 적용된 3D Recon 파라미터 **이름은 DB에 없다.** `DATA` 데이터베이스의 컬럼을
 # 전수 조회해 확인했다(2026-08-24). 그래서 두 곳을 교차로 읽는다.
 #
-#   1. **`.img` 파일의 `<ReconParam>`** — `core/imginfo.py`. 사양서1이 저장 위치로
+#   1. **`.img` 파일의 `<ReconParam>`** — `core/imginfo.py`. 사양서이 저장 위치로
 #      명시한 곳이고 `XtpName`/`EgpName`이 그대로 들어 있다. 화면보다 강한 증거다.
-#   2. **Post Reconstruction 창의 Parameter 콤보** — 사양서1 277쪽이 "획득 시
+#   2. **Post Reconstruction 창의 Parameter 콤보** — 사양서 767쪽이 "획득 시
 #      설정한 xtp가 자동 선택된다"고 정한 화면 표시. 파일과 대조해 둘이 어긋나면
 #      제품 결함이다.
 #
@@ -2123,7 +2123,7 @@ def compatibility_06(ctx, session):
 # Reconstruction을 다시 돌리지 않고 촬영 결과만 읽는다. 촬영 자체가 GPU 없이
 # 성립하지 않으면 Step 5/6이 정직하게 FAIL해야 한다.
 
-#: 사양서1 196쪽 SRS 03-30-20 의 "설정 가능한 3D Viewposition" 11종.
+#: 사양서 678쪽 SRS 03-30-20 의 "설정 가능한 3D Viewposition" 11종.
 #: `PROCEDURE.VIEW_POSITION_POSITIONING.Name` 과 같은 표기다.
 SPEC_3D_VIEW_POSITIONS = ("CC", "MLO", "LM", "SIO", "ML", "LMO", "ISO",
                           "XCCL", "XCCM", "AT", "TAN")
@@ -2317,7 +2317,7 @@ def _acquire_mode(ctx, ui, study_key, mode):
 def _read_applied_recon(ctx, ui, mode, study_key, acquired):
     """한 모드 영상의 적용 Recon Parameter 를 **화면과 파일 두 곳에서** 읽는다.
 
-    화면: Post Reconstruction 창의 Parameter 콤보(사양서1 277쪽 — 획득 시 설정한
+    화면: Post Reconstruction 창의 Parameter 콤보(사양서 767쪽 — 획득 시 설정한
           xtp 가 자동 선택된다).
     파일: Reconstruction 결과 영상(`InstanceType=2`)의 `<ReconParam>`.
     """
@@ -2398,7 +2398,7 @@ def compatibility_07(ctx):
             return r
         if not all(present.values()):
             r.add(1, "3D-N/3D-W Default Recon Parameter 설정 항목", FAIL,
-                  expected="두 콤보가 함께 표시(사양서1 SRS 03-10-110 — 모드별 "
+                  expected="두 콤보가 함께 표시(사양서 SRS 03-10-110 — 모드별 "
                            "각각 설정)",
                   actual=present,
                   note="한쪽만 없는 것은 '3D 미지원'으로 설명되지 않는다. "
@@ -2569,7 +2569,7 @@ def compatibility_07(ctx):
             actual={"displayed": displayed,
                     "exposure_mode": {label: (value["group"] or {}).get("ExposureMode")
                                       for label, value in acquired.items()}},
-            note="사양서1 277쪽 SRS 03-50-230 — \"영상을 획득 시 설정한 xtp 파일을 "
+            note="사양서 767쪽 SRS 03-50-230 — \"영상을 획득 시 설정한 xtp 파일을 "
                  "Combo 박스에 자동으로 선택된다\". 화면이 표시하는 촬영 모드"
                  "(narrow/wide) 문구는 컨트롤이 실측되지 않아 읽지 않고, 모드는 "
                  "INSTANCE_GROUP.ExposureMode 로 확정한다(더 강한 근거).")
@@ -2615,7 +2615,7 @@ def compatibility_07(ctx):
             8, "각 영상에 촬영 모드별 Recon Parameter 기록",
             not errors and names_ok and egp_ok and cross_ok,
             expected={"XtpName": "모드별 Preset 설정값 또는 그 모드의 General "
-                                  "Default 중 하나(사양서1 SRS 03-10-110)",
+                                  "Default 중 하나(사양서 SRS 03-10-110)",
                       "EgpName": "모드별로 서로 다른 값",
                       "화면-파일 일치": "Post Reconstruction 표시 = img XtpName"},
             actual={"xtp": xtp, "egp": egp, "적용 규칙": rule,
@@ -2624,7 +2624,7 @@ def compatibility_07(ctx):
                             for label, value in applied.items()},
                     "recon_param": records, "errors": errors},
             note="적용된 3D Recon 파라미터 이름은 DB 에 없다(DATA 컬럼 전수 조회, "
-                 "2026-08-24). 사양서1 SRS 03-50-230 이 저장 위치로 명시한 "
+                 "2026-08-24). 사양서 SRS 03-50-230 이 저장 위치로 명시한 "
                  ".img 의 <ReconParam> 을 core/imginfo.py 로 읽어 화면 표시와 "
                  "교차 확인한다. 어느 규칙(Preset/Default)이 적용됐는지도 함께 "
                  "기록한다 — 둘 다 사양이 정한 정상 경로다.")

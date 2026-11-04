@@ -32,7 +32,7 @@ def workflow_05(ctx):
     2026-08-19). 픽스처는 `WF_02`가 만든 3D-N 검사로 InstanceType 1/2/3이 각
     1건씩 있다.
 
-    그중 **실제로 수신되는 것은 Recon뿐**이다. 사양서1 125쪽이 "3D 영상은 Recon
+    그중 **실제로 수신되는 것은 Recon뿐**이다. 사양서 599쪽이 "3D 영상은 Recon
     영상이 전송된다"고 명문으로 정한다(근거 전체는 `sv.SENDABLE_3D_TYPES` 주석).
     그래서 Raw/Syn 미수신은 FAIL이 아니고, 판정은 "사양이 정한 대상이 누락 없이
     왔는가"로 한다. 제품이 나중에 Raw/Syn도 보내게 바뀌면 `db_3d_types` /
@@ -127,7 +127,7 @@ def workflow_05(ctx):
                                     for t, n in db_3d.items()},
                     "declared_missing": sorted(missing)},
             note="개정본 Expected 4(전송 대상 3D 객체가 누락 없이 수신). 전송 "
-                 "대상에는 Raw/Recon/Syn을 모두 포함했지만, **사양서1 125쪽"
+                 "대상에는 Raw/Recon/Syn을 모두 포함했지만, **사양서 599쪽"
                  "(SRS 06-30-30 문맥)이 \"3D 영상은 Recon 영상이 전송된다\"고 "
                  "명시**한다. DICOM Conformance Statement도 For Processing(Raw)을 "
                  "선언하지 않으며, 실측도 Recon만 수신됨을 확인했다. 따라서 "

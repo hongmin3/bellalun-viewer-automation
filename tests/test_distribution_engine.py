@@ -50,7 +50,7 @@ class DistributionEngineTests(unittest.TestCase):
             root = Path(tmp)
             installed = root/'installed/resources/assets/지식'
             installed.mkdir(parents=True)
-            pdf = installed/'사양서1.pdf'
+            pdf = installed/'사양서.pdf'
             writer = PdfWriter()
             writer.add_blank_page(width=72, height=72)
             writer.write(pdf)

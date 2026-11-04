@@ -25,7 +25,7 @@ OVERLAY_NAME = "TC_WF03_OVERLAY"
 # deliberately fails closed if another build changes the order.
 # Setting > DICOM > Print Overlay 의 세 영역 (2026-08-19 실측).
 #
-# 사양 근거: 사양서1 305쪽 SRS 04-20-10 "Overlay로 표시할 항목 설정
+# 사양 근거: 사양서 795쪽 SRS 04-20-10 "Overlay로 표시할 항목 설정
 # (Header / Top / Bottom)".
 #
 # **Position 이 화면 순서와 다르다.** 화면은 위에서 Header / Top / Bottom 순인데
@@ -75,7 +75,7 @@ PRINT_EXPECTED_BY_POSITION = {
 
 # Header 표시 위치와 Layout (Setting > DICOM > Print Overlay 우측 Option).
 #
-# 사양서1 297쪽: "Header가 표시될 수 있는 위치는 다음과 같다. None으로 설정한 경우
+# 사양서 787쪽: "Header가 표시될 수 있는 위치는 다음과 같다. None으로 설정한 경우
 # 표시되지 않는다. None, Top, Bottom" / "Header Layout은 1x1에서 3x3까지 선택할 수
 # 있다. **Layout 한 칸당 한 항목씩 표시한다.**"
 #
@@ -98,7 +98,7 @@ HEADER_POSITION = "top"
 def required_header_layout(item_count):
     """항목 수를 담을 수 있는 **가장 작은** Layout 을 고른다.
 
-    사양서1 297쪽 "Layout 한 칸당 한 항목씩 표시한다" 가 근거다. 칸이 항목보다
+    사양서 787쪽 "Layout 한 칸당 한 항목씩 표시한다" 가 근거다. 칸이 항목보다
     적으면 넘치는 항목이 표시되지 않는다.
     """
     for label in HEADER_LAYOUT_LABELS:
@@ -111,7 +111,7 @@ def required_header_layout(item_count):
 # ---------------------------------------------------------------------------
 # 필름/프린트 프리뷰에서 각 영역이 차지하는 자리.
 #
-# 사양서1 **296쪽**: "Logo 영역의 높이는 전체 필름 높이의 3%, Header 영역은
+# 사양서 **786쪽**: "Logo 영역의 높이는 전체 필름 높이의 3%, Header 영역은
 # (전체 필름 높이의 3% x 선택한 Header Layout의 행수)이다."
 # 그래서 Header 밴드 높이를 상수로 박지 않고 **행수에서 계산**한다.
 #
@@ -412,7 +412,7 @@ def ensure_header_layout(ui, db, item_count, position=HEADER_POSITION,
     """Header 표시 위치와 Layout 을 설정한다.
 
     표시 위치가 `None` 이면 Header 항목을 아무리 넣어도 **필름에 나오지 않는다**
-    (사양서1 297쪽). Layout 은 항목 수를 담을 수 있는 가장 작은 것을 고른다
+    (사양서 787쪽). Layout 은 항목 수를 담을 수 있는 가장 작은 것을 고른다
     (같은 쪽, "Layout 한 칸당 한 항목씩 표시한다").
 
     `save=True` 면 Update 까지 하고 **DB 값으로 확인**한다(기존 Overlay 수정).
@@ -476,7 +476,7 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
     # 나눠 넣는 이번 요구사항을 검증하지 못한다. **영역 배치까지 일치**해야 재사용한다.
     #
     # Header 표시 설정도 함께 본다. 표시 위치가 None 이면 Header 항목이 저장돼 있어도
-    # 필름에 나오지 않는다(사양서1 297쪽).
+    # 필름에 나오지 않는다(사양서 787쪽).
     if current and matches_expected_areas(current["items"]):
         if header_matches(current["overlay"], header_count):
             return current
@@ -553,7 +553,7 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
                              "catalogue_index": index, "ocr": observed})
 
     # 항목을 넣은 뒤 **Header 표시 설정**을 한다. 표시 위치가 None 이면 Header
-    # 항목이 필름에 나오지 않는다(사양서1 297쪽). Layout 은 항목 수를 담을 수 있는
+    # 항목이 필름에 나오지 않는다(사양서 787쪽). Layout 은 항목 수를 담을 수 있는
     # 가장 작은 것을 고른다("Layout 한 칸당 한 항목씩 표시한다").
     header = ensure_header_layout(
         ui, db, header_count, name=name, tesseract_exe=tesseract_exe,
@@ -564,7 +564,7 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
         ui.dismiss_dialog(timeout=2)
     def complete(row):
         # 영역 배치와 Header 표시 설정을 **함께** 본다. Header 표시 위치가 None 이면
-        # 항목이 저장돼 있어도 필름에 나오지 않는다(사양서1 297쪽).
+        # 항목이 저장돼 있어도 필름에 나오지 않는다(사양서 787쪽).
         return bool(row) and matches_expected_areas(row["items"]) and (
             not header_count or header_matches(row["overlay"], header_count))
 

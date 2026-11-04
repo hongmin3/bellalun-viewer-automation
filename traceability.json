@@ -110,8 +110,8 @@
       "command": "run-wf01",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 93,
+          "doc": "사양서",
+          "page": 567,
           "srs": "SRS 02-20-10",
           "quote": "사용자가 입력한 검색 조건에 따라 검사 (Local에 저장 검사 및 MWL 예약 검사)를 검색하여 표시한다.",
           "steps": [
@@ -119,8 +119,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 96,
+          "doc": "사양서",
+          "page": 570,
           "srs": "SRS 02-20-10",
           "quote": "MWL: DICOM Worklist 서버에서 예약된 검사 정보만 표시",
           "steps": [
@@ -128,8 +128,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 98,
+          "doc": "사양서",
+          "page": 572,
           "srs": "SRS 02-20-10",
           "quote": "MWL에서 읽어온 Data로 검사를 시작할 때 사람 이름 데이터",
           "steps": [
@@ -148,8 +148,8 @@
       "command": "run-wf02",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 185,
+          "doc": "사양서",
+          "page": 667,
           "srs": "SRS 03-10-110",
           "quote": "영상을 획득 후 해당 Viewposition에 설정되어 있는 parameter를 적용하여 자동으로",
           "steps": [
@@ -166,8 +166,8 @@
       "command": "run-wf03",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 296,
+          "doc": "사양서",
+          "page": 786,
           "srs": "SRS 04-10-20",
           "quote": "Header에는 9개까지, Top 및 Bottom에는 각각 10개까지 항목을 추가할 수 있다.",
           "steps": [
@@ -176,8 +176,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 297,
+          "doc": "사양서",
+          "page": 787,
           "srs": "SRS 04-10-20",
           "quote": "Header가 표시될 수 있는 위치는 다음과 같다. None으로 설정한 경우 표시되지 않는다.",
           "steps": [
@@ -196,8 +196,8 @@
       "command": "run-wf04",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 222,
+          "doc": "사양서",
+          "page": 712,
           "srs": "SRS 03-40-50",
           "quote": "영상을 선택 후, Send / Multi-Send / Print 버튼을 클릭하면 선택한 영상만 전송할 것인지 아니면 모",
           "steps": [
@@ -206,8 +206,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 222,
+          "doc": "사양서",
+          "page": 712,
           "srs": "SRS 03-40-50",
           "quote": "Reject 영상은 전송되지 않는다.",
           "steps": [
@@ -215,8 +215,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 222,
+          "doc": "사양서",
+          "page": 712,
           "srs": "SRS 03-40-50",
           "quote": "촬영이 안된 Viewposition은 전송할 수 없다.",
           "steps": [
@@ -224,8 +224,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 125,
+          "doc": "사양서",
+          "page": 599,
           "srs": "SRS 06-30-30",
           "quote": "Storage 연결 상태는 상태바에서 확인 가능하며 각 영상에 대한 전송 상태는 Queue 탭에서 확인 가능하",
           "steps": [
@@ -233,8 +233,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "Dose SR은 검사가 종료될 때만 전송이 된다.",
           "steps": [
@@ -251,8 +251,8 @@
       "command": "run-wf05",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 125,
+          "doc": "사양서",
+          "page": 599,
           "srs": "SRS 02-40-50",
           "quote": "3D 영상은 Recon 영상이 전송된다.",
           "steps": [
@@ -260,8 +260,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 125,
+          "doc": "사양서",
+          "page": 599,
           "srs": "SRS 02-40-50",
           "quote": "Recon 영상이 없을 경우 영상은 전송되지 않는다.",
           "steps": [
@@ -278,8 +278,8 @@
       "command": "run-wf06",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 125,
+          "doc": "사양서",
+          "page": 599,
           "srs": "SRS 06-30-30",
           "quote": "Storage 옵션에 Send Dose SR 옵션이 활성화되어 있을 때, 아래의 경우에 Dose SR을 전송한다.",
           "steps": [
@@ -287,8 +287,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 125,
+          "doc": "사양서",
+          "page": 599,
           "srs": "SRS 02-40-50",
           "quote": "검사 내 전송될 수 있는 영상이 없을 경우 Dose SR은 전송되지 않는다.",
           "steps": [
@@ -296,8 +296,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "Dose SR은 검사가 종료될 때만 전송이 된다.",
           "steps": [
@@ -315,8 +315,8 @@
       "command": "run-wf07",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "검사를 종료할 때 선택한 서버로 검사를 자동 전송할 수 있다.",
           "steps": [
@@ -324,8 +324,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "Auto Send로 설정한 경우 검사를 닫을 때 포함된 영상들을 자동으로 선택한 서",
           "steps": [
@@ -334,8 +334,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "응급 환자로 등록된 검사의 경우 Auto Send Option을 사용하더라도 자동으로 전",
           "steps": [
@@ -343,8 +343,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 90,
+          "doc": "사양서",
+          "page": 564,
           "srs": "SRS 02-10-20",
           "quote": "응급 검사에서 사용하는 사전 정의된 검사 정보는 다음과 같다.",
           "steps": [
@@ -352,8 +352,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 173,
+          "doc": "사양서",
+          "page": 655,
           "srs": "SRS 03-10-50",
           "quote": "Dose SR은 검사가 종료될 때만 전송이 된다.",
           "steps": [
@@ -371,8 +371,8 @@
       "command": "run-wf08",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 297,
+          "doc": "사양서",
+          "page": 787,
           "srs": "SRS 04-10-20",
           "quote": "Header Layout은 1x1에서 3x3까지 선택할 수 있다. Layout 한 칸당 한 항목씩 표시한다.",
           "steps": [
@@ -390,8 +390,8 @@
       "command": "run-wf09",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 132,
+          "doc": "사양서",
+          "page": 606,
           "srs": "SRS 02-40-70",
           "quote": "일반: 선택한 경로\\[Patient ID]_[Patient Name]\\[Study Date]_[Study Time]_[Study Key]",
           "steps": [
@@ -399,8 +399,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 134,
+          "doc": "사양서",
+          "page": 608,
           "srs": "SRS 02-40-70",
           "quote": "익명 처리되는 환자 정보: Patient ID, Patient Name, Accession Number",
           "steps": [
@@ -408,8 +408,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 134,
+          "doc": "사양서",
+          "page": 608,
           "srs": "SRS 02-40-70",
           "quote": "Anonymous 체크 시, Patient ID 및 Patient Name은 Unknown으로 표시",
           "steps": [
@@ -426,8 +426,8 @@
       "command": "run-wf10",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 108,
+          "doc": "사양서",
+          "page": 582,
           "srs": "SRS 02-30-10",
           "quote": "Hospital Code는 외부입력(QR code)를 통해서만 입력할 수 있다.",
           "steps": [
@@ -436,8 +436,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 97,
+          "doc": "사양서",
+          "page": 571,
           "srs": "SRS 02-20-10",
           "quote": "MWL에서 예약된 검사를 시작할 때, 선택한 검사에 등록되지 않은 Hospital Code가 있을 경우",
           "steps": [
@@ -455,8 +455,8 @@
       "command": "run-wf11",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 193,
+          "doc": "사양서",
+          "page": 675,
           "srs": "SRS 03-30-10",
           "quote": "촬영이 진행된 영상: Reject 상태로 변경",
           "steps": [
@@ -474,8 +474,8 @@
       "command": "run-wf12",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 144,
+          "doc": "사양서",
+          "page": 618,
           "srs": "SRS 02-40-100",
           "quote": "목록에서 선택한 검사를 Reject 하거나 Reject 상태의 검사를 복원한다.",
           "steps": [
@@ -484,8 +484,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 144,
+          "doc": "사양서",
+          "page": 618,
           "srs": "SRS 02-40-100",
           "quote": "현재 열려 있는 검사는 Reject 할 수 없다.",
           "steps": [
@@ -493,8 +493,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 144,
+          "doc": "사양서",
+          "page": 618,
           "srs": "SRS 02-40-100",
           "quote": "Reject 버튼을 눌러 Reject 사유를 선택한 후 검사를 Reject 한다.",
           "steps": [
@@ -502,8 +502,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 144,
+          "doc": "사양서",
+          "page": 618,
           "srs": "SRS 02-40-100",
           "quote": "Reject 검사를 선택했을 경우 Restore 버튼, 일반 검사를 선택했을 경우 Reject 버튼이 표시됨",
           "steps": [
@@ -521,8 +521,8 @@
       "command": "run-wf13",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 77,
+          "doc": "사양서",
+          "page": 551,
           "srs": "SRS 01-30-20",
           "quote": "로그인한 계정이 속한 권한 그룹 (Service, Admin, User)에 따라 사용할 수 있는 기능을 제한한다.",
           "steps": [
@@ -540,8 +540,8 @@
       "command": "run-wf14",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 11,
+          "doc": "사양서",
+          "page": 485,
           "srs": "SRS 01-10-60",
           "quote": "선택한 위치에 설정 정보를 .vms 확장자로 저장한다",
           "steps": [
@@ -550,8 +550,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 12,
+          "doc": "사양서",
+          "page": 486,
           "srs": "SRS 01-10-60",
           "quote": ".vms 파일을 현재 System에 가져와서 적용할 수 있다.",
           "steps": [
@@ -569,8 +569,8 @@
       "command": "run-wf15",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 284,
+          "doc": "사양서",
+          "page": 774,
           "srs": "SRS 03-50-250",
           "quote": "PACS로 전송할 영상을 미리 확인 할 수 있다.",
           "steps": [
@@ -578,8 +578,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 284,
+          "doc": "사양서",
+          "page": 774,
           "srs": "SRS 03-50-250",
           "quote": "등록된 Storage가 없을 경우, 경고 메시지가 표시되며 Preview 화면을 사용할 수 없다.",
           "steps": [
@@ -587,8 +587,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 285,
+          "doc": "사양서",
+          "page": 775,
           "srs": "SRS 03-50-250",
           "quote": "Preview 버튼을 클릭하여 Send Preview 모드로 들어가면 해당 검사에 포함된 모든 2D 영상의 경우 자동",
           "steps": [
@@ -597,8 +597,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 285,
+          "doc": "사양서",
+          "page": 775,
           "srs": "SRS 03-50-250",
           "quote": "3D 영상은 Recon 영상이 해당 화면에 추가되며 Recon 영상이 없는 경우 해당 화면에 표시되지 않는다.",
           "steps": [
@@ -607,8 +607,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 285,
+          "doc": "사양서",
+          "page": 775,
           "srs": "SRS 03-50-250",
           "quote": "Send 버튼을 누르면 Use로 설정된 Server들로 영상을 전송한다.",
           "steps": [
@@ -618,8 +618,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 288,
+          "doc": "사양서",
+          "page": 778,
           "srs": "SRS 03-50-250",
           "quote": "Examined 모드에서 Send Preview 버튼을 클릭했을 경우 모든 영상을 선택했을 경우에만 Dose SR을 전",
           "steps": [
@@ -629,8 +629,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 233,
+          "doc": "사양서",
+          "page": 723,
           "srs": "SRS 03-50-10",
           "quote": "영상 종류에 따라 표시 가능한 값이 다른 항목은 아래와 같습니다.",
           "steps": [
@@ -639,8 +639,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 288,
+          "doc": "사양서",
+          "page": 778,
           "srs": "SRS 03-50-250",
           "quote": "기본 Layout은 1x2이다.",
           "steps": [
@@ -657,8 +657,8 @@
       "command": "run-wf16",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 26,
+          "doc": "사양서",
+          "page": 500,
           "srs": "SRS 01-10-130",
           "quote": "Exit menu 사용 권한을 설정할 수 있다.  (Setting > System > Security)",
           "steps": [
@@ -676,8 +676,8 @@
       "command": "run-xipl-01",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 240,
+          "doc": "사양서",
+          "page": 730,
           "srs": "SRS 03-50-20",
           "quote": "Histogram은 Setting > Display > Overlay에서 표시 여부를 설정할 수 있다.",
           "steps": [
@@ -685,8 +685,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 240,
+          "doc": "사양서",
+          "page": 730,
           "srs": "SRS 03-50-20",
           "quote": "Histogram을 통해 W1 및 W2 값이 변경되는 것을 확인할 수 있다.",
           "steps": [
@@ -703,8 +703,8 @@
       "command": "run-xipl-02",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 263,
+          "doc": "사양서",
+          "page": 753,
           "srs": "SRS 03-50-160",
           "quote": "Preset을 선택하여 미리 정의되어 있는 Parameter로 영상처리를 변경/적용할 수 있다",
           "steps": [
@@ -722,8 +722,8 @@
       "command": "run-xipl-03",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 275,
+          "doc": "사양서",
+          "page": 765,
           "srs": "SRS 03-50-230",
           "quote": "선택한 Viewposition이 3D 타입이고, 해당 영상에 3D-Raw가 있을 때에만 진행 가능하다",
           "steps": [
@@ -732,8 +732,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 277,
+          "doc": "사양서",
+          "page": 767,
           "srs": "SRS 03-50-230",
           "quote": "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다",
           "steps": [
@@ -752,8 +752,8 @@
       "command": "run-xipl-04",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 185,
+          "doc": "사양서",
+          "page": 667,
           "srs": "SRS 03-10-110",
           "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있지 않은 경우 기본 영상 처리 파",
           "steps": [
@@ -761,8 +761,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 195,
+          "doc": "사양서",
+          "page": 677,
           "srs": "SRS 03-30-20",
           "quote": "각 Preset 별로 영상 처리 파라미터를 설정할 수 있다",
           "steps": [
@@ -772,8 +772,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 185,
+          "doc": "사양서",
+          "page": 667,
           "srs": "SRS 03-10-110",
           "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설",
           "steps": [
@@ -792,8 +792,8 @@
       "command": "run-xipl-05",
       "requirements": [
         {
-          "doc": "사양서2",
-          "page": 127,
+          "doc": "사양서",
+          "page": 952,
           "srs": "SRS 07-30-30",
           "quote": "3D용Q.C의경우 Recon Parameter (eap 파일)가두가지로나뉜다.",
           "steps": [
@@ -819,8 +819,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 263,
+          "doc": "사양서",
+          "page": 753,
           "srs": "SRS 03-50-160",
           "quote": "Preset을 선택하여 미리 정의되어 있는 Parameter로 영상처리를 변경/적용할 수 있다",
           "steps": [
@@ -838,8 +838,8 @@
       "command": "run-xipl-07",
       "requirements": [
         {
-          "doc": "사양서1",
-          "page": 186,
+          "doc": "사양서",
+          "page": 668,
           "srs": "SRS 03-10-110",
           "quote": "기본 영상 처리 파라미터는 Setting > Procedure > General 에서 설정할 수 있다",
           "steps": [
@@ -847,8 +847,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 186,
+          "doc": "사양서",
+          "page": 668,
           "srs": "SRS 03-10-110",
           "quote": "3D Viewposition은 촬영 모드 (Narrow / Wide)에 따라 각각 Reconstruction",
           "steps": [
@@ -873,8 +873,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 196,
+          "doc": "사양서",
+          "page": 678,
           "srs": "SRS 03-30-20",
           "quote": "설정 가능한 3D Viewposition CC, MLO, LM, SIO, ML, LMO, ISO, XCCL,  XCCM, AT, TAN",
           "steps": [
@@ -882,8 +882,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 196,
+          "doc": "사양서",
+          "page": 678,
           "srs": "SRS 03-30-20",
           "quote": "FB 및 CV는 촬영 불가",
           "steps": [
@@ -898,8 +898,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 186,
+          "doc": "사양서",
+          "page": 668,
           "srs": "SRS 03-10-110",
           "quote": "2D License의 경우 3D-N / 3D-W Preset 설정 항목이 표시되지 않는다",
           "steps": [
@@ -908,8 +908,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 185,
+          "doc": "사양서",
+          "page": 667,
           "srs": "SRS 03-10-110",
           "quote": "촬영을 진행한 Viewposition이 Preset으로 등록되어 있는 경우 해당 Viewposition에 설",
           "steps": [
@@ -920,8 +920,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 277,
+          "doc": "사양서",
+          "page": 767,
           "srs": "SRS 03-50-230",
           "quote": "영상을 획득 시 설정한 xtp 파일을 Combo 박스에 자동으로 선택된다",
           "steps": [
@@ -929,8 +929,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 277,
+          "doc": "사양서",
+          "page": 767,
           "srs": "SRS 03-50-230",
           "quote": "Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다",
           "steps": [
@@ -938,8 +938,8 @@
           ]
         },
         {
-          "doc": "사양서1",
-          "page": 278,
+          "doc": "사양서",
+          "page": 768,
           "srs": "SRS 03-50-230",
           "quote": "Post Reconstruction  XTP",
           "steps": [

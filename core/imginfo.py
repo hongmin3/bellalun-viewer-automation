@@ -3,7 +3,7 @@ r"""Bellalun `.img` 파일 끝에 붙은 `<INFORMATION>` XML 을 읽는다.
 
 ## 왜 필요한가
 
-사양서1 `SRS 03-50-230`(Post Reconstruction)은 3D 영상 처리 값의 저장 위치를
+사양서 `SRS 03-50-230`(Post Reconstruction)은 3D 영상 처리 값의 저장 위치를
 **img 파일**로 못박는다.
 
     "Apply 를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이 저장된다"
@@ -54,7 +54,7 @@ UTF-16LE 로 인코딩된 XML 한 덩어리**가 들어 있다.
   - `ExposureMode` 는 `INSTANCE_GROUP.ExposureMode` 와 같은 값이다
     (1=Narrow / 2=Wide, `tests/system_compat.py` 에서 대조 확정).
   - `XtpName` 은 **Preset 에 등록된 View Position 을 촬영하면 그 Preset 의 값**이
-    들어간다(실측: 두 모드 모두 `DBT_Standard_Default.xtp`). 사양서1 185~186쪽
+    들어간다(실측: 두 모드 모두 `DBT_Standard_Default.xtp`). 사양서 667~668쪽
     SRS 03-10-110 의 "Preset 으로 등록되어 있는 경우 해당 Viewposition 에 설정해
     놓은 파라미터로 처리한다" 와 일치한다 — `Setting > Procedure > General` 의
     Default 를 바꿔도 Preset 등록 위치에는 반영되지 않는다.

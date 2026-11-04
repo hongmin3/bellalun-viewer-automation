@@ -287,8 +287,8 @@ def run(ctx):
         # 기다리고 Dose SR 은 관측만 남겼는데, 2026-08-27/28 에 WF_06(Examined Send)
         # 과 WF_15(Pre-send Preview)가 **같은 Demo 환경**에서 RDSR 을 정상 수신해
         # 그 전제가 틀렸음이 드러났다(core/send_verify.QUEUE_STATE_DONE 주석 참고).
-        # Step 0 에서 이미 Storage 의 SendDoseSR=1 을 전제로 확인했으므로(사양서1
-        # 125쪽 SRS 06-30-30), 여기서도 WF_06/WF_15 와 같이 Dose SR 을 **FAIL 가능한
+        # Step 0 에서 이미 Storage 의 SendDoseSR=1 을 전제로 확인했으므로(사양서
+        # 599쪽 SRS 06-30-30), 여기서도 WF_06/WF_15 와 같이 Dose SR 을 **FAIL 가능한
         # 일반 판정**으로 본다.
         images_q = [q for q in new_queue if not sv.is_dose_sr_row(q)]
         dose_q = [q for q in new_queue if sv.is_dose_sr_row(q)]
@@ -318,7 +318,7 @@ def run(ctx):
             expected=f"Dose SR 행 1건 이상, 전부 State={sv.QUEUE_STATE_DONE}",
             actual={"dose_sr": dose_q},
             note="Expected 6 을 Dose SR 행에도 적용한다. Step 0 에서 Storage 의 "
-                 "SendDoseSR=1 을 이미 확인했으므로(사양서1 125쪽 SRS 06-30-30 "
+                 "SendDoseSR=1 을 이미 확인했으므로(사양서 599쪽 SRS 06-30-30 "
                  "'Send Dose SR 옵션이 활성화되어 있을 때' 전송한다), **Dose SR 이 "
                  "없거나 Done 이 아니면 FAIL 이다** — WF_06 과 같은 판단이다. "
                  "2026-08-20 에는 Demo 가상 촬영이라 RDSR 생성 조건이 성립하지 "

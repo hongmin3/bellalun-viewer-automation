@@ -104,7 +104,7 @@ def _film_from_selected_study(ui, timeout=25, select_images_verify=False):
     검사에 3D(Narrow/Wide) 영상이 있으면 Film 대신 "Select Images" 창이
     먼저 뜬다(2D 는 프레임이 하나뿐이라 뜨지 않는다 - `flows.select_images_window`
     가 짧게 기다려 보고 없으면 바로 넘어간다). 뜨면 Raw/Recon/Syn 프레임을
-    각 1장씩 전송 목록에 담아(사양서1 SRS 02-40-60, Operation Manual 10.1.2)
+    각 1장씩 전송 목록에 담아(사양서 SRS 02-40-60, Operation Manual 10.1.2)
     Film 로 넘긴다 - 3장이 실제로 필름에 오르는 것까지가 3D Print 의 정상
     절차다.
 
@@ -414,7 +414,7 @@ def run(ctx):
             expected={"areas": print_overlay.PRINT_EXPECTED_BY_POSITION,
                       "labels": list(EXPECTED_LABELS)}, actual=saved)
         # Header 표시 위치가 None 이면 항목이 저장돼 있어도 필름에 나오지 않는다
-        # (사양서1 297쪽). Layout 칸수는 항목 수 이상이어야 한다(같은 쪽,
+        # (사양서 787쪽). Layout 칸수는 항목 수 이상이어야 한다(같은 쪽,
         # "Layout 한 칸당 한 항목씩 표시한다").
         header_rows = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
         result.assert_true(
@@ -430,7 +430,7 @@ def run(ctx):
                     "HeaderLayout": saved["overlay"]["HeaderLayout"],
                     "layout": print_overlay.HEADER_LAYOUT_LABELS[
                         int(saved["overlay"]["HeaderLayout"])]},
-            note="사양서1 297쪽 - None 으로 설정한 경우 표시되지 않는다 / "
+            note="사양서 787쪽 - None 으로 설정한 경우 표시되지 않는다 / "
                  "Layout 한 칸당 한 항목씩 표시한다")
 
         print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
@@ -590,7 +590,7 @@ def run(ctx):
                          and si["add_syn"]["after"] == si["add_syn"]["before"] + 1)
             note = ("3D 검사는 Print > Selected 이후 Select Images 창에서 View "
                     "Position 의 프레임을 Raw/Recon/Syn Type 별로 각 1장씩 전송 "
-                    "목록에 담아야 Film 에 3장이 함께 오른다(사양서1 SRS 02-40-60, "
+                    "목록에 담아야 Film 에 3장이 함께 오른다(사양서 SRS 02-40-60, "
                     "Operation Manual 10.1.2).")
             if verify_select_images:
                 select_ok = (select_ok and si["add_extra"]["after"]

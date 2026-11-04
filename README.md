@@ -72,7 +72,7 @@ Bellalun Viewer\
 ├─ (운영 상세 문서)          ← 사내 정보가 섞여 저장소 밖에 둔다. tools/render_docs.py 가 관리
 ├─ Bellalun_Viewer_기본기능_Checklist_개정본.xlsx   ← 시험 대상의 유일한 기준
 ├─ Baseline\                 회귀 기준 DB 스냅샷 4종(.bak)
-├─ 지식\                     판정 근거 원본 — 사양서1/2, Operation·Service Manual,
+├─ 지식\                     판정 근거 원본 — 사양서, Operation·Service Manual,
 │                            DICOM Conformance Statement, 영구 지침 3종
 ├─ ORG\                      사내 선행 자산(참고용. 자동화가 참조하지 않는다)
 └─ auto\                     ★ Git 저장소
@@ -217,7 +217,7 @@ Operation Manual·Service Manual·DICOM Conformance Statement에서 확인합니
 
 ```python
 specs.cite(ctx, r"3D Viewposition은 촬영 모드")
-# 근거: 사양서1 186쪽 SRS 03-10-110 — "3D Viewposition은 촬영 모드
+# 근거: 사양서 668쪽 SRS 03-10-110 — "3D Viewposition은 촬영 모드
 #  (Narrow / Wide)에 대해 각각 Parameter를 설정한 다. ○ 2D License의 경우
 #  3D-N / 3D-W Preset 설"      ← 추출 텍스트 그대로. 손으로 다듬지 않는다
 ```
@@ -237,7 +237,7 @@ specs.cite(ctx, r"3D Viewposition은 촬영 모드")
 python tools/traceability.py --reverse
 # TC 37건 / 인용 있는 TC 24건 / 인용 68건
 # === 사양 → TC ===
-#   사양서1 SRS 03-10-110   TC_Basic_WorkFlow_02(Step 1),
+#   사양서 SRS 03-10-110   TC_Basic_WorkFlow_02(Step 1),
 #                           TC_XIPL_compatibility_04(Step 1,6,7,8),
 #                           TC_XIPL_compatibility_07(Step 1,2,5,6,7,8)
 # 이상 없음 — 모든 인용이 원문과 일치하고 모듈·명령·Step 범위도 맞다.
@@ -260,7 +260,7 @@ python tools/traceability.py --reverse
 5. **화면 캡처 + OCR** — 커스텀 렌더링 값 판독, 증거 이미지 보존
 
 DB에 없는 것도 있습니다. **적용된 3D Recon 파라미터 이름은 `DATA` 데이터베이스 어느
-컬럼에도 없습니다**(컬럼 전수 조회로 확인). 사양서1 277쪽 SRS 03-50-230이 저장 위치를
+컬럼에도 없습니다**(컬럼 전수 조회로 확인). 사양서 767쪽 SRS 03-50-230이 저장 위치를
 `img` 파일로 명시하고 있어, `core/imginfo.py`가 `.img` 꼬리의 UTF-16LE XML을 읽어
 `XtpName`/`EgpName`을 화면 표시와 교차 확인합니다. 3D Raw가 700MB를 넘으므로 꼬리만
 읽습니다.
@@ -317,7 +317,7 @@ DB에 없는 것도 있습니다. **적용된 3D Recon 파라미터 이름은 `D
 대표 여덟 건입니다.
 
 **제품 결함 — `TC_XIPL_compatibility_03` Step 9.** 3D Post Reconstruction의 Apply 후
-재진입하면 값이 기본값으로 되돌아갑니다(`Not use`→`Use`, 14→10). 사양서1 277쪽
+재진입하면 값이 기본값으로 되돌아갑니다(`Not use`→`Use`, 14→10). 사양서 767쪽
 SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 파라미터 값들이
 저장된다"* 고 정하고 있어 **완화하지 않고 계속 FAIL로 보고**합니다.
 
@@ -334,7 +334,7 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 
 **패키지에 빠진 파일 — `Support\XIPLInstall.reg`.** `Install.xml` 이
 `regedit /s "[RunningDirectory]Support\XIPLInstall.reg"` 로 실행하는 파일이 배포
-패키지에 없습니다(참조 18건 중 1건). 사양서2 SRS 08-10-10 도 *"XIPL 설치 (기존 버전
+패키지에 없습니다(참조 18건 중 1건). 사양서 SRS 08-10-10 도 *"XIPL 설치 (기존 버전
 제거 후 새 버전 설치. 설치 후 registry 변경 -XIPLInstall.reg 실행)"* 로 명시합니다.
 같은 방식으로 참조되는 `shell_Kiosk.reg`/`shell_NoKiosk.reg` 는 들어 있고, **압축 해제
 전 원본 zip 에도 없어** 해제 누락이 아닙니다. 화면만 훑어서는 드러나지 않는 결함이라
@@ -509,8 +509,8 @@ python run.py sync-knowledge --install-task --apply # 평일 11:00 예약 작업
 ```
 
 같은 문서의 옛 판은 지우지 않고 `지식/_이전판/<날짜>/`로 옮깁니다. 서버에 없는 로컬 자료(텍스트 캐시,
-작성 규칙 문서)는 그대로 둡니다. 사양서1·사양서2처럼 권 번호가 다른 문서도 따로 둡니다. 자동화의 사양 근거
-조회(`core/specs.py`)가 아직 그 두 권을 찾기 때문입니다. 실행 기록은 프로젝트 루트 `logs/knowledge-sync/`에 남습니다.
+작성 규칙 문서)는 그대로 둡니다. 자동화의 사양 근거 조회(`core/specs.py`)는 `사양서(YYMMDD).pdf` 형식의
+통합 사양서 가운데 가장 늦은 판을 씁니다. 실행 기록은 프로젝트 루트 `logs/knowledge-sync/`에 남습니다.
 
 ---
 
@@ -522,7 +522,7 @@ python run.py sync-knowledge --install-task --apply # 평일 11:00 예약 작업
 | `NEXT_WORK.md` | 현재 상태, 이번 변경, 남은 문제, P0/P1/P2, 다음 세션용 프롬프트 |
 | `automation_scope.json` | TC별 자동화 등급·사유·커버리지 분류·**못 한 지점과 해제 조건** |
 | `traceability.json` | 사양↔TC 추적성 데이터 (`tools/traceability.py`가 검사) |
-| `..\지식\` | 판정 근거 원본 — 사양서1/2, Operation/Service Manual, DICOM Conformance Statement, 영구 지침 3종 |
+| `..\지식\` | 판정 근거 원본 — 사양서, Operation/Service Manual, DICOM Conformance Statement, 영구 지침 3종 |
 
 문서는 **이 4개와 데이터 2개**로 유지합니다(2026-08-28 정리). 끝난 기록을
 쌓아 두면 새 세션이 상태를 파악하는 데만 큰 비용이 들어, 완료 기록은 Git

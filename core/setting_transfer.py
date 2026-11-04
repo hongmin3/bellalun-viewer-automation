@@ -3,7 +3,7 @@ r"""Setting > System > My Settings 의 Export / Import 를 구동한다 (WF_14).
 
 ## 사양 근거
 
-사양서1 "60. Setting Export/Import" (SRS 는 `core/specs.py` 로 인용한다)
+사양서 "60. Setting Export/Import" (SRS 는 `core/specs.py` 로 인용한다)
 
 - `Setting > System > My Setting에서 뷰어 설정을 내보내거나 가져올 수 있다.`
 - Export: `선택한 위치에 설정 정보를 .vms 확장자로 저장한다`,
@@ -72,7 +72,7 @@ IMPORT_DIALOG = {
 }
 IMPORT_OPTIONS = {"system": 2076, "account": 2077, "procedure": 2078}
 
-# 사양서1 Export 개발 사양이 요구하는 .vms 구성.
+# 사양서 Export 개발 사양이 요구하는 .vms 구성.
 #   `PARAMETER_QC/` 와 `RECON_PARAMETER/` 는 사양 본문이 `PARAMETER` 로만
 #   적었지만 제품은 용도별로 나눠 담는다(2026-08-21 실측). 사양보다 세분화된
 #   것이므로 결함으로 보지 않고, 요구된 내용이 들어 있는지로 판정한다.
@@ -196,7 +196,7 @@ def _dismiss_done_popup(ui, timeout=15):
 
 
 def inspect_vms(path):
-    """`.vms` 가 사양서1 개발 사양대로 구성됐는지 확인한다.
+    """`.vms` 가 사양서 개발 사양대로 구성됐는지 확인한다.
 
     반환: {"is_zip":.., "entries":[..], "missing":[..], "version":..}
     """

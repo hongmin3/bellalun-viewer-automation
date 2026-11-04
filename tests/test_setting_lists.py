@@ -20,7 +20,7 @@ from core import setting_lists                            # noqa: E402
 
 class QcSchedulerNoCountProofTest(unittest.TestCase):
     """2026-09-01 실측: `qc.scheduler`는 DB `QC_SCHEDULE`(23행) 중 일부를
-    제품이 의도적으로 화면 목록에서 숨긴다(사양서2 8492~8511행 — 일반/-d
+    제품이 의도적으로 화면 목록에서 숨긴다(사양서 942쪽 SRS 07-10-190 — 일반/-d
     모드에서 Geometry Calibration(Tomo) 항목이 안 보임, Service Manual
     3749행 — 연결된 VDMS 모델이 지원하지 않는 항목은 표시 안 함). 라이브로
     컨트롤 트리를 덤프해 교차 오염이 없음도 확인했다 — `display.overlay`류

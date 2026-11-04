@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="cea290ccebcb30482806a75c732aec0061286c97ad69b7bc1c2e3959ee9b883e">
+<meta name="spec-source-sha256" content="a3fbc34b8955479092efa695f5f41060536349a8814c35de408ed60f80b1d7a3">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -143,7 +143,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr class="group"><th colspan="5"><span class="gcode">REGRESSION</span> 기준 체크리스트 실행</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="이름">기준 체크리스트 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">TRACE</span> 사양 근거 추적</th></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="이름">사양 근거 추적</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="이름">사양 근거 추적</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
@@ -298,7 +298,14 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 </section>
 <section class="card kind-req" id="REQ-TRACE-001">
 <h3><span class="idtag">REQ-TRACE-001</span> 사양 근거 추적</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a></span><span class="meta nohist"><b>변경 이력</b> CHANGELOG에 이 ID로 기록된 변경 없음</span></div>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a></span></div>
+<details class="history"><summary>변경 이력 3</summary>
+<ul>
+<li><span class="hist">2026-11-04 · Changed</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: 사양 근거를 분권(사양서1·사양서2, 260710판)에서 서버의 통합 사양서로 옮겼다. <code>core/specs.py</code>는 <code>사양서(YYMMDD).pdf</code> 가운데 가장 늦은 판을 쓴다. <code>traceability.json</code>의 사양 인용 63건은 문구로 통합본의 쪽과 SRS를 다시 찾았고, 코드 주석·판정 문구·문서의 쪽 번호도 통합본 기준으로 바꿨다(예: Print Overlay Header 297쪽 → 787쪽).</li>
+<li><span class="hist">2026-11-04 · Changed</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: 통합본에는 같은 문장이 SRS 없는 변경 메모와 요구사항 본문에 함께 있다. 판정 문구 인용(<code>specs.cite</code>)은 SRS ID가 붙은 쪽을 고르고, 추적성 검사는 기록된 쪽에 문장이 있으면 그 쪽을 쓴다. 실측: &quot;설정 가능한 3D Viewposition&quot;이 294쪽 메모와 678쪽 SRS 03-30-20에 함께 있어, 고치기 전에는 294쪽(SRS 없음)을 인용했다.</li>
+<li><span class="hist">2026-11-04 · Fixed</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: Send Preview &quot;기본 Layout 1x2&quot; 인용이 Export 경로 규칙 쪽(분권 132쪽)을 가리키던 잘못을 고쳤다. 실제 문장은 통합본 778쪽에 있다.</li>
+</ul>
+</details>
 <section class="field"><h4>목적</h4><div class="field-body">
 <p>자동 검증과 체크리스트/사양 근거 사이 연결을 유지한다.</p>
 </div></section>
@@ -311,6 +318,8 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <section class="field"><h4>동작</h4><div class="field-body">
 <p><code>traceability.json</code>에 TC·모듈·명령과 사양 근거를 연결하고 <code>automation_scope.json</code>에
 자동화 범위·제약을 유지한다. 근거가 없는 항목은 미확정 이유를 드러낸다.
+사양서는 <code>지식</code> 폴더의 통합본(<code>사양서(YYMMDD).pdf</code>) 가운데 가장 늦은 판을 쓰고, 예전 분권 파일은 쓰지 않는다.
+같은 문장이 변경 메모와 요구사항 본문에 함께 있으면 SRS ID가 붙은 쪽(추적성은 기록된 쪽)을 인용한다.
 리포트에도 해당 기준 수행 절차와 기대 결과를 전달한다.</p>
 </div></section>
 <section class="field"><h4>기대 결과</h4><div class="field-body">
@@ -701,7 +710,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <thead><tr><th>Requirement</th><th>Implementation</th><th>Test</th><th>Status</th></tr></thead>
 <tbody>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_xipl_preparation_report.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="Implementation"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>

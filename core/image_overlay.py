@@ -51,7 +51,7 @@ DOSE_DASH_MARKERS = {
     "Dose mAs": re.compile(r"[-—–~_=]{1,3}\s*m[a4]s"),
 }
 
-#: 사양서1 **233쪽 SRS 03-50-10** — "영상 종류에 따라 표시 가능한 값이 다른 항목":
+#: 사양서 **723쪽 SRS 03-50-10** — "영상 종류에 따라 표시 가능한 값이 다른 항목":
 #
 #      항목        2D  3D Raw  3D Recon  3D Sync
 #      Dose kVp    O     O        X         X
@@ -66,7 +66,7 @@ DOSE_DASH_MARKERS = {
 #  거꾸로 "값이 있어야 하는 종류에 값이 있는가"를 이 표로 판정한다.
 #  키는 `core/send_verify.INSTANCE_NAMES` 의 InstanceType 이다.
 DOSE_VALUE_BY_INSTANCE_TYPE = {0: True, 1: True, 2: False, 3: False}
-DOSE_SPEC_CITE = ("사양서1 233쪽 SRS 03-50-10 — 영상 종류별 표시 가능 값 표 "
+DOSE_SPEC_CITE = ("사양서 723쪽 SRS 03-50-10 — 영상 종류별 표시 가능 값 표 "
                   "(Dose kVp/mA/ms/mAs: 2D O, 3D Raw O, 3D Recon X, 3D Sync X)")
 
 #: 패널이 3D 영상인지 알려 주는 View Position 라벨. 제품이 패널 왼쪽 위에
@@ -82,7 +82,7 @@ def panel_kind(reads):
     선량 표시 사양(`DOSE_VALUE_BY_INSTANCE_TYPE`)이 영상 종류에 따라 갈리므로,
     패널을 종류별로 나눠 판정하려면 이 구분이 필요하다. 패널 순서와 전송 대상
     순서를 짝짓는 방식은 쓰지 않는다 — Preview 는 Layout 에 따라 일부만
-    보여주므로(사양서1 132쪽 "기본 Layout 은 1x2") 순서 가정이 깨진다.
+    보여주므로(사양서 778쪽 "기본 Layout 은 1x2") 순서 가정이 깨진다.
 
     반환: `"3D"` / `"2D"`
     """
@@ -176,7 +176,7 @@ def dose_state(reads):
     반환: `{"Dose kVp": "value"|"dash"|"none", "Dose mAs": ...}`
 
     왜 필요한가 — `hits()` 의 `OVERLAY_MARKERS` 는 라벨(`kVp`/`mAs`)만 보므로
-    `28 kVp` 와 `-- kVp` 를 구분하지 못한다. 그런데 사양서1 233쪽 SRS 03-50-10 이
+    `28 kVp` 와 `-- kVp` 를 구분하지 못한다. 그런데 사양서 723쪽 SRS 03-50-10 이
     **영상 종류마다 표시 가능한 값이 다르다**고 정하므로(위
     `DOSE_VALUE_BY_INSTANCE_TYPE`), 그 사양을 판정하려면 둘을 갈라야 한다.
 

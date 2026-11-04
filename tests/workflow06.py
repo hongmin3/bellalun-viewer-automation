@@ -37,8 +37,8 @@ def workflow_06(ctx):
     * **RDSR 미수신은 2026-08-27 부터 FAIL 로 본다.** 그전에는 "Demo(F8) 가상
       촬영이라 Precondition('RDSR 생성 조건 충족')이 성립하지 않는다" 며 BLOCKED
       로 남겼는데, **그 전제가 틀렸다.** 오지 않은 진짜 이유는 이 TC 가 검사를
-      `open_test_study` 로 **View 모드에 열고** Send 했기 때문이고, 사양서1
-      173쪽 SRS 03-10-50 이 그 경로를 명시적으로 제외한다 — "Examine/View 모드에서
+      `open_test_study` 로 **View 모드에 열고** Send 했기 때문이고, 사양서
+      655쪽 SRS 03-10-50 이 그 경로를 명시적으로 제외한다 — "Examine/View 모드에서
       Send/Multi-Send 버튼을 클릭했을 때는 Dose SR 을 전송하지 않는다".
       Examined 목록에서 전송하도록 고치자(2026-08-27) 같은 Demo 촬영 환경에서
       RDSR 이 정상 수신됐다. 즉 **Demo 촬영에서도 RDSR 은 생성된다.**
@@ -86,7 +86,7 @@ def workflow_06(ctx):
             return r
 
         # **검사를 열지 않는다.** 개정본 Step 1 은 "Examined 창에서 검사를
-        # 선택한다" 이고, 사양서1 이 그 구분에 결과를 건다 —
+        # 선택한다" 이고, 사양서가 그 구분에 결과를 건다 —
         #   "Send Dose SR 이 활성화되어 있을 때 ... ② **Examined 모드에서 모든
         #    영상을 전송할 때** Dose SR 을 전송한다"
         #   "Dose SR 은 검사가 종료될 때만 전송이 된다. (**Examine/View 모드에서
@@ -104,7 +104,7 @@ def workflow_06(ctx):
             expected=f"Examined 목록에서 {patient_id} 검사 카드 선택",
             actual={"visible_cards": len(rows)},
             note="개정본 Expected 1. **검사를 열지 않는다** — Examined 모드에서 "
-                 "전송해야 Dose SR 이 함께 나간다(사양서1).")
+                 "전송해야 Dose SR 이 함께 나간다(사양서).")
 
         identity = sv.db_identity(ctx, patient_id)
         outcome = sv.send_and_verify(
@@ -147,7 +147,7 @@ def workflow_06(ctx):
                  "1=Dose SR). 제품이 `ClassUID` 를 채우지 않아 그 값으로는 셀 수 "
                  "없다(실측 전부 None). 수신 객체 쪽은 SOP Class UID "
                  f"{sv.SOP_CLASS_RDSR}(체크리스트 Test Data)로 Step 4 에서 "
-                 "확인한다. **Dose SR 이 없으면 FAIL 이다** — 사양서1 125쪽 "
+                 "확인한다. **Dose SR 이 없으면 FAIL 이다** — 사양서 599쪽 "
                  "SRS 06-30-30 이 'Send Dose SR 옵션이 활성화되어 있을 때 ... "
                  "Examined 모드에서 모든 영상을 전송할 때' Dose SR 을 전송한다고 "
                  "정하고, 이 TC 는 그 경로를 지키며(Step 1 에서 검사를 열지 않는다) "
@@ -155,7 +155,7 @@ def workflow_06(ctx):
                  "2026-08-27 이전에는 Demo 촬영을 이유로 BLOCKED 로 남겼는데, "
                  "경로를 사양대로 고치자 같은 Demo 환경에서 RDSR 이 수신됐다 — "
                  "전제 미충족이 아니라 자동화가 사양이 제외한 경로로 시험한 "
-                 "것이었다(사양서1 173쪽 SRS 03-10-50).")
+                 "것이었다(사양서 655쪽 SRS 03-10-50).")
 
         # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
         # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
@@ -201,7 +201,7 @@ def workflow_06(ctx):
                     "mismatch": bad},
             note="개정본 Expected 5. DATA.PATIENT/STUDY와 대조. RDSR 은 영상이 "
                  "아니라 검사 단위 보고서라 `INSTANCE` 에 행이 없으므로 SOP "
-                 "Instance UID 는 대조하지 않는다 — 사양서1 이 \"Dose SR 에서 "
+                 "Instance UID 는 대조하지 않는다 — 사양서가 \"Dose SR 에서 "
                  "사용 시, 내부적으로 영상의 Instance UID 마지막에 '.1.1' 을 "
                  "붙인다\" 고 한다. `rdsr` 은 서버 수신 전체(과거분 포함)를 참고용으로 "
                  "남기고, 판정은 로컬 DB에 지금 있는 Study로 좁힌 `current_rdsr` "

@@ -79,7 +79,7 @@ USB 미확정 항목 및 우선순위를 현재 변경판의 완료 상태로 �
 | `XIPL_04` 2D Default Parameter 원복 | Step 1 이 바꾼 `PROCEDURE_COMMON.DefaultImgProcess` 를 `finally`에서 UI로 원복(`_restore_default_2d_param`) | **`run-xipl-04` 전 Step PASS, 원복도 `Standard_Default_M.pim`으로 확인(2026-08-28)** |
 | `XIPL_05` Q.C 채점을 좌표 대신 임계값으로 | 화면 절대좌표 대신 `CONFIGURATION.QC_COMMON`의 합격 기준을 DB로 읽어 OCR로 경계값을 고르고, 합격/불합격 경계 양쪽을 검증(5절 ① 판단 반영 — Result는 별도 항목으로 분리) | **2026-09-01 전 Step PASS로 해결.** 08-28엔 Fiber 콤보에 기준(4.0) 미만 항목이 "없다"고 결론지었으나 오판이었다 — 콤보가 14개 항목인데 팝업 뷰포트엔 6~7개만 보이고 나머지는 스크롤해야 나온다(`ItemWnd`가 자식을 클리핑, B.10과 같은 종류). `_qc_pick_score`가 `_pick_combo_item`처럼 못 찾으면 스크롤하며 재시도하도록 고치자 Fiber=3.5(기준 미만)를 찾아 `run-xipl-05` 라이브로 "불합격 경계값 입력 시 Fail"까지 PASS 확인(`QC_STUDY.Result=0`). 3절 #1 해소 |
 | `WF_15` Dose Overlay 전제 자체 보장 | 단독 실행 시 `WF_03`을 거치지 않으면 선량 Overlay(115/118)가 없어 Step 3 이 전제 미충족으로 FAIL 하던 것을, `vp.add_image_overlay_items`로 멱등하게 준비 | 코드 반영. `run-wf15` 단독 실행 재검증 대기 |
-| `WF_08` 3D Print의 "Select Images" 창 처리 | 3D(Narrow/Wide) 검사를 Print > Selected 로 열면 Film 대신 뜨는 "Select Images" 창(좌=View Position, 중=Raw/Recon/Syn 라디오+프레임, 우=전송 목록, 휴지통=삭제 — 사양서1 SRS 02-40-60·Operation Manual 10.1.2)을 자동화가 전혀 다루지 않아 3D Print가 항상 "Film window did not open"으로 실패했다. `core/flows.py`에 `select_images_*` 함수 신설, `tests/workflow08.py`가 3D 패스마다 Raw/Recon/Syn 각 1장씩 인쇄하고 휴지통 삭제·pane 구분·Header Overlay까지 검증하도록 개편 | **2026-09-02 전 Step PASS로 해결.** 라이브 재검증 중 (1)삭제 방향 오류(최근 항목이 아니라 첫 항목을 지움) (2)이전 세션 잔존 선택 미처리 (3)`ui.dialog()`가 Select Images 창 자체를 "이미 있음" 경고로 오탐지해 정상 추가도 매번 실패 처리 — 세 버그를 순서대로 찾아 고쳤다. `run-wf08` 라이브로 3D-N/3D-W 모두 Raw+Recon+Syn 3장 인쇄·pane distinct·Header Overlay·Print SCP 픽셀 일치(0.97~0.98) 확인. **28차 전체 회귀(`Result_20260902_225334.json`)에서도 PASS로 재확인 완료** |
+| `WF_08` 3D Print의 "Select Images" 창 처리 | 3D(Narrow/Wide) 검사를 Print > Selected 로 열면 Film 대신 뜨는 "Select Images" 창(좌=View Position, 중=Raw/Recon/Syn 라디오+프레임, 우=전송 목록, 휴지통=삭제 — 사양서 SRS 02-40-60·Operation Manual 10.1.2)을 자동화가 전혀 다루지 않아 3D Print가 항상 "Film window did not open"으로 실패했다. `core/flows.py`에 `select_images_*` 함수 신설, `tests/workflow08.py`가 3D 패스마다 Raw/Recon/Syn 각 1장씩 인쇄하고 휴지통 삭제·pane 구분·Header Overlay까지 검증하도록 개편 | **2026-09-02 전 Step PASS로 해결.** 라이브 재검증 중 (1)삭제 방향 오류(최근 항목이 아니라 첫 항목을 지움) (2)이전 세션 잔존 선택 미처리 (3)`ui.dialog()`가 Select Images 창 자체를 "이미 있음" 경고로 오탐지해 정상 추가도 매번 실패 처리 — 세 버그를 순서대로 찾아 고쳤다. `run-wf08` 라이브로 3D-N/3D-W 모두 Raw+Recon+Syn 3장 인쇄·pane distinct·Header Overlay·Print SCP 픽셀 일치(0.97~0.98) 확인. **28차 전체 회귀(`Result_20260902_225334.json`)에서도 PASS로 재확인 완료** |
 | `core/ui.py` 포그라운드 잠금 타임아웃 | `force_foreground`가 `SPI_FOREGROUNDLOCKTIMEOUT`을 0으로 낮췄다가 복원 — 잠금이 남아 있으면 `AttachThreadInput`을 붙여도 전환이 거부됨 | 코드 반영 |
 | `core/ui.py` 클릭 가드 — 다중 모니터 겹침 인식 | `require_front_for_pointer`가 "다른 창이 최전면"이라는 사실만으로 막던 것을, **그 창이 클릭 좌표를 실제로 화면에서 덮고 있는지**까지 확인하도록 바꿈(`_rect_contains_point`). 다른 모니터의 창은 Viewer를 가리지 않으므로 막지 않는다(2026-08-28 사용자 지시) | `run-xipl-05` 재검증으로 확인 |
 | `core/ui.py` `bring_to_front`가 항상 메인 프레임만 올리던 문제 | Q.C 테스트 창처럼 메인 프레임과 다른 최상위 창을 조작 중일 때, 최전면 복구가 메인 프레임을 올려 오히려 그 창을 가리는 문제를 고침 — 클릭 좌표를 실제로 담고 있는 창(`_window_at_point`)을 우선 올린다 | `run-xipl-05` 재검증으로 확인 |
@@ -549,8 +549,8 @@ Position 목록을 모음, `dicom.print_overlay`)를 추가했다.
 실제로 열거되는 20~21행은 전부 진짜 QC 테스트 이름이었다 — 교차 오염이
 아니었다.
 
-**사양서에서 결정적 근거 확인** — `../지식/Bellalun Viewer 사양서2(260710).txt`
-8492~8511행: "Setting > Q.C. > Scheduler — 일반/`-d` 모드에서는 `Geometry
+**사양서에서 결정적 근거 확인** — 사양서 942쪽 SRS 07-10-190
+(확인 당시 분권 사양서2 텍스트 8492~8511행): "Setting > Q.C. > Scheduler — 일반/`-d` 모드에서는 `Geometry
 Calibration(Tomo)` 항목이 안 보이고, 내부 `-m`(서비스/공장) 플래그로 실행할
 때만 보인다." `../지식/Bellalun Viewer Service Manual.V1.0.12W1_KO_완료.txt`
 3749행: "연결된 VDMS 시스템이 지원하지 않는 Q.C 항목은 목록에 표시되지
@@ -654,7 +654,7 @@ Default 상속)·P2(run-sys3d/run-ui 고정 대기 전환) 완료
 발견했다 — `automation_scope.json`은 정확히 FULL로 기록하고 있었는데,
 `tests/workflow13.py` 상단 docstring(2026-08-19 날짜, "4~6단계는 MANUAL")과
 `run.py --help` 문구가 그 이후 갱신되지 않아 코드와 반대로 말하고 있었다.
-`run-wf13` 라이브 재확인 — PASS, 사양서1 78~80쪽 권한 그룹별 메뉴 표(SRS 01-30-20)
+`run-wf13` 라이브 재확인 — PASS, 사양서 552~554쪽 권한 그룹별 메뉴 표(SRS 01-30-20)
 56개 항목 전부 일치, 시험 계정 원복·삭제까지 정상. 문서만 코드와 일치하도록
 정정했다(5절 ④, docstring, `--help`).
 
@@ -737,7 +737,7 @@ run-sys3d/run-ui 대기 전환·WF_13 문서 정정이 전체 회귀 경로에�
 ### 3-A. UPS 설정이 Export/Import 로 복원되지 않는다 (제품 결함, 사용자 확인 완료)
 
 `Setting > Device > UPS` 값은 저장은 되지만 `.vms` 20개 항목·DB 3종·`ExternalInput.xml`·
-레지스트리 어디에도 실리지 않는다(전수 확인). 사양서1 60절은 Export 대상을 "Study 정보를
+레지스트리 어디에도 실리지 않는다(전수 확인). 사양서 60절은 Export 대상을 "Study 정보를
 제외한 모든 설정 정보"로 정의하므로 `WF_14` Step 7 판정에 넣었고 완화하지 않는다.
 
 ### 3-B. Setting 전 페이지 순회 중 Viewer 가 종료된다 (간헐, 원인 미특정)
@@ -863,7 +863,7 @@ FAIL 이 나면 그 TC 를 중단하므로 첫 FAIL 뒤의 판정 정보는 수�
 ### ④ ~~`TC_Basic_WorkFlow_13` Step 4~6 — 로그인 계정 전환을 자동화할지~~ — **2026-08-20에 이미 구현·승인·완료됨. 이 항목은 문서 누락이었다(2026-09-03 정정)**
 
 이 항목은 실제로 **2026-08-20 커밋 `9fa0274`("WF_13 완전 자동화 — 사양서 권한 표
-56개 항목 전부 판정")로 이미 해결됐다.** 사용자가 사양서1 78~80쪽 계정 그룹별
+56개 항목 전부 판정")로 이미 해결됐다.** 사용자가 사양서 552~554쪽 계정 그룹별
 사용 가능 메뉴 표(SRS 01-30-20)를 확인해 줘서, **로그인 시도 전에 복구 플래그를
 세우고 `finally`에서 반드시 원래 계정으로 `cold_start` 복구 + 시험 계정 삭제**하는
 방식으로 자동화했다 — 이 TC 안에서만 계정이 바뀌고 회귀의 다른 TC(모두 service
@@ -928,7 +928,7 @@ docstring/도움말/이 항목을 코드와 일치하도록 정정했다.
 |---|---|---|---|
 | ① 정상 — OCR 만으로 해결 — **2026-08-31 완료** | `system.account`(2/2 일치), `dicom.mwl`/`dicom.storage`/`dicom.print`(각 1/1 일치) | 자식 창이 없어 텍스트를 못 읽을 뿐, 화면 요소·개수는 이미 맞다 | `row_signature()` OCR 전환 + 스크롤 단축 + 위치 기반 키징으로 완료. 라이브 검증: 4곳 모두 "불완전" 목록에서 빠짐, 전체 판정 회귀 없음 |
 | ③-a `display.lut` — **2026-08-31 완료** | `display.lut`(3/12 → 3/3) | `../지식/` Service Manual 실측 + DB 직접 조회로 확정 — `LUT_ITEM`은 LUT **개수**가 아니라 LUT 곡선의 **제어점**을 저장한다(`LUTKey`+`Order`+`X`+`Y`, LUT 3개 × 점 4개 = 12행). 화면의 3행(ScreenLUT/StorageLUT/ProcessLUT)과 비교하려면 `COUNT(DISTINCT LUTKey)`를 써야 했다 | `ROW_COUNT_QUERIES["display.lut"]` 쿼리 수정. 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_153657.json`), 전체 판정 회귀 없음 |
-| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **전부 완료(2026-08-31/09-01)** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, ~~`dicom.tag_mapping`(9/17)~~→**17/17**(2026-09-01, 뷰포트 클리핑 수정), ~~`qc.scheduler`(20→21/23)~~→**완료**(스크롤은 진짜 바닥까지 도달, 남은 2행 격차는 스크롤 문제가 아니라 제품이 의도적으로 숨기는 항목임을 사양서로 확정 — B.32/2-J절, 개수 증명만 뺐다) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `dicom.tag_mapping`은 근본 원인이 스크롤 잡음이 아니라 **뷰포트 클리핑**이었다(2-F절) — 고친 뒤 17/17 완전 일치. `qc.scheduler`의 남은 2행은 사양서2 8492~8511행("일반/-d 모드에서 Geometry Calibration(Tomo) 항목이 안 보임")·Service Manual 3749행("지원 안 하는 QC 항목은 표시 안 됨")으로 확정된 제품 설계다(B.32) | `tag_mapping`: `_list_viewport()`/`_confidently_visible()`. `qc.scheduler`: `ROW_COUNT_QUERIES`에서 매핑을 뺐다(정지·연속 증명만으로 판정 — 매핑 없는 다른 페이지와 같은 처리, 근거는 주석에 남김) |
+| ② 내용은 맞는데 스크롤이 끝까지 못 감 — **전부 완료(2026-08-31/09-01)** | ~~`tool.predefined_text`(5/7)~~→**7/7**, ~~`study.reject_retake`(5/7)~~→**7/7**, ~~`dicom.tag_mapping`(9/17)~~→**17/17**(2026-09-01, 뷰포트 클리핑 수정), ~~`qc.scheduler`(20→21/23)~~→**완료**(스크롤은 진짜 바닥까지 도달, 남은 2행 격차는 스크롤 문제가 아니라 제품이 의도적으로 숨기는 항목임을 사양서로 확정 — B.32/2-J절, 개수 증명만 뺐다) | `../지식/` Service Manual 실측으로 **추정이 아니라 확정**됐다 — 화면에서 읽은 항목이 사양서에 적힌 전체 목록의 **정확히 앞부분과 순서까지 일치**한다(`predefined_text` 기본 7종 L/R/LCC/RCC/LMLO/**RMLO/IMPLANT** 중 앞 5개, `reject_retake` 사유 Type 7종 중 앞 5개 — 나머지 2종은 **Double Exposure, Others**, `tag_mapping` Internal Tag 17종 중 앞 8개). `dicom.tag_mapping`은 근본 원인이 스크롤 잡음이 아니라 **뷰포트 클리핑**이었다(2-F절) — 고친 뒤 17/17 완전 일치. `qc.scheduler`의 남은 2행은 사양서 942쪽 SRS 07-10-190("일반/-d 모드에서 Geometry Calibration(Tomo) 항목이 안 보임")·Service Manual 3749행("지원 안 하는 QC 항목은 표시 안 됨")으로 확정된 제품 설계다(B.32) | `tag_mapping`: `_list_viewport()`/`_confidently_visible()`. `qc.scheduler`: `ROW_COUNT_QUERIES`에서 매핑을 뺐다(정지·연속 증명만으로 판정 — 매핑 없는 다른 페이지와 같은 처리, 근거는 주석에 남김) |
 | ~~③ DB 카운트가 화면과 다른 것을 센다(개념 불일치)~~ → **④로 재분류, 2026-09-01 완료** | ~~`display.overlay`(화면 28 vs DB 8)~~→**8/8** | ~~`../지식/` Service Manual·Operation Manual에 명시적으로 확인됨 — 화면은 "표시 가능 항목"(고정 카탈로그), DB `OVERLAY_ITEM`은 "실제로 추가한 것"만 저장 — 같은 것을 세고 있지 않다~~ **이 결론 자체가 틀렸다(2-G절/`../프로젝트_상세.md` B.29).** 라이브로 컨트롤 트리를 덤프해 보니 이 페이지엔 독립된 목록이 **셋**(카탈로그/Top/Bottom) 있고, `visible_rows()`가 셋을 안 가리고 섞은 것뿐이었다(실측 카탈로그 화면표시분 20 + Top 6 + Bottom 2 = 28 — "28"은 카탈로그 크기가 아니라 우연의 합). `../지식/` Service Manual 4.4.2 의 진짜 카탈로그는 34개라 애초에 28과도 안 맞았다 | `_collect_overlay()`가 카탈로그를 빼고 Top+Bottom만 훑도록 고쳤다(④와 동일한 "범위 제한" 해법). 라이브 검증: "불완전" 목록에서 빠짐(`Reports/Result_20260831_204935.json`), 전체 판정 회귀 없음 |
 | ~~④ 화면에 서로 다른 목록이 섞여 잡힘(교차 오염)~~ → **2026-09-01 완료** | ~~`procedure.procedure`(Procedure 카탈로그 14~15개 + 우측 View Position 약어 4개가 뒤섞여 19개로 잡힘)~~→**15/15**, ~~`dicom.print_overlay`(독립된 `ListCtrl` 넷)~~→**6/6**(Overlay 이름 목록에서 행을 선택해야 Position 목록 셋이 채워짐을 실측으로 확인, B.31) | `visible_rows()` 가 페이지 전체에서 `ListItem` 텍스트만 보고 잡아, 같은 화면의 다른 목록(측면 패널)까지 함께 주워 담는다. `display.overlay`(위 ③→④)도 같은 원인이었다 | `procedure.procedure`: `SINGLE_LIST_CONTROL` + `sweep()` 라우팅. `print_overlay`: `_collect_print_overlay()`가 Overlay 이름마다 행을 선택하며 Position 목록 셋(id 2486/2487/2488)을 모은다(카탈로그·이름 목록 자체는 제외) |
 | ~~⑤ 화면 요소 자체가 틀림(오탐)~~ → **2026-09-01 완료, 실제로는 ④와 같은 교차 오염이었다** | ~~`patient.physician`(2x2 그리드 `ListCtrl` 넷 중 셋은 비어 있고 하나만 3행)~~→**0/0**. 라벨을 OCR로 읽으니 진짜 대상은 "Referring/Reading/Performing Physician"(id 2318/2319/2320, 셋 다 0행) 이었고, 걸리던 3행짜리 그리드는 "Performing Physician Order"(id 2321, MWL 역할 매핑 콤보 — B.24 에서 이미 확인된 것과 같은 컨트롤)였다 | 대상 컨트롤을 처음부터 잘못 잡고 있었다 — "오탐"이 아니라 ④와 같은 교차 오염이었다(B.31) | `_collect_multi_list(ui, (2318, 2319, 2320), ...)`로 진짜 세 목록만 합쳐 훑는다. 부수적으로 `walk()`가 "행 0개 = 무조건 실패"로 처리하던 결함도 발견해 `expected_count==0`일 때만 빈 목록을 완전한 열거로 인정하도록 고쳤다 |
@@ -938,7 +938,7 @@ docstring/도움말/이 항목을 코드와 일치하도록 정정했다.
 ③(`display.overlay`, ④로 재분류)·**④(`procedure.procedure`/`dicom.print_overlay`)·
 구⑤(`patient.physician`, 실제론 ④와 같은 교차 오염)까지 전부 완료됐다 —
 **9곳 전부 완료됐다.** `qc.scheduler`만 넷(②의 tag_mapping 제외)과 달리
-진짜 제품 설계 차이였다 — 사양서2·Service Manual로 "일부 QC 항목은 연결
+진짜 제품 설계 차이였다 — 사양서·Service Manual로 "일부 QC 항목은 연결
 모델/실행 모드에 따라 의도적으로 숨겨진다"는 것을 확정하고, 그 페이지만
 개수 증명을 뺐다(B.32/2-J절). "목록 전 행 열거 완주" 서브체크는 이제 9개
 페이지 전부 자동화 결함 없이 정상 판정된다.

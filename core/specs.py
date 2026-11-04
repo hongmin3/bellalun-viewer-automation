@@ -17,7 +17,7 @@ r"""사양서·매뉴얼 원문을 코드에서 직접 찾아 인용한다.
     from core import specs
 
     hits = specs.search(ctx, "Anonymous")
-    # [{'source': '사양서1', 'page': 214, 'srs': ['SRS 09-30-10'],
+    # [{'source': '사양서', 'page': 606, 'srs': ['SRS 02-40-70'],
     #   'text': '... 익명화 ...'}, ...]
 """
 
@@ -30,7 +30,7 @@ import tempfile
 # `지식` 폴더에 함께 관리되는 근거 문서.
 KNOWLEDGE_DIR = "지식"
 # 끝 번호는 2자리도 3자리도 있다(`SRS 01-10-130`). `\d\d` 로 두면 3자리가 잘려
-# **존재하지 않는 번호**가 인용된다 — 사양서1 전체에 3자리 끝 번호가 38건이다
+# **존재하지 않는 번호**가 인용된다 — 분권이던 옛 사양서1 전체에 3자리 끝 번호가 38건이었다
 # (2026-08-20 실측).
 SRS_PATTERN = re.compile(r"SRS \d\d-\d\d-\d+")
 
@@ -40,11 +40,11 @@ SRS_PATTERN = re.compile(r"SRS \d\d-\d\d-\d+")
 # 미룬다(완전히 버리지는 않는다 — 형태만으로 100% 단정할 수 없다).
 SRS_CROSSREF_SUFFIX = re.compile(r"\s*(?:\.|\))")
 
-# 파일명 일부 -> 짧은 이름. 파일명에 날짜가 붙어 바뀔 수 있으므로 부분 일치로 찾는다.
-SPEC_FILES = {
-    "사양서1": "사양서1",
-    "사양서2": "사양서2",
-}
+# 사양서는 통합본 한 권이다(`(사양서) Bellalun Viewer 사양서(YYMMDD).pdf`). 판이 바뀌면 날짜만
+# 바뀌므로 날짜로 찾고, 여러 판이 있으면 가장 늦은 판을 쓴다. 예전 분권(`사양서1(…)`,
+# `사양서2(…)`)은 이 형식에 맞지 않아 고르지 않는다.
+SPEC_NAME = "사양서"
+SPEC_FILE_PATTERN = re.compile(r"사양서\((\d{6})\)\.pdf$", re.I)
 
 
 class SpecError(RuntimeError):
@@ -78,14 +78,14 @@ def spec_paths(ctx):
     root = knowledge_dir(ctx)
     if not root:
         return {}
-    found = {}
+    dated = []
     for name in os.listdir(root):
-        if not name.lower().endswith(".pdf"):
-            continue
-        for short, marker in SPEC_FILES.items():
-            if marker in name:
-                found[short] = os.path.join(root, name)
-    return found
+        match = SPEC_FILE_PATTERN.search(name)
+        if match:
+            dated.append((match.group(1), name))
+    if not dated:
+        return {}
+    return {SPEC_NAME: os.path.join(root, max(dated)[1])}
 
 
 def _cache_path(pdf_path, cache_dir=None):
@@ -138,8 +138,9 @@ def extract(pdf_path, force=False, cache_dir=None):
 
 
 # 요구사항 본문이 여러 쪽에 걸칠 수 있으므로, 앞선 쪽을 이만큼까지 거슬러 올라가
-# ID 를 찾는다. 297쪽(Print Overlay Header 사양)은 296쪽에도 ID 가 없어서 한 쪽만
-# 보면 근거를 못 찾았다 — 실제 근거는 295쪽의 `SRS 04-10-20` 이다(2026-08-20 실측).
+# ID 를 찾는다. 787쪽(Print Overlay Header 사양)은 786쪽에도 ID 가 없어서 한 쪽만
+# 보면 근거를 못 찾는다 — 실제 근거는 785쪽의 `SRS 04-10-20` 이다(분권 시절 2026-08-20
+# 실측, 통합 사양서에서 2026-11-04 재확인).
 ID_LOOKBACK_PAGES = 6
 
 
@@ -239,12 +240,15 @@ def cite(ctx, pattern, fallback="", **kw):
     규칙이라 억지로 문구를 만들지 않는다.
 
     `fallback` 은 **사람이 문서에서 확인해 적어 둔 인용문**을 쓸 때만 준다.
-    PDF 추출이 줄바꿈·기호를 흩뜨려 정규식이 빗나가는 경우가 있어(사양서1 60절의
+    PDF 추출이 줄바꿈·기호를 흩뜨려 정규식이 빗나가는 경우가 있어(사양서 60절의
     글머리표가 그렇다) 근거를 잃지 않기 위한 장치다. 추측한 문구를 넣지 않는다.
     """
-    hits = search(ctx, pattern, limit=1, **kw)
+    # 통합 사양서에는 같은 문장이 SRS 없는 변경 메모와 요구사항 본문에 함께 나온다
+    # (예: "설정 가능한 3D Viewposition"이 294쪽 메모와 678쪽 SRS 03-30-20에 있다).
+    # 그래서 SRS ID가 붙은 첫 쪽을 쓰고, 없을 때만 첫 쪽을 쓴다.
+    hits = search(ctx, pattern, limit=20, **kw)
     if not hits:
         return fallback
-    hit = hits[0]
+    hit = next((h for h in hits if h["srs"]), hits[0])
     srs = f" {hit['srs'][0]}" if hit["srs"] else ""
     return f"근거: {hit['source']} {hit['page']}쪽{srs} — \"{hit['text'][:120]}\""

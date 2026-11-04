@@ -80,7 +80,7 @@ Step 7 의 판정은 설정 테이블 **전수 대조**인데, **바꾸지 않�
     값을 바꾸고 Viewer 재기동                   **값이 남는다** (= 저장은 된다)
 
 즉 **저장은 되는데 Export 산출물에는 들어가지 않는다** → Import 로 복원될 방법이
-없다. 사양서1 60절이 Export 대상을 "Study 정보를 제외한 모든 설정 정보" 로
+없다. 사양서 60절이 Export 대상을 "Study 정보를 제외한 모든 설정 정보" 로
 정의하는 것과 어긋난다. Step 7 마지막에 판정으로 남기고 **완화하지 않는다**
 (`TC_XIPL_compatibility_03` Step 9 와 같은 취급).
 
@@ -90,7 +90,7 @@ Remaining run time)은 **설정이 아니라 실시간 장치 상태**라 비교
 
 ## 판정 근거
 
-- Step 2: 사양서1 "60. Setting Export/Import" 개발 사양이 `.vms` 를
+- Step 2: 사양서 "60. Setting Export/Import" 개발 사양이 `.vms` 를
   `.zip 파일로 설정을 내보낸다. (확장자 변경 .vms)` 로 정의하고 담을 내용을
   나열한다 → `core/setting_transfer.inspect_vms()` 가 그 구성을 대조한다.
   파일이 "생겼다"만으로 통과시키지 않는다.
@@ -199,7 +199,7 @@ def run(ctx):
             expected="service 또는 admin 계정",
             actual={"login": login_id, "startup": startup},
             note="체크리스트 Precondition. Setting > System > My Settings 는 "
-                 "권한 표(사양서1 78~80쪽)에서 User 에게 보이지 않는 항목이다.")
+                 "권한 표(사양서 552~554쪽)에서 User 에게 보이지 않는 항목이다.")
 
         baseline = setting_changes.plan_targets(ctx.db)
         ups_baseline = setting_changes.read_ups(ui)
@@ -271,7 +271,7 @@ def run(ctx):
             expected="저장 대화상자 + 파일 형식 vms",
             actual=info,
             note=specs.cite(ctx, "설정 정보를 .vms",
-                            fallback="사양서1 60. Setting Export/Import — "
+                            fallback="사양서 60. Setting Export/Import — "
                                      "'선택한 위치에 설정 정보를 .vms 확장자로 "
                                      "저장한다'") +
                  " 대화상자가 열린 사실뿐 아니라 **파일 형식이 vms** 인지까지 확인한다.")
@@ -298,7 +298,7 @@ def run(ctx):
                     "누락": vms_info["missing"],
                     "항목수": len(vms_info["entries"]),
                     "Version.txt": vms_info["version"]},
-            note="사양서1 60절 개발 사양: '.zip 파일로 설정을 내보낸다(확장자 변경 "
+            note="사양서 60절 개발 사양: '.zip 파일로 설정을 내보낸다(확장자 변경 "
                  ".vms)', 'DATA를 제외한 모든 DB 백업파일(CONFIGURATION, ACCOUNT, "
                  "PROCEDURE)', 'XIPL Parameter 폴더 내 모든 Parameter 파일을 "
                  "Export\\PARAMETER 폴더에', 'ExternalInput.xml 파일을 "
@@ -391,7 +391,7 @@ def run(ctx):
                                     "checked": v["checked"]}
                                 for k, v in opts.items()}},
             note=specs.cite(ctx, "System / Account / Procedure",
-                            fallback="사양서1 60절 — 'System / Account / "
+                            fallback="사양서 60절 — 'System / Account / "
                                      "Procedure 중 사용자가 선택한 설정 값만 "
                                      "가져와서 적용할 수 있다'") +
                  " 대화상자가 떴다는 사실이 아니라 **사양이 요구한 선택 항목이 "
@@ -414,7 +414,7 @@ def run(ctx):
             actual={"옵션 최종상태": finals, "소요": result["seconds"],
                     "대화상자 닫힘": result["closed"],
                     "안내 메시지": result["message"]},
-            note="사양서1 60절: 'Import 한 후 재시작 전에 변경한 내용은 적용되지 "
+            note="사양서 60절: 'Import 한 후 재시작 전에 변경한 내용은 적용되지 "
                  "않는다. (해당 내용 메시지박스로 사용자에게 표시)' — 안내 "
                  "메시지가 뜨는 것이 정상이므로 읽어서 증거로 남긴다.")
 
@@ -431,7 +431,7 @@ def run(ctx):
             actual={"startup": restart, "patient_screen": bool(ready),
                     "재시작 직전 변경항목 값": before_restart},
             note=specs.cite(ctx, "Import 한 설정은 Viewer를 재시작",
-                            fallback="사양서1 60절 — 'Import 한 설정은 Viewer를 "
+                            fallback="사양서 60절 — 'Import 한 설정은 Viewer를 "
                                      "재시작해야 적용된다'"))
         if not ready:
             raise RuntimeError("재시작 후 Patient 화면이 준비되지 않았습니다")
@@ -596,7 +596,7 @@ def run(ctx):
         r.add(
             7, "Setting > Device > UPS 설정이 Export 시점 값으로 복원",
             PASS if ups_restored else FAIL, ups_baseline, ups_now,
-            note="**제품 결함으로 관찰됨(2026-08-25).** 사양서1 60절은 Export "
+            note="**제품 결함으로 관찰됨(2026-08-25).** 사양서 60절은 Export "
                  "대상을 'Study 정보를 제외한 모든 설정 정보' 로 정의하는데, UPS "
                  "설정은 Export 산출물 어디에도 들어가지 않는다 — .vms 안의 20개 "
                  "항목(CONFIGURATION/ACCOUNT/PROCEDURE 백업, ExternalInput.xml, "
@@ -684,7 +684,7 @@ def _assert_config_identical(result, before, after, evidence, changed_table_coun
         7, "설정 테이블 전수 대조(Export 시점과 동일)", same,
         expected=f"설정 섹션 {len(snapshot.CONFIG_SECTIONS)}개 전부 일치",
         actual="일치" if same else f"불일치 {len(diff)}개 섹션: {sorted(diff)}",
-        note="사양서1 60절이 Export 대상을 'Study 정보를 제외한 모든 설정 "
+        note="사양서 60절이 Export 대상을 'Study 정보를 제외한 모든 설정 "
              "정보(DB / sql file)'로 정의하므로, 화면 픽셀이 아니라 설정 "
              "테이블 전수 대조가 결정적 근거다. Step 3 에서 "
              f"{changed_table_count}개 테이블을 실제로 바꿨으므로 "

@@ -243,14 +243,14 @@ def workflow_03(ctx):
                     "by_position": print_overlay.items_by_position(po["items"])},
             note="Expected 2. Print Overlay 구성이 저장된다. "
                  "CONFIGURATION.PRINT_OVERLAY_ITEM의 FieldID와 **Position**을 함께 "
-                 "대조한다. 근거: 사양서1 305쪽 SRS 04-20-10 'Overlay로 표시할 항목 "
+                 "대조한다. 근거: 사양서 795쪽 SRS 04-20-10 'Overlay로 표시할 항목 "
                  "설정 (Header / Top / Bottom)'. Position은 header=2 / top=0 / "
                  "bottom=1로 실측했다(화면 순서와 다르다). Expected Result의 "
                  "시스템정보(compression/HVL/AGD/Thickness)와 환자정보"
                  "(ID/birthdate)가 이 6개 항목이며, 세 영역에 나눠 두어 Top 이외의 "
                  "영역도 저장되는지 검증한다.")
         # 항목만 저장돼 있으면 안 된다. Header 표시 위치가 `None` 이면 필름에
-        # 나오지 않으므로(사양서1 297쪽) 표시 설정까지 이 TC 가 확인한다.
+        # 나오지 않으므로(사양서 787쪽) 표시 설정까지 이 TC 가 확인한다.
         header_count = len(print_overlay.PRINT_ITEMS_BY_AREA["header"])
         want_position, want_layout, layout_label = print_overlay.header_targets(
             header_count)
@@ -264,7 +264,7 @@ def workflow_03(ctx):
             actual={"HeaderPosition": po["overlay"]["HeaderPosition"],
                     "HeaderLayout": po["overlay"]["HeaderLayout"],
                     "header": po.get("header")},
-            note="사양서1 297쪽 - 'Header가 표시될 수 있는 위치는 다음과 같다. "
+            note="사양서 787쪽 - 'Header가 표시될 수 있는 위치는 다음과 같다. "
                  "None으로 설정한 경우 표시되지 않는다. None, Top, Bottom' / "
                  "'Header Layout은 1x1에서 3x3까지 선택할 수 있다. Layout 한 칸당 "
                  "한 항목씩 표시한다.' Header 항목이 "

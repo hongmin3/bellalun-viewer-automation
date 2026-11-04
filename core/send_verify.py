@@ -107,7 +107,7 @@ def _signature_count(signature):
 def configured_station_name(ctx):
     """전송 객체의 `StationName(0008,1010)` 기대값 — **Setting 값**이다.
 
-    사양이 두 곳에서 못박는다(사양서2 `06. DICOM`).
+    사양이 두 곳에서 못박는다(사양서 `06. DICOM`).
       - Storage IOD 표: `Station Name (0008,1010) 3 VNAP **From Config**`
       - MWL 절: *"Worklist에 표기된 Station Name은 **MWL List에서만 사용된다.**
         그 외의 Station Name은 **Setting > General > DICOM에 설정된 Station
@@ -394,7 +394,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     before_queue = queue_keys(ctx)
     try:
         # `sender` 를 주면 그 경로로 보낸다. **Dose SR 을 보는 TC 는 반드시
-        # `flows.send_examined_study`(Examined 모드)를 넘겨야 한다** — 사양서1 이
+        # `flows.send_examined_study`(Examined 모드)를 넘겨야 한다** — 사양서가
         # "Examine/View 모드에서 Send 를 클릭했을 때는 Dose SR 을 전송하지 않는다"
         # 고 못박기 때문이다(`send_examined_study` 주석의 인용 참고).
         sent = (sender(scope) if sender
@@ -465,7 +465,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     # --- Step 5: 식별 Tag 4개 비교 -------------------------------------
     #
     # **Dose SR(RDSR)은 영상 UID 대조에서 뺀다.** 영상이 아니라 제품이 검사 단위로
-    # 만드는 보고서라 `DATA.INSTANCE` 에 행이 없다 — 사양서1: *"Dose SR 에서 사용
+    # 만드는 보고서라 `DATA.INSTANCE` 에 행이 없다 — 사양서: *"Dose SR 에서 사용
     # 시, 내부적으로 영상의 Instance UID 마지막에 '.1.1' 을 붙이기 때문에"*.
     # 그대로 대조하면 Study UID + '.1.1' 이 "DB 에 없는 UID" 로 잡혀 FAIL 한다
     # (2026-08-27 실측). RDSR 자체는 호출부(WF_06)가 Patient ID / Study UID 로
@@ -517,7 +517,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
               expected="Setting > General > DICOM 의 Station Name",
               actual=f"설정값이 비어 있어 대조 대상이 없다 "
                      f"(수신값: {station_received})",
-              note="사양서2 `Station Name (0008,1010) 3 VNAP From Config` — "
+              note="사양서 `Station Name (0008,1010) 3 VNAP From Config` — "
                    "Type 3/VNAP 이라 설정이 비면 값이 없는 것이 정상이다. "
                    "실제로 확인하려면 Setting > General > DICOM 에 값을 넣는다.")
     else:
@@ -525,7 +525,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
             step_tags, "수신 객체의 Station Name",
             bool(objects) and station_received == [station_expected],
             expected=station_expected, actual=station_received,
-            note="사양서2 `Station Name (0008,1010) 3 VNAP From Config`, "
+            note="사양서 `Station Name (0008,1010) 3 VNAP From Config`, "
                  "그리고 MWL 절 \"Worklist에 표기된 Station Name은 MWL List에서만 "
                  "사용된다. 그 외의 Station Name은 Setting > General > DICOM에 "
                  "설정된 Station Name을 사용한다\". **MWL 오더의 값이 여기 나오면 "
@@ -547,7 +547,7 @@ INSTANCE_NAMES = {0: "2D", 1: "Raw", 2: "Recon", 3: "Syn"}
 
 # 3D 검사에서 **네트워크로 실제 전송되는** InstanceType.
 #
-# 근거 1 (사양서 명문) - `(사양서) Bellalun Viewer 사양서1` **125쪽**,
+# 근거 1 (사양서 명문) - `(사양서) Bellalun Viewer 사양서` **599쪽**,
 #   SRS 06-30-30(Storage) 문맥:
 #     "3D 영상은 Recon 영상이 전송된다. Recon 영상이 없을 경우 영상은 전송되지
 #      않는다."

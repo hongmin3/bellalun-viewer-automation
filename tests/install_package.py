@@ -24,8 +24,8 @@ Viewer 를 대상으로 돌지만 이 점검은 **설치 이전**에 패키지 �
   그래서 메뉴가 6단계가 아니면 그 사실을 기록하고 마법사 검사를 멈춘다.
 
 근거 문서
-  - `(사양서) Bellalun Viewer 사양서2` SRS 08-10-10 설치 / 08-10-20 업그레이드
-  - `(사양서) Bellalun Viewer 사양서1` SRS 01-10-20 UI Theme / 01-10-30 언어 설정
+  - `(사양서) Bellalun Viewer 사양서` SRS 08-10-10 설치 / 08-10-20 업그레이드
+  - `(사양서) Bellalun Viewer 사양서` SRS 01-10-20 UI Theme / 01-10-30 언어 설정
   - `(매뉴얼) Bellalun Viewer Service Manual` "설치하기" 절
 """
 
@@ -57,7 +57,7 @@ EXPECTED_KIOSK = ["Use", "Not Use"]
 EXPECTED_DB_PATH = r"D:\BellalunData"
 # SRS 08-10-10 — Viewer 설치 기본 경로는 Windows 가 설치된 드라이브 기준이다.
 EXPECTED_VIEWER_DIR = "Bellalun"
-# 사양서2 "버전 관리" 표 — 뷰어 V1.0.12 ↔ Install Package V1.0.3.
+# 사양서 960쪽 "버전 관리" 표 — 뷰어 V1.0.12 ↔ Install Package V1.0.3.
 EXPECTED_PACKAGE_VERSION = "1.0.3"
 # SRS 08-10-10 — 설치 로그 위치.
 #
@@ -196,7 +196,7 @@ def static_package(package_dir):
     r.assert_true(3, "Install Package 버전", ok_version,
                   expected=f"{EXPECTED_PACKAGE_VERSION}.x",
                   actual=version or "확인 불가",
-                  note="사양서2 '버전 관리' 표 — 뷰어 V1.0.12 는 Install Package V1.0.3")
+                  note="사양서 960쪽 '버전 관리' 표 — 뷰어 V1.0.12 는 Install Package V1.0.3")
 
     # Step 4. Install.xml 이 참조하는 파일의 실존
     install_xml = os.path.join(package_dir, "Install.xml")

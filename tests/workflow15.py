@@ -86,7 +86,7 @@ def _study(ctx):
         "DATA",
         "SELECT [Key],InstanceType,ImageInstanceUID FROM INSTANCE "
         "WHERE StudyKey=@k ORDER BY [Key]", {"k": row["Key"]})
-    # **전송 대상만** 기대값으로 삼는다. 사양서1 125쪽(SRS 06-30-30 문맥)
+    # **전송 대상만** 기대값으로 삼는다. 사양서 599쪽(SRS 06-30-30 문맥)
     # "3D 영상은 Recon 영상이 전송된다" 이므로 Raw/Syn 은 오지 않는다
     # (`core/send_verify.SENDABLE_3D_TYPES`). DB 의 전체 영상과 대조하면 정상 동작을
     # 누락으로 판정한다 — 2026-08-20 에 실제로 그렇게 틀렸다.
@@ -155,7 +155,7 @@ def run(ctx):
             raise RuntimeError(
                 "Storage Transfer Syntax 를 선언된 값으로 맞추지 못했습니다. "
                 "이 상태로 전송하면 conformant SCP 가 거절하므로 중단합니다.")
-        # 전제 — Storage 설정의 Send Dose SR. 사양서1 125쪽 SRS 06-30-30 이
+        # 전제 — Storage 설정의 Send Dose SR. 사양서 599쪽 SRS 06-30-30 이
         # Dose SR 전송을 이 옵션에 건다. `SCPUseType=0`(설정 행)만 본다 — 전송
         # 작업 사본 행도 `Use=1` 이라 그것을 집으면 엉뚱한 행을 판정한다
         # (`core/dicom_settings.STORAGE_SCP_USE_TYPE` 주석 참고).
@@ -168,7 +168,7 @@ def run(ctx):
         r.add(1, "[전제] Storage 설정의 Send Dose SR", PASS if send_dose_sr else SKIP,
               expected="CONFIGURATION.DICOM_STORAGE.SendDoseSR = 1",
               actual=storage_row,
-              note="사양서1 125쪽 SRS 06-30-30 — 'Send Dose SR 옵션이 활성화되어 "
+              note="사양서 599쪽 SRS 06-30-30 — 'Send Dose SR 옵션이 활성화되어 "
                    "있을 때' 만 Dose SR 을 전송한다. 꺼져 있으면 Dose SR 판정을 "
                    "SKIP 하고 영상 전송만 본다(끄는 것도 정상 설정이다).")
 
@@ -275,7 +275,7 @@ def run(ctx):
         # 접두사를 줄여 억지로 통과시키지 않고, 읽지 못한 패널을 아래에 남긴다.
         pid_panels = [k for k, v in preview_hits.items() if v["Patient ID"]]
         # 선량 Overlay 는 **영상 종류마다 표시 가능한 값이 다르다** —
-        # 사양서1 233쪽 SRS 03-50-10 의 표: Dose kVp/mAs 는 2D O / 3D Raw O /
+        # 사양서 723쪽 SRS 03-50-10 의 표: Dose kVp/mAs 는 2D O / 3D Raw O /
         # 3D Recon X / 3D Sync X. 라벨은 어느 종류에나 찍히고 값 자리에 `--` 가
         # 들어간다(실측 크롭). 그래서 라벨 유무가 아니라 **값이 찍혔는가**로
         # 갈라 사양표와 대조한다(`image_overlay.dose_state`).
@@ -287,7 +287,7 @@ def run(ctx):
         # **패널마다 종류를 판별해 사양표와 대조한다.**
         #
         # 패널 수를 전송 대상 수와 맞추려 하지 않는다 — Pre-send Preview 는
-        # 사양서1 132쪽이 정한 대로 **기본 Layout 1x2** 라 전송 대상이 3건이어도
+        # 사양서 778쪽이 정한 대로 **기본 Layout 1x2** 라 전송 대상이 3건이어도
         # 한 번에 2개만 보여준다(2026-08-28 실측: sendable 3건 / 패널 2개).
         # 그래서 "보이는 패널 각각이 그 종류의 사양대로 찍혔는가" 로 판정한다.
         # 종류는 패널 Overlay 의 View Position 표기로 읽는다 — 3D 는
@@ -347,11 +347,11 @@ def run(ctx):
                  "Bottom 에 추가한 항목이고, 환자 ID·생년월일은 DB 값과 대조한다. "
                  "선량은 **패널마다 종류를 판별해** 사양표와 대조한다 — "
                  f"{image_overlay.DOSE_SPEC_CITE}. 전송 대상은 2D 와 3D Recon "
-                 "이므로(사양서1 125쪽 SRS 06-30-30 '3D 영상은 Recon 영상이 "
+                 "이므로(사양서 599쪽 SRS 06-30-30 '3D 영상은 Recon 영상이 "
                  "전송된다') 2D 패널에는 값이 찍혀야 하고, Recon 패널이 "
                  "`-- kVp`/`-- mAs` 로 나오는 것이 **사양대로의 정상**이다. "
-                 "패널 수를 전송 대상 수와 맞추지 않는다 — Preview 는 사양서1 "
-                 "132쪽 '기본 Layout 은 1x2' 라 대상이 3건이어도 2개만 보인다"
+                 "패널 수를 전송 대상 수와 맞추지 않는다 — Preview 는 사양서 "
+                 "778쪽 '기본 Layout 은 1x2' 라 대상이 3건이어도 2개만 보인다"
                  "(2026-08-28 실측). 종류는 패널 Overlay 의 View Position 표기"
                  "(`LCC (3D-N)`)로 읽는다.")
         if unread_dose:
@@ -442,7 +442,7 @@ def run(ctx):
             return bool(rows) and all(int(q["State"]) == sv.QUEUE_STATE_DONE
                                       for q in rows)
 
-        # 영상뿐 아니라 **Dose SR 행까지** Done 을 기다린다. 사양서1 288쪽
+        # 영상뿐 아니라 **Dose SR 행까지** Done 을 기다린다. 사양서 778쪽
         # SRS 03-50-250 이 이 경로(Examined + Send Preview + 모든 영상)에서
         # Dose SR 전송을 요구하므로, 영상만 기다리고 판정하면 아직 진행 중인
         # Dose SR 을 "실패" 로 잘못 읽는다.
@@ -469,7 +469,7 @@ def run(ctx):
 
         # --- Step 5-b: Dose SR 이 Queue 에 등록되었는가 (사양) ---------------
         #
-        # 사양서1 **288쪽 SRS 03-50-250**:
+        # 사양서 **778쪽 SRS 03-50-250**:
         #   "Dose SR 은 Examine/View 모드에서 Send Preview 버튼을 클릭했을 경우
         #    전송되지 않는다. (Examine/View 모드의 Send 버튼 클릭 동작과 사양 동일)
         #    **Examined 모드에서 Send Preview 버튼을 클릭했을 경우 모든 영상을
@@ -486,7 +486,7 @@ def run(ctx):
                 bool(dose_sr),
                 expected="DICOM_STORAGE_QUEUE 에 DataType=1(Dose SR) 행 1건 이상",
                 actual={"dose_sr_rows": dose_sr, "image_rows": len(images)},
-                note="사양서1 288쪽 SRS 03-50-250 — \"Examined 모드에서 Send Preview "
+                note="사양서 778쪽 SRS 03-50-250 — \"Examined 모드에서 Send Preview "
                      "버튼을 클릭했을 경우 모든 영상을 선택했을 경우에만 Dose SR 을 "
                      "전송한다\". 같은 사양이 Examine/View 모드의 Send Preview 는 "
                      "전송하지 않는다고 못박으므로, **경로를 지킨 이 실행에서는 "
@@ -497,7 +497,7 @@ def run(ctx):
             r.add(5, "Dose SR 이 Queue 에 등록", SKIP,
                   expected="Storage 설정의 Send Dose SR 활성화 상태에서만 판정",
                   actual={"SendDoseSR": storage_row.get("SendDoseSR")},
-                  note="사양서1 125쪽 SRS 06-30-30 은 Dose SR 전송을 'Send Dose SR "
+                  note="사양서 599쪽 SRS 06-30-30 은 Dose SR 전송을 'Send Dose SR "
                        "옵션이 활성화되어 있을 때' 로 한정한다. 꺼져 있으면 오지 않는 "
                        "것이 정상이라 판정하지 않는다.")
 
@@ -518,7 +518,7 @@ def run(ctx):
                 all(int(q["State"]) == sv.QUEUE_STATE_DONE for q in dose_sr),
                 expected=f"Dose SR 행 전부 State={sv.QUEUE_STATE_DONE}",
                 actual={"dose_sr": dose_sr},
-                note="Expected 6 을 Dose SR 행에도 적용한다. 사양(288쪽 SRS "
+                note="Expected 6 을 Dose SR 행에도 적용한다. 사양(778쪽 SRS "
                      "03-50-250)이 이 경로에서 Dose SR 전송을 요구하므로 등록만이 "
                      "아니라 **완료까지** 본다.")
 
@@ -526,7 +526,7 @@ def run(ctx):
                 if o.get("SOPInstanceUID")}
         expected_uids = {str(i["ImageInstanceUID"]) for i in study["sendable"]}
         # 수신 객체 중 RDSR 은 영상이 아니다 — 제품이 검사 단위로 만드는 보고서라
-        # `DATA.INSTANCE` 에 행이 없고, 사양서1 2163행이 "Dose SR 에서 사용 시
+        # `DATA.INSTANCE` 에 행이 없고, 사양서 571쪽이 "Dose SR 에서 사용 시
         # 내부적으로 영상의 Instance UID 마지막에 '.1.1' 을 붙인다" 고 한다.
         # 영상 UID 대조에 섞으면 "DB 에 없는 UID" 로 잡혀 정상이 FAIL 이 된다.
         rdsr_objects = [o for o in received
@@ -576,7 +576,7 @@ def run(ctx):
                                            "SOPInstanceUID")}
                                          for o in current_rdsr],
                         "mismatch": bad_rdsr},
-                note="사양서1 288쪽 SRS 03-50-250 이 이 경로의 Dose SR 전송을 "
+                note="사양서 778쪽 SRS 03-50-250 이 이 경로의 Dose SR 전송을 "
                      "요구하므로 Queue 등록·완료에 이어 **실제 수신 객체**까지 "
                      "확인한다. SOP Class UID 는 개정본 WF_06 Test Data 가 명시한 "
                      f"{sv.SOP_CLASS_RDSR}(X-Ray Radiation Dose SR Storage, DICOM "

@@ -191,7 +191,7 @@ class EngineIntegrationExtraTests(unittest.TestCase):
         from pypdf import PdfWriter
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            pdf = root/'사양서1.pdf'
+            pdf = root/'사양서.pdf'
             cache = root/'workspace/Cache/Specs'
             writer = PdfWriter()
             writer.add_blank_page(width=72, height=72)

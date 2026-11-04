@@ -4,6 +4,15 @@
 
 ## 2026-11-04
 
+### Changed
+
+- REQ-TRACE-001: 사양 근거를 분권(사양서1·사양서2, 260710판)에서 서버의 통합 사양서로 옮겼다. `core/specs.py`는 `사양서(YYMMDD).pdf` 가운데 가장 늦은 판을 쓴다. `traceability.json`의 사양 인용 63건은 문구로 통합본의 쪽과 SRS를 다시 찾았고, 코드 주석·판정 문구·문서의 쪽 번호도 통합본 기준으로 바꿨다(예: Print Overlay Header 297쪽 → 787쪽).
+- REQ-TRACE-001: 통합본에는 같은 문장이 SRS 없는 변경 메모와 요구사항 본문에 함께 있다. 판정 문구 인용(`specs.cite`)은 SRS ID가 붙은 쪽을 고르고, 추적성 검사는 기록된 쪽에 문장이 있으면 그 쪽을 쓴다. 실측: "설정 가능한 3D Viewposition"이 294쪽 메모와 678쪽 SRS 03-30-20에 함께 있어, 고치기 전에는 294쪽(SRS 없음)을 인용했다.
+
+### Fixed
+
+- REQ-TRACE-001: Send Preview "기본 Layout 1x2" 인용이 Export 경로 규칙 쪽(분권 132쪽)을 가리키던 잘못을 고쳤다. 실제 문장은 통합본 778쪽에 있다.
+
 ### Added
 
 - REQ-KNOW-001: `python run.py sync-knowledge`를 추가했다. 상위 `지식` 폴더를 검증 자료 관리 서버의 Bellalun Viewer 자료 화면과 같게 맞춘다. 바뀐 문서만 받아 크기(SSH는 SHA-256도)를 확인한 뒤 넣고, 같은 문서의 옛 판은 `_이전판/<날짜>/`로 옮긴다. 서버에 없는 로컬 자료는 그대로 둔다. `--install-task --apply`로 평일 11:00 예약 작업을 등록한다.

@@ -118,6 +118,8 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 #### 동작
 `traceability.json`에 TC·모듈·명령과 사양 근거를 연결하고 `automation_scope.json`에
 자동화 범위·제약을 유지한다. 근거가 없는 항목은 미확정 이유를 드러낸다.
+사양서는 `지식` 폴더의 통합본(`사양서(YYMMDD).pdf`) 가운데 가장 늦은 판을 쓰고, 예전 분권 파일은 쓰지 않는다.
+같은 문장이 변경 메모와 요구사항 본문에 함께 있으면 SRS ID가 붙은 쪽(추적성은 기록된 쪽)을 인용한다.
 리포트에도 해당 기준 수행 절차와 기대 결과를 전달한다.
 #### 기대 결과
 검토자가 어떤 체크리스트/사양을 판정 근거로 삼았는지 추적할 수 있다.
@@ -401,7 +403,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
-| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py` | TEST-TRACE-001; `tests/test_result_reports.py` | implemented |
+| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |

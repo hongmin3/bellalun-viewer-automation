@@ -111,13 +111,23 @@ def spec_pages(ctx, source):
     return _spec_cache[source]
 
 
-def locate_in_spec(ctx, source, quote):
-    """(page, srs). 못 찾으면 (None, None)."""
+def locate_in_spec(ctx, source, quote, prefer=None):
+    """(page, srs). 못 찾으면 (None, None).
+
+    통합 사양서에는 같은 문장이 변경 메모와 요구사항 본문에 함께 나오기도 한다
+    (예: "FB 및 CV는 촬영 불가"가 294쪽 메모와 678쪽 SRS 03-30-20에 있다).
+    `prefer`(기록된 쪽)에 문장이 있으면 그 쪽을 쓰고, 없으면 첫 쪽을 쓴다.
+    """
     pages = spec_pages(ctx, source)
     if not pages:
         return None, None
     needle = squash(quote)
-    for i, page_text in enumerate(pages):
+    order = list(range(len(pages)))
+    if prefer and 1 <= prefer <= len(pages):
+        order.remove(prefer - 1)
+        order.insert(0, prefer - 1)
+    for i in order:
+        page_text = pages[i]
         flat, index = [], []
         for j, ch in enumerate(page_text):
             if not ch.isspace():
@@ -200,7 +210,7 @@ def check():
                     problems.append(f"{tc_id}: {doc} 원문에 없는 인용 — "
                                     f"{quote[:60]}")
                 continue
-            page, srs = locate_in_spec(ctx, doc, quote)
+            page, srs = locate_in_spec(ctx, doc, quote, prefer=req.get("page"))
             if page is None:
                 problems.append(f"{tc_id}: {doc} 원문에 없는 인용 — {quote[:60]}")
                 continue

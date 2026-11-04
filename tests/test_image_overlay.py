@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""`core/image_overlay.py` 의 선량·패널 종류 판정 단위 시험.
 
-**실측 OCR 문구를 그대로 고정한다.** 이 판정들은 사양서1 233쪽 SRS 03-50-10
+**실측 OCR 문구를 그대로 고정한다.** 이 판정들은 사양서 723쪽 SRS 03-50-10
 (Dose kVp/mAs: 2D O / 3D Raw O / 3D Recon X / 3D Sync X)을 화면에서 확인하는
 경로인데, OCR 결과가 지저분해서 정규식을 조금만 손봐도 조용히 뒤집힌다.
 2026-08-28 실행에서 실제로 읽힌 문자열을 여기 박아 둔다 — 전처리나 정규식을
@@ -63,7 +63,7 @@ class PanelKindTest(unittest.TestCase):
 
 
 class DoseSpecTableTest(unittest.TestCase):
-    """사양서1 233쪽 SRS 03-50-10 표를 코드가 그대로 들고 있는지."""
+    """사양서 723쪽 SRS 03-50-10 표를 코드가 그대로 들고 있는지."""
 
     def test_value_expected_only_for_2d_and_raw(self):
         self.assertTrue(io_.dose_expected(0))      # 2D

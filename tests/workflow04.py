@@ -31,7 +31,7 @@ r"""TC_Basic_WorkFlow_04 — 2D 수동 DICOM Send.
 
 개정본 Step 2 는 **Selected Images** 로 2D 영상 1개를 보내고 "2D 객체 1개가
 수신된다"(Expected 4)까지 요구한다. All Images 전송은 별개 TC(`WF_06` All Images
-및 Dose SR 전송)이므로 여기서 하지 않는다. 이 경로는 사양서1 173쪽 SRS 03-10-50
+및 Dose SR 전송)이므로 여기서 하지 않는다. 이 경로는 사양서 655쪽 SRS 03-10-50
 ("Examine/View 모드에서 Send/Multi-Send 버튼을 클릭했을 때는 Dose SR 을 전송하지
 않는다")에 따라 **Dose SR 이 오지 않는 것이 정상**이고, 그래서 수신 객체를 정확히
 1건으로 요구할 수 있다.
@@ -154,7 +154,7 @@ def workflow_04(ctx):
                 note="DICOM Conformance Statement V1.3W1 Proposed Presentation "
                      "Context Table의 Digital Mammography X-ray Image Storage - "
                      "For Presentation. 2D 영상임을 SOP Class로 확인한다. "
-                     "이 경로(View 모드 Send)는 사양서1 173쪽 SRS 03-10-50 에 따라 "
+                     "이 경로(View 모드 Send)는 사양서 655쪽 SRS 03-10-50 에 따라 "
                      "Dose SR 을 전송하지 않으므로 수신은 영상 1건뿐이어야 한다.")
     except Exception as exc:
         r.abort(0, "TC_Basic_WorkFlow_04 실행", exc)

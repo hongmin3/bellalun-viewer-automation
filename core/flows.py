@@ -903,7 +903,7 @@ SETTING_MY_SETTINGS = {"export": 2293, "import": 2294}
 
 # Setting > Patient / Display / Tool / Device 하위 페이지 (2026-08-20 실측).
 #
-# 각 항목을 OCR 로 읽어 사양서1 78~80쪽 권한 표의 순서와 대조했다(56개 전부 일치).
+# 각 항목을 OCR 로 읽어 사양서 552~554쪽 권한 표의 순서와 대조했다(56개 전부 일치).
 # **ID 가 화면 순서와 무관하다.** Patient 의 External Device/Barcode/QR Code 는
 # 228/235/236 으로 멀리 떨어져 있고, Device 는 234-226-230-231-229-232-233-227 로
 # 순서가 완전히 뒤섞였다. 연속이라고 추정했으면 전부 틀렸다.
@@ -1383,7 +1383,7 @@ class FlowError(RuntimeError):
 def select_login_id(ui, user_id, tesseract_exe=None):
     """로그인 화면의 ID 콤보에서 `user_id` 를 고른다.
 
-    사양서1 78쪽: ID 입력창은 **등록된 계정 목록**이고 직접 입력이 아니라 선택하는
+    사양서 552쪽: ID 입력창은 **등록된 계정 목록**이고 직접 입력이 아니라 선택하는
     방식이다. 이미 그 계정이 선택돼 있으면 아무것도 하지 않는다.
 
     반환: {"already": bool, "picked": {...}} / 고르지 못하면 예외.
@@ -1597,7 +1597,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
 
     login = cfg["viewer"]["login"]
     if ui.at_login_screen():
-        # ID 입력창은 등록된 계정 목록이다(사양서1 78쪽). 요청한 계정이 선택돼
+        # ID 입력창은 등록된 계정 목록이다(사양서 552쪽). 요청한 계정이 선택돼
         # 있지 않으면 목록에서 고른다 — 고르지 못하면 `ui.login` 의 가드가 잡는다.
         try:
             chosen = select_login_id(
@@ -3069,7 +3069,7 @@ def send_examined_study(ui, scope="all", attempts=4, dialog_timeout=6):
     """**Examined 목록**에서 선택한 검사를 전송한다.
 
     `send_current_study`(Examine 화면의 Send)와 **경로가 다르고, 결과도 다르다.**
-    사양서1 이 둘을 명확히 구분한다.
+    사양서가 이 둘을 명확히 구분한다.
 
       - Storage 옵션에 Send Dose SR 이 켜져 있을 때 Dose SR 을 전송하는 경우:
         **① Examine Mode 에서 자동 전송 옵션이 활성화되어 있을 때,

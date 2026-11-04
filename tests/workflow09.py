@@ -44,7 +44,7 @@ from core import send_verify as sv
 from core import viewer_processing as vp
 from core.result import TCResult, PASS, FAIL, MANUAL, SKIP
 
-# 익명 처리 대상과 기대값 - **사양서1 134쪽 명문**.
+# 익명 처리 대상과 기대값 - **사양서 608쪽 명문**.
 #
 #   "익명 처리되는 환자 정보: Patient ID, Patient Name, Accession Number,
 #    Other Patient ID, Other Patient Name, Birth Date, Age"
@@ -59,7 +59,7 @@ from core.result import TCResult, PASS, FAIL, MANUAL, SKIP
 ANONYMOUS_VALUE = "Unknown"
 ANONYMIZED_PATIENT_TAGS = ("PatientID", "PatientName", "PatientBirthDate")
 
-# Export 경로 규칙 - 사양서1 132쪽.
+# Export 경로 규칙 - 사양서 606쪽.
 #   일반   : 선택한 경로\[Patient ID]_[Patient Name]\[Study Date]_[Study Time]_[Study Key]
 #   익명화 : 선택한 경로\Unknown_Unknown\Anonymous_[StudyKey]
 ANONYMOUS_DIR_MARKERS = ("Unknown_Unknown", "Anonymous_")
@@ -225,7 +225,7 @@ def workflow_09(ctx):
                       for o in anon["objects"] if o.get("PatientName") is not None}
         still_original = anon_ids & {origin.get("PatientID")}
         if anon["objects"]:
-            # 사양서1 134쪽: "Anonymous 체크 시, Patient ID 및 Patient Name은
+            # 사양서 608쪽: "Anonymous 체크 시, Patient ID 및 Patient Name은
             # Unknown으로 표시". 사양이 값을 정했으므로 그 값으로 판정한다.
             ids_ok = anon_ids == {ANONYMOUS_VALUE}
             names_ok = anon_names == {ANONYMOUS_VALUE}
@@ -239,12 +239,12 @@ def workflow_09(ctx):
                         "still_original": sorted(still_original),
                         "origin": {k: origin.get(k)
                                    for k in ANONYMIZED_PATIENT_TAGS}},
-                note="개정본 Expected 7. 근거: 사양서1 134쪽 'Anonymous 체크 시, "
+                note="개정본 Expected 7. 근거: 사양서 608쪽 'Anonymous 체크 시, "
                      "Patient ID 및 Patient Name은 Unknown으로 표시'. 같은 쪽에 "
                      "익명 처리 대상(Patient ID/Name, Accession Number, Other "
                      "Patient ID/Name, Birth Date, Age)과 병원 정보 목록도 있다. "
                      "Patient Name의 DICOM 구분자(^)는 비교 전에 제거한다.")
-            # 사양서1 132쪽의 경로 규칙도 함께 확인한다(참고 판정).
+            # 사양서 606쪽의 경로 규칙도 함께 확인한다(참고 판정).
             dirs = [d for d, _, _ in os.walk(anon["path"])]
             matched = [d for d in dirs
                        if any(m in os.path.basename(d)
@@ -253,7 +253,7 @@ def workflow_09(ctx):
                   expected=r"선택한 경로\Unknown_Unknown\Anonymous_[StudyKey]",
                   actual={"matched_dirs": [os.path.basename(d) for d in matched],
                           "all_dirs": [os.path.basename(d) for d in dirs][:8]},
-                  note="근거: 사양서1 132쪽 Export 경로 규칙. 폴더 규칙은 개정본 "
+                  note="근거: 사양서 606쪽 Export 경로 규칙. 폴더 규칙은 개정본 "
                        "Expected에 없어 참고로만 기록한다.")
         else:
             r.manual(7, "Anonymous Export 결과의 개인정보 익명화",
