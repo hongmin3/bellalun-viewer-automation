@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="a4f976b13b743ad7398eec7ff91a65c65526085aba65722b632482b87a2c4b1c">
+<meta name="spec-source-sha256" content="eb0d1815beac79690b97b7b0f75809627f1640b56c814657966bffcf0c34c26d">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -175,7 +175,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-WU-003">REQ-WU-003</a></td><td data-label="이름">SKIP과 최종 판정의 관계</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-WU-004">REQ-WU-004</a></td><td data-label="이름">실행 전 점검과 검증된 환경 대조</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/env_preflight.py</code>, <code>core/environment_match.py</code>, <code>core/screen_contract.py</code>, <code>verified_environments.json</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-004">TEST-WU-004</a>; <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-WU-005">REQ-WU-005</a></td><td data-label="이름">Windows Update 전후 근거와 변화 감지 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="이름">실패 증거와 반복 실행 통계</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="이름">실패 증거와 반복 실행 통계</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>tests/workflow14.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>, <code>tests/test_workflow14_evidence.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">KNOW</span> 지식 폴더 서버 동기화</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="이름">지식 폴더 서버 동기화</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
@@ -756,10 +756,11 @@ WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Bu
 </section>
 <section class="card kind-req" id="REQ-WU-006">
 <h3><span class="idtag">REQ-WU-006</span> 실패 증거와 반복 실행 통계</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>tests/workflow14.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>, <code>tests/test_workflow14_evidence.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: Viewer 소멸·단계 중단 때 <code>Evidence/failure/</code>에 로그 ±30초·메모리·GDI/USER 핸들·전면 창·WER 덤프 판정을 남긴다. Setting 순회는 페이지별 핸들 수를 기록한다. <code>tools/wu_flake_stats.py</code>로 여러 리포트의 판정 갈림을 센다.</li>
+<li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: WF14 Setting 순회의 페이지별 GDI/USER 핸들이 리포트에 남지 않던 사양·코드 불일치를 고쳤다. Step 7 순회 판정의 actual에 1·2회차 핸들과 증가 요약을 싣는다.</li>
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">
@@ -768,7 +769,7 @@ WU_01은 사용자 지정 MANUAL을 유지하고, Install_01/02 결과와 OS·Bu
 <section class="field"><h4>순서</h4><div class="field-body">
 <ol>
 <li>Viewer가 사라지거나 단계 감시가 끊으면 <code>Evidence/failure/</code>에 JSON을 남긴다. 사건 전후 30초 제품 로그, 메모리 여유, Viewer GDI/USER 핸들 수, 전면 창, 기존 WER 덤프 판정을 담는다.</li>
-<li>Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 <code>page_handles</code>에 기록한다. WU_10 판정의 actual에는 페이지별 증가 요약도 붙는다.</li>
+<li>Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 <code>page_handles</code>에 기록한다. WU_10 판정과 WF14 Step 7 순회 판정의 actual에는 페이지별 핸들과 증가 요약도 붙는다.</li>
 <li>캡처 직전 전면 창이 Viewer가 아니면 오염 후보로 알 수 있게 <code>failure_evidence.capture_guard</code>를 제공한다.</li>
 <li><code>python tools/wu_flake_stats.py &lt;리포트들&gt;</code>은 여러 리포트에서 TC·단계별 판정이 갈린 횟수를 센다.</li>
 </ol>
@@ -983,7 +984,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <h3><span class="idtag">TEST-WU-006</span> 실패 증거와 통계</h3>
 <ul>
 <li>검증 대상: <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>.</li>
-<li>절차: <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.</li>
+<li>절차: <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>, <code>tests/test_workflow14_evidence.py</code>가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.</li>
 <li>Expected Result: 증거 수집은 예외를 내지 않고, 통계는 갈린 TC·단계를 센다.</li>
 </ul>
 </section>
@@ -1036,7 +1037,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-003">REQ-WU-003</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-004">REQ-WU-004</a></td><td data-label="Implementation"><code>core/env_preflight.py</code>, <code>core/environment_match.py</code>, <code>core/screen_contract.py</code>, <code>verified_environments.json</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-004">TEST-WU-004</a>; <code>tests/test_preflight.py</code>, <code>tests/test_environment_match.py</code>, <code>tests/test_screen_contract.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-005">REQ-WU-005</a></td><td data-label="Implementation"><code>core/update_evidence.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-005">TEST-WU-005</a>; <code>tests/test_update_evidence.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="Implementation"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-006">REQ-WU-006</a></td><td data-label="Implementation"><code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>tests/workflow14.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>, <code>tests/test_workflow14_evidence.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="Implementation"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 </tbody>
 </table></div>

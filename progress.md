@@ -5,7 +5,16 @@
 - 완료(코드·단위시험·읽기 전용 실측): REQ-WU-002~006, REQ-TRACE-002, REQ-DIST-005. 단위 643개 OK(skip 2), 정적 검사 7종 이상 없음.
 - 사용자 결정 반영: USB 미확인 WU_09는 `manual`(사용자 위임), update-watch 예약 등록 안 함(필요할 때 수동 실행), `core/ui.py` 공유 windll 원형 6건을 전용 `WinDLL` 사본으로 옮김(기준선 0건).
 - 공용 QA 서버 검증 자료 관리의 Test Case 구역에 WU 체크리스트를 `(TC) R-25-782_Bellalun Viewer_Windows Update 호환성 검증 Checklist.xlsx`로 등록했다. 행·제목은 로컬 기준 체크리스트로 대조했고 WU_12 제목이 Function 열 표기와 같다는 참고 1건이 있다.
-- 승인된 실제 실행: 체인 중간 강제 종료 → `--resume` 재개(목표 PASS 10 / MANUAL 3 비교)와 그 안의 WU_10 Setting 순회 페이지별 핸들 기록. 결과는 이 절에 이어 적는다.
+- 승인된 실제 실행(2026-11-04 23:28 ~ 11-05 01:14, 커밋 `2039d56`, 수정 없는 소스): `run-winupdate`를 WF03 완료 뒤 WF04 진행 중(23:52)에 강제 종료하고 `--resume`으로 이었다.
+  저장점의 8단계를 재사용하고 WF04부터 실행했으며 리포트 meta에 `resumed`·`resume_count=1`·재사용 단계가 남았다. `chain_completed=true`, 감시자 중단 0건.
+  결과 `Reports/Result_WindowsUpdate_20261105_011357.*`: PASS 9 / MANUAL 3 / FAIL 1. 목표(PASS 10 / MANUAL 3)와 다른 것은 WU_04 하나다.
+  WU_04 FAIL은 XIPL_04 Step 8의 실행 예외("Viewer Image Processing window did not open")다. 같은 실행의 XIPL_02는 같은 `open_process`로 통과했고,
+  과거 리포트 219개에 같은 오류가 없으며, 01:37 `run-xipl-04` 단독 재실행은 PASS였다. 1회 발생이라 원인은 확정하지 않았다.
+  WU_09 USB 왕복 PASS(`usb_unverified` 없음). WU_10 페이지별 핸들: 56페이지 모두 측정, GDI 3277→3266·USER 6129→6129로 페이지당 증가가 없었다(3-B 원인 판단 아님).
+  릴리스 게이트는 WU_04 FAIL, 같은 커밋의 기본기능 전체 회귀 없음, 기존 기본기능 리포트의 `source_commit` 없음으로 거부했다.
+- WF14가 Setting 순회의 페이지별 핸들을 리포트에 남기지 않던 SPEC / CODE MISMATCH(REQ-WU-006)를 시험을 먼저 쓰고 고쳤다. Step 7 순회 판정의 actual에 1·2회차 핸들과 증가 요약을 싣는다(판정에는 쓰지 않음). 실물 확인은 다음 WF14 실행에서 한다.
+- 공용 서버 Bellalun 지침은 전문 67,392자 중 앞 약 34,000자가 공통 Skill 머리말이다. 시험·판정·TC 대조 작업은 끝까지 읽도록 AGENTS.md에 적었다.
+- 다음 시작점: WU_04/XIPL_04 예외가 다시 나오면 Process 버튼 클릭 뒤 창 표시 대기를 조사한다. 릴리스 전에는 같은 커밋에서 기본기능 전체 회귀와 실시간 WU를 다시 돌려 게이트를 통과시킨다.
 
 ## 2026-11-04 지식 폴더 서버 동기화 추가 (REQ-KNOW-001)
 

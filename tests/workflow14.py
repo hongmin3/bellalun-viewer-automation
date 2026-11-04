@@ -176,6 +176,20 @@ def _list_summary(sweep_result):
     }
 
 
+def _sweep_handle_evidence(before_vals, after_vals):
+    """두 차례 Setting 순회의 페이지별 Viewer GDI/USER 핸들과 증가 요약(REQ-WU-006).
+
+    NEXT_WORK.md 3-B(51페이지 이후 종료) 조사용 증거다. **판정에 쓰지 않는다.**
+    """
+    from core.failure_evidence import handle_growth
+    out = {}
+    for label, vals in (("1회차", before_vals), ("2회차", after_vals)):
+        handles = (vals or {}).get("page_handles") or {}
+        out[f"{label} 페이지별 핸들"] = handles
+        out[f"{label} 핸들 증가"] = handle_growth(handles)
+    return out
+
+
 def run(ctx):
     r = TCResult("TC_Basic_WorkFlow_14", "Setting Export 및 Import")
     tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
@@ -475,7 +489,9 @@ def run(ctx):
             actual={"1회차 종료": bool(before_vals.get("viewer_died")),
                     "2회차 종료": bool(after_vals.get("viewer_died")),
                     "1회차 읽은 페이지": len(before_vals["pages"]),
-                    "2회차 읽은 페이지": len(after_vals["pages"])},
+                    "2회차 읽은 페이지": len(after_vals["pages"]),
+                    # 3-B 조사용 증거. 원인 판정이 아니다(REQ-WU-006).
+                    **_sweep_handle_evidence(before_vals, after_vals)},
             note="제품 관찰. Setting 페이지를 순회하면 페이지마다 콘텐츠 패널이 "
                  "새로 생기고 이전 것이 남는다 — 2026-08-25 실측으로 51개 페이지를 "
                  "도는 동안 GDI 객체 348->2886, USER 객체 1433->5610 으로 늘고 "

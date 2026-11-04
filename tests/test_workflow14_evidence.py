@@ -38,5 +38,27 @@ class Workflow14EvidenceTests(unittest.TestCase):
         self.assertIn('db_config_diff.json', result.checks[0].note)
 
 
+class Workflow14HandleEvidenceTests(unittest.TestCase):
+    """REQ-WU-006: WF14 Setting 순회도 페이지별 GDI/USER 핸들을 남긴다(판정에는 쓰지 않음)."""
+
+    def test_sweep_handle_evidence_summarises_both_passes(self):
+        helper = getattr(workflow14, '_sweep_handle_evidence', None)
+        self.assertIsNotNone(helper, 'WF14 must expose per-page handle evidence')
+        before = {'page_handles': {'system.general': {'gdi': 100, 'user': 200, 'error': None},
+                                   'system.security': {'gdi': 150, 'user': 282, 'error': None}}}
+        after = {'page_handles': {}}
+        out = helper(before, after)
+        self.assertEqual(out['1회차 페이지별 핸들'], before['page_handles'])
+        self.assertEqual(out['1회차 핸들 증가']['gdi_delta'], 50)
+        self.assertEqual(out['1회차 핸들 증가']['user_delta'], 82)
+        self.assertEqual(out['2회차 페이지별 핸들'], {})
+        self.assertIsNone(out['2회차 핸들 증가']['gdi_delta'])
+
+    def test_missing_page_handles_key_is_tolerated(self):
+        out = workflow14._sweep_handle_evidence({}, {'page_handles': None})
+        self.assertEqual(out['1회차 페이지별 핸들'], {})
+        self.assertIsNone(out['2회차 핸들 증가']['gdi_delta'])
+
+
 if __name__ == '__main__':
     unittest.main()

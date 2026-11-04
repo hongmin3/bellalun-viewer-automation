@@ -382,7 +382,7 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 원인을 아직 모르는 Viewer 종료(NEXT_WORK 3-B)와 `my_settings`(193) 미발견(3-C)을 조사할 근거를 모은다.
 #### 순서
 1. Viewer가 사라지거나 단계 감시가 끊으면 `Evidence/failure/`에 JSON을 남긴다. 사건 전후 30초 제품 로그, 메모리 여유, Viewer GDI/USER 핸들 수, 전면 창, 기존 WER 덤프 판정을 담는다.
-2. Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 `page_handles`에 기록한다. WU_10 판정의 actual에는 페이지별 증가 요약도 붙는다.
+2. Setting 전수 순회(WU_10, WF14)는 페이지마다 Viewer GDI/USER 핸들 수를 `page_handles`에 기록한다. WU_10 판정과 WF14 Step 7 순회 판정의 actual에는 페이지별 핸들과 증가 요약도 붙는다.
 3. 캡처 직전 전면 창이 Viewer가 아니면 오염 후보로 알 수 있게 `failure_evidence.capture_guard`를 제공한다.
 4. `python tools/wu_flake_stats.py <리포트들>`은 여러 리포트에서 TC·단계별 판정이 갈린 횟수를 센다.
 #### 지킬 것
@@ -563,7 +563,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 ### TEST-WU-006 실패 증거와 통계
 
 - 검증 대상: REQ-WU-006.
-- 절차: `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.
+- 절차: `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py`가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.
 - Expected Result: 증거 수집은 예외를 내지 않고, 통계는 갈린 TC·단계를 센다.
 
 ### TEST-TRACE-002 WU 추적성과 정적 자체검사
@@ -606,7 +606,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py` | implemented |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | implemented |
 | REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | implemented |
-| REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py` | implemented |
+| REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `tests/workflow14.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | implemented |
 
 implemented는 기존 문서·테스트와 구현 경로의 연결을 뜻한다.
