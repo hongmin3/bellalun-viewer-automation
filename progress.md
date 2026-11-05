@@ -18,7 +18,7 @@
   - 배포 게이트: `release_gate.py --installed-verification --scope both` 거부 1건(`WF_02` 3D-W 픽스처 FAIL, 알려진 결함 목록 밖). 기록 `work/candidate8-regression/release-gate.json`.
 - 공유 ZIP: 보고서 8개 + 증거 PNG 101개(DICOM 제외, 로그 선택했으나 참조 로그 없음). 같은 PC의 다른 한글·공백 경로 `C:\BellalunAuto 공유 검증\다른 위치 후보8`에서 오프라인으로 manifest SHA-256 109개 일치, HTML 상대 링크 107개 유효, 설치판 `verify-share` 정상 0·누락/변조/추가 각 1. 브라우저 화면 표시·다른 PC는 미실측. 기록 `work/공유 검증/후보8 두 전체 오프라인/verification.json`.
 - 미완료: 사람 `review.json` 검수(검토자 없음), UAC 직접 선택·취소, 다른 OS·계정, 제거, 다른 PC 공유 확인, 배포 게이트 통과.
-- 다음: `WF_02` 처리 방향을 사용자에게 확인한다. (1) 같은 후보8로 `WF_02` 단독 재실행(새 실행·DB 복원 포함이라 승인 필요), (2) 3D-W 대기 근거 조사 후 자동화 수정·새 후보(새 빌드·회귀 승인 필요). 게이트·기대값은 완화하지 않는다.
+- 다음(2026-11-06 사용자 결정): `WF_02` FAIL이 자동화 문제인지 먼저 근거로 확정하고, 자동화 문제면 수정 → 새 후보 → 설치판 두 전체 재회귀 → 게이트 통과까지 진행한다. 기대값·gate는 완화하지 않는다. Claude 세션 한도로 #85를 닫고 AI-Remote-Control Issue #86(Codex `gpt-6.1-sol`, medium)으로 이관했다. 가설·근거 위치는 #86 본문에 있다.
 
 ## 2026-11-05 재부팅 후 OSError 수정·후보7 (Issue #85 이어서)
 
