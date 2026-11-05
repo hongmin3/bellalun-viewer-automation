@@ -2,6 +2,13 @@
 
 현재 사양은 [SPEC.md](SPEC.md), 진행 상태와 과거 검증 근거는 [progress.md](progress.md)에 둔다.
 
+## 2026-11-06 (후보8 설치판 두 전체 회귀)
+
+### Verified
+
+- REQ-DIST-004, REQ-DIST-005, REQ-REGRESSION-001: 수정 소스 `7d5b1fa`로 후보8을 빌드·설치해 기본기능·WU 두 전체를 한 번 실행했다. 기본기능은 PASS 22 / FAIL 3 / MANUAL 1 / SKIP 1, WU는 PASS 10 / SKIP 3이다. 배포 게이트는 기본기능 `WF_02`의 3D-W 촬영 단계 FAIL 1건으로 거부됐다. 이 촬영 중 Viewer가 DB 쿼리 시간 초과를 한 번 냈고 Recon/Syn 등록이 자동화의 대기 시간보다 늦었다. 기대값·대기 시간·gate는 바꾸지 않았다.
+- REQ-QA-004: 새 결과로 만든 공유 ZIP을 같은 PC의 다른 한글·공백 경로에서 오프라인으로 검증했다. manifest 해시 109개·상대 링크 107개가 맞고 누락·변조·추가 대조군은 모두 거부됐다. 다른 PC 확인은 미완료다.
+
 ## 2026-11-05 (XIPL 9784 수신 점검)
 
 ### Fixed

@@ -7,6 +7,18 @@
 - 수정(REQ-QA-005, REQ-REGRESSION-001): `core/preflight.check_xipl`이 상태 값을 읽지 않는다. 원격 포트 0인 9784 소켓이 XIPL.SERVER PID 소유이고 실제 TCP 접속(2초)을 받아야 통과한다. 실패 시험 7건을 먼저 확인했다. 이 PC 실측: 새 점검 `ok=True`, 기존 `-State Listen` 조회 0건.
 - 독립 검토: 막는 결함 없음. 첫 수신 행만 접속하던 점(중간)을 모든 소유 수신 소켓 시도로 고치고 시험을 보강했다. 점검 접속이 XIPL에 남기는 영향은 실측으로 확인했다(서버 로그에 `accepted`/`closed client connection` 정상 기록, 11-04 로그상 다중 클라이언트 index 0~2 수용). 남은 이론상 경우: XIPL이 bind만 하고 다른 프로세스가 같은 포트의 특정 주소로 수신하면 통과할 수 있다(가능성 매우 낮음, 미대응).
 - 검증: 전체 단위시험 794 passed / 2 skipped / 265 subtests, 정적 7종 이상 없음, readiness 실패 0(기존 경고 2).
+- 커밋 `7d5b1fa` push. 후보8: 소스 `7d5b1fa9d75816fe7f7d6112922cd7b6f1059a0f`·dirty=false, 팀 설정 포함 WMI 빌드(PID 5076) 종료 0, 빌드 환경 792 passed / 4 skipped. EXE SHA-256 `B51627CCE41A79D158D5AF87295953D1DC30A1C1444E89849F86DC621BEFD7F1`, Setup `07E6897BC21277F9AD4BEAC72FCF79C3719DD4F14327B49184E761847A3A3551`, build-info `D51F13828DCC5AD825A335482CFA64E8A33CE0E0EDA3F41B434C5FECA45EDF0D`.
+- 후보7 위 무창 업데이트 성공(설치 로그 `Installation process succeeded.`). 설치 EXE·build-info 해시 일치, 통제 파일 `48B2611C…660D` 보존, Users 수정 권한·바로가기 2개 확인. 설치 스크립트의 ACL 계정 이름 변환 예외(기존 문제)는 검사 스크립트로 다시 확인했다(14규칙, 미해석 계정 4).
+- 후보8 실측(22:47): 바로가기 → Explorer 실행에서 프로그램 창 1개, 새 콘솔 0개. [준비 점검] 23행 모두 OK(관리자 권한은 안내), `XIPL 영상 처리: 정상`. 근거 `work/candidate8-regression/`.
+- 실행 전 대조: Baseline `restored-approved-2026-10-15`, DB 4개 BAK SHA-256이 배포 manifest와 일치, Viewer 1.0.12.105·SQL `.\BELLALUN`(호환 목록 안). USB `D:`(`VXVUE1`)·`D:\BellalunWU09` 있음. VXvue 제품·다른 Bellalun 실행 없음.
+- 두 전체 실행: 22:47:48 `tools/run_installed_suites.py --suites run-regression,run-winupdate`를 WMI로 분리 실행(PID 7124). 실행 기록 `C:\BellalunAuto 실행 기록\후보8-full-20261105_224748`(설치 대조 파일 1007개 불일치 0).
+  - 기본기능 `20261105-224754-64d1e3ef`(22:47~00:57, 129.4분, 종료 1): PASS 22 / FAIL 3 / MANUAL 1 / SKIP 1. FAIL은 `WF_14` UPS 미복원·`XIPL_03` Step 9(알려진 제품 결함)와 `WF_02`.
+  - `WF_02` 원인: 개정본 범위(2D·3D-N)는 통과. 자동화 확장 3D-W 촬영에서 Recon/Syn이 75초 대기 안에 DB에 보이지 않아 FAIL(`{0:1,1:2,2:1,3:1}`). 같은 시각 Viewer 로그에 `[DATABASE] 쿼리 시간 제한이 만료되었습니다` 1회와 Recon/Syn 추가(Image84·85, 23:00:47·51)가 있다. 지연과 FAIL의 인과는 확정하지 않았다. Step 6~8 미수행. 같은 후보의 WU 안 `WF_02`는 통과했다. GPU(Quadro P400)는 장치 관리자에 "현재 없음"이고 `No GPUS`는 11-04부터 같다. 대기 시간·기대값은 바꾸지 않았다.
+  - WU `20261106-005725-e724d14d`(00:57~02:43, 리포트 105.4분·실행 기록 105.5분, 종료 0): PASS 10 / SKIP 3(`WU_01/12/13` 사람 수행), FAIL 0. WU 안 `WF_14`는 통과.
+  - 배포 게이트: `release_gate.py --installed-verification --scope both` 거부 1건(`WF_02` 3D-W 픽스처 FAIL, 알려진 결함 목록 밖). 기록 `work/candidate8-regression/release-gate.json`.
+- 공유 ZIP: 보고서 8개 + 증거 PNG 101개(DICOM 제외, 로그 선택했으나 참조 로그 없음). 같은 PC의 다른 한글·공백 경로 `C:\BellalunAuto 공유 검증\다른 위치 후보8`에서 오프라인으로 manifest SHA-256 109개 일치, HTML 상대 링크 107개 유효, 설치판 `verify-share` 정상 0·누락/변조/추가 각 1. 브라우저 화면 표시·다른 PC는 미실측. 기록 `work/공유 검증/후보8 두 전체 오프라인/verification.json`.
+- 미완료: 사람 `review.json` 검수(검토자 없음), UAC 직접 선택·취소, 다른 OS·계정, 제거, 다른 PC 공유 확인, 배포 게이트 통과.
+- 다음: `WF_02` 처리 방향을 사용자에게 확인한다. (1) 같은 후보8로 `WF_02` 단독 재실행(새 실행·DB 복원 포함이라 승인 필요), (2) 3D-W 대기 근거 조사 후 자동화 수정·새 후보(새 빌드·회귀 승인 필요). 게이트·기대값은 완화하지 않는다.
 
 ## 2026-11-05 재부팅 후 OSError 수정·후보7 (Issue #85 이어서)
 
