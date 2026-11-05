@@ -117,8 +117,11 @@ def diagnostics(layout, check_connections=True):
     """조회만 수행한다. 화면 해상도·서비스·DB·설정을 바꾸지 않는다."""
     items = []
 
-    def add(name, ok, detail, fix):
-        items.append({'name': name, 'ok': bool(ok), 'detail': str(detail), 'fix': fix})
+    def add(name, ok, detail, fix, notice=False):
+        row = {'name': name, 'ok': bool(ok), 'detail': str(detail), 'fix': fix}
+        if notice:
+            row['notice'] = True
+        items.append(row)
 
     add('설정 파일', layout.config_path.is_file(), layout.config_path,
         '실행 화면의 PC별 설정에서 경로와 시험 계정을 저장하세요.')
@@ -153,17 +156,36 @@ def diagnostics(layout, check_connections=True):
              ('Windows Update 체크리스트', config.get('winupdate_checklist_xlsx')),
              ('승인 Baseline', config.get('baseline_dir')),
              ('근거 문서', config.get('knowledge_dir'))]
+    xipl_cause = (f"먼저 'XIPL 설치 경로(XIPL_PATH)' 문제를 해결하세요. "
+                  if xipl_problem else '')
     for name, value in paths:
-        add(name, bool(value) and Path(value).exists(), value or '미설정',
-            'PC별 설정에서 설치/승인 자료의 실제 위치를 선택하세요.')
+        found = bool(value) and Path(value).exists()
+        if not value:
+            detail = '미설정'
+        else:
+            detail = value if found else f'위치에 없음: {value}'
+        if name == 'Tesseract OCR':
+            fix = ('Tesseract OCR을 설치한 뒤 PC별 설정에서 tesseract.exe 위치를 선택하세요. '
+                   '설치돼 있으면 자동 탐지를 누르세요.')
+        elif name == 'Viewer':
+            fix = 'Bellalun Viewer가 설치된 PC인지 확인하고 PC별 설정의 자동 탐지 또는 VIEWER.exe 선택을 사용하세요.'
+        else:
+            fix = 'PC별 설정에서 설치/승인 자료의 실제 위치를 선택하세요.'
+        if name.startswith('XIPL ') and not found:
+            fix = xipl_cause + fix
+        add(name, found, detail, fix)
     if os.name == 'nt':
         from core import display, sysinfo
         add('화면 해상도', display.screen_size() == (1920, 1080), display.screen_size(),
             'Windows 디스플레이에서 주 모니터를 1920×1080으로 설정하세요.')
         add('Windows 배율', display.system_dpi() == 96, f'{display.system_dpi()} DPI',
             'Windows 배율을 100%로 설정하세요.')
-        add('관리자 권한', sysinfo.is_elevated(), sysinfo.is_elevated(),
-            '시험 실행 시 나타나는 UAC 요청을 승인하세요.')
+        if sysinfo.is_elevated():
+            add('관리자 권한', True, '관리자 권한으로 실행 중', '')
+        else:
+            # 화면과 점검은 일반 권한이 정상이다. 시험만 시작할 때 승격한다(REQ-DIST-006).
+            add('관리자 권한', True, '일반 권한 화면 · 시험을 시작할 때 UAC로 관리자 권한을 요청합니다',
+                '', notice=True)
         if check_connections:
             from core.db import BellalunDb
             from core import preflight
@@ -179,6 +201,7 @@ def diagnostics(layout, check_connections=True):
                 'SQL Server 인스턴스·Windows 인증·승인된 시험 DB를 확인하세요.')
             xipl = preflight.check_xipl()
             add('XIPL 영상 처리', xipl['ok'], xipl['detail'],
+                ('' if xipl['ok'] else xipl_cause) +
                 '제품 설치와 XIPL.SERVER의 9784 포트 수신 상태를 확인하세요.')
     if check_connections:
         dicom = section(config.get('dicom'))
@@ -201,12 +224,27 @@ def diagnostics(layout, check_connections=True):
 
 def _print_diagnostics(layout):
     rows = diagnostics(layout)
+    problems = [row for row in rows if not row['ok']]
     print(f'BellalunAuto {__version__} 실행 환경 점검 (조회 전용)')
+    if problems:
+        print(f'결론: 시작 전에 해결할 문제 {len(problems)}개 — 아래 [FAIL] 행의 해결 방법을 따르세요.')
+    else:
+        print('결론: 시험을 시작할 수 있습니다.')
     for row in rows:
-        print(f"[{'PASS' if row['ok'] else 'FAIL'}] {row['name']}: {row['detail']}")
+        tag = '안내' if row.get('notice') else ('PASS' if row['ok'] else 'FAIL')
+        print(f"[{tag}] {row['name']}: {row['detail']}")
         if not row['ok']:
             print(f"  해결 방법: {row['fix']}")
-    return 0 if all(row['ok'] for row in rows) else 1
+    return 1 if problems else 0
+
+
+def elevation_failure_message(error_code):
+    """ShellExecuteEx runas 실패를 실제 원인에 맞게 알린다."""
+    if error_code == 1223:
+        return ('[FAIL] UAC 요청을 취소해 시험을 시작하지 않았습니다. 제품·DB·설정은 바뀌지 않았습니다. '
+                '다시 실행하고 UAC 창에서 [예]를 누르세요.')
+    return (f'[FAIL] 관리자 권한으로 시험을 시작하지 못했습니다(Windows 오류 {error_code}). '
+            '제품·DB·설정은 바뀌지 않았습니다. 관리자 계정 사용 가능 여부를 확인하세요.')
 
 
 def _engine(layout, arguments):
@@ -387,8 +425,9 @@ def _elevate(layout, arguments, stop_file=None):
     kernel.GetExitCodeProcess.argtypes = [w.HANDLE, ctypes.POINTER(w.DWORD)]
     kernel.CloseHandle.argtypes = [w.HANDLE]
     if not shell.ShellExecuteExW(ctypes.byref(info)):
-        print('[FAIL] 관리자 권한 요청이 거부됐거나 실행하지 못했습니다.')
-        return 1223
+        error_code = ctypes.get_last_error()
+        print(elevation_failure_message(error_code))
+        return error_code or 1
     try:
         position = 0
         while kernel.WaitForSingleObject(info.hProcess, 250) == 0x102:
@@ -423,7 +462,14 @@ def main(argv=None):
         parser.print_help()
         return 0
     try:
-        layout = resolve_layout(config_path=options.config, workspace=options.workspace)
+        try:
+            layout = resolve_layout(config_path=options.config, workspace=options.workspace)
+        except (OSError, ValueError) as exc:
+            if arguments or options.worker or options.elevation_log:
+                raise
+            # 숨김 콘솔 EXE의 화면 실행은 print가 보이지 않는다. 창으로 원인과 복구를 보인다.
+            from bellalunauto.gui import recover_start
+            return recover_start(exc)
         if options.elevation_log:
             if not options.elevated or not ctypes.windll.shell32.IsUserAnAdmin():
                 raise PermissionError('승격 실행 로그는 관리자 프로세스에서만 사용할 수 있습니다.')

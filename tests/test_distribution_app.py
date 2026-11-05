@@ -283,6 +283,86 @@ class DistributionAppTests(unittest.TestCase):
             row = next(r for r in rows if r['name'] == 'XIPL 설치 경로(XIPL_PATH)')
             self.assertTrue(row['ok'], row)
 
+    def test_unelevated_window_is_notice_not_failure(self):
+        """REQ-DIST-006: 일반 권한 화면에서 매번 FAIL 1행과 종료 코드 1이 나오던 문제."""
+        app = self.app()
+        rows = [{'name': '설정 파일', 'ok': True, 'detail': 'x', 'fix': ''},
+                {'name': '관리자 권한', 'ok': True, 'notice': True,
+                 'detail': '일반 권한 화면 · 시험 시작 때 UAC로 요청', 'fix': ''}]
+        import io
+        from contextlib import redirect_stdout
+        with patch.object(app, 'diagnostics', return_value=rows), redirect_stdout(io.StringIO()) as out:
+            code = app._print_diagnostics(None)
+        text = out.getvalue()
+        self.assertEqual(code, 0, text)
+        self.assertIn('시험을 시작할 수 있습니다', text.splitlines()[1])
+        self.assertIn('[안내] 관리자 권한', text)
+
+    def test_summary_counts_problems_first(self):
+        app = self.app()
+        rows = [{'name': 'Viewer', 'ok': False, 'detail': '미설정', 'fix': 'f'},
+                {'name': 'Tesseract OCR', 'ok': False, 'detail': '미설정', 'fix': 'f'},
+                {'name': '설정 파일', 'ok': True, 'detail': 'x', 'fix': ''}]
+        import io
+        from contextlib import redirect_stdout
+        with patch.object(app, 'diagnostics', return_value=rows), redirect_stdout(io.StringIO()) as out:
+            code = app._print_diagnostics(None)
+        self.assertEqual(code, 1)
+        self.assertIn('시작 전에 해결할 문제 2개', out.getvalue().splitlines()[1])
+
+    def test_elevated_admin_row_is_plain_pass(self):
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        from core import sysinfo
+        with tempfile.TemporaryDirectory() as tmp, patch.object(sysinfo, 'is_elevated', return_value=False):
+            root = Path(tmp)
+            rows = app.diagnostics(Layout(root, root, root/'config.json'), check_connections=False)
+        if os.name != 'nt':
+            self.skipTest('Windows 전용 행')
+        row = next(r for r in rows if r['name'] == '관리자 권한')
+        self.assertTrue(row['ok'])
+        self.assertTrue(row.get('notice'))
+        self.assertIn('UAC', row['detail'])
+
+    def test_path_rows_distinguish_unset_from_missing_and_explain_ocr_install(self):
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root/'config.json'
+            config.write_text(json.dumps({'viewer': {'exe': str(root/'없음'/'VIEWER.exe')},
+                                          'xipl': {'tesseract_exe': ''}}), encoding='utf-8')
+            rows = app.diagnostics(Layout(root, root, config), check_connections=False)
+        viewer = next(r for r in rows if r['name'] == 'Viewer')
+        ocr = next(r for r in rows if r['name'] == 'Tesseract OCR')
+        self.assertIn('위치에 없음', viewer['detail'])
+        self.assertIn('미설정', ocr['detail'])
+        self.assertIn('설치', ocr['fix'])
+
+    def test_xipl_dependent_rows_name_the_root_cause(self):
+        from core import product_env
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root/'config.json'
+            config.write_text('{}', encoding='utf-8')
+            without_xipl = {k: v for k, v in os.environ.items() if k.upper() != 'XIPL_PATH'}
+            with patch.object(product_env, 'registered_environment', return_value={}), \
+                    patch.dict(os.environ, without_xipl, clear=True):
+                rows = app.diagnostics(Layout(root, root, config), check_connections=False)
+        for name in ('XIPL Studio', 'XIPL Parameter'):
+            row = next(r for r in rows if r['name'] == name)
+            self.assertIn('XIPL_PATH', row['fix'], row)
+
+    def test_uac_cancel_message_says_nothing_started(self):
+        app = self.app()
+        cancelled = app.elevation_failure_message(1223)
+        self.assertIn('시작하지 않았', cancelled)
+        self.assertIn('바뀌지 않았', cancelled)
+        other = app.elevation_failure_message(5)
+        self.assertIn('5', other)
+
     def test_guard_preserves_abnormal_exit_notification_and_cleanup(self):
         import io
         from contextlib import nullcontext

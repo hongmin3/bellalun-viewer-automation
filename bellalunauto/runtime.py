@@ -22,6 +22,15 @@ class Layout:
     config_path: Path
 
 
+class PreferencesError(ValueError):
+    """The remembered-workspace file exists but cannot be used. It is left as is."""
+
+    def __init__(self, path: Path, reason: Exception):
+        self.path = Path(path)
+        self.reason = reason
+        super().__init__(f"작업 폴더 기억 파일을 읽지 못했습니다: {self.path} ({type(reason).__name__}: {reason})")
+
+
 def _absolute(path: str | os.PathLike[str]) -> Path:
     return Path(path).expanduser().resolve()
 
@@ -64,18 +73,29 @@ def resolve_layout(
     start with unrelated defaults. A first-run GUI omits config_path.
     """
     resources = _absolute(resource_dir) if resource_dir is not None else _resources()
+    remembered = False
     if workspace is None:
         preference = _preferences_dir(preferences_dir) / "preferences.json"
         if preference.is_file():
-            saved = _read_object(preference).get("workspace")
-            if not isinstance(saved, str) or not Path(saved).is_absolute():
-                raise ValueError("저장된 작업 폴더가 올바른 절대 경로가 아닙니다.")
+            try:
+                saved = _read_object(preference).get("workspace")
+                if not isinstance(saved, str) or not Path(saved).is_absolute():
+                    raise ValueError("저장된 작업 폴더가 올바른 절대 경로가 아닙니다.")
+            except (OSError, ValueError) as error:
+                raise PreferencesError(preference, error) from error
             workspace = saved
+            remembered = True
         else:
             workspace = _preferences_dir() / "workspace"
     work = _absolute(workspace)
     config = _absolute(config_path) if config_path is not None else work / "config.json"
-    _validate_write_paths(work, config)
+    try:
+        _validate_write_paths(work, config)
+    except ValueError as error:
+        if remembered:
+            # 기억된 폴더를 쓸 수 없으면 다시 고르게 한다(재설치로는 풀리지 않는다).
+            raise PreferencesError(_preferences_dir(preferences_dir) / "preferences.json", error) from error
+        raise
     if config_path is not None and not config.is_file():
         raise FileNotFoundError("지정한 설정 파일이 없습니다.")
     return Layout(resources, work, config)
@@ -164,6 +184,24 @@ def remember_workspace(
 ) -> None:
     _atomic_json(_preferences_dir(preferences_dir) / "preferences.json",
                  {"workspace": str(_absolute(workspace))})
+
+
+def replace_corrupt_preferences(
+    workspace: str | os.PathLike[str],
+    preferences_dir: str | os.PathLike[str] | None = None,
+) -> Path:
+    """Keep the unreadable file under a dated name, then remember the new workspace."""
+    from datetime import datetime
+
+    preference = _preferences_dir(preferences_dir) / "preferences.json"
+    backup = preference.with_name(f"preferences.json.손상-{datetime.now():%Y%m%d_%H%M%S}")
+    counter = 1
+    while backup.exists():
+        backup = backup.with_name(f"{backup.name.split('~')[0]}~{counter}")
+        counter += 1
+    os.replace(preference, backup)
+    remember_workspace(workspace, preferences_dir)
+    return backup
 
 
 def _windows_executable_path() -> str:

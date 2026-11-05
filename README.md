@@ -6,6 +6,10 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
+수정 후에는 소스에서 단위시험·정적 검사를 수행하고, 필요한 UI 회귀는 빌드한 EXE로 실행합니다.
+영향 범위에 따라 단독 TC·기본기능·WU·두 묶음 전체를 선택하며, UI 실행 전에 대상·시간·DB 복원 여부를 설명하고 사용자 승인을 받습니다.
+선택 기준과 명령은 [검증 안내](docs/testing-guide.md), 시험한 EXE의 배포 판정은 [배포 안내](docs/distribution-guide.md)에 있습니다.
+
 **최신 설치판 검증(후보11, 2026-10-20~21):** 개발 도구를 뺀 최소 환경에서 후보11 설치 EXE로 기본기능 전체와
 실시간 Windows Update 전체를 끝까지 수행했습니다. 기본기능은 27 TC 중 PASS 23 / FAIL 2(기존 제품 결함) / MANUAL 2입니다.
 Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목표를 달성했습니다.
@@ -22,10 +26,10 @@ Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목�
 배포 PC에는 Python·pip·Git·소스 저장소를 설치하지 않습니다. Viewer·SQL Server·XIPL·OCR와
 시험용 외부 서버는 준비되어 있어야 합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
 
-1. 승인된 내부 `BellalunAuto-<version>-setup.exe`를 설치합니다.
-2. 시작 메뉴에서 BellalunAuto를 열고 설정·결과를 저장할 작업 폴더를 선택합니다.
-3. PC별 설정에서 제품 경로·SQL 인스턴스·서버·시험 계정과 승인 자료 위치를 확인하고 저장합니다.
-4. 실행 환경 점검의 누락 항목을 해결한 뒤 기본기능 또는 실시간 Windows Update 전체 실행을 선택합니다.
+1. 승인된 내부 `BellalunAuto-<version>-setup.exe`를 관리자 권한(UAC [예])으로 설치합니다.
+2. 완료 화면의 "BellalunAuto 열기" 또는 시작 메뉴에서 열고 설정·결과를 저장할 작업 폴더를 선택합니다.
+3. PC별 설정에 미리 채워진 제품·XIPL·OCR 경로를 확인하고 SQL 인스턴스·서버·시험 계정을 입력해 저장합니다.
+4. [준비 점검]의 [FAIL] 행을 해결한 뒤 기본기능 또는 실시간 Windows Update 전체 실행을 선택합니다. 시험 시작 때 UAC를 승인합니다.
 5. 실행이 끝나면 결과 폴더의 HTML·JSON·체크리스트 결과를 확인합니다.
 
 ```powershell

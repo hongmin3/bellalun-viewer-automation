@@ -10,6 +10,9 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
+import subprocess
+import sys
 
 from tools import run_installed_suites as runner
 
@@ -88,6 +91,46 @@ class SnapshotTests(unittest.TestCase):
             self.assertEqual(["Reports/new.json"], [f["path"] for f in out["files"]])
             self.assertTrue(out["verified"])
             self.assertTrue(os.path.isfile(os.path.join(dst, "Reports", "new.json")))
+
+
+class SelectedScopeTests(unittest.TestCase):
+    def test_cli_requires_scope_before_creating_output_or_reading_install(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / "output"
+            script = Path(__file__).resolve().parents[1] / "tools/run_installed_suites.py"
+            proc = subprocess.run([sys.executable, str(script), "--exe", "missing.exe",
+                "--build-info", "missing.json", "--workspace", folder, "--out", str(out)],
+                capture_output=True)
+            self.assertEqual(proc.returncode, 2)
+            self.assertFalse(out.exists())
+
+    def test_cli_help_is_utf8_with_ascii_stdout_environment(self):
+        script = Path(__file__).resolve().parents[1] / "tools/run_installed_suites.py"
+        proc = subprocess.run([sys.executable, str(script), "--help"],
+            env={**os.environ, "PYTHONIOENCODING": "ascii"}, capture_output=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("승인받은", proc.stdout.decode("utf-8"))
+
+    def test_single_tc_report_is_found_and_unrelated_report_ignored(self):
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "Result_single.json"
+            report = {"meta": {"command": "exe run-wf14"}, "results": [
+                {"tc_id": "TC_Basic_WorkFlow_14", "verdict": "PASS"}]}
+            path.write_text(json.dumps(report), encoding="utf-8")
+            found = runner.selected_report(folder, "run-wf14", 0, ["TC_Basic_WorkFlow_14"])
+            self.assertEqual(found["path"], str(path))
+            self.assertIsNone(runner.selected_report(folder, "run-wf03", 0,
+                                                     ["TC_Basic_WorkFlow_03"]))
+
+    def test_scope_must_be_explicit_and_invalid_choices_never_start_product(self):
+        for commands, expected in (("", []), ("reset-environment", []),
+                                   ("run-wf14", []), ("run-wf14,run-winupdate", ["TC_Basic_WorkFlow_14"]),
+                                   ("run-wf14", ["TC_Basic_WorkFlow_03"])):
+            with self.subTest(commands=commands), self.assertRaises(ValueError):
+                runner.validate_selection(commands, expected)
+        self.assertEqual(runner.validate_selection("run-winupdate", []), ["run-winupdate"])
+        self.assertEqual(runner.validate_selection("run-wf14", ["TC_Basic_WorkFlow_14"]), ["run-wf14"])
 
 
 class CleanEnvironmentTests(unittest.TestCase):

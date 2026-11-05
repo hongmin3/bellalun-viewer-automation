@@ -4,9 +4,9 @@
 
 | 항목 | 값 |
 |---|---|
-| Document Version | 1.2.0 |
-| Project Version | BellalunAuto 1.0.0; Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-04 |
+| Document Version | 1.3.0 |
+| Project Version | BellalunAuto 1.0.1; Viewer 제품 릴리스 변경 없음 |
+| Last Updated | 2026-11-05 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -229,8 +229,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 
 ### REQ-DIST-002 실행 화면과 프로세스 관리
 
-명령 없는 실행은 한국어 화면을 연다. 두 전체 실행, 자체진단, 환경 점검, PC별 설정,
-진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령을 유지한다.
+명령 없는 실행은 한국어 화면을 연다. 두 전체 실행, 준비 점검, PC별 설정,
+진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령(`selfcheck`, `portability-check` 포함)을 유지한다.
+화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.
 
 감시 프로세스는 자기 EXE의 명시적 worker 모드로 엔진을 실행한다. worker가 다시 감시 프로세스를
@@ -265,25 +266,73 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 
 설치 폴더 밖 CWD·한글/공백 경로·다른 설치 드라이브·새 셸·설치/재설치/업데이트/제거와
 사용자 자료 보존을 검증한다. 개발 도구/소스 없는 PC 또는 VM 검증의 실제 수행 범위를 기록한다.
-최종 배포 EXE로 기본기능 전체와 실시간 Windows Update 전체를 각각 수행한다.
+최종 배포 EXE로 REQ-REGRESSION-002에 따라 승인받은 범위의 UI 회귀를 수행한다.
 빌드 성공·설치 성공·기동 성공·제품 시험 성공을 구분하며 미수행 검증은 완료로 쓰지 않는다.
 
-### REQ-DIST-005 같은 커밋의 검증 결과를 요구하는 릴리스 게이트
+### REQ-DIST-005 설치판의 승인 범위를 확인하는 릴리스 게이트
 
 #### 하는 일
-정식 빌드 전에 빌드할 소스와 같은 커밋에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과가 목표를 채웠는지 확인한다.
+소스의 단위시험·정적 검사 뒤 검증용 빌드를 만들고, 설치판으로 승인받은 범위를 시험한 결과가 배포 기준을 채웠는지 확인한다. 소스 UI 회귀와 설치판 UI 회귀를 연달아 반복하도록 요구하지 않는다.
 #### 순서
-1. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
-   실행 시작 때 값도 함께 읽는다. 시작 때 커밋(`source_commit_at_start`)이 리포트 때와 다르거나 시작 때부터 수정이 있었으면 `source_dirty`를 참으로 남긴다.
-   WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
-2. WU 결과가 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
-3. 기본기능 결과가 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다.
+1. 설치판 실행 기록의 EXE·build-info·리포트를 다시 읽고 해시, 시험 시작 이후 생성 여부, 선택한 명령과 범위가 맞는지 본다. 설치 파일 검증이 끝났고 모든 선택 실행이 완료돼야 한다. 리포트의 출처는 `build-info`여야 한다.
+2. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
+
+   - 실행 시작 때 값도 함께 읽는다. 시작 때 커밋(`source_commit_at_start`)이 리포트 때와 다르거나 시작 때부터 수정이 있었으면 `source_dirty`를 참으로 남긴다.
+
+   - WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
+3. WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
+4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
+5. 선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.
 #### 결과
-`python tools/release_gate.py`가 항목별 통과·실패와 거부 사유를 보여 준다. `tools/build_distribution.py --gate-wu --gate-basic`은 빌드 전에 같은 판정을 한다.
+`python tools/release_gate.py --installed-verification <기록> --scope <범위>`가 항목별 통과·실패와 거부 사유를 보여 준다. 통과 후 같은 EXE를 배포하며 다시 컴파일하지 않는다. 후보 파일명과 build-info는 보존하고 별도 배포 승인 기록으로 검증을 연결한다. 기존 `--wu --basic`과 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다.
 #### 안 될 때
 게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 `-candidate`를 붙이고 `게이트-미통과-후보.txt`와 build-info에 사유를 남긴다.
 > **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 > **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
+
+### REQ-DIST-006 관리자 설치와 첫 실행 준비
+
+#### 하는 일
+Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자가 고른 시험 순서로 쓴다. 각 단계는 실제 결과만 보여 준다.
+설치나 화면 열기만으로 DB 복원·제품 시험을 시작하지 않는다.
+#### 순서
+1. Setup은 관리자 권한을 요구한다. UAC를 취소하거나 관리자 권한을 얻지 못하면 설치하지 않는다.
+   Setup 안의 한국어 관리자 확인 창은 추가 방어다. 실제로 보이는 화면은 실측 결과로만 배포 안내에 적는다.
+2. 완료 화면에서 "BellalunAuto 열기"를 고를 수 있다. 화면은 설치를 시작한 원래 사용자 권한으로 연다.
+   제품을 조작하는 시험은 시작할 때 UAC로 관리자 권한을 받는다. 시작 메뉴·바탕화면·직접 실행도 같다.
+3. 같은 버전 재설치와 새 버전 업데이트는 기존 설치 위치에 덮어쓴다. 설치 폴더의 `resources`는 새 판으로
+   통째로 바꿔 이전 판 자료가 섞이지 않게 한다. 작업 폴더의 설정·결과·증거·로그는 그대로 둔다.
+4. 첫 실행에서 작업 폴더를 고르면 설정 폼을 열기 전에 로컬 파일 위치를 자동으로 찾아 채운다.
+   Viewer 설치 위치는 Windows 프로그램 목록(이름 `Bellalun`)에서 위치가 하나로 정해질 때만 쓴다. 서버 주소·계정·비밀번호는 추측하지 않는다.
+5. 준비 점검의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
+   일반 권한으로 연 화면의 권한 행은 실패가 아니라 안내로 표시하고 종료 코드에 넣지 않는다.
+6. 점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 "미설정", 적힌 위치에 파일이 없으면 "위치에 없음"으로 나눈다.
+   Tesseract가 없으면 설치를 안내한다. `XIPL_PATH`가 실패하면 XIPL 하위 행에 그 원인을 먼저 해결하라고 적는다.
+#### 결과
+설치 성공·화면 열림·준비 점검 통과·제품 시험 결과를 서로 다른 사실로 남긴다. 미확인 항목을 준비 완료로 표시하지 않는다.
+#### 안 될 때
+- 설정 파일이나 작업 폴더 기억 파일이 손상되면 화면이 조용히 꺼지지 않는다. 오류 창에 파일 위치와 원인을 보이고 손상 파일은 덮어쓰지 않는다.
+- 작업 폴더 기억이 손상되면 작업 폴더를 다시 고르게 한다. 새 폴더를 고른 경우에만 손상 파일을 `preferences.json.손상-<날짜>`로 보관하고 새 값을 쓴다.
+- 설정 파일이 손상되면 파일을 바꾸지 않고, 고치거나 이름을 바꾼 뒤 다시 열도록 안내한다.
+- 복구를 취소하면 기존 파일을 바꾸지 않는다.
+- 시험을 시작할 때 UAC를 취소하면 "시험을 시작하지 않았고 제품·DB는 바뀌지 않았다"고 알리고 종료 코드 1223으로 끝낸다.
+> **참고** VXvue의 관리자 필수 EXE·완료 후 관리자 실행·PC별 baseline 자동 생성은 가져오지 않는다. Bellalun은 일반 권한 화면에서
+> 시험만 승격하고 승인된 Baseline을 복원한다.
+
+### REQ-REGRESSION-002 변경 영향에 따른 검증과 UI 회귀 승인
+
+#### 하는 일
+AI가 변경 영향과 시험 선행조건을 확인해 필요한 최소 UI 회귀 범위를 고른다. 소스에서는 단위시험·정적 검사·문서/리포트 검증처럼 Viewer와 DB를 조작하지 않는 검사를 수행한다. UI 회귀는 빌드한 EXE로 수행한다.
+#### 범위 선택
+- 문서·설명·시험 코드만 바꿨으면 제품 UI 회귀를 하지 않는다.
+- 한 TC 안의 변경이고 공용 계층에 영향이 없으면 해당 단독 TC와 필요한 선행조건만 확인한다.
+- WU 전용 체인·저장점·집계 변경이면 WU만, 기본기능 여러 TC 변경이면 기본기능만 수행한다.
+- UI/OCR·로그인·DB 복원·DICOM·공용 판정/결과·실행 진입점·패키징 런타임 등 두 묶음의 공용 동작을 넓게 바꿨거나 영향 범위를 한정할 근거가 부족하면 기본기능과 WU 전체를 모두 수행한다. 파일 수와 변경 줄 수만으로 결정하지 않는다.
+- 단독 명령이 없거나 선행 데이터가 없어 단독 검증이 성립하지 않으면 필요한 묶음으로 넓힐 이유를 설명하고 다시 승인받는다.
+#### 실행 전 사용자 확인
+UI 회귀를 시작하기 전에 실행할 빌드/EXE, 대상 TC·묶음, 선택 이유, 예상 소요 시간, 마우스·키보드 점유와 DB 복원·설정 변경·USB 사용 여부를 제시하고 사용자의 명시적 답변을 기다린다. 수정 요청만으로 UI 실행을 승인받았다고 보지 않는다.
+
+이미 승인받은 빌드와 범위의 계획된 실행은 같은 승인을 쓴다. 새 빌드로 바뀌거나 범위 확대·재실행·새 DB 복원 등 승인 내용이 달라지면 다시 묻는다. 단위시험·정적 검사·읽기 전용 결과 확인에는 이 UI 승인을 요구하지 않는다.
 
 ### REQ-WU-001 USB 왕복과 설정 전수 검사
 
@@ -600,6 +649,23 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.
 - Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.
 
+### TEST-DIST-006 관리자 설치와 첫 실행 준비
+
+- 검증 대상: REQ-DIST-006, REQ-DIST-002.
+- 단위시험: `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`로 다음을 확인한다.
+  - 준비 점검의 요약 줄, 권한 안내 행, 미설정과 위치에 없음의 구분, XIPL 원인 표시
+  - 손상 파일 보존과 UAC 취소 문구, 레지스트리 후보가 하나일 때만 Viewer 위치를 채우는지
+  - Setup 스크립트의 관리자 확인·`runasoriginaluser` 완료 후 실행·`resources` 교체 항목
+- 실측: 빌드한 Setup으로 관리자 설치, 일반 권한 시작과 UAC 취소, 완료 후 열기, 시작 메뉴·바탕화면·직접 실행, 기존 설치 위 업데이트와 작업 폴더 보존을 확인한다.
+  사람이 UAC 버튼을 눌러야 하는 항목은 실제로 누른 결과만 기록한다. 이미 관리자로 시작한 Setup의 완료 후 열기 권한도 따로 기록한다.
+- Expected Result: 설치·실행만으로 제품 시험이 시작되지 않고, 누락이나 실패를 준비 완료로 표시하지 않는다.
+
+### TEST-REGRESSION-002 선택 범위의 설치판 검증
+
+- 검증 대상: REQ-REGRESSION-002, REQ-DIST-004, REQ-DIST-005.
+- 절차: `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py`로 명시적 범위와 단독 TC 리포트 선택을 확인한다. 실제 제품을 실행하지 않고 임시 EXE·build-info·리포트·실행 기록으로 WU만·기본기능만·단독 TC 수용, 다른 EXE·커밋·소스 출처·결과 변조·미완료·새 결함 거부를 확인한다. CLI로 배포 판정 JSON을 생성하고 읽어 대조한다.
+- Expected Result: 선택하지 않은 묶음 때문에 실패하지 않으며 누락·변조·범위 밖 결과로 통과하지 않는다. 이 시험은 제품 UI 수행 근거가 아니다. UI 실행 승인은 AGENTS와 검증 안내의 사용자 확인 절차를 따른다.
+
 ### TEST-KNOW-001 지식 폴더 동기화
 
 - 검증 대상: REQ-KNOW-001.
@@ -613,6 +679,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
+| REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
@@ -624,7 +691,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | implemented |
-| REQ-DIST-005 | `tools/release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; `tests/test_release_gate.py`, `tests/test_distribution_build.py` | implemented |
+| REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py` | implemented |
+| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | implemented |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py` | implemented |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py` | implemented |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | implemented |

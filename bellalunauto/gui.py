@@ -142,9 +142,69 @@ def validate_config(config: dict) -> list[str]:
     return errors
 
 
+VIEWER_DISPLAY_NAME = "Bellalun"
+_UNINSTALL_KEYS = (r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                   r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
+
+
+def _uninstall_entries() -> list[dict]:
+    """Windows 프로그램 목록(HKLM)을 읽기만 한다."""
+    try:
+        import winreg
+    except ImportError:
+        return []
+    entries = []
+    for base in _UNINSTALL_KEYS:
+        try:
+            root = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base)
+        except OSError:
+            continue
+        with root:
+            index = 0
+            while True:
+                try:
+                    name = winreg.EnumKey(root, index)
+                except OSError:
+                    break
+                index += 1
+                try:
+                    with winreg.OpenKey(root, name) as key:
+                        entry = {}
+                        for field in ("DisplayName", "InstallLocation"):
+                            try:
+                                entry[field] = str(winreg.QueryValueEx(key, field)[0])
+                            except OSError:
+                                entry[field] = ""
+                        entries.append(entry)
+                except OSError:
+                    continue
+    return entries
+
+
+def registered_viewer_locations() -> list[Path]:
+    """이름이 정확히 Bellalun인 설치 항목의 위치. 비슷한 이름(BellalunAuto)은 제외한다."""
+    return [Path(entry["InstallLocation"]) for entry in _uninstall_entries()
+            if entry.get("DisplayName", "").strip() == VIEWER_DISPLAY_NAME
+            and entry.get("InstallLocation", "").strip()]
+
+
+def _single_viewer_location() -> Path | None:
+    found = {}
+    for location in registered_viewer_locations():
+        if location.is_dir():
+            resolved = location.resolve()
+            found[os.path.normcase(str(resolved))] = resolved
+    # 위치가 둘 이상이면 고르지 않는다. 사람이 PC별 설정에서 선택한다.
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
 def detect_settings(config: dict) -> dict[str, str]:
     """읽기 전용 파일 탐지. 저장 없이 확인 폼에만 후보를 채운다."""
     values = {key: str(_get(config, key) or "") for _, key, _, _ in form_fields(config)}
+    if not values["install_dir"]:
+        location = _single_viewer_location()
+        if location is not None:
+            values["install_dir"] = str(location)
     candidates = {
         "viewer.exe": [Path(values["install_dir"]) / "VIEWER.exe"] if values["install_dir"] else [],
         "xipl.studio_exe": [Path("C:/XIPL/STUDIO_X64/XIPL.STUDIO.exe")],
@@ -165,6 +225,25 @@ def detect_settings(config: dict) -> dict[str, str]:
                 values[key] = str(path.resolve())
                 break
     return values
+
+
+def first_run_config(config: dict) -> dict:
+    """첫 실행 폼을 열기 전에 찾은 로컬 경로만 반영한다. 서버·계정은 건드리지 않는다.
+
+    첫 실행 설정은 배포 기본값뿐이다. 기본값의 예시 경로가 이 PC에 없으면 비운 뒤 탐지한다.
+    """
+    kinds = {key: kind for _, key, _, kind in form_fields(config)}
+    blank = {}
+    for key, kind in kinds.items():
+        value = str(_get(config, key) or "")
+        if kind in ("file", "dir") and value and not Path(value).exists():
+            blank[key] = ""
+    if blank:
+        config = merge_form_config(config, blank)
+    detected = detect_settings(config)
+    changed = {key: value for key, value in detected.items()
+               if value != str(_get(config, key) or "")}
+    return merge_form_config(config, changed)
 
 
 def load_gui_config(layout) -> dict:
@@ -376,7 +455,52 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
     return result[0] if result else None
 
 
-def launch(layout) -> int:
+def config_error_text(layout, error) -> str:
+    """손상된 설정의 위치와 원인을 알린다. 파일은 바꾸지 않는다."""
+    return (f"설정 파일을 읽지 못했습니다.\n\n위치: {layout.config_path}\n원인: {type(error).__name__}: {error}\n\n"
+            "파일은 바꾸지 않았습니다. JSON 형식을 고치거나 파일 이름을 바꾼 뒤 다시 여세요. "
+            "이름을 바꾸면 처음 실행처럼 설정 폼이 열립니다.")
+
+
+def recover_start(error) -> int:
+    """화면 시작 전 경로 오류. 작업 폴더 기억이 손상되면 다시 고르게 하고, 취소하면 아무것도 바꾸지 않는다."""
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+    from .runtime import PreferencesError, replace_corrupt_preferences, resolve_layout
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        if not isinstance(error, PreferencesError):
+            messagebox.showerror("BellalunAuto 시작 실패", f"{error}\n\n설치를 다시 하거나 작업 폴더 접근 권한을 확인하세요.", parent=root)
+            return 2
+        if not messagebox.askokcancel(
+                "작업 폴더 기억 손상",
+                f"{error}\n\n작업 폴더를 다시 선택하세요. 기존 파일은 '손상-날짜' 이름으로 보관합니다.\n"
+                "취소하면 아무것도 바꾸지 않고 종료합니다.", parent=root):
+            return 2
+        while True:
+            chosen = filedialog.askdirectory(parent=root, title="BellalunAuto 작업 폴더 다시 선택 (설정·결과·증거·로그)", mustexist=False)
+            if not chosen:
+                return 2
+            try:
+                # 먼저 검증한다. 쓸 수 없는 폴더면 기억 파일을 바꾸지 않고 다시 고르게 한다.
+                layout = resolve_layout(workspace=chosen)
+                replace_corrupt_preferences(chosen)
+                break
+            except (OSError, ValueError) as problem:
+                messagebox.showerror("작업 폴더를 쓸 수 없음", f"{chosen}\n\n{problem}\n\n다른 폴더를 고르세요. 기존 파일은 바꾸지 않았습니다.", parent=root)
+    finally:
+        root.destroy()
+    return launch(layout, workspace_chosen=True)
+
+
+def workspace_error_text(workspace, error) -> str:
+    return (f"작업 폴더를 사용할 수 없습니다.\n\n위치: {workspace}\n원인: {type(error).__name__}: {error}\n\n"
+            "설치 폴더 밖의 쓰기 가능한 폴더를 고른 뒤 다시 여세요. 기존 파일은 바꾸지 않았습니다.")
+
+
+def launch(layout, workspace_chosen=False) -> int:
     """Tk 이벤트 루프. 호출만으로 제품 시험이나 DB 복원을 시작하지 않는다."""
     import tkinter as tk
     from tkinter import filedialog, messagebox, scrolledtext, ttk
@@ -388,16 +512,26 @@ def launch(layout) -> int:
     root.title(f"BellalunAuto {__version__}")
     root.geometry("960x720")
     first_run = not Path(layout.config_path).exists()
-    if first_run:
+    if first_run and not workspace_chosen:
         chosen = filedialog.askdirectory(parent=root, title="BellalunAuto 작업 폴더 선택 (설정·결과·증거·로그)", initialdir=str(layout.workspace), mustexist=False)
         if not chosen:
             root.destroy()
             return 0
-    try:
-        if first_run:
+        try:
             layout = resolve_layout(workspace=chosen, resource_dir=layout.resource_dir)
+        except (OSError, ValueError) as error:
+            messagebox.showerror("작업 폴더 확인", workspace_error_text(chosen, error), parent=root)
+            root.destroy()
+            return 1
+    try:
         config = load_gui_config(layout)
-        if first_run:
+    except (OSError, ValueError) as error:
+        messagebox.showerror("설정 불러오기 실패", config_error_text(layout, error), parent=root)
+        root.destroy()
+        return 1
+    if first_run:
+        try:
+            config = first_run_config(config)
             root.deiconify()
             updated = _settings_dialog(root, layout, config, first_run=True)
             if updated is None:
@@ -405,10 +539,10 @@ def launch(layout) -> int:
                 return 0
             config = updated
             remember_workspace(layout.workspace)
-    except (OSError, ValueError) as error:
-        messagebox.showerror("설정 불러오기 실패", str(error), parent=root)
-        root.destroy()
-        return 1
+        except (OSError, ValueError) as error:
+            messagebox.showerror("작업 폴더 확인", workspace_error_text(layout.workspace, error), parent=root)
+            root.destroy()
+            return 1
     controller = RunController(layout, config)
     root.deiconify()
     ttk.Label(root, text=f"BellalunAuto {__version__}", font=("맑은 고딕", 19, "bold"), padding=12).pack(anchor="w")
@@ -462,7 +596,8 @@ def launch(layout) -> int:
         status.set(f"실행 중: {action} · 로그: {controller.log_path.name}")
         append(f"\n실행 시작: {action}\n")
 
-    for label, action in (("기본기능 전체 실행", "run-regression"), ("Windows Update 실시간 전체 실행", "run-winupdate"), ("자체진단", "selfcheck"), ("환경 점검", "portability-check")):
+    # selfcheck와 portability-check는 같은 점검이라 화면에는 하나만 둔다(REQ-DIST-002).
+    for label, action in (("준비 점검", "selfcheck"), ("기본기능 전체 실행", "run-regression"), ("Windows Update 실시간 전체 실행", "run-winupdate")):
         button = ttk.Button(toolbar, text=label, command=lambda selected=action: run(selected))
         button.pack(side="left", padx=4)
         buttons.append(button)
@@ -515,7 +650,10 @@ def launch(layout) -> int:
             for line in controller.drain():
                 append(line)
             code = controller.process.returncode
-            status.set(f"실행 종료 · 종료 코드 {code} · 새 리포트의 TC별 판정을 확인하세요.")
+            if code == 1223:
+                status.set("시험을 시작하지 않았습니다 · UAC를 취소했습니다. 제품·DB는 바뀌지 않았습니다.")
+            else:
+                status.set(f"실행 종료 · 종료 코드 {code} · 새 리포트의 TC별 판정을 확인하세요.")
             active[0] = False
             set_busy(False)
             if close_requested[0]:

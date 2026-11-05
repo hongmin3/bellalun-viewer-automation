@@ -41,12 +41,21 @@ python -m pip install -r requirements.txt
 Copy-Item config.example.json config.json   # 로컬 값 입력; 커밋 금지
 python run.py portability-check
 python run.py list
-python tools/run_regression.py              # 전체 회귀 권장 진입점
+python tools/run_regression.py              # 소스 UI 진단용(실행 전 사용자 승인 필요)
 python run.py --help                        # 개별 명령 확인
 ```
 
 코드 검증 순서와 외부 환경 제약은 필요할 때 `docs/testing-guide.md`를 읽는다.
 문서만 바꾼 경우 실제 Viewer/UI 회귀 대신 링크·명령·diff를 검증한다.
+
+### 수정 후 검증과 UI 회귀 승인
+
+- 기준은 SPEC의 REQ-REGRESSION-002다. 소스에서 단위시험·정적 검사 등 제품을 조작하지 않는 검사를 하고, 필요한 UI 회귀는 빌드한 EXE로 한 번 수행한다. 소스 전체 UI 회귀 뒤 설치판 전체 UI 회귀를 관례로 반복하지 않는다.
+- 변경의 영향을 판단해 단독 TC, WU만, 기본기능만, 두 묶음 전체 중 최소한의 충분한 범위를 고른다. 공용 UI/OCR·로그인·DB 복원·DICOM·판정/결과·실행 계층을 넓게 바꿨거나 영향 범위를 한정하지 못하면 두 묶음 전체다. 파일 수나 줄 수만으로 정하지 않는다.
+- **UI 회귀 전에는 반드시 사용자에게 묻고 답변을 기다린다.** 빌드/EXE, 대상과 선택 이유, 예상 시간, 마우스·키보드 점유, DB 복원·설정 변경·USB 사용을 제시한다. 코드 수정 요청은 UI 실행 승인이 아니다.
+- 같은 빌드·범위·계획된 실행의 승인은 다시 묻지 않는다. 새 빌드, 범위 확대, 별도 재실행, 추가 DB 복원은 다시 확인한다. 단독 TC의 선행조건이 없다고 전체 회귀를 자동 실행하지 않는다.
+- 단위시험·정적 검사·읽기 전용 결과 확인은 UI 실행 승인을 기다리지 않고 수행한다. 문서·시험·운영 도구만 바꾸고 제품 실행 경로가 바뀌지 않았다면 제품 UI 회귀를 생략한다.
+- 범위별 명령·선행조건·승인 요청 양식은 `docs/testing-guide.md`, 빌드와 배포 판정은 `docs/distribution-guide.md`를 따른다.
 
 ## 절대 변경하거나 훼손하지 말 것
 

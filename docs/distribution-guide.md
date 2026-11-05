@@ -5,23 +5,24 @@ Viewer·SQL Server·Tesseract OCR과 시험에 필요한 외부 서버/USB는 �
 설치 성공, 프로그램 기동, 제품 시험 성공은 각각 구분하여 기록한다.
 
 이 안내서는 설치·설정·실행 방법을 설명한다. 전달받은 패키지의 실제 검증 범위는
-별도 최종 검증 보고서의 실행파일 SHA256, 두 전체 실행 결과와 설치 기록으로 확인한다.
+별도 배포 승인 기록의 실행파일 SHA256, 승인받은 범위의 시험 결과와 설치 기록으로 확인한다.
 `build-info.json`은 빌드 정보를 담으며 빌드 성공만으로 설치·제품 시험 성공을 뜻하지 않는다.
 아래 절차는 검증·승인된 내부 패키지를 전달받은 뒤 적용한다.
 
 ## 팀원 설치와 첫 실행
 
 1. 배포 담당자가 제공한 `SHA256SUMS.txt`와 설치 파일 해시를 `Get-FileHash -Algorithm SHA256`으로 대조한다.
-2. `BellalunAuto-<version>-setup.exe`를 실행한다. 관리자가 설치하며 드라이브와 설치 폴더를 선택할 수 있다.
-3. 시작 메뉴의 BellalunAuto에서 설치 폴더 밖 쓰기 가능한 작업 폴더를 선택한다.
-4. 설정에서 대상 PC의 Viewer/SQL/서버/OCR 경로와 값을 입력한다. 예시값은 대상 환경의 값으로 바꾼다.
-5. 자체진단·환경 점검 후 기본기능 전체 또는 Windows Update 전체를 실행한다.
+2. `BellalunAuto-<version>-setup.exe`를 실행하고 UAC에서 [예]를 누른다. UAC를 취소하거나 관리자 권한을 얻지 못하면 설치하지 않는다(화면 동작은 아래 실측 기록).
+3. 완료 화면의 "BellalunAuto 열기"(설치를 시작한 사용자 권한) 또는 시작 메뉴에서 설치 폴더 밖 작업 폴더를 선택한다.
+4. 설정 폼에는 이 PC에서 찾은 Viewer·XIPL·OCR 위치가 미리 채워진다. 서버 주소·계정은 직접 입력한다.
+5. [준비 점검]의 첫 줄이 "시험을 시작할 수 있습니다"인지 본다. 그 뒤 기본기능 전체 또는 Windows Update 전체를 실행한다.
+   시험을 시작할 때 UAC로 관리자 권한을 요청한다. 취소하면 시험을 시작하지 않는다(REQ-DIST-006).
 6. 작업 폴더의 Reports/Evidence에서 결과와 증거를 확인한다. FAIL/MANUAL/SKIP을 PASS로 해석하지 않는다.
 
 설치 후 새 CMD/PowerShell의 `BellalunAuto --version`과 Win+R의 `BellalunAuto`를 사용할 수 있다.
 기존 셸은 다시 열어 PATH 변경을 받는다. 기존 PATH의 같은 항목은 대소문자·인용부호·마지막 구분자를
 정규화하여 중복 추가하지 않는다. 다른 PATH 항목의 순서와 문자열은 보존한다.
-업데이트는 같은 AppId로 수행한다. 제거는 설치 프로그램이 추가했다고 기록한 PATH 토큰만 제거하며,
+업데이트는 같은 AppId로 같은 위치에 수행하고, 설치 폴더의 `resources`는 새 판으로 통째로 바꾼다. 제거는 설치 프로그램이 추가했다고 기록한 PATH 토큰만 제거하며,
 외부 작업 폴더의 설정·결과·증거를 지우지 않는다. 설치 직후 제품 시험은 자동 실행하지 않는다.
 
 포터블 사용자는 ZIP을 전용 폴더에 풀고 `BellalunAuto.exe`를 실행한다.
@@ -58,21 +59,31 @@ work\buildenv\Scripts\python.exe tools/build_distribution.py --assets <승인 ma
 
 ### 릴리스 게이트 (REQ-DIST-005)
 
-정식 빌드에는 같은 커밋·수정 없는 소스에서 나온 실시간 WU 결과와 기본기능 전체 회귀 결과를 함께 준다.
+소스에서는 단위시험·정적 검사만 수행하고 검증용 후보를 빌드한다. 소스의 기본기능·WU UI 전체 실행을 빌드의 선행조건으로 요구하지 않는다.
 
 ```powershell
-python tools/release_gate.py --wu <Result_WindowsUpdate_*.json> --basic <Result_*.json> --commit-from-git
-python tools/build_distribution.py --assets <승인 manifest> --output <빈 폴더> --iscc <ISCC.exe> --gate-wu <WU json> --gate-basic <기본 json>
+python tools/build_distribution.py --assets <승인 manifest> --output <빈 폴더> --iscc <ISCC.exe>
 ```
 
-게이트는 다음을 모두 만족해야 통과한다.
+설치 뒤 [변경 영향별 검증 기준](testing-guide.md)에 따라 사용자에게 UI 범위를 승인받고 해당 EXE로 한 번 수행한다. 아래 `--scope`는 `both`, `basic`, `wu`, `tc` 중 승인받은 범위다. 단독 TC는 `--expected-tc <ID>`도 지정한다.
 
-- 두 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`다.
-- WU 결과가 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13)이다. 2026-11-05 이전 리포트는 같은 셋이 MANUAL로 기록돼 있다.
-- 기본기능 결과가 전체 회귀이고, `KNOWN_DEFECT_EXCLUDE`에 등록된 결함 밖의 FAIL·BLOCKED가 없다.
+```powershell
+python tools/release_gate.py --installed-verification <verification.json> --scope wu --commit <빌드 SHA> --output <새 배포 승인 기록.json>
+```
 
-게이트 입력이 없거나 통과하지 못해도 빌드는 할 수 있다. 그때 산출물 이름에 `-candidate`가 붙고
+설치판 게이트는 다음을 모두 만족해야 통과한다.
+
+- EXE·설치 파일·build-info가 시험 때와 같고 컴파일·소스 시험을 생략하지 않았다. 선택한 실행이 완료됐으며 새 리포트의 해시·명령이 기록과 같다.
+- 선택한 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`, 출처가 `build-info`다. 소스 실행 결과를 설치판 결과로 받지 않는다.
+- WU를 선택했으면 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13)이다.
+- 기본기능을 선택했으면 전체 회귀이며 `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없다. 단독 TC는 지정 TC를 모두 수행했는지와 같은 FAIL·BLOCKED·사람 전용 SKIP 기준을 확인한다.
+
+선택하지 않은 묶음의 리포트는 요구하지 않는다. 시험 범위·미수행 범위와 선택 이유를 승인 기록과 함께 전달한다. 통과한 EXE·설치 파일을 다시 빌드하거나 build-info를 고치지 않는다. 후보 파일명은 그대로 두고 `--output`으로 만든 배포 판정 기록을 함께 전달한다. `build-info.release_gate`는 빌드 당시의 상태이며 최종 설치판 검증은 별도 기록으로 확인한다.
+
+설치판 검증 전 산출물 이름에는 `-candidate`가 붙고
 `게이트-미통과-후보.txt`와 build-info의 `release_gate`에 사유가 남는다.
+
+기존 `tools/release_gate.py --wu <WU json> --basic <기본 json> --commit <SHA>` 및 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다. 이 경로를 새 작업의 필수 선행조건으로 사용하지 않는다.
 
 > **참고** 2026-11-04 전의 리포트에는 `source_commit`이 없어 게이트가 거부한다. 후보11 결과도 이 사유 하나로 거부된다.
 
@@ -181,13 +192,13 @@ Tcl/Tk 8.6.15, OpenSSL 3.0.16, zlib 1.3.1의 공식 태그에서 가져온 라�
 안전 단위시험은 자료 경계를 검증하며 제품을 조작하지 않는다.
 별도 기록에 설치·재설치·업데이트·제거, 다른 드라이브/한글/공백/CWD,
 새 CMD/PowerShell/Win+R, 사용자 자료 보존, Python/Git/소스 없는 PC 또는 VM의 실제 수행 범위를 남긴다.
-최종 동일 EXE로 기본기능 전체와 실시간 WU 전체를 각각 수행하고 TC별 결과와 해시를 기록한다.
+최종 동일 EXE로 승인받은 범위를 수행하고 TC별 결과·미수행 범위와 해시를 기록한다. 큰 공용 변경 또는 영향 불명확이면 기본기능·WU 전체다.
 이 실행은 `tools/run_installed_suites.py`로 한다. 설치 파일이 build-info와 같은지 먼저 대조하고,
-설치·작업 폴더 밖의 실행 폴더에서 두 전체를 차례로 수행한다. 실행마다 새 Reports/Evidence/Log를 복사해
+설치·작업 폴더 밖의 실행 폴더에서 선택한 명령만 수행한다. 실행마다 새 Reports/Evidence/Log를 복사해
 해시를 다시 대조하고 결과를 `verification.json`에 남긴다.
 
 ```powershell
-python tools/run_installed_suites.py --exe "<설치 폴더>\BellalunAuto.exe" --build-info "<설치 폴더>\build-info.json" --workspace "<작업 폴더>" --out "<빈 실행 기록 폴더>"
+python tools/run_installed_suites.py --exe "<설치 폴더>\BellalunAuto.exe" --build-info "<설치 폴더>\build-info.json" --workspace "<작업 폴더>" --out "<빈 실행 기록 폴더>" --suites run-winupdate
 ```
 WU_01/12/13은 기존 수동 범위로 구분하고 나머지 열 건의 PASS 여부를 명시한다.
 빌드·설치·기동만으로 제품 시험 검증 완료라고 기록하지 않는다.

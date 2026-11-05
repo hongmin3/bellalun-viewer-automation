@@ -40,6 +40,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "바탕 화면 바로 가기 만들기"; Flags: unchecked
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\resources"; Check: IsExistingBellalunAuto
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -52,12 +55,36 @@ Name: "{autodesktop}\BellalunAuto"; Filename: "{app}\BellalunAuto.exe"; WorkingD
 Root: HKLM64; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\BellalunAuto.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\BellalunAuto.exe"; Flags: uninsdeletekey
 Root: HKLM64; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\BellalunAuto.exe"; ValueType: string; ValueName: "Path"; ValueData: "{app}"
 
-; There is intentionally no [Run] section: install never starts a product test.
+[Run]
+; Opens only the window, as the user who started Setup. Tests elevate by UAC when started.
+Filename: "{app}\BellalunAuto.exe"; WorkingDir: "{app}"; Description: "BellalunAuto 열기 (시험은 자동으로 시작하지 않습니다)"; Flags: postinstall nowait skipifsilent runasoriginaluser
+
+; Install never starts a product test or a DB restore.
+; [InstallDelete] only replaces the installer-owned resources folder.
 ; There is no recursive [UninstallDelete]: user workspaces are never removed.
 [Code]
 const
   EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
   OwnershipKey = 'Software\BellalunAuto\Installer';
+
+{ Only an earlier BellalunAuto install owns the resources folder; a hand-picked unrelated folder is never touched. }
+function IsExistingBellalunAuto(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\BellalunAuto.exe')) and
+    FileExists(ExpandConstant('{app}\build-info.json'));
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  if not IsAdmin then
+  begin
+    SuppressibleMsgBox('관리자 권한이 없어 설치를 시작하지 않았습니다.' + #13#10 +
+      'Setup을 다시 실행하고 UAC 창에서 [예]를 누르세요. 관리자 계정 정보가 필요하면 PC 관리자에게 요청하세요.',
+      mbCriticalError, MB_OK, IDOK);
+    Result := False;
+  end;
+end;
 
 function NormalizeToken(Value: String): String;
 begin

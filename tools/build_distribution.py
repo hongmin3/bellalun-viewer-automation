@@ -405,7 +405,8 @@ def write_candidate_marker(directory, gate):
     if gate.get('passed'):
         return None
     path = Path(directory) / CANDIDATE_MARKER
-    lines = ['이 빌드는 릴리스 게이트를 통과하지 않은 후보입니다. 정식 배포에 쓰지 마십시오.', '']
+    lines = ['빌드 당시 UI 검증을 마치지 않은 후보입니다.',
+             '같은 EXE 해시의 설치판 배포 판정 기록을 함께 확인하십시오. 통과 기록 없이는 정식 배포에 쓰지 마십시오.', '']
     lines += [f'- {reason}' for reason in gate.get('reasons') or []]
     path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return path

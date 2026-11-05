@@ -141,13 +141,14 @@ def classify_fail(tc_id, check, has_known_defect, known_defects):
     return "real"
 
 
-def _evaluate_basic(report, checks, reasons, known_defects):
+def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True):
     results = report.get("results") or []
     ids = {row.get("tc_id") for row in results}
     missing = sorted(FULL_REGRESSION_MARKERS - ids)
-    _check(checks, reasons, "기본기능 전체 회귀", not missing,
-           f"전체 회귀 {len(results)} TC" if not missing else
-           f"전체 회귀가 아닙니다(개별 실행 또는 조기 종료) — 표식 누락 {', '.join(missing)}")
+    if require_full:
+        _check(checks, reasons, "기본기능 전체 회귀", not missing,
+               f"전체 회귀 {len(results)} TC" if not missing else
+               f"전체 회귀가 아닙니다(개별 실행 또는 조기 종료) — 표식 누락 {', '.join(missing)}")
     blocked, real, tolerated, unverified, manual = [], [], [], [], []
     skipped, stray_skip = [], []
     for row in results:
@@ -237,6 +238,11 @@ def load_report(path):
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
+def evaluate_installed(path, expected_commit, scope, *, expected_tcs=(), language=False):
+    from tools.installed_release_gate import evaluate
+    return evaluate(path, expected_commit, scope, expected_tcs=expected_tcs, language=language)
+
+
 def gate_for_build(wu_path, basic_path, commit, dirty):
     """배포 빌드용: 게이트 입력이 없거나 미통과면 후보로 표시할 build-info 항목을 만든다."""
     if not wu_path or not basic_path:
@@ -272,15 +278,32 @@ def main(argv=None):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="BellalunAuto 릴리스 게이트")
-    parser.add_argument("--wu", required=True, type=Path, help="실시간 WU 리포트 JSON")
-    parser.add_argument("--basic", required=True, type=Path, help="기본기능 전체 회귀 리포트 JSON")
+    parser.add_argument("--wu", type=Path, help="이전 방식: 실시간 WU 리포트 JSON")
+    parser.add_argument("--basic", type=Path, help="이전 방식: 기본기능 전체 회귀 리포트 JSON")
+    parser.add_argument("--installed-verification", type=Path, help="설치판 실행 verification.json")
+    parser.add_argument("--scope", choices=("both", "basic", "wu", "tc"), help="승인받은 UI 회귀 범위")
+    parser.add_argument("--expected-tc", action="append", default=[], help="단독 실행에서 승인받은 TC ID")
+    parser.add_argument("--output", type=Path, help="배포 판정 기록을 저장할 JSON(기존 파일 덮어쓰기 금지)")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--commit", help="기대 소스 커밋(짧은 SHA 허용)")
     group.add_argument("--commit-from-git", action="store_true", help="현재 저장소 HEAD 를 기대 커밋으로")
     parser.add_argument("--language", action="store_true", help="리포트 문장 완결성 점검도 수행")
     args = parser.parse_args(argv)
+    if args.installed_verification:
+        if not args.scope or args.wu or args.basic:
+            parser.error("설치판 기록에는 --scope를 지정하고 이전 방식의 --wu/--basic은 섞지 마세요")
+    elif not (args.wu and args.basic) or args.scope or args.expected_tc:
+        parser.error("--installed-verification --scope 또는 이전 방식의 --wu --basic이 필요합니다")
     try:
         commit = resolve_commit(args.commit or "HEAD")
+        if args.installed_verification:
+            result = evaluate_installed(args.installed_verification, commit, args.scope,
+                                        expected_tcs=args.expected_tc, language=args.language)
+            print_verdict(result)
+            if args.output:
+                with args.output.open("x", encoding="utf-8") as stream:
+                    json.dump(result, stream, ensure_ascii=False, indent=2)
+            return 0 if result["passed"] else 1
         reports = []
         for path in (args.wu, args.basic):
             try:
@@ -288,7 +311,7 @@ def main(argv=None):
             except (OSError, ValueError) as error:
                 print(f"리포트를 읽지 못했습니다: {path.name} — {error}", file=sys.stderr)
                 reports.append(None)
-    except ValueError as error:
+    except (OSError, ValueError) as error:
         print(f"게이트 중단: {error}", file=sys.stderr)
         return 1
     print(f"기대 커밋: {commit}")

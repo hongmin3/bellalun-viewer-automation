@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
-"""설치판 EXE 로 기본기능 전체와 실시간 Windows Update 전체를 차례로 실행한다.
+"""설치판 EXE로 승인받은 기본기능·WU 묶음 또는 WF/XIPL 단독 TC를 실행한다.
 
 REQ-DIST-004 의 최종 실행 검증 도구다. 하는 일:
 
 1. 설치 폴더의 EXE 와 모든 파일이 `build-info.json` 의 크기·SHA256 과 같은지 대조한다.
-2. 설치 폴더와 작업 폴더 밖의 실행 폴더(CWD)에서 `run-regression`, `run-winupdate` 를
-   차례로 실행하고 출력 전체를 로그로 남긴다.
+2. 설치 폴더와 작업 폴더 밖 CWD에서 선택한 명령만 실행하고 출력 전체를 로그로 남긴다.
 3. 실행마다 작업 폴더에서 새로 생긴 Reports/Evidence/Log 파일을 복사하고 SHA256 을
    다시 대조한다(다음 실행이 같은 이름의 증거를 덮어쓰기 전에 보존한다).
-4. 새 전체 리포트인지(기본: 전체 회귀 TC 표식, WU: live·chain_completed·13 TC)와
-   WU 목표(WU_01/12/13 기존 수동 외 10건 PASS)를 판정해 `verification.json` 에 쓴다.
+4. 새 리포트인지(전체는 완료 표식, 단독은 명령·TC 일치)와 WU 목표를 기록한다.
+   제품 판정의 배포 수용 여부는 release_gate.py --installed-verification으로 별도 확인한다.
 
 판정 기준은 바꾸지 않는다. 리포트가 없거나 조기 중단이면 그대로 미완료로 기록한다.
 
 사용 예:
     python tools/run_installed_suites.py --exe "D:/설치 폴더/BellalunAuto.exe" \
         --build-info "D:/설치 폴더/build-info.json" --workspace "D:/작업 폴더" \
-        --out "D:/실행 기록/run-01"
+        --out "D:/실행 기록/run-01" --suites run-winupdate
 """
 import argparse
 import hashlib
@@ -37,6 +36,46 @@ WU_IDS = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
 #: 사람이 직접 하는 범위(REQ-VERDICT-002, 판정 SKIP). 목표 판정에서 빼고 나머지 10건의 PASS 를 요구한다.
 WU_MANUAL = {"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"}
 SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
+SINGLE_COMMANDS = {
+    **{f"run-wf{i:02}": f"TC_Basic_WorkFlow_{i:02}" for i in range(1, 17)},
+    **{f"run-xipl-{i:02}": f"TC_XIPL_compatibility_{i:02}" for i in range(1, 8)},
+}
+
+
+def validate_selection(suites, expected_tcs):
+    """범위를 빠뜨렸거나 단독 명령과 TC가 다르면 제품 실행 전에 거부한다."""
+    commands = [c.strip() for c in suites.split(",") if c.strip()]
+    full = {"run-regression", "run-winupdate"}
+    if commands and len(commands) == len(set(commands)) and set(commands) <= full:
+        if not expected_tcs:
+            return commands
+    if (len(commands) == 1 and commands[0] in SINGLE_COMMANDS
+            and list(expected_tcs) == [SINGLE_COMMANDS[commands[0]]]):
+        return commands
+    raise ValueError("--suites에 전체 묶음을 지정하거나 단독 명령 하나와 맞는 --expected-tc를 지정하세요")
+
+
+def selected_report(reports_dir, command, since, expected_tcs):
+    """선택 TC와 실행 명령이 일치하는 새 리포트만 찾는다."""
+    for path in sorted(Path(reports_dir).glob("Result_*.json"),
+                       key=lambda p: p.stat().st_mtime, reverse=True):
+        if path.stat().st_mtime < since:
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        recorded_command = str((data.get("meta") or {}).get("command") or "").split()
+        rows = data.get("results") or []
+        ids = {row.get("tc_id") for row in rows if str(row.get("tc_id", "")).startswith("TC_")}
+        if not recorded_command or recorded_command[-1] != command or ids != set(expected_tcs):
+            continue
+        verdicts = {}
+        for row in rows:
+            verdict = row.get("verdict", "UNKNOWN")
+            verdicts[verdict] = verdicts.get(verdict, 0) + 1
+        return {"path": str(path), "verdicts": verdicts, "tc_count": len(rows)}
+    return None
 
 #: `--clean-env` 에서 Windows 기본값 외에 남기는 환경 변수.
 #  XIPL_PATH 같은 제품 등록 변수도 일부러 뺀다. 줄어든 환경에서 시작돼도 설치판이
@@ -141,7 +180,7 @@ def _report_rows(path):
     return data.get("meta") or {}, data.get("results", [])
 
 
-def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False):
+def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, expected_tcs=()):
     """설치판 EXE 로 한 전체 실행을 수행하고 결과 근거를 모은다."""
     from bellalunauto.app import completed_report
     from core import automation_health as health
@@ -163,8 +202,10 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False):
     reports = Path(workspace) / "Reports"
     if command == "run-regression":
         report = health.latest_full_regression(str(reports), since=started - 1)
-    else:
+    elif command == "run-winupdate":
         report = completed_report(reports, command, started - 1)
+    else:
+        report = selected_report(reports, command, started - 1, expected_tcs)
     result = {"command": command, "args": args, "cwd": str(cwd), "exit_code": proc.returncode,
               "started": started_at, "ended": ended_at,
               "minutes": round((time.time() - started) / 60, 1),
@@ -188,16 +229,27 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="설치판 기본기능·실시간 WU 전체 실행 검증")
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(description="설치판에서 승인받은 묶음 또는 단독 TC 실행 기록")
     parser.add_argument("--exe", required=True, type=Path)
     parser.add_argument("--build-info", required=True, type=Path)
     parser.add_argument("--workspace", required=True, type=Path)
     parser.add_argument("--config", type=Path, help="기본값: 작업 폴더의 config.json")
     parser.add_argument("--out", required=True, type=Path, help="비어 있거나 없는 실행 기록 폴더")
-    parser.add_argument("--suites", default="run-regression,run-winupdate")
+    parser.add_argument("--suites", required=True, help="승인받은 실행 명령(여러 묶음은 쉼표로 구분)")
+    parser.add_argument("--expected-tc", action="append", default=[], help="단독 실행의 TC ID")
     parser.add_argument("--clean-env", action="store_true",
                         help="PATH를 Windows 기본값만 두고 Python 관련 변수를 깨진 값으로 바꿔 실행")
     args = parser.parse_args(argv)
+    args.exe, args.build_info, args.workspace = args.exe.resolve(), args.build_info.resolve(), args.workspace.resolve()
+    if args.config:
+        args.config = args.config.resolve()
+    try:
+        commands = validate_selection(args.suites, args.expected_tc)
+    except ValueError as error:
+        parser.error(str(error))
 
     out = args.out.resolve()
     if out.exists() and any(out.iterdir()):
@@ -209,6 +261,9 @@ def main(argv=None):
     verification = {"tool": "tools/run_installed_suites.py",
                     "created": datetime.now().astimezone().isoformat(timespec="seconds"),
                     "exe": str(args.exe), "workspace": str(args.workspace),
+                    "build_info": str(args.build_info.resolve()),
+                    "build_info_sha256": sha256(args.build_info),
+                    "selected_commands": commands, "expected_tcs": args.expected_tc,
                     "config": str(config), "cwd": str(cwd), "clean_env": args.clean_env,
                     "install": verify_install(args.exe, args.build_info),
                     "runs": []}
@@ -221,12 +276,12 @@ def main(argv=None):
     if not verification["install"]["ok"]:
         print("[FAIL] 설치 파일이 build-info 와 다릅니다. 실행하지 않습니다.")
         return 2
-    for command in [c.strip() for c in args.suites.split(",") if c.strip()]:
+    for command in commands:
         print(f"[{datetime.now():%H:%M:%S}] {command} 시작", flush=True)
         verification["current"] = command
         save()
         result = run_suite(args.exe, args.workspace, config, command, out, cwd,
-                           clean_env=args.clean_env)
+                           clean_env=args.clean_env, expected_tcs=args.expected_tc)
         verification["runs"].append(result)
         save()
         print(f"[{datetime.now():%H:%M:%S}] {command} 종료: exit={result['exit_code']} "

@@ -167,6 +167,26 @@ class DistributionBuildTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, (result.stdout + result.stderr)[-1500:].decode('utf-8', errors='replace'))
         self.assertFalse((self.home / 'BellalunAuto-1.0.0-setup.exe').exists())
 
+    def test_installer_admin_guard_postinstall_and_resource_replacement(self):
+        """REQ-DIST-006: 관리자 Setup, 원래 사용자 권한의 완료 후 열기, 이전 판 resources 제거."""
+        import re
+        script = (ROOT / 'packaging/BellalunAuto.iss').read_text(encoding='utf-8-sig')
+        self.assertIn('PrivilegesRequired=admin', script)
+        self.assertNotIn('PrivilegesRequiredOverridesAllowed', script)
+        self.assertRegex(script, r'function InitializeSetup\(\): Boolean;[\s\S]*?if not IsAdmin then')
+        run = re.search(r'^\[Run\]\s*\n(?P<body>(?:(?!^\[).*\n)*)', script, re.M)
+        self.assertIsNotNone(run, '완료 후 열기 항목이 필요하다')
+        entries = [line for line in run.group('body').splitlines() if line.strip() and not line.startswith(';')]
+        self.assertEqual(len(entries), 1, entries)
+        entry = entries[0]
+        for flag in ('postinstall', 'nowait', 'skipifsilent', 'runasoriginaluser'):
+            self.assertIn(flag, entry)
+        self.assertNotIn('runascurrentuser', entry)
+        self.assertNotIn('Parameters', entry, '완료 후 열기는 화면만 열고 시험 명령을 넘기지 않는다')
+        self.assertRegex(script, r'(?m)^\[InstallDelete\]\s*\nType: filesandordirs; Name: "\{app\}\\resources"; Check: IsExistingBellalunAuto\s*$')
+        self.assertRegex(script, r'function IsExistingBellalunAuto\(\): Boolean;[\s\S]*?BellalunAuto\.exe[\s\S]*?build-info\.json')
+        self.assertNotRegex(script, r'(?m)^\[UninstallDelete\]')
+
     def test_changed_source_between_validation_and_copy_is_rejected(self):
         assets = self.validate()
         (self.home / 'basic.xlsx').write_bytes(b'changed')
