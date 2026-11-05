@@ -409,18 +409,33 @@ class RunController:
         self.reader = None
         self.log_path = None
         self.stop_path = None
+        self.record = None
         self.lines: queue.Queue[str] = queue.Queue()
 
     @property
     def running(self) -> bool:
         return self.process is not None and self.process.poll() is None
 
-    def start(self, action: str) -> None:
+    def start(self, action: str, *, consent=False, plan=None) -> None:
         from .runtime import child_command
         if self.running:
             raise RuntimeError("이미 실행 중입니다. 현재 작업 종료 후 실행하세요.")
+        if action in {"run-regression", "run-winupdate"} and consent is not True:
+            raise ValueError("시험 시작 전에 변경 범위에 직접 동의해야 합니다.")
+        self.record = None
+        if action in {"run-regression", "run-winupdate"}:
+            from .runs import RunRecord
+            self.record = RunRecord.create(self.layout.workspace, action, plan or {}, consent=True)
         self.stop_path = Path(self.layout.workspace) / "work" / f"stop-{uuid.uuid4().hex}.json"
-        self.start_argv(child_command(command_arguments(self.layout, action, stop_file=self.stop_path)))
+        try:
+            arguments = command_arguments(self.layout, action, stop_file=self.stop_path)
+            if self.record:
+                arguments = ['--run-id', self.record.data['run_id']] + arguments
+            self.start_argv(child_command(arguments))
+        except (OSError, ValueError, RuntimeError):
+            if self.record:
+                self.record.finish(-1)
+            raise
 
     def start_argv(self, argv: list[str]) -> None:
         if self.running:
@@ -431,6 +446,8 @@ class RunController:
         log_dir.mkdir(parents=True, exist_ok=True)
         self.log_path = log_dir / ("BellalunAuto-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".log")
         environment = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+        if self.record:
+            environment['BELLALUN_QA_RUN'] = self.record.data['run_id']
         self.process = subprocess.Popen(
             argv, cwd=str(self.layout.workspace), env=environment,
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -467,6 +484,8 @@ class RunController:
     def stop(self) -> None:
         if not self.running:
             return
+        if self.record:
+            self.record.request_stop()
         process = self.process
         if self.stop_path is not None:
             self.stop_path.parent.mkdir(parents=True, exist_ok=True)
@@ -666,7 +685,7 @@ def launch(layout, workspace_chosen=False) -> int:
     toolbar.pack(fill="x")
     buttons = []
     status = tk.StringVar(value="대기 중 · 시험을 선택하세요.")
-    ttk.Label(root, textvariable=status, padding=10).pack(anchor="w")
+    ttk.Label(root, textvariable=status, padding=10, wraplength=960).pack(anchor="w")
     progress = ttk.Progressbar(root, mode="indeterminate")
     progress.pack(fill="x", padx=12)
     output = scrolledtext.ScrolledText(root, wrap="word", height=22, state="disabled", font=("Consolas", 10))
@@ -700,8 +719,18 @@ def launch(layout, workspace_chosen=False) -> int:
             if errors:
                 messagebox.showerror("PC별 설정 확인", "시험 전 아래 항목을 입력하세요.\n\n" + "\n".join(errors), parent=root)
                 return
+        plan = None
         try:
-            controller.start(action)
+            if action in {"run-regression", "run-winupdate"}:
+                from .runplan import build_plan
+                from .qa_dialogs import confirm_plan
+                status.set('실행 계획과 Baseline 해시를 확인하고 있습니다…')
+                root.update_idletasks()
+                plan = build_plan(layout, controller.config, action)
+                if not confirm_plan(root, plan):
+                    status.set('실행 전 확인을 취소했습니다. 시험을 시작하지 않았습니다.')
+                    return
+            controller.start(action, consent=plan is not None, plan=plan)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror("실행 실패", secret_redactor(controller.config)(str(error)), parent=root)
             return
@@ -710,9 +739,13 @@ def launch(layout, workspace_chosen=False) -> int:
         status.set(f"실행 중: {action} · 로그: {controller.log_path.name}")
         append(f"\n실행 시작: {action}\n")
 
+    def prepare():
+        from .qa_dialogs import show_diagnostics
+        show_diagnostics(root, layout, settings)
+
     # selfcheck와 portability-check는 같은 점검이라 화면에는 하나만 둔다(REQ-DIST-002).
     for label, action in (("준비 점검", "selfcheck"), ("기본기능 전체 실행", "run-regression"), ("Windows Update 실시간 전체 실행", "run-winupdate")):
-        button = ttk.Button(toolbar, text=label, command=lambda selected=action: run(selected))
+        button = ttk.Button(toolbar, text=label, command=prepare if action == 'selfcheck' else lambda selected=action: run(selected))
         button.pack(side="left", padx=4)
         buttons.append(button)
 
@@ -736,6 +769,31 @@ def launch(layout, workspace_chosen=False) -> int:
         except OSError:
             messagebox.showerror("결과 폴더", "결과 폴더를 열 수 없습니다. 작업 폴더의 Reports를 확인하세요.", parent=root)
     ttk.Button(footer, text="결과 폴더 열기", command=open_results).pack(side="left", padx=4)
+    def selected_record():
+        from .runs import latest_run
+        return controller.record or latest_run(layout.workspace)
+
+    def review():
+        from .qa_dialogs import review_run
+        record = selected_record()
+        if record:
+            review_run(root, record)
+        else:
+            messagebox.showinfo('수동 검토', '저장된 실행 기록이 없습니다.', parent=root)
+
+    def share():
+        from .qa_dialogs import share_run
+        record = selected_record()
+        if record:
+            share_run(root, record)
+        else:
+            messagebox.showinfo('공유 ZIP', '저장된 실행 기록이 없습니다.', parent=root)
+    results_bar = ttk.Frame(root, padding=8)
+    results_bar.pack(fill='x')
+    for label, callback in (('수동 검토', review), ('공유 ZIP', share)):
+        button = ttk.Button(results_bar, text=label, command=callback)
+        button.pack(side='left', padx=4)
+        buttons.append(button)
     ttk.Button(footer, text="버전", command=lambda: messagebox.showinfo("버전", f"BellalunAuto {__version__}", parent=root)).pack(side="left", padx=4)
     ttk.Label(footer, text="과거 WU 결과 변환은 CLI 명령을 사용하세요.").pack(side="left", padx=12)
 
@@ -764,7 +822,18 @@ def launch(layout, workspace_chosen=False) -> int:
             for line in controller.drain():
                 append(line)
             code = controller.process.returncode
-            if code == 1223:
+            if controller.record:
+                try:
+                    controller.record.finish(code)
+                    data = controller.record.data
+                    counts = ' / '.join(f'{key} {value}' for key, value in data['verdicts'].items())
+                    labels = {'completed': '자동 실행 완료', 'stopped': '중단', 'abnormal': '비정상 종료', 'uac_cancelled': 'UAC 취소 — 시험 시작 안 함'}
+                    status.set(f"{data['run_id']} · {labels.get(data['status'], data['status'])} · {counts}\n"
+                               f"{data.get('summary', '')}\n{data['review_status']} · 다음 행동: {data['next_action']}")
+                    append(f"\n실행 기록: {controller.record.path}\n보고서: " + '\n'.join(data['reports']) + '\n')
+                except (OSError, ValueError) as error:
+                    status.set(f'실행 기록 저장 실패: {type(error).__name__} · 작업 폴더 권한과 보고서를 확인하세요.')
+            elif code == 1223:
                 status.set("시험을 시작하지 않았습니다 · UAC를 취소했습니다. 제품·DB는 바뀌지 않았습니다.")
             else:
                 status.set(f"실행 종료 · 종료 코드 {code} · 새 리포트의 TC별 판정을 확인하세요.")
@@ -775,6 +844,15 @@ def launch(layout, workspace_chosen=False) -> int:
                 return
         if not stopping.is_set() and controller.running:
             stop_button.configure(state="normal")
+            if controller.record:
+                try:
+                    detail = controller.record.refresh_progress()
+                    data = controller.record.data
+                    status.set(f"{data['run_id']} · 현재 {detail.get('current_tc', '준비 중')} · "
+                               f"완료 {detail.get('completed', 0)}/{detail.get('total') or '?'} · "
+                               f"경과 {detail['elapsed_seconds']}초 · 중단 요청 {data['stop_requested']}")
+                except (OSError, ValueError):
+                    status.set('진행 기록을 읽거나 저장하지 못했습니다. 로그와 작업 폴더 권한을 확인하세요.')
         root.after(200, poll)
 
     def close():
@@ -790,6 +868,6 @@ def launch(layout, workspace_chosen=False) -> int:
     if first_run:
         status.set("PC별 설정을 자동으로 찾아 저장했습니다. 준비 점검의 [FAIL] 행만 PC별 설정에서 채우세요.")
         # 조회 전용 점검이라 바로 보여 준다. 시험·DB 복원은 시작하지 않는다.
-        root.after(300, lambda: run("selfcheck"))
+        root.after(300, prepare)
     root.mainloop()
     return 0

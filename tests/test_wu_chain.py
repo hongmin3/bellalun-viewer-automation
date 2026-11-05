@@ -241,6 +241,7 @@ class ChainResumeTests(unittest.TestCase):
         self.calls = []
         self.crash_at = None
         self.finished = []
+        self.observe_tail = lambda stage_id: None
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -259,10 +260,12 @@ class ChainResumeTests(unittest.TestCase):
 
         def wu10(ctx, ui):
             self.calls.append("TC_WindowsUpdate_10")
+            self.observe_tail("TC_WindowsUpdate_10")
             return _passing("TC_WindowsUpdate_10")(ctx)[0]
 
         def usb(ctx, ui):
             self.calls.append("WU09_USB")
+            self.observe_tail("WU09_USB")
             return {"drive": None}
 
         def finish(ctx, wu_results, elapsed=0, **kw):
@@ -280,6 +283,21 @@ class ChainResumeTests(unittest.TestCase):
                 patch.object(winupdate, "run_setting_display", side_effect=wu10), \
                 patch.object(wu_chain, "keep_awake", side_effect=lambda: _null()),                 patch.object(wu_chain, "StageMonitor", _QuietMonitor),                 patch("core.env_preflight.summary_for_report", return_value={}):
             return run._run_winupdate_chain(self.ctx, resume=resume)
+
+    def test_tail_progress_identifies_stage_before_product_action(self):
+        # Validates: REQ-QA-002. 실제 체인의 USB/설정 검사 진입 때 저장된 진행을 읽는다.
+        from bellalunauto.runs import RunRecord
+        record = RunRecord.create(self.tmp.name, "run-winupdate", {}, consent=True)
+        observed = []
+        self.observe_tail = lambda stage_id: observed.append(
+            (stage_id, record.refresh_progress().copy()))
+        with patch.dict(os.environ, {"BELLALUN_QA_RUN": record.data["run_id"]}):
+            self.assertEqual(self.run_chain(resume=False), 0)
+        self.assertEqual([stage for stage, _ in observed], list(run.WU_TAIL_STAGES))
+        self.assertEqual([(stage, progress["current_tc"], progress["completed"], progress["total"])
+                          for stage, progress in observed],
+                         [("WU09_USB", "WU09_USB", 4, 6),
+                          ("TC_WindowsUpdate_10", "TC_WindowsUpdate_10", 5, 6)])
 
     def test_interrupted_chain_resumes_only_remaining_stages(self):
         self.crash_at = "TC_B"

@@ -85,6 +85,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | WU | Windows Update 체크리스트 실행·판정·근거 |
 | KNOW | 지식 폴더 서버 동기화 |
 | BOUNDARY | 비공개 자료 보호 |
+| QA | 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결) |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
 
@@ -340,6 +341,56 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 - 시험을 시작할 때 UAC를 취소하면 "시험을 시작하지 않았고 제품·DB는 바뀌지 않았다"고 알리고 종료 코드 1223으로 끝낸다.
 > **참고** VXvue의 관리자 필수 EXE·완료 후 관리자 실행·PC별 baseline 자동 생성은 가져오지 않는다. Bellalun은 일반 권한 화면에서
 > 시험만 승격하고 승인된 Baseline을 복원한다.
+
+### REQ-QA-001 실행 전 확인 화면
+
+#### 하는 일
+화면에서 기본기능 전체나 Windows Update 전체를 누르면 시작하기 전에 이번 실행이 무엇을 바꾸는지 보여 주고 동의를 받는다.
+#### 순서
+1. 대상: Viewer 실행 파일과 버전, SQL 인스턴스·서비스, 복원할 DB 4개, Baseline 판(배포 자료 판과 `.bak` 파일 날짜·해시 앞부분).
+2. 바뀌는 것: DB 복원, SQL 서비스 시작 유형·시작, Bellalun Service 중지·시작과 Viewer 관련 프로세스 종료, 해상도 강제 설정, XIPL `TEST_*` 파라미터 재생성, DICOM 서버 등록, WU의 USB `BellalunWU09` 폴더.
+3. 복구 정책: TC가 바꾼 Viewer 설정은 TC 끝에 되돌리고 결과에 남긴다. DB는 다음 실행 시작 때 Baseline으로 다시 복원한다. DICOM 서버 등록·해상도는 되돌리지 않는다.
+4. 사람이 "위 변경에 동의합니다"를 직접 체크해야 시작 버튼이 켜진다. 동의 시각·Windows 사용자·확인한 내용은 실행 기록(REQ-QA-002)에 남는다.
+#### 지킬 것
+- UAC 승인을 데이터 변경 동의로 보지 않는다. 화면 동의 없이 화면에서 시험을 시작하지 않는다.
+- CLI 직접 실행(`BellalunAuto run-*`, 설치판 검증 도구)은 기존처럼 동작하고 실행 기록에 "화면 동의 없음(CLI)"으로 남긴다.
+
+### REQ-QA-002 실행 번호로 진행·중단·완료·보고서 연결
+
+#### 하는 일
+화면에서 시작한 실행마다 실행 번호(`run_id`, 예: `20261105-140000-a1b2`)를 만들고 `작업\Runs\<run_id>\run.json`에 계획·동의·상태·보고서를 묶는다.
+#### 순서
+1. 진행 중: 현재 TC, 완료 개수/전체, 경과 시간, 중단 요청 여부를 보인다. 기본기능은 진행 상태 파일, WU는 저장점의 완료 단계로 센다.
+2. 끝나면 상태(완료·중단·비정상 종료·UAC 취소)와 이번 실행이 만든 보고서를 연결하고, 리포트 결론(REQ-REPORT-001)과 다음 행동을 보인다.
+3. 다음 행동 예: 새 실패면 "TC 상세와 증거를 열어 수동 검토", 차단이면 "준비 점검 후 재실행", 수동 확인이면 "사람 확인 후 검토 기록".
+#### 지킬 것
+- 다른 실행의 보고서를 이번 실행 결과로 연결하지 않는다. 시작 시각 이후 만들어진 보고서만 연결한다.
+
+### REQ-QA-003 수동 검토 기록과 검수 완료
+
+#### 하는 일
+자동 판정과 따로 담당자의 검토를 `작업\Runs\<run_id>\review.json`에 저장한다. 자동 판정과 리포트 파일은 바꾸지 않는다.
+#### 순서
+1. PASS가 아닌 TC마다 검토 결과(확인 완료·결함 등록·재시험 필요)와 의견을 쓴다. 결함 번호를 적을 수 있다.
+2. 검토자 이름을 적고 "검수 완료"를 누르면 모든 대상 TC에 검토 결과가 있어야 한다. 없으면 완료하지 않는다.
+3. 상태는 세 가지로 구분한다: 자동 실행 완료(검토 전), 검토 중, 검수 완료.
+
+### REQ-QA-004 결과 공유 ZIP
+
+#### 하는 일
+이번 실행의 보고서(HTML·JSON·TXT·CSV)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.
+#### 순서
+1. 만들기 전에 공유 범위를 고른다: 증거 스크린샷·DICOM(시험 환자 정보 포함), Viewer 로그 구간. 설정 파일·비밀번호는 넣지 않는다.
+2. 리포트의 증거 링크는 ZIP 안의 상대 경로로 바꾼다. 실행 환경의 절대 경로는 남겨도 링크로 쓰지 않는다.
+3. `manifest.json`에 파일마다 크기·SHA-256, 실행 번호, 공유 범위, 만든 시각을 적는다.
+4. 검증 기능은 ZIP을 읽어 누락·추가·해시 불일치·ZIP 밖을 가리키는 링크를 찾아 알린다.
+
+### REQ-QA-005 준비 실패의 해결 방법과 재점검
+
+#### 하는 일
+준비 점검의 각 실패 행(해상도·배율·제품·SQL·OCR·외부 서버 등)에 해결 방법과 해당 Windows 설정 화면을 여는 동선을 붙이고, 고친 뒤 "다시 점검"으로 같은 점검을 다시 돌린다.
+#### 지킬 것
+- 점검 기준과 실행 차단 조건(환경 gate)은 바꾸지 않는다. 해결 동선은 설정 화면을 여는 것까지만 하고 값을 대신 바꾸지 않는다.
 
 ### REQ-REGRESSION-002 변경 영향에 따른 검증과 UI 회귀 승인
 
@@ -696,10 +747,50 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
   옛 판 보관, 서버에 없는 로컬 자료 보존, 크기 불일치·위험한 이름·받는 PC 확인을 검증한다.
 - Expected Result: 실패한 문서는 옛 판을 유지하고 종료 코드 1이며, `--dry-run`은 폴더를 바꾸지 않는다.
 
+### TEST-QA-001 실행 계획과 직접 동의
+
+- 검증 대상: REQ-QA-001.
+- 자동 절차: `tests/test_runplan.py`로 합성 Baseline의 날짜·해시·배포 자료 판, Viewer·SQL·DB 대상, 변경·복구 정책, 누락 자료, WU USB 범위를 확인한다. `tests/test_qa_runs.py`로 동의 없이 GUI 실행 컨트롤러가 자식 프로세스를 시작하지 않는지 확인한다.
+- 설치판 절차: 두 전체 실행의 확인 화면에서 체크 전 시작 금지, 취소 시 미실행, 체크 후에만 시작, 표시한 계획과 실행 기록의 일치를 확인한다. UAC 취소도 별도로 확인한다.
+- Expected Result: UAC 승인이 데이터 변경 동의를 대신하지 않으며 확인한 계획·동의 시각·사용자가 같은 실행 번호에 남는다. 자동시험은 실제 Windows 동의 화면 실측을 대신하지 않는다.
+
+### TEST-QA-002 실행 기록과 이번 보고서 연결
+
+- 검증 대상: REQ-QA-002.
+- 자동 절차: `tests/test_qa_runs.py`로 오래된 보고서 배제, 실행 묶음 구분, 진행 상태·WU 저장점의 완료 개수, 중단·비정상 종료·UAC 취소 상태와 다음 행동을 확인한다.
+- 설치판 절차: 각 전체 실행의 현재 TC·완료 개수·경과 시간·중단 요청을 확인하고 생성된 보고서와 실행 번호를 대조한다. GUI/worker 강제종료·재시작 후 이전 실행이 완료로 오인되지 않는지도 별도 확인한다.
+- Expected Result: 이전 실행 보고서가 이번 결과로 연결되지 않는다. 중단·비정상 종료·UAC 취소는 완료와 구분되며 실제 수행하지 않은 단계가 완료로 표시되지 않는다.
+
+### TEST-QA-003 수동 검토와 자동 결과 보존
+
+- 검증 대상: REQ-QA-003.
+- 자동 절차: `tests/test_qa_runs.py`로 검토자 이름·PASS 아닌 모든 TC의 검토 결과가 없으면 검수 완료를 거부하는지, 미완료 실행의 검수 완료를 거부하는지, 검토 저장 뒤 원본 보고서가 같은지 확인한다.
+- 설치판 절차: 확인 완료·결함 등록·재시험 필요, 의견·결함 번호를 저장하고 창을 다시 열어 읽는다. 검토 중/검수 완료와 자동 실행 완료(검토 전)를 구분한다.
+- Expected Result: `review.json`에 별도 검토 기록이 남고 자동 판정과 보고서 파일은 바뀌지 않는다.
+
+### TEST-QA-004 선택 공유와 오프라인 무결성
+
+- 검증 대상: REQ-QA-004.
+- 자동 절차: `tests/test_share_package.py`로 상대 증거 링크, 공유 범위 선택, 설정·비밀번호 배제, 명시한 보고서·검토 기록만 수집, manifest 크기·해시, 누락·추가·변조·중복 항목·경로 탈출·외부 링크 거부를 확인한다.
+- 설치판 절차: 공유 화면에서 범위를 고르고 한글·공백 경로에 ZIP을 만든다. 다른 PC의 한글·공백 경로에 풀어 네트워크 없이 HTML·증거 링크를 열고 무결성을 검증한다. 선택하지 않은 DICOM·스크린샷·로그가 없는지 파일 목록을 대조한다.
+- Expected Result: 선택한 실행 자료만 포함되고 링크가 ZIP 밖을 참조하지 않는다. 합성 자료 단위시험만으로 실제 다른 PC의 오프라인 열람을 완료했다고 기록하지 않는다.
+
+### TEST-QA-005 준비 실패 해결과 재점검
+
+- 검증 대상: REQ-QA-005.
+- 자동 절차: `tests/test_qa_runs.py`로 화면 항목은 디스플레이 설정, SQL·서비스는 서비스 관리, 나머지는 PC별 설정으로 연결되는지 확인한다. `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`로 기존 진단·환경 gate를 회귀 확인한다.
+- 설치판 절차: 실패 행의 원인·해결 방법과 설정 화면 열기를 확인하고, 사람이 수정한 뒤 다시 점검한다. 해결 버튼만으로 준비 완료나 시험 실행이 되지 않는지 확인한다.
+- Expected Result: 같은 점검 기준과 실행 차단 조건을 유지하고 설정 값을 대신 바꾸지 않는다. 실패 행 선택·설정 열기·재점검 GUI의 실측은 별도로 남긴다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
+| REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | implemented |
+| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py` | implemented |
+| REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
+| REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
+| REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py` | implemented |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |

@@ -1,0 +1,205 @@
+"""실행 전 동의·준비 해결·사람 검토·선택 공유 화면."""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import subprocess
+
+
+def remediation_target(name):
+    if any(word in name for word in ('화면', '해상도', '배율', 'DPI')):
+        return 'ms-settings:display'
+    if 'SQL' in name or '서비스' in name:
+        return 'services.msc'
+    return 'config'
+
+
+def confirm_plan(root, plan):
+    import tkinter as tk
+    from tkinter import ttk, scrolledtext
+    from .runplan import format_plan
+    dialog = tk.Toplevel(root)
+    dialog.title('실행 전 확인 — 데이터 변경 동의')
+    dialog.geometry('850x700')
+    view = scrolledtext.ScrolledText(dialog, wrap='word', font=('맑은 고딕', 10))
+    view.pack(fill='both', expand=True, padx=12, pady=12)
+    view.insert('end', format_plan(plan))
+    view.configure(state='disabled')
+    agreed = tk.BooleanVar(value=False)
+    accepted = [False]
+    ttk.Label(dialog, text='UAC 권한 승인은 아래 데이터 변경 동의를 대신하지 않습니다.').pack(pady=4)
+    start = ttk.Button(dialog, text='동의하고 시작', state='disabled')
+    ttk.Checkbutton(dialog, text='위 변경에 동의합니다', variable=agreed,
+                    command=lambda: start.configure(state='normal' if agreed.get() else 'disabled')).pack(pady=6)
+
+    def accept():
+        if agreed.get():
+            accepted[0] = True
+            dialog.destroy()
+    start.configure(command=accept)
+    start.pack(pady=8)
+    ttk.Button(dialog, text='취소', command=dialog.destroy).pack(pady=4)
+    dialog.transient(root)
+    dialog.grab_set()
+    root.wait_window(dialog)
+    return accepted[0]
+
+
+def show_diagnostics(root, layout, open_config):
+    import tkinter as tk
+    from tkinter import ttk, messagebox
+    from .app import diagnostics
+    dialog = tk.Toplevel(root)
+    dialog.title('준비 점검 — 실패 해결 후 다시 점검')
+    dialog.geometry('940x600')
+    tree = ttk.Treeview(dialog, columns=('state', 'name', 'detail'), show='headings', height=14)
+    for key, label, width in (('state', '결과', 65), ('name', '항목', 200), ('detail', '현재 상태', 620)):
+        tree.heading(key, text=label)
+        tree.column(key, width=width)
+    tree.pack(fill='both', expand=True, padx=10, pady=10)
+    explanation = tk.StringVar(value='행을 선택하면 해결 방법을 표시합니다. 실행 차단 기준은 기존과 같습니다.')
+    ttk.Label(dialog, textvariable=explanation, wraplength=900).pack(fill='x', padx=12, pady=10)
+    rows = {}
+
+    def selected():
+        keys = tree.selection()
+        return rows.get(keys[0]) if keys else None
+
+    def select(_=None):
+        row = selected()
+        if row:
+            explanation.set(f"{row['name']}: {row['detail']}\n해결 방법: {row['fix']}")
+
+    def refresh():
+        try:
+            result = diagnostics(layout)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('점검 실패', type(error).__name__, parent=dialog)
+            return
+        tree.delete(*tree.get_children())
+        rows.clear()
+        for row in result:
+            key = tree.insert('', 'end', values=('안내' if row.get('notice') else 'OK' if row['ok'] else 'FAIL', row['name'], row['detail']))
+            rows[key] = row
+        failures = [key for key, row in rows.items() if not row['ok'] and not row.get('notice')]
+        if failures:
+            tree.selection_set(failures[0])
+            select()
+        else:
+            explanation.set('준비 점검 완료. 시험 시작 시 기존 환경 gate가 다시 적용됩니다.')
+
+    def resolve():
+        row = selected()
+        if not row:
+            return
+        target = remediation_target(row['name'])
+        try:
+            if target == 'config':
+                open_config()
+            elif target == 'services.msc':
+                subprocess.Popen(['mmc.exe', 'services.msc'])
+            else:
+                os.startfile(target)
+        except OSError:
+            messagebox.showerror('설정 열기 실패', 'Windows 설정 또는 PC별 설정에서 직접 확인하세요.', parent=dialog)
+    tree.bind('<<TreeviewSelect>>', select)
+    ttk.Button(dialog, text='선택 항목 설정 화면 열기', command=resolve).pack(side='left', padx=12, pady=10)
+    ttk.Button(dialog, text='다시 점검', command=refresh).pack(side='left', padx=12)
+    ttk.Button(dialog, text='닫기', command=dialog.destroy).pack(side='right', padx=12)
+    refresh()
+    return dialog
+
+
+def review_run(root, record):
+    import tkinter as tk
+    from tkinter import ttk, messagebox, scrolledtext
+    dialog = tk.Toplevel(root)
+    dialog.title(f"수동 검토 · {record.data['run_id']}")
+    dialog.geometry('900x670')
+    ttk.Label(dialog, text=f"자동 실행: {record.data['status']} · 검토: {record.data['review_status']}").pack(pady=8)
+    reviewer = tk.StringVar()
+    top = ttk.Frame(dialog)
+    top.pack(fill='x', padx=12)
+    ttk.Label(top, text='검토자 이름').pack(side='left')
+    ttk.Entry(top, textvariable=reviewer, width=28).pack(side='left', padx=8)
+    targets = record.review_targets()
+    selected = tk.StringVar(value=targets[0] if targets else '')
+    choice = ttk.Combobox(dialog, values=targets, textvariable=selected, state='readonly', width=65)
+    choice.pack(pady=10)
+    verdict = tk.StringVar()
+    ttk.Combobox(dialog, values=('확인 완료', '결함 등록', '재시험 필요'), textvariable=verdict, state='readonly').pack()
+    ttk.Label(dialog, text='의견 / 결함 번호').pack(pady=8)
+    comment = scrolledtext.ScrolledText(dialog, height=12, wrap='word')
+    comment.pack(fill='both', expand=True, padx=12)
+    issue = tk.StringVar()
+    ttk.Entry(dialog, textvariable=issue, width=65).pack(pady=8)
+    entries = {}
+    path = record.path.with_name('review.json')
+    if path.exists():
+        try:
+            saved = json.loads(path.read_text(encoding='utf-8'))
+            reviewer.set(saved.get('reviewer', ''))
+            entries.update(saved.get('entries', {}))
+        except (OSError, ValueError):
+            messagebox.showerror('검토 읽기 실패', '기존 review.json을 보존합니다. 파일을 먼저 확인하세요.', parent=dialog)
+            dialog.destroy()
+            return
+    current = [selected.get()]
+
+    def keep():
+        if current[0] and verdict.get():
+            entries[current[0]] = {'result': verdict.get(), 'comment': comment.get('1.0', 'end').strip(), 'issue': issue.get().strip()}
+
+    def load(_=None):
+        keep()
+        current[0] = selected.get()
+        entry = entries.get(current[0], {})
+        verdict.set(entry.get('result', ''))
+        comment.delete('1.0', 'end')
+        comment.insert('end', entry.get('comment', ''))
+        issue.set(entry.get('issue', ''))
+
+    def save(complete):
+        keep()
+        try:
+            record.save_review(reviewer.get(), entries, complete=complete)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('검토 기록', str(error), parent=dialog)
+            return
+        messagebox.showinfo('검토 기록', record.data['review_status'], parent=dialog)
+    choice.bind('<<ComboboxSelected>>', load)
+    load()
+    ttk.Label(dialog, text='자동 판정과 원본 보고서는 바꾸지 않습니다. 모든 PASS 아닌 TC를 검토해야 완료할 수 있습니다.').pack(pady=8)
+    ttk.Button(dialog, text='검토 중 저장', command=lambda: save(False)).pack(side='left', padx=12, pady=12)
+    ttk.Button(dialog, text='검수 완료', command=lambda: save(True)).pack(side='left', padx=12)
+
+
+def share_run(root, record):
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+    from .share import create_package, verify_package
+    dialog = tk.Toplevel(root)
+    dialog.title(f"공유 범위 선택 · {record.data['run_id']}")
+    dialog.geometry('620x310')
+    ttk.Label(dialog, text='보고서·검토 기록을 공유합니다. 설정·비밀번호는 제외합니다.\n추가 자료는 시험 환자 정보를 포함할 수 있습니다.', wraplength=580).pack(pady=14)
+    flags = [tk.BooleanVar(value=False) for _ in range(3)]
+    for label, value in zip(('증거 스크린샷 (시험 환자 정보 포함)', 'DICOM (시험 환자 정보 포함)', 'Viewer 로그 구간'), flags):
+        ttk.Checkbutton(dialog, text=label, variable=value).pack(anchor='w', padx=24, pady=6)
+
+    def create():
+        output = filedialog.asksaveasfilename(parent=dialog, defaultextension='.zip', initialfile=record.data['run_id'] + '.zip')
+        if not output:
+            return
+        try:
+            review = record.path.with_name('review.json')
+            create_package(output, run_id=record.data['run_id'], reports=record.data['reports'],
+                           review=review if review.exists() else None,
+                           include_evidence=flags[0].get(), include_dicom=flags[1].get(), include_logs=flags[2].get())
+            problems = verify_package(output)
+            if problems:
+                raise ValueError('\n'.join(problems))
+            messagebox.showinfo('공유 ZIP', '생성과 무결성 검증을 완료했습니다.', parent=dialog)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('공유 ZIP 실패', str(error), parent=dialog)
+    ttk.Button(dialog, text='선택 범위로 ZIP 만들기', command=create).pack(pady=18)

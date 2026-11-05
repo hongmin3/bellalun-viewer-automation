@@ -461,6 +461,7 @@ def _elevate(layout, arguments, stop_file=None):
     log_path.parent.mkdir(parents=True, exist_ok=True)
     command = child_command(['--workspace', str(layout.workspace), '--config', str(layout.config_path),
                              '--elevated', '--elevation-log', str(log_path)] +
+                            (['--run-id', os.environ['BELLALUN_QA_RUN']] if os.environ.get('BELLALUN_QA_RUN') else []) +
                             (['--stop-file', str(stop_file)] if stop_file else []) + list(arguments))
     info = ShellExecuteInfo()
     info.cbSize = ctypes.sizeof(info)
@@ -505,7 +506,14 @@ def main(argv=None):
     parser.add_argument('--elevated', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--stop-file', help=argparse.SUPPRESS)
     parser.add_argument('--elevation-log', help=argparse.SUPPRESS)
+    parser.add_argument('--run-id', help=argparse.SUPPRESS)
     options, arguments = parser.parse_known_args(argv)
+    if options.run_id:
+        import re
+        if not re.fullmatch(r'[0-9]{8}-[0-9]{6}-[a-f0-9]{8}', options.run_id):
+            print('[FAIL] 실행 번호 형식이 올바르지 않습니다.')
+            return 2
+        os.environ['BELLALUN_QA_RUN'] = options.run_id
     if options.version:
         print(f'BellalunAuto {__version__}')
         return 0
@@ -529,12 +537,22 @@ def main(argv=None):
             with log_path.open('x', encoding='utf-8', buffering=1) as log:
                 from contextlib import redirect_stdout, redirect_stderr
                 forwarded = ['--workspace', str(layout.workspace), '--config', str(layout.config_path),
-                             '--elevated'] + (['--stop-file', options.stop_file] if options.stop_file else []) + arguments
+                             '--elevated'] + (['--run-id', options.run_id] if options.run_id else []) + (['--stop-file', options.stop_file] if options.stop_file else []) + arguments
                 with redirect_stdout(log), redirect_stderr(log):
                     return main(forwarded)
         if not arguments:
             from bellalunauto.gui import launch
             return launch(layout)
+        if arguments[0] == 'verify-share':
+            from bellalunauto.share import verify_package
+            if len(arguments) != 2:
+                raise ValueError('verify-share <공유 ZIP 경로>를 지정하세요.')
+            problems = verify_package(arguments[1])
+            for problem in problems:
+                print(f'[FAIL] {problem}')
+            if not problems:
+                print('[OK] 공유 ZIP의 파일 목록·SHA-256·상대 링크를 확인했습니다.')
+            return 1 if problems else 0
         if any(value in ('-h', '--help') for value in arguments):
             return _engine(layout, arguments)
         if arguments[0] in {'selfcheck', 'portability-check'}:
@@ -556,11 +574,30 @@ def main(argv=None):
                 print(f'[FAIL] 작업 폴더 경로 문자: {char_problem}')
                 print(f'해결 방법: {WORKSPACE_CHAR_FIX}')
                 return 2
-            if os.name == 'nt' and not ctypes.windll.shell32.IsUserAnAdmin():
-                if options.elevated:
-                    raise PermissionError('관리자 권한으로 실행하지 못했습니다.')
-                return _elevate(layout, arguments, options.stop_file)
-            return run_guarded(layout, arguments, options.stop_file)
+            record = None
+            previous_run = os.environ.get('BELLALUN_QA_RUN')
+            if (arguments[0] in {'run-regression', 'run-winupdate'} and not previous_run
+                    and not options.elevated):
+                from bellalunauto.runs import RunRecord
+                from bellalunauto.runplan import build_plan
+                config = bundled_config(load_config(layout), layout.resource_dir)
+                record = RunRecord.create(layout.workspace, arguments[0], build_plan(layout, config, arguments[0]))
+                os.environ['BELLALUN_QA_RUN'] = record.data['run_id']
+                print(f"실행 번호: {record.data['run_id']} · 화면 동의 없음(CLI)")
+            code = -1
+            try:
+                if os.name == 'nt' and not ctypes.windll.shell32.IsUserAnAdmin():
+                    if options.elevated:
+                        raise PermissionError('관리자 권한으로 실행하지 못했습니다.')
+                    code = _elevate(layout, arguments, options.stop_file)
+                else:
+                    code = run_guarded(layout, arguments, options.stop_file)
+                return code
+            finally:
+                if record:
+                    record.finish(code)
+                    print(f"실행 결과: {record.data['status']} · 다음 행동: {record.data['next_action']}")
+                    os.environ.pop('BELLALUN_QA_RUN', None)
         return _engine(layout, arguments)
     except AlreadyRunning:
         print('[FAIL] 다른 BellalunAuto가 제품을 사용 중입니다. 실행이 끝난 뒤 다시 시도하세요.')

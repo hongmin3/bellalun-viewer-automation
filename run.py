@@ -982,7 +982,9 @@ def _run_winupdate_chain(ctx, resume=False):
 
     aborted_precondition = None
     with wu_chain.keep_awake():
-        for fn, stage_id, title in stages:
+        for stage_index, (fn, stage_id, title) in enumerate(stages, start=1):
+            from bellalunauto.runs import engine_progress
+            engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'), stage_id, stage_index, len(stage_ids))
             if checkpoint.done(stage_id):
                 produced = checkpoint.results(stage_id)
                 reused.append(stage_id)
@@ -1039,6 +1041,8 @@ def _run_winupdate_chain(ctx, resume=False):
             ui = _prepare_wu_setting_ui(ctx, ui, holder["usb"])
             return [winupdate.run_setting_display(ctx, ui)]
 
+        engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'),
+                        "WU09_USB", len(stages) + 1, len(stage_ids))
         if checkpoint.done("WU09_USB"):
             reused.append("WU09_USB")
             print("  [재개] WU09_USB: 저장점 결과 재사용")
@@ -1059,6 +1063,8 @@ def _run_winupdate_chain(ctx, resume=False):
         usb_outcome = holder["usb"]
 
         wu10_result = None
+        engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'),
+                        "TC_WindowsUpdate_10", len(stages) + 2, len(stage_ids))
         if checkpoint.done("TC_WindowsUpdate_10"):
             saved = checkpoint.results("TC_WindowsUpdate_10")
             wu10_result = wu_chain.result_from_dict(saved[0]) if saved else None
@@ -1648,6 +1654,8 @@ def _main():
         from core import automation_health as health
         total_tc = len(chain)
         for index, (fn, tc_id, title) in enumerate(chain, start=1):
+            from bellalunauto.runs import engine_progress
+            engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'), tc_id, index, total_tc)
             tc_started = time.time()
             try:
                 health.write_state(
