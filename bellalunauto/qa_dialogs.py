@@ -15,6 +15,35 @@ def remediation_target(name):
     return 'config'
 
 
+def diagnostics_error_report(error, workspace):
+    """준비 점검 예외를 오류 창 문구로 만들고 작업/Log에 남긴다.
+
+    예외 문장·인자·설정 값은 계정이나 경로를 담을 수 있어 남기지 않는다. 종류, Windows 오류 번호,
+    시스템 설명, 호출 위치(파일·함수·줄)만 쓴다.
+    """
+    import traceback
+    from datetime import datetime
+    frames = traceback.extract_tb(error.__traceback__)
+    calls = [f"{'/'.join(Path(f.filename).parts[-2:])}:{f.lineno} {f.name}" for f in frames]
+    code = getattr(error, 'winerror', None) or getattr(error, 'errno', None)
+    reason = getattr(error, 'strerror', None) if isinstance(error, OSError) else None
+    cause = ' · '.join(str(part) for part in (type(error).__name__, code and f'코드 {code}', reason) if part)
+    location = calls[-1] if calls else '알 수 없음'
+    log_path = Path(workspace) / 'Log' / 'diagnostics-error.log'
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open('a', encoding='utf-8') as log:
+            log.write(f"[{datetime.now().isoformat(timespec='seconds')}] {cause}\n")
+            log.writelines(f'  {call}\n' for call in calls)
+        saved = f'기록 위치: {log_path}'
+    except OSError as log_error:
+        failure = ' · '.join(str(part) for part in (type(log_error).__name__, log_error.errno and f'코드 {log_error.errno}') if part)
+        saved = f'기록을 남기지 못했습니다({failure}). 작업 폴더 쓰기 권한을 확인하세요.'
+    return (f'원인: {cause}\n실패 위치: {location}\n{saved}\n\n'
+            '해결 방법: 프로그램을 다시 열어 [준비 점검]을 누르세요. 같은 오류가 반복되면 명령 창에서 '
+            '`BellalunAuto.exe selfcheck`를 실행하고, 위 기록 파일과 함께 담당자에게 전달하세요.')
+
+
 def confirm_plan(root, plan):
     import tkinter as tk
     from tkinter import ttk, scrolledtext
@@ -75,7 +104,7 @@ def show_diagnostics(root, layout, open_config):
         try:
             result = diagnostics(layout)
         except (OSError, ValueError) as error:
-            messagebox.showerror('점검 실패', type(error).__name__, parent=dialog)
+            messagebox.showerror('점검 실패', diagnostics_error_report(error, layout.workspace), parent=dialog)
             return
         tree.delete(*tree.get_children())
         rows.clear()

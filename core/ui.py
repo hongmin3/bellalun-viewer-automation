@@ -537,7 +537,7 @@ class ViewerUi:
             ["powershell", "-NoProfile", "-Command",
              f"(Get-Process {self.process_name} -ErrorAction SilentlyContinue "
              f"| Select-Object -First 1).Id"],
-            capture_output=True,
+            stdin=subprocess.DEVNULL, capture_output=True,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)).stdout.decode("utf-8", "replace").strip()
         return int(out) if out.isdigit() else None
 

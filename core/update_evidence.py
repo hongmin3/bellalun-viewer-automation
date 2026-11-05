@@ -98,7 +98,7 @@ class WindowsProbe:
                   " | ConvertTo-Json -Compress")
         try:
             proc = self.runner(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                               capture_output=True, timeout=self.timeout,
+                               stdin=subprocess.DEVNULL, capture_output=True, timeout=self.timeout,
                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except subprocess.TimeoutExpired:
             raise RuntimeError("Get-HotFix 시간 초과(%d초)" % self.timeout)

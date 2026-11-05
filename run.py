@@ -217,7 +217,7 @@ def _file_version(path):
             ["powershell", "-NoProfile", "-Command",
              f"(Get-Item -LiteralPath {sysinfo.ps_literal(path)})"
              ".VersionInfo.FileVersion"],
-            capture_output=True, timeout=30,
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=30,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return out.stdout.decode("utf-8", "replace").strip() or None
     except Exception:                                  # noqa: BLE001
@@ -228,7 +228,7 @@ def _tesseract_version(exe):
     if not exe or not os.path.exists(exe):
         return None
     try:
-        out = subprocess.run([exe, "--version"], capture_output=True, timeout=30,
+        out = subprocess.run([exe, "--version"], stdin=subprocess.DEVNULL, capture_output=True, timeout=30,
                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         first = (out.stdout or out.stderr).decode("utf-8", "replace").splitlines()
         return f"{first[0].strip()} ({exe})" if first else exe

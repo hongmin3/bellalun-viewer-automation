@@ -1,5 +1,14 @@
 # 진행 상태
 
+## 2026-11-05 재부팅 후 OSError 수정·후보7 (Issue #85 이어서)
+
+- 사용자 지시: 재부팅 후 바로가기 실행의 준비 점검 `OSError`를 고치고, 수정 후보로 기본기능·WU 두 전체를 한 번 수행한다(DB 4개 복원·서비스/설정 변경·USB 포함 승인). 재부팅은 사용자가 17:25에 했다. Worker는 17:25에 다시 올라왔다.
+- 재부팅 직후 상태: VXvue 제품·다른 Bellalun 실행 없음. Codex 데스크톱 앱만 대기 중이다. USB `D:`(`VXVUE1`)·`D:\BellalunWU09` 있음.
+- **TCP 표 이상은 재부팅 뒤에도 그대로다.** `Get-NetTCPConnection`·`netstat`·`GetExtendedTcpTable` 모두 상태 값을 틀리게 준다(같은 수신 소켓이 호출마다 CLOSED·FIN_WAIT_1 등으로 바뀜). 수신 소켓만 고르는 목록(`TCP_TABLE_OWNER_PID_LISTENER`)에는 `127.0.0.1:9784`(XIPL.SERVER PID)가 들어 있지만 그 상태 값도 0·1·2·6 중 하나로 나온다. 그래서 `core/preflight.py`의 `-State Listen` gate가 계속 FAIL이다.
+  같은 날 11:23에 끝난 WU 실행까지는 gate가 통과했다. 비Microsoft 네트워크 바인딩은 Vieworks `VwFilter` 하나이고, 11-04에 KB5127936·KB5132402가 설치됐다. 원인은 확정하지 못했다. 드라이버·보안·네트워크 설정은 바꾸지 않았고 gate도 바꾸지 않았다.
+- 수정(REQ-DIST-002, REQ-QA-005): 출력을 받는 제품 자식 호출 31곳에 표준 입력 NUL 지정, worker는 유효한 콘솔 입력만 상속, 준비 점검 예외 창에 원인 코드·위치·기록 위치·해결 방법. 실패 시험을 먼저 확인했다(잘못된 stdin에서 `WinError 6` 재현).
+- 검증: 전체 단위시험 782 passed / 2 skipped / 265 subtests, 정적 7종 이상 없음, readiness 실패 0(기존 경고 2).
+
 ## 2026-11-05 후보6 설치판 인수·회귀 (Issue #85, 회귀 미실행·차단)
 
 - 사용자 승인: 후보6으로 기본기능·WU 두 전체를 즉시 실행한다(DB 4개 복원·서비스 변경·USB 포함). 시작 직전 VXvue 제품은 실행 중이 아니었다. 유휴 Codex 세션만 있었다. USB `D:`(`VXVUE1`)와 `D:\BellalunWU09`가 있었다.

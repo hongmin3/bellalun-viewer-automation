@@ -250,6 +250,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 
 준비 점검·DB 조회·DB 복원에 필요한 서비스 명령·보고서 환경 수집의 콘솔 자식도 새 창 없이 실행한다. Viewer 제품 창과 사용자 직접 조작이 필요한 Windows 권한 창은 이 제한과 구분한다.
 
+출력을 받는 자식 호출은 표준 입력을 NUL로 정한다. 입력을 넘기는 OCR 호출은 그 입력을 쓴다. 콘솔 CLI의 worker에는 유효한 콘솔 입력을 그대로 넘겨 대화형 질문을 유지한다.
+이유: 콘솔 없이 시작한 GUI 실행 파일은 표준 입력이 잘못된 핸들로 남을 수 있다. 그대로 상속하면 자식 생성이 `WinError 6`으로 실패한다.
+
 감시 프로세스는 자기 EXE의 명시적 worker 모드로 엔진을 실행한다. worker가 다시 감시 프로세스를
 만들지 않는다. 종료 코드·진행 상태·새 전체 리포트 확인과 비정상 종료의 제품 정리를 보존한다.
 같은 PC의 제품 조작은 작업 폴더가 달라도 하나만 실행한다.
@@ -395,6 +398,10 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 
 #### 하는 일
 준비 점검의 각 실패 행(해상도·배율·제품·SQL·OCR·외부 서버 등)에 해결 방법과 해당 Windows 설정 화면을 여는 동선을 붙이고, 고친 뒤 "다시 점검"으로 같은 점검을 다시 돌린다.
+#### 안 될 때
+점검 자체가 예외로 멈추면 오류 창 하나에 원인 종류·Windows 오류 번호·실패 위치(파일·함수·줄)·기록 위치·해결 방법을 보인다. 같은 내용을 작업 폴더의 `Log/diagnostics-error.log`에 더한다. 기록을 쓰지 못하면 그 사실과 확인할 권한을 같은 창에 적는다.
+
+> **주의** 예외 문장·인자·설정 값은 계정·비밀번호·환자 정보를 담을 수 있어 창과 기록에 넣지 않는다.
 #### 지킬 것
 - 점검 기준과 실행 차단 조건(환경 gate)은 바꾸지 않는다. 해결 동선은 설정 화면을 여는 것까지만 하고 값을 대신 바꾸지 않는다.
 
@@ -798,7 +805,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
-| REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py` | implemented |
+| REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py` | implemented |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
@@ -807,7 +814,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
-| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py` | implemented |
+| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | implemented |
 | REQ-DIST-003 | `tools/build_distribution.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py` | implemented |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |

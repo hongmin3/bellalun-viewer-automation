@@ -121,7 +121,7 @@ def _authenticode(path):
               f"\"$($s.Status)|$($s.SignerCertificate.Subject)\"")
     try:
         out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                             capture_output=True, timeout=90)
+                             stdin=subprocess.DEVNULL, capture_output=True, timeout=90)
     except (OSError, subprocess.SubprocessError) as exc:
         return None, f"서명 조회 실패: {exc}"
     text = out.stdout.decode("utf-8", "replace").strip()

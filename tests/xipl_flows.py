@@ -313,7 +313,7 @@ def _prepare(ctx):
     subprocess.run(
         ["powershell", "-NoProfile", "-Command",
          "Get-Process XIPL.STUDIO -ErrorAction SilentlyContinue | Stop-Process -Force"],
-        capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        stdin=subprocess.DEVNULL, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     parameter_root = (ctx.cfg.get("xipl") or {}).get(
         "parameter_dir", r"C:\XIPL\PARAMETER")
     vp.ensure_parameter_copies(parameter_root)
@@ -350,7 +350,7 @@ def _stop_xipl():
     subprocess.run(
         ["powershell", "-NoProfile", "-Command",
          "Get-Process XIPL.STUDIO -ErrorAction SilentlyContinue | Stop-Process -Force"],
-        capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        stdin=subprocess.DEVNULL, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def compatibility_01(ctx, session):

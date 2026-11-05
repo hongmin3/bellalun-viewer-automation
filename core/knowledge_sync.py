@@ -350,7 +350,7 @@ class ServerFetcher:
     def _ssh(self, command, stdout=subprocess.PIPE):
         cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", self.s["ssh_target"], command]
         flags = 0x08000000 if os.name == "nt" else 0          # CREATE_NO_WINDOW — 예약 실행에서 창을 띄우지 않는다
-        p = self.runner(cmd, stdout=stdout, stderr=subprocess.PIPE, timeout=self.s["timeout"] * 5,
+        p = self.runner(cmd, stdin=subprocess.DEVNULL, stdout=stdout, stderr=subprocess.PIPE, timeout=self.s["timeout"] * 5,
                         creationflags=flags)
         if p.returncode != 0:
             raise SyncError("ssh 실패(%d): %s" % (p.returncode, (p.stderr or b"").decode("utf-8", "replace").strip()[:200]))

@@ -128,7 +128,7 @@ foreach($e in $els){{try{{$pat=$e.GetCurrentPattern([System.Windows.Automation.I
 if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True,
+                              stdin=subprocess.DEVNULL, capture_output=True,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
@@ -151,7 +151,7 @@ foreach($e in $els){{try{{$r=$e.Current.BoundingRectangle;if($r.Y -ge 30){{$pat=
 if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True,
+                              stdin=subprocess.DEVNULL, capture_output=True,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
@@ -178,7 +178,7 @@ if($null -ne $found){{
 }}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True,
+                              stdin=subprocess.DEVNULL, capture_output=True,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         raw = proc.stdout.decode("utf-8", "replace").strip()
         if not raw:
@@ -414,7 +414,7 @@ $newVal = $pat.Current.Value
 Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True,
+                              stdin=subprocess.DEVNULL, capture_output=True,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         out = proc.stdout.decode("utf-8", "replace").strip()
         if out.startswith("ERROR"):
@@ -574,7 +574,7 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
 '''
             proc = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", script],
-                capture_output=True,
+                stdin=subprocess.DEVNULL, capture_output=True,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true"):
                 time.sleep(1)

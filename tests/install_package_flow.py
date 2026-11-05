@@ -200,7 +200,7 @@ def _close_running_installer(ui):
     if not _ask_yes("  닫고 새로 시작할까요?", True):
         return False
     subprocess.run(["taskkill", "/F", "/IM", "Install.exe"],
-                   capture_output=True)
+                   stdin=subprocess.DEVNULL, capture_output=True)
     for _ in range(20):
         time.sleep(0.5)
         ui._pid = None

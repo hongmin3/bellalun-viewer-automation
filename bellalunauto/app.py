@@ -58,6 +58,22 @@ def legacy_product_lock(arguments):
         yield
 
 
+def _inherited_stdin():
+    """worker에 넘길 표준 입력.
+
+    콘솔 CLI의 입력은 그대로 넘겨 대화형 질문을 유지한다. 콘솔 없는 GUI 실행 파일은 표준 입력이
+    잘못된 핸들로 남을 수 있고, 그대로 넘기면 subprocess가 WinError 6으로 실패한다. 그때는 NUL을 준다.
+    """
+    if os.name != 'nt':
+        return None
+    import _winapi
+    try:
+        _winapi.GetStdHandle(_winapi.STD_INPUT_HANDLE)
+    except OSError:
+        return subprocess.DEVNULL
+    return None
+
+
 def _safe_cwd():
     """승격·worker 프로세스의 현재 폴더.
 
@@ -313,7 +329,7 @@ def _stop_process_tree(process):
     if process.poll() is None:
         if os.name == 'nt':
             subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
-                           capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                           stdin=subprocess.DEVNULL, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
         else:
             process.terminate()
         try:
@@ -384,7 +400,7 @@ def run_guarded(layout, arguments, stop_file=None):
             from bellalunauto.gui import secret_redactor
             scrub = secret_redactor(load_config(layout))
             child = subprocess.Popen(worker_command(layout, arguments, stop_file),
-                                     cwd=_safe_cwd(), env=environment,
+                                     stdin=_inherited_stdin(), cwd=_safe_cwd(), env=environment,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      text=True, encoding='utf-8', errors='replace', bufsize=1)
             job.assign(child)
