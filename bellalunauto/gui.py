@@ -211,6 +211,14 @@ def detect_settings(config: dict) -> dict[str, str]:
         "xipl.parameter_dir": [Path("C:/XIPL/PARAMETER")],
         "xipl.tesseract_exe": [Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Tesseract-OCR/tesseract.exe"],
     }
+    try:
+        from core import product_env
+        xipl_root = product_env.lookup(product_env.product_environment(), "XIPL_PATH")
+    except Exception:
+        xipl_root = None
+    if xipl_root:
+        candidates["xipl.studio_exe"].insert(0, Path(xipl_root) / "STUDIO_X64/XIPL.STUDIO.exe")
+        candidates["xipl.parameter_dir"].insert(0, Path(xipl_root) / "PARAMETER")
     found_ocr = shutil.which("tesseract")
     if found_ocr:
         candidates["xipl.tesseract_exe"].insert(0, Path(found_ocr))
@@ -227,23 +235,138 @@ def detect_settings(config: dict) -> dict[str, str]:
     return values
 
 
+PRODUCT_DATA_MARKERS = ("Config", "Database")
+SQL_INSTANCE = "BELLALUN"
+# 이 PC의 기존 설정에서 가져오는 값. 경로는 다시 찾는다.
+_CARRIED_KINDS = ("text", "url", "port", "password")
+
+
+def _fixed_drive_roots() -> list[Path]:
+    """고정 디스크만. USB(이동식)에 같은 이름 폴더가 있어도 제품 데이터로 보지 않는다."""
+    if os.name != "nt":
+        return []
+    import ctypes
+    import string
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
+    kernel.GetDriveTypeW.restype = ctypes.c_uint
+    return [Path(f"{letter}:\\") for letter in string.ascii_uppercase
+            if kernel.GetDriveTypeW(f"{letter}:\\") == 3]
+
+
+def _is_product_data_dir(path) -> bool:
+    return bool(path) and all((Path(path) / name).is_dir() for name in PRODUCT_DATA_MARKERS)
+
+
+def _detected_data_dir() -> Path | None:
+    found = [root / "BellalunData" for root in _fixed_drive_roots()
+             if _is_product_data_dir(root / "BellalunData")]
+    return found[0].resolve() if len(found) == 1 else None
+
+
+def _sql_instances() -> list[str]:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL") as key:
+            names, index = [], 0
+            while True:
+                try:
+                    names.append(winreg.EnumValue(key, index)[0])
+                except OSError:
+                    return names
+                index += 1
+    except (ImportError, OSError):
+        return []
+
+
+def team_settings() -> dict | None:
+    """사내 배포본에 들어 있는 팀 공통 서버·계정 설정(`resources/team-settings.json`)."""
+    from .resources import load_team_settings
+    from .runtime import _resources
+    return load_team_settings(_resources())
+
+
+def previous_config() -> dict | None:
+    """이 PC에서 쓰던 BellalunAuto 설정. 기억한 작업 폴더 → 기본 작업 폴더 순서. 없으면 None."""
+    from . import runtime
+    base = runtime._preferences_dir()
+    candidates = []
+    try:
+        saved = runtime._read_object(base / "preferences.json").get("workspace")
+        if isinstance(saved, str) and Path(saved).is_absolute():
+            candidates.append(Path(saved) / "config.json")
+    except (OSError, ValueError):
+        pass
+    candidates.append(base / "workspace" / "config.json")
+    for path in candidates:
+        try:
+            if path.is_file():
+                return runtime._read_object(path)
+        except (OSError, ValueError):
+            continue
+    return None
+
+
 def first_run_config(config: dict) -> dict:
     """첫 실행 폼을 열기 전에 찾은 로컬 경로만 반영한다. 서버·계정은 건드리지 않는다.
 
     첫 실행 설정은 배포 기본값뿐이다. 기본값의 예시 경로가 이 PC에 없으면 비운 뒤 탐지한다.
     """
+    # 팀 공통 설정(배포본) 다음에 이 PC의 기존 설정을 적용한다. 이 PC 값이 이긴다.
+    for previous in (team_settings(), previous_config()):
+        if not previous:
+            continue
+        carried = {}
+        for _, key, _, kind in form_fields(previous):
+            value = _get(previous, key, None)
+            if kind in _CARRIED_KINDS and value not in (None, "", "REPLACE_ME"):
+                carried[key] = value if kind == "password" else str(value)
+        servers = _get(previous, "dicom.servers_to_register", None)
+        config = copy.deepcopy(config)
+        if isinstance(servers, list) and servers:
+            _set(config, "dicom.servers_to_register", copy.deepcopy(servers))
+        known_keys = {key for _, key, _, _ in form_fields(config)}
+        for key, value in carried.items():
+            if key not in known_keys:
+                continue
+            try:
+                # 값마다 따로 검증한다. 형식이 틀린 값 하나 때문에 첫 실행이 막히지 않게 건너뛴다.
+                config = merge_form_config(config, {key: value})
+            except ValueError:
+                continue
     kinds = {key: kind for _, key, _, kind in form_fields(config)}
     blank = {}
     for key, kind in kinds.items():
         value = str(_get(config, key) or "")
         if kind in ("file", "dir") and value and not Path(value).exists():
             blank[key] = ""
+    data_dir = str(_get(config, "data_dir") or "")
+    if data_dir and not _is_product_data_dir(data_dir):
+        blank["data_dir"] = ""
     if blank:
         config = merge_form_config(config, blank)
+    found_data = _detected_data_dir() if not _get(config, "data_dir") else None
+    if found_data is not None:
+        config = merge_form_config(config, {"data_dir": str(found_data)})
+    if SQL_INSTANCE in [name.upper() for name in _sql_instances()]:
+        config = merge_form_config(config, {"sql_server": f".\\{SQL_INSTANCE}",
+                                            "sql_service_name": f"MSSQL${SQL_INSTANCE}"})
     detected = detect_settings(config)
     changed = {key: value for key, value in detected.items()
                if value != str(_get(config, key) or "")}
     return merge_form_config(config, changed)
+
+
+def prepare_first_run(layout) -> dict:
+    """첫 실행: 찾은 값으로 설정을 저장하고 작업 폴더를 기억한다. 폼은 열지 않는다."""
+    from . import runtime
+    config = first_run_config(load_gui_config(layout))
+    runtime.save_config(layout, config)
+    if not runtime._compiled():
+        # 설치판은 설치 폴더의 `작업`을 쓰므로 기억 파일을 덮어쓰지 않는다(이전 작업 폴더 설정을 보존).
+        runtime.remember_workspace(layout.workspace)
+    return config
 
 
 def load_gui_config(layout) -> dict:
@@ -459,7 +582,7 @@ def config_error_text(layout, error) -> str:
     """손상된 설정의 위치와 원인을 알린다. 파일은 바꾸지 않는다."""
     return (f"설정 파일을 읽지 못했습니다.\n\n위치: {layout.config_path}\n원인: {type(error).__name__}: {error}\n\n"
             "파일은 바꾸지 않았습니다. JSON 형식을 고치거나 파일 이름을 바꾼 뒤 다시 여세요. "
-            "이름을 바꾸면 처음 실행처럼 설정 폼이 열립니다.")
+            "이름을 바꾸면 처음 실행처럼 이 PC의 값을 다시 찾아 저장합니다.")
 
 
 def recover_start(error) -> int:
@@ -497,7 +620,8 @@ def recover_start(error) -> int:
 
 def workspace_error_text(workspace, error) -> str:
     return (f"작업 폴더를 사용할 수 없습니다.\n\n위치: {workspace}\n원인: {type(error).__name__}: {error}\n\n"
-            "설치 폴더 밖의 쓰기 가능한 폴더를 고른 뒤 다시 여세요. 기존 파일은 바꾸지 않았습니다.")
+            "설치판은 설치 폴더 아래 '작업' 폴더를 씁니다. 쓰기 권한이 없으면 Setup을 다시 실행해 권한을 복구하세요. "
+            "포터블은 쓰기 가능한 폴더(예: D:\\BellalunAuto)에 풀어 실행하세요. 기존 파일은 바꾸지 않았습니다.")
 
 
 def launch(layout, workspace_chosen=False) -> int:
@@ -505,14 +629,16 @@ def launch(layout, workspace_chosen=False) -> int:
     import tkinter as tk
     from tkinter import filedialog, messagebox, scrolledtext, ttk
     from . import __version__
-    from .runtime import remember_workspace, resolve_layout
+    from .runtime import resolve_layout
 
     root = tk.Tk()
     root.withdraw()
     root.title(f"BellalunAuto {__version__}")
     root.geometry("960x720")
     first_run = not Path(layout.config_path).exists()
-    if first_run and not workspace_chosen:
+    # 설치판은 설치 폴더 아래 `작업`을 쓰므로 고르지 않는다. 소스 실행만 처음 한 번 고른다.
+    from .runtime import _compiled
+    if first_run and not workspace_chosen and not _compiled():
         chosen = filedialog.askdirectory(parent=root, title="BellalunAuto 작업 폴더 선택 (설정·결과·증거·로그)", initialdir=str(layout.workspace), mustexist=False)
         if not chosen:
             root.destroy()
@@ -524,25 +650,13 @@ def launch(layout, workspace_chosen=False) -> int:
             root.destroy()
             return 1
     try:
-        config = load_gui_config(layout)
+        # 첫 실행은 폼 없이 이 PC에서 찾은 값을 저장한다(사용자 결정 2026-11-05).
+        config = prepare_first_run(layout) if first_run else load_gui_config(layout)
     except (OSError, ValueError) as error:
-        messagebox.showerror("설정 불러오기 실패", config_error_text(layout, error), parent=root)
+        text = workspace_error_text(layout.workspace, error) if first_run else config_error_text(layout, error)
+        messagebox.showerror("작업 폴더 확인" if first_run else "설정 불러오기 실패", text, parent=root)
         root.destroy()
         return 1
-    if first_run:
-        try:
-            config = first_run_config(config)
-            root.deiconify()
-            updated = _settings_dialog(root, layout, config, first_run=True)
-            if updated is None:
-                root.destroy()
-                return 0
-            config = updated
-            remember_workspace(layout.workspace)
-        except (OSError, ValueError) as error:
-            messagebox.showerror("작업 폴더 확인", workspace_error_text(layout.workspace, error), parent=root)
-            root.destroy()
-            return 1
     controller = RunController(layout, config)
     root.deiconify()
     ttk.Label(root, text=f"BellalunAuto {__version__}", font=("맑은 고딕", 19, "bold"), padding=12).pack(anchor="w")
@@ -673,5 +787,9 @@ def launch(layout, workspace_chosen=False) -> int:
         root.destroy()
     root.protocol("WM_DELETE_WINDOW", close)
     root.after(200, poll)
+    if first_run:
+        status.set("PC별 설정을 자동으로 찾아 저장했습니다. 준비 점검의 [FAIL] 행만 PC별 설정에서 채우세요.")
+        # 조회 전용 점검이라 바로 보여 준다. 시험·DB 복원은 시작하지 않는다.
+        root.after(300, lambda: run("selfcheck"))
     root.mainloop()
     return 0

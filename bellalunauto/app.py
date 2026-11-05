@@ -58,6 +58,53 @@ def legacy_product_lock(arguments):
         yield
 
 
+def _safe_cwd():
+    """승격·worker 프로세스의 현재 폴더.
+
+    설치판의 `작업`은 Users가 쓸 수 있으므로 현재 폴더로 쓰지 않는다. Windows는 확장자 없는
+    명령(`powershell`, `net`, `sc`)을 System32보다 현재 폴더에서 먼저 찾기 때문이다.
+    설치 폴더(관리자만 쓰기)를 쓴다. 소스 실행은 저장소 폴더를 쓴다.
+    """
+    from bellalunauto.runtime import _compiled
+    if _compiled():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[1]
+
+
+_WORKSPACE_FOLDERS = ('Log', 'Reports', 'Evidence', 'Cache', 'Temp', 'work')
+_EXECUTED_PATHS = ('viewer.exe', 'xipl.studio_exe', 'xipl.tesseract_exe', 'baseline_dir')
+
+
+def elevated_workspace_problems(workspace, config):
+    """승격된 시험이 믿으면 안 되는 작업 폴더 상태. 빈 목록이면 시작해도 된다.
+
+    `작업`은 Users가 쓸 수 있다. 관리자 권한으로 실행·복원할 제품 파일이 그 안에 있거나,
+    결과 폴더가 다른 위치를 가리키는 링크로 바뀌었으면 시작하지 않는다(REQ-DIST-006).
+    """
+    work = Path(workspace).resolve()
+    problems = []
+    for name in _WORKSPACE_FOLDERS:
+        path = Path(workspace) / name
+        try:
+            attributes = getattr(os.lstat(path), 'st_file_attributes', 0)
+        except FileNotFoundError:
+            continue
+        if path.is_symlink() or attributes & 0x400:  # FILE_ATTRIBUTE_REPARSE_POINT
+            problems.append(f"작업 폴더의 '{name}'이 다른 위치를 가리키는 링크입니다: {path}")
+    for key in _EXECUTED_PATHS:
+        value = config
+        for part in key.split('.'):
+            value = value.get(part) if isinstance(value, dict) else None
+        if isinstance(value, str) and value.strip():
+            try:
+                inside = Path(value).resolve().is_relative_to(work)
+            except (OSError, ValueError):
+                inside = False
+            if inside:
+                problems.append(f"관리자 권한으로 실행·복원할 '{key}'가 작업 폴더 안에 있습니다: {value}")
+    return problems
+
+
 def worker_command(layout, arguments, stop_file=None):
     if '--worker' in arguments:
         raise ValueError('worker 모드는 다시 worker를 만들 수 없습니다.')
@@ -318,6 +365,10 @@ def run_guarded(layout, arguments, stop_file=None):
     from core.ui import foreground_unlocked, taskbar_autohidden
     from bellalunauto.processes import WindowsJob
     command = arguments[0]
+    problems = elevated_workspace_problems(layout.workspace,
+                                           bundled_config(load_config(layout), layout.resource_dir))
+    if problems:
+        raise PermissionError('관리자 권한 시험을 시작하지 않았습니다. ' + ' / '.join(problems))
     started = time.time()
     child = None
     with RunLock(), foreground_unlocked(), taskbar_autohidden(), WindowsJob() as job:
@@ -333,7 +384,7 @@ def run_guarded(layout, arguments, stop_file=None):
             from bellalunauto.gui import secret_redactor
             scrub = secret_redactor(load_config(layout))
             child = subprocess.Popen(worker_command(layout, arguments, stop_file),
-                                     cwd=layout.workspace, env=environment,
+                                     cwd=_safe_cwd(), env=environment,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      text=True, encoding='utf-8', errors='replace', bufsize=1)
             job.assign(child)
@@ -416,7 +467,7 @@ def _elevate(layout, arguments, stop_file=None):
     info.fMask = 0x40  # SEE_MASK_NOCLOSEPROCESS
     info.lpVerb, info.lpFile = 'runas', command[0]
     info.lpParameters = subprocess.list2cmdline(command[1:])
-    info.lpDirectory, info.nShow = str(layout.workspace), 0
+    info.lpDirectory, info.nShow = str(_safe_cwd()), 0
     shell = ctypes.WinDLL('shell32', use_last_error=True)
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
     shell.ShellExecuteExW.argtypes = [ctypes.POINTER(ShellExecuteInfo)]

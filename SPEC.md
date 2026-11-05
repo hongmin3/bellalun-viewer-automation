@@ -63,7 +63,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 비공개 체크리스트·지식·Baseline은 auto Git 저장소 밖 자산이다.
 
 `bellalunauto/`는 GUI·작업 경로·중복 실행·자식 감시를 맡고 기존 엔진을 호출한다.
-설치 위치의 resources는 읽기 전용 자료다. 설정과 생성물은 사용자가 선택한 작업 폴더에 둔다.
+설치 위치의 resources는 읽기 전용 자료다. 설정과 생성물은 설치 폴더 아래 `작업` 폴더에 둔다(소스 실행은 고른 작업 폴더).
 
 ## 4. 전체 동작 흐름
 
@@ -199,6 +199,12 @@ TC/Step 결과, report title/source document/source sheet 메타데이터, expec
 공통 HTML/TXT/CSV/JSON 리포트에 실행 환경·명령·TC 판정과 사유를 전달한다.
 Windows Update는 기본기능 제목으로 오표기하지 않는다. 체크리스트 결과에서
 Fail/Manual의 이유를 전용 Comment에 쓰고 기존 수기 공용 Comment를 덮어쓰지 않는다.
+
+HTML·TXT 리포트 맨 앞에 "결론 — 한눈에 보기"를 둔다(사용자 요청 2026-11-05).
+- 결론 한 문장: 성공·실패·사람 확인 건수와 새 실패가 있는지. 색으로 성공/주의/실패를 나눈다.
+- PASS가 아닌 TC마다 한 줄: 결과, 멈춘 Step과 확인 항목, 기대값과 실제값, 원인.
+- 원인은 등록된 알려진 결함이면 그 결함 설명, 아니면 판정 근거의 첫 문장이다. 리포트가 원인을 추측해 만들지 않는다.
+- 알려진 결함 판별은 릴리스 게이트와 같은 분류 함수(`classify_fail`)를 쓴다.
 #### 기대 결과
 두 리포트의 기준 문서와 판정 이유가 혼동되지 않고 실패/미검증 사유를 읽을 수 있다.
 #### 예외 처리
@@ -216,9 +222,12 @@ Windows x64 팀원 PC에 `BellalunAuto-<version>-setup.exe`로 설치한다. 실
 지원 시험 환경은 Windows 10/11 x64, Viewer와 SQL Server·XIPL·OCR 및 외부 시험 서버가 준비된 PC다.
 개별 OS Build와 제품 버전의 실제 검증 범위는 빌드 결과에 기록한다.
 
-설치 영역의 실행 리소스와 사용자가 고른 작업 폴더의 설정·결과·증거·로그·캐시를 분리한다.
-현재 작업 폴더와 개발 PC 경로에 의존하지 않는다. `--config`를 유지하고 UAC 전환 시 config와
-작업 폴더의 절대 경로를 전달한다. 최초 작업 폴더 선택을 저장하고 이후 실행에서 재사용한다.
+설치판의 설정·리포트·증거·로그·캐시는 설치 폴더 아래 `작업` 폴더에 둔다(사용자 결정 2026-11-05). 포터블은 EXE 옆 `작업` 폴더다.
+실행 리소스(`resources`)와 `작업`은 서로 다른 폴더로 나눈다. `작업` 밖의 설치 폴더에는 쓰지 않는다.
+Setup은 `작업` 폴더에만 Users 수정 권한을 준다. 일반 권한 화면과 UAC로 승격한 시험이 같은 폴더를 쓴다.
+
+현재 작업 폴더와 개발 PC 경로에 의존하지 않는다. `--config`·`--workspace`를 유지하고 UAC 전환 시 config와
+작업 폴더의 절대 경로를 전달한다. 소스 실행은 기존처럼 기억한 작업 폴더를 쓴다.
 
 작업 폴더 경로에 `%`가 있으면 제품을 조작하는 실행을 시작하지 않고 해결 방법을 알린다. 자체진단도 같은 항목을 표시한다.
 이유: Windows 저장·열기 대화상자는 `%이름%`을 환경 변수 값으로 바꿔 읽어, Viewer의 Setting Export·Import가 그 경로를 거부한다(2026-10-20 실측).
@@ -252,6 +261,10 @@ Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파
 승인 시험 Baseline·사용 안내·제3자 라이선스를 제공한다. 자료 버전과 Viewer/SQL 호환성을 확인한다.
 사내 원문·Baseline·자료가 든 패키지는 공개 Git/Release에 올리지 않는다.
 현재 DB 백업·환자 데이터·개인 config·기존 결과/증거를 넣지 않는다.
+
+사내 전용 배포본에는 팀 공통 설정(시험 서버 주소와 Viewer 시험 계정)을 넣을 수 있다(사용자 결정 2026-11-05).
+- 빌드의 `--team-settings`로 Git 밖 설정 파일을 지정한다. `dicom` 구역과 `viewer.login`만 뽑고 token 등 다른 비밀 값·주석·PC별 경로는 넣지 않는다.
+- build-info에는 값이 아니라 해시와 키 이름만 남긴다. 이 파일은 공개 Git에 두지 않는다.
 
 ### REQ-DIST-004 설치판 진단과 최종 실행 검증
 
@@ -302,8 +315,17 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
    제품을 조작하는 시험은 시작할 때 UAC로 관리자 권한을 받는다. 시작 메뉴·바탕화면·직접 실행도 같다.
 3. 같은 버전 재설치와 새 버전 업데이트는 기존 설치 위치에 덮어쓴다. 설치 폴더의 `resources`는 새 판으로
    통째로 바꿔 이전 판 자료가 섞이지 않게 한다. 작업 폴더의 설정·결과·증거·로그는 그대로 둔다.
-4. 첫 실행에서 작업 폴더를 고르면 설정 폼을 열기 전에 로컬 파일 위치를 자동으로 찾아 채운다.
-   Viewer 설치 위치는 Windows 프로그램 목록(이름 `Bellalun`)에서 위치가 하나로 정해질 때만 쓴다. 서버 주소·계정·비밀번호는 추측하지 않는다.
+4. 첫 실행은 작업 폴더 선택 창과 PC별 설정 창을 띄우지 않는다(사용자 결정 2026-11-05). 찾은 값으로 설정을 저장하고 바로 준비 점검을 보여 준다.
+
+   - Viewer 위치: Windows 프로그램 목록(이름 `Bellalun`)에서 위치가 하나로 정해질 때만 쓴다.
+
+   - 데이터 폴더: 고정 디스크의 `BellalunData` 중 `Config`·`Database`가 있는 하나만 쓴다. USB의 같은 이름 폴더는 쓰지 않는다.
+
+   - SQL: 등록된 인스턴스 중 이름이 `BELLALUN`인 것을 쓴다. XIPL은 `XIPL_PATH`, OCR은 PATH와 기본 설치 위치에서 찾는다.
+
+   - 서버 주소·시험 계정: 사내 배포본의 팀 공통 설정(`resources/team-settings.json`)을 먼저 넣고, 이 PC에 있던 BellalunAuto 설정(기억한 작업 폴더, 기본 작업 폴더)이 있으면 그 값을 쓴다. 추측하지 않는다.
+
+   - 찾지 못한 값은 준비 점검에 [FAIL]로 보이고 [PC별 설정]에서 채운다.
 5. 준비 점검의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
    일반 권한으로 연 화면의 권한 행은 실패가 아니라 안내로 표시하고 종료 코드에 넣지 않는다.
 6. 점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 "미설정", 적힌 위치에 파일이 없으면 "위치에 없음"으로 나눈다.
@@ -683,11 +705,11 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
-| REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py` | implemented |
+| REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
-| REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py` | implemented |
+| REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py` | implemented |
-| REQ-DIST-003 | `tools/build_distribution.py`, `packaging/` | TEST-DIST-002; `tests/test_distribution_build.py` | implemented |
+| REQ-DIST-003 | `tools/build_distribution.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py` | implemented |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | implemented |

@@ -335,6 +335,24 @@ def tk_provenance(distribution):
     return dict(versions, files=files, license_provenance='third-party-licenses/public-runtime-provenance.json')
 
 
+def stage_team_settings(source, resources):
+    """사내 배포본에 팀 공통 서버·계정 설정을 넣는다(사용자 결정 2026-11-05).
+
+    build-info에는 값이 아니라 해시와 키 이름만 남긴다. 원본은 Git 밖(`work/` 등)에 둔다.
+    """
+    if source is None:
+        return None
+    from bellalunauto.resources import TEAM_SETTINGS, team_settings_payload
+    source = Path(source).absolute()
+    _not_link(source)
+    payload = team_settings_payload(json.loads(source.read_text(encoding='utf-8-sig')))
+    target = Path(resources) / TEAM_SETTINGS
+    _write_json(target, payload)
+    return {'included': True, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+            'sections': sorted(payload), 'dicom_keys': sorted(payload['dicom']),
+            'has_test_account': 'viewer' in payload}
+
+
 def stage_resources(root, distribution, assets):
     sys.path.insert(0, str(root))
     from bellalunauto.runtime import default_config
@@ -420,6 +438,11 @@ def build(args):
         raise ValueError('비어 있는 전용 output 폴더를 지정하십시오')
     _not_link(output)
     assets = load_assets(args.assets)
+    if getattr(args, 'team_settings', None):
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from bellalunauto.resources import team_settings_payload
+        team_settings_payload(json.loads(Path(args.team_settings).read_text(encoding='utf-8-sig')))  # fail fast
     versions = tool_versions(Path(args.iscc).absolute())
     output.mkdir(parents=True, exist_ok=True)
     preflight(root, args.skip_tests)
@@ -457,6 +480,7 @@ def build(args):
     distribution = output / f'BellalunAuto-{__version__}'
     shutil.copytree(compiled, distribution)
     stage_resources(root, distribution, assets)
+    team = stage_team_settings(getattr(args, 'team_settings', None), distribution / 'resources')
     write_candidate_marker(distribution, gate)
     audit_distribution(distribution)
     versions['c_compiler'] = provenance['compiler']
@@ -473,6 +497,7 @@ def build(args):
             'compatibility': assets['compatibility'],
             'skipped': {'compile': args.skip_compile, 'tests': args.skip_tests},
             'release_gate': gate,
+            'team_settings': team or {'included': False},
             'third_party_source_allowed_roots': sorted(THIRD_PARTY_ROOTS),
             'files': inventory(distribution)}
     _write_json(distribution / 'build-info.json', info)
@@ -513,6 +538,7 @@ def main(argv=None):
     parser.add_argument('--scons-report', type=Path, help='--skip-compile 원본 SCons 보고서')
     parser.add_argument('--gate-wu', type=Path, help='릴리스 게이트: 실시간 WU 리포트 JSON')
     parser.add_argument('--gate-basic', type=Path, help='릴리스 게이트: 기본기능 전체 회귀 리포트 JSON')
+    parser.add_argument('--team-settings', type=Path, help='사내 전용: 팀 공통 서버·시험 계정을 뽑을 설정 JSON(Git 밖 파일)')
     args = parser.parse_args(argv)
     try:
         return build(args)

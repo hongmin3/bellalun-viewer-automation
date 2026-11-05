@@ -40,6 +40,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "바탕 화면 바로 가기 만들기"; Flags: unchecked
 
+[Dirs]
+; Reports, logs, evidence and config live here. Only this folder is user-writable; it survives update and uninstall.
+Name: "{app}\작업"; Permissions: users-modify; Flags: uninsneveruninstall
+
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\resources"; Check: IsExistingBellalunAuto
 

@@ -41,11 +41,8 @@ WU_IDS = tuple(f"TC_WindowsUpdate_{i:02}" for i in range(1, 14))
 #: 사람이 직접 하는 TC. 이 셋만 SKIP 이어야 하고 나머지 10건은 PASS 여야 한다
 #: (2026-11-05 사용자 결정으로 MANUAL → SKIP, REQ-VERDICT-002).
 WU_HUMAN_ONLY = frozenset(t for t in HUMAN_ONLY_TCS if t.startswith("TC_WindowsUpdate_"))
-#: `run.py::pad_aborted_steps` 가 채우는 미수행 Step 의 제목·실제값.
-PAD_TITLE = re.compile(r"^Step \d+ 미수행$")
-PAD_ACTUAL = "수행하지 않음(앞선 단계에서 TC 가 중단됨)"
-#: `TCResult.add(stop=True)` 가 던진 StepFailed 를 `abort()` 가 기록한 실제값 머리.
-STEPFAILED_PREFIX = "StepFailed:"
+# 리포트 요약과 같은 기준을 쓰도록 FAIL 분류는 core.result 에 둔다(2026-11-05).
+from core.result import PAD_ACTUAL, PAD_TITLE, STEPFAILED_PREFIX, classify_fail  # noqa: E402,F401
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 GATE_LABEL_PASSED = "게이트 통과"
@@ -116,29 +113,6 @@ def _evaluate_wu(report, checks, reasons):
                    + (f"; SKIP {', '.join(skipped)}" if set(skipped) != WU_HUMAN_ONLY else "")
                    + (f"; 그 밖 {', '.join(other)}" if other else ""))
     _check(checks, reasons, "WU 목표 판정", ok, detail)
-
-
-def classify_fail(tc_id, check, has_known_defect, known_defects):
-    """기본기능 FAIL 한 건을 분류한다: known | cascade | real.
-
-    * known — (tc_id, title) 이 알려진 결함 목록에 있다.
-    * cascade — 같은 TC 에 실제로 FAIL 난 알려진 결함이 있을 때만 인정하는 연쇄 기록.
-      (a) `abort()` 가 남긴 StepFailed 기록: StepFailed 는 FAIL check 가 stop 으로
-          추가될 때만 던져지므로, 그 원인은 같은 TC 의 FAIL check 다.
-      (b) `pad_aborted_steps()` 의 "Step N 미수행": 제품 결함 판정이 아니라 중단 뒤
-          수행하지 못한 Step 이다. 이 Step 들은 **검증되지 않았다** — 게이트는 이를
-          허용하되 checks 에 미검증 Step 으로 따로 보고한다.
-      StepFailed 가 아닌 예외 중단(KeyError 등)은 자동화 결함일 수 있어 real 이다.
-      같은 TC 에 real FAIL 이 하나라도 있으면 연쇄 기록도 real 로 본다(evaluate 쪽).
-    * real — 그 밖의 모든 FAIL.
-    """
-    title, actual = check.get("title"), str(check.get("actual") or "")
-    if (tc_id, title) in known_defects:
-        return "known"
-    if has_known_defect and (actual.startswith(STEPFAILED_PREFIX)
-                             or (PAD_TITLE.match(str(title or "")) and actual == PAD_ACTUAL)):
-        return "cascade"
-    return "real"
 
 
 def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True):

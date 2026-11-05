@@ -1772,7 +1772,7 @@ def _screen_context(ui):
     try:
         from core import screen
         from PIL import ImageGrab
-        path = os.path.join("Evidence", "ui", "need_failed.png")
+        path = os.path.join(os.environ.get("BELLALUN_WORKSPACE") or os.getcwd(), "Evidence", "ui", "need_failed.png")
         screen.grab(ImageGrab.grab(all_screens=True).getbbox(), path=path)
         parts.append(f"캡처={path}")
     except Exception as exc:

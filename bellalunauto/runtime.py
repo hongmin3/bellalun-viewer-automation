@@ -45,13 +45,24 @@ def _resources() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+INSTALL_WORKSPACE = "작업"
+
+
+def install_workspace() -> Path:
+    """설치판 기본 작업 폴더: 설치 폴더 아래 `작업`(사용자 결정 2026-11-05)."""
+    return _absolute(sys.executable).parent / INSTALL_WORKSPACE
+
+
 def _validate_write_paths(workspace: Path, config_path: Path) -> None:
-    """Compiled installations remain read-only, including through path aliases."""
+    """Inside the installation only the `작업` folder is writable, including through path aliases."""
     if not _compiled():
         return
     installation = _absolute(sys.executable).parent
-    if any(_absolute(path).is_relative_to(installation) for path in (workspace, config_path)):
-        raise ValueError("작업 폴더와 설정 파일은 설치 폴더 밖에 지정하세요.")
+    allowed = installation / INSTALL_WORKSPACE
+    for path in (workspace, config_path):
+        resolved = _absolute(path)
+        if resolved.is_relative_to(installation) and not resolved.is_relative_to(allowed):
+            raise ValueError(f"작업 파일은 '{allowed}' 아래 또는 설치 폴더 밖에 지정하세요.")
 
 
 def _preferences_dir(preferences_dir: str | os.PathLike[str] | None = None) -> Path:
@@ -74,6 +85,8 @@ def resolve_layout(
     """
     resources = _absolute(resource_dir) if resource_dir is not None else _resources()
     remembered = False
+    if workspace is None and _compiled():
+        workspace = install_workspace()
     if workspace is None:
         preference = _preferences_dir(preferences_dir) / "preferences.json"
         if preference.is_file():

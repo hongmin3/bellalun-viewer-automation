@@ -1320,7 +1320,7 @@ class ViewerUi:
                 # (`capture_dialog` 과 같은 지역 import 방식을 따른다).
                 import os
                 from PIL import ImageGrab
-                shot = os.path.join("Evidence", "ui", "login_not_completed.png")
+                shot = os.path.join(os.environ.get("BELLALUN_WORKSPACE") or os.getcwd(), "Evidence", "ui", "login_not_completed.png")
                 try:
                     window = self.main_window()
                     box = window.rect if window else None

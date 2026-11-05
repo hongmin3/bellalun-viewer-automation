@@ -2,22 +2,20 @@ BellalunAuto — 팀원 사용 안내
 
 1. 설치: BellalunAuto-<버전>-setup.exe를 실행하고 UAC 창에서 [예]를 누릅니다.
    UAC를 취소하면 설치하지 않습니다. 기존 설치가 있으면 같은 위치에 업데이트합니다.
-2. 열기: 설치 완료 화면의 "BellalunAuto 열기" 또는 시작 메뉴의 BellalunAuto를 누릅니다.
+2. 열기: 설치 완료 화면의 "BellalunAuto 열기" 또는 시작 메뉴·바탕 화면의 BellalunAuto를 누릅니다.
    설치나 화면 열기만으로는 시험·DB 복원을 시작하지 않습니다.
-3. 처음 열면 작업 폴더를 고릅니다(설치 폴더 밖, 짧은 경로, '%' 없이).
-   설정·Reports·Evidence·로그는 이 폴더에 저장되고 업데이트·제거 때도 남습니다.
-4. 설정 화면: 이 PC에서 찾은 Viewer·XIPL·OCR 위치가 미리 채워집니다.
-   서버 주소·시험 계정은 직접 입력하고 저장합니다.
-5. [준비 점검]을 누릅니다. 첫 줄이 "시험을 시작할 수 있습니다"가 될 때까지 [FAIL] 행을 해결합니다.
-   [안내] 관리자 권한 행은 문제가 아닙니다. 시험을 시작할 때 UAC로 권한을 요청합니다.
-6. 기본기능 전체 또는 Windows Update 전체를 누르고 UAC에서 [예]를 누릅니다.
-   UAC를 취소하면 시험을 시작하지 않으며 제품·DB는 바뀌지 않습니다.
+3. 처음 열면 이 PC의 Viewer·데이터 폴더·SQL·XIPL·OCR 위치를 자동으로 찾아 저장하고 [준비 점검]을 바로 보여 줍니다.
+   서버 주소·시험 계정처럼 PC에서 찾을 수 없는 값은 [FAIL]로 보입니다. [PC별 설정]에서 채웁니다.
+4. 첫 줄이 "시험을 시작할 수 있습니다"가 되면 기본기능 전체 또는 Windows Update 전체를 누르고 UAC에서 [예]를 누릅니다.
+   [안내] 관리자 권한 행은 문제가 아닙니다. UAC를 취소하면 시험을 시작하지 않으며 제품·DB는 바뀌지 않습니다.
    시험 중에는 마우스·키보드를 쓰지 않습니다. 전용 QA 환경에서만 실행합니다.
-7. 결과 폴더에서 리포트와 증거를 확인합니다. FAIL·MANUAL·SKIP은 PASS와 구분합니다.
+5. 결과: 설치 폴더 아래 '작업' 폴더(기본 C:\Program Files\BellalunAuto\작업)에 Reports·Evidence·Log·config.json이 생깁니다.
+   리포트 맨 위 "결론 — 한눈에 보기"에서 성공/실패와 원인을 먼저 봅니다. FAIL·MANUAL·SKIP은 PASS와 구분합니다.
+   업데이트·재설치·제거해도 '작업' 폴더는 남습니다.
 
 필요 없는 것: Python·Git·개발 소스. 별도 준비: Bellalun Viewer, SQL Server, Tesseract OCR, 시험 서버, USB.
 새 PowerShell/CMD에서 BellalunAuto --version, Win+R에서 BellalunAuto를 쓸 수 있습니다(설치 전 열린 셸은 다시 여십시오).
-제거 프로그램은 설치 폴더와 설치 프로그램이 추가한 PATH 항목만 지웁니다.
+제거 프로그램은 설치한 파일과 설치 프로그램이 추가한 PATH 항목만 지웁니다.
 
 내부 체크리스트·사양/매뉴얼·승인 Baseline이 들어 있습니다.
 설치 파일과 포터블 ZIP을 공개 저장소·공개 Release에 올리지 마십시오. 제3자 라이선스: third-party-licenses 폴더.

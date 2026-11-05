@@ -15,6 +15,7 @@ import csv
 import html
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -488,6 +489,133 @@ def _one_line(value, limit=200):
     return text if len(text) <= limit else text[:limit - 3] + "..."
 
 
+#: `run.py::pad_aborted_steps` 가 채우는 미수행 Step 의 제목·실제값.
+PAD_TITLE = re.compile(r"^Step \d+ 미수행$")
+PAD_ACTUAL = "수행하지 않음(앞선 단계에서 TC 가 중단됨)"
+#: `TCResult.add(stop=True)` 가 던진 StepFailed 를 `abort()` 가 기록한 실제값 머리.
+STEPFAILED_PREFIX = "StepFailed:"
+
+
+def classify_fail(tc_id, check, has_known_defect, known_defects):
+    """기본기능 FAIL 한 건을 분류한다: known | cascade | real.
+
+    * known — (tc_id, title) 이 알려진 결함 목록에 있다.
+    * cascade — 같은 TC 에 실제로 FAIL 난 알려진 결함이 있을 때만 인정하는 연쇄 기록.
+      (a) `abort()` 가 남긴 StepFailed 기록: StepFailed 는 FAIL check 가 stop 으로
+          추가될 때만 던져지므로, 그 원인은 같은 TC 의 FAIL check 다.
+      (b) `pad_aborted_steps()` 의 "Step N 미수행": 제품 결함 판정이 아니라 중단 뒤
+          수행하지 못한 Step 이다. 이 Step 들은 **검증되지 않았다** — 게이트는 이를
+          허용하되 checks 에 미검증 Step 으로 따로 보고한다.
+      StepFailed 가 아닌 예외 중단(KeyError 등)은 자동화 결함일 수 있어 real 이다.
+      같은 TC 에 real FAIL 이 하나라도 있으면 연쇄 기록도 real 로 본다(evaluate 쪽).
+    * real — 그 밖의 모든 FAIL.
+    """
+    title, actual = check.get("title"), str(check.get("actual") or "")
+    if (tc_id, title) in known_defects:
+        return "known"
+    if has_known_defect and (actual.startswith(STEPFAILED_PREFIX)
+                             or (PAD_TITLE.match(str(title or "")) and actual == PAD_ACTUAL)):
+        return "cascade"
+    return "real"
+
+
+def _first_sentence(text, limit=160):
+    """판정 근거의 첫 문장만. 리포트가 원인을 지어내지 않고 기록된 문장을 줄인다."""
+    text = " ".join(str(text or "").split())
+    for mark in (". ", "다. ", "。"):
+        if mark in text:
+            text = text.split(mark, 1)[0] + mark.strip()
+            break
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def _known_defects():
+    try:  # tests.winupdate imports this module; read the registered list lazily.
+        from tests.winupdate import KNOWN_DEFECT_EXCLUDE
+        return dict(KNOWN_DEFECT_EXCLUDE)
+    except Exception:
+        return None  # 읽지 못함: 결론에 그 사실을 적는다
+
+
+def _registered_detail(known, tc_id, checks):
+    """등록된 알려진 결함이면 사람이 적어 둔 결함 설명을 쓴다(여러 개면 이어 붙인다)."""
+    details = []
+    for c in checks:
+        entry = known.get((tc_id, c.title)) if c.status == FAIL else None
+        text = " ".join(str((entry or {}).get("detail") or "").split())
+        if text and text not in details:
+            details.append(text)
+    return " / ".join(details)
+
+
+def outcome_summary(results):
+    """리포트 첫머리의 결론 한 문장과, PASS가 아닌 TC마다 원인 한 줄(사용자 요청 2026-11-05)."""
+    loaded = _known_defects()
+    known = loaded or {}
+    counts = {status: 0 for status in STATUSES}
+    rows = []
+    for r in results:
+        verdict = r.verdict
+        if verdict in counts:
+            counts[verdict] += 1
+        if verdict == PASS:
+            continue
+        fail_checks = [c for c in r.checks if c.status == FAIL]
+        fails = [{"title": c.title, "actual": str(c.actual or "")} for c in fail_checks]
+        has_known = any((r.tc_id, c["title"]) in known for c in fails)
+        # 릴리스 게이트와 같은 분류: 등록된 결함과 그 결함으로 중단된 기록만 '알려진 결함'이다.
+        kinds = [classify_fail(r.tc_id, c, has_known, known) for c in fails]
+        known_defect = bool(kinds) and "real" not in kinds
+        real = [c for c, kind in zip(fail_checks, kinds) if kind == "real"]
+        # 새 실패가 섞이면 그 첫 항목을 보인다. 알려진 결함이 새 실패를 가리지 않게 한다.
+        focus = real or [c for c in r.checks if c.status == verdict] or [c for c in r.checks if c.status != PASS]
+        first = focus[0] if focus else None
+        reason = _registered_detail(known, r.tc_id, r.checks) if known_defect else ""
+        if not reason and first is not None:
+            reason = _first_sentence(first.note)
+        rows.append({
+            "tc_id": r.tc_id, "title": r.title, "verdict": verdict,
+            "step": step_label(first.step) if first else "-",
+            "check": first.title if first else "",
+            "expected": _one_line(first.expected, 80) if first else "",
+            "actual": _one_line(first.actual, 100) if first else "",
+            "reason": reason or "(판정 근거 없음)",
+            "known_defect": known_defect,
+        })
+    failed = [x for x in rows if x["verdict"] == FAIL]
+    new = [x for x in failed if not x["known_defect"]]
+    person = counts[MANUAL] + counts[SKIP]
+    if not results:
+        level, headline = "bad", "결과가 없습니다. 실행이 TC를 시작하기 전에 멈췄을 수 있으니 로그를 확인하세요."
+    elif new or counts[BLOCKED]:
+        level = "bad"
+        parts = []
+        if new:
+            text = f"새 실패 TC {len(new)}개"
+            if len(new) < len(failed):
+                text += f"(그 밖에 알려진 제품 결함 {len(failed) - len(new)}개)"
+            parts.append(text)
+        elif failed:
+            parts.append(f"실패 TC {len(failed)}개는 알려진 제품 결함")
+        if counts[BLOCKED]:
+            parts.append(f"전제 조건 때문에 수행 불가 TC {counts[BLOCKED]}개")
+        headline = ", ".join(parts) + ". 아래 표의 맨 위부터 확인하세요."
+    elif failed or person:
+        level = "warn"
+        parts = []
+        if failed:
+            parts.append(f"실패 TC {len(failed)}개는 모두 등록된 알려진 제품 결함입니다(새 실패 없음)")
+        if person:
+            parts.append(f"사람 확인이 필요한 TC {person}개(MANUAL {counts[MANUAL]}, SKIP {counts[SKIP]})")
+        headline = f"통과 TC {counts[PASS]}개. " + ", ".join(parts) + "."
+    else:
+        level = "ok"
+        headline = f"모든 TC가 통과했습니다(TC {counts[PASS]}개)."
+    if loaded is None:
+        headline += " (알려진 결함 목록을 읽지 못해 모든 실패를 새 실패로 표시했습니다.)"
+    return {"level": level, "headline": headline, "counts": counts, "rows": rows}
+
+
 def write_txt(results, path, env=None, checklist=None, command=None,
              report_title="Bellalun Viewer 기본기능 자동화 결과"):
     """사람이 바로 읽는 Pass/Fail 요약 텍스트."""
@@ -512,6 +640,12 @@ def write_txt(results, path, env=None, checklist=None, command=None,
     for r in results:
         if r.verdict in tc_total:
             tc_total[r.verdict] += 1
+    summary = outcome_summary(results)
+    L.append(f" 결론: {summary['headline']}")
+    for row in summary["rows"]:
+        known = " · 알려진 제품 결함" if row["known_defect"] else ""
+        L.append(f"   - [{row['verdict']}{known}] {row['tc_id']} Step {row['step']} "
+                 f"{row['check']}: {row['reason']}")
     L.append(f" TC 건수   : {len(results)}")
     L.append(f" TC 판정   : PASS {tc_total[PASS]} / FAIL {tc_total[FAIL]} / "
              f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]} / "
@@ -715,6 +849,31 @@ def _render_html(results, meta, siblings=None):
          f"{datetime.now():%Y-%m-%d %H:%M:%S}"
          + (f" &nbsp;|&nbsp; 실행 명령 <code>{e(meta['command'])}</code>"
             if meta.get("command") else "") + "</div>"]
+
+    # --- 결론: 먼저 읽을 한 문장과 TC별 원인 한 줄(사용자 요청 2026-11-05) ----
+    summary = outcome_summary(results)
+    colors = {"ok": ("#e7f6ec", "#1e7b3a", "성공"), "warn": ("#fff6e0", "#8a5a00", "주의"),
+              "bad": ("#fdecec", "#b42318", "실패")}
+    bg, fg, word = colors[summary["level"]]
+    P.append("<h2 style='border:0;padding:0;margin-top:6px'>결론 — 한눈에 보기</h2>")
+    P.append(f"<div style='background:{bg};border-left:6px solid {fg};padding:12px 16px;"
+             f"font-size:16px;margin:6px 0 12px'><b style='color:{fg}'>{word}</b> · "
+             f"{e(summary['headline'])}</div>")
+    if summary["rows"]:
+        P.append("<table class='fails'><tr><th>결과</th><th>TC</th><th>멈춘 곳(Step · 확인 항목)</th>"
+                 "<th>기대값 → 실제값</th><th>기록된 원인(판정 근거 첫 문장)</th></tr>")
+        for row in summary["rows"]:
+            label = row["verdict"] + (" · 알려진 제품 결함" if row["known_defect"] else "")
+            values = (f"<code>{e(row['expected'])}</code> → <code>{e(row['actual'])}</code>"
+                      if row["verdict"] == FAIL else "-")
+            P.append(f"<tr><td><span class='s {e(row['verdict'])}'>{e(label)}</span></td>"
+                     f"<td><a href='#{e(row['tc_id'])}'>{e(row['tc_id'])}</a>"
+                     f"<div class='k'>{e(row['title'])}</div></td>"
+                     f"<td>Step {e(row['step'])} · {e(row['check'])}</td><td>{values}</td>"
+                     f"<td class='note'>{e(row['reason'])}</td></tr>")
+        P.append("</table>")
+        P.append("<div class='meta'>원인 칸은 각 판정에 기록된 근거의 첫 문장이다. 리포트가 원인을 추측해 만들지 않는다. "
+                 "전체 근거와 증거는 TC 이름을 눌러 상세에서 본다.</div>")
 
     # --- 대시보드 -----------------------------------------------------
     P.append("<h2 style='border:0;padding:0;margin-top:6px'>요약 대시보드</h2>")
