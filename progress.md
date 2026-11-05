@@ -7,7 +7,11 @@
 - **TCP 표 이상은 재부팅 뒤에도 그대로다.** `Get-NetTCPConnection`·`netstat`·`GetExtendedTcpTable` 모두 상태 값을 틀리게 준다(같은 수신 소켓이 호출마다 CLOSED·FIN_WAIT_1 등으로 바뀜). 수신 소켓만 고르는 목록(`TCP_TABLE_OWNER_PID_LISTENER`)에는 `127.0.0.1:9784`(XIPL.SERVER PID)가 들어 있지만 그 상태 값도 0·1·2·6 중 하나로 나온다. 그래서 `core/preflight.py`의 `-State Listen` gate가 계속 FAIL이다.
   같은 날 11:23에 끝난 WU 실행까지는 gate가 통과했다. 비Microsoft 네트워크 바인딩은 Vieworks `VwFilter` 하나이고, 11-04에 KB5127936·KB5132402가 설치됐다. 원인은 확정하지 못했다. 드라이버·보안·네트워크 설정은 바꾸지 않았고 gate도 바꾸지 않았다.
 - 수정(REQ-DIST-002, REQ-QA-005): 출력을 받는 제품 자식 호출 31곳에 표준 입력 NUL 지정, worker는 유효한 콘솔 입력만 상속, 준비 점검 예외 창에 원인 코드·위치·기록 위치·해결 방법. 실패 시험을 먼저 확인했다(잘못된 stdin에서 `WinError 6` 재현).
-- 검증: 전체 단위시험 782 passed / 2 skipped / 265 subtests, 정적 7종 이상 없음, readiness 실패 0(기존 경고 2).
+- 검증: 전체 단위시험 782 passed / 2 skipped / 265 subtests, 정적 7종 이상 없음, readiness 실패 0(기존 경고 2). 독립 검토의 중간 1건(주입한 실행기 경유 호출 2곳)과 사소한 2건을 반영했다. 커밋 `ee43d7d` push.
+- 후보7: 소스 `ee43d7d`·dirty=false, 팀 설정 포함 WMI 빌드(PID 1204) 종료 0, 빌드 환경 780 passed / 4 skipped. EXE SHA-256 `6B0C688DCF3693D8C84B087092027962895935E1A59B13745FD57937DAC1CF33`, Setup `37C9DA35AF0688D45F6170F549706DE8C075ADDD9C7906A731663B566AC43A42`, build-info `95c1fbee…174a`. 후보6 위 무창 업데이트 성공, 설치 EXE·build-info 해시 일치, 통제 파일·`config.json` 해시 보존.
+- 후보7 실측: 바로가기 → Explorer 실행에서 프로그램 창 1개, 새 콘솔 0개. 수동 [준비 점검] 23행 정상 표시, `OSError` 없음. 실패 행은 `XIPL 영상 처리`(포트 9784) 하나뿐이다. 근거 `work/candidate7-regression/`.
+- **두 전체 회귀는 실행하지 않았다.** XIPL 9784 수신 gate가 TCP 표 이상으로 FAIL이라 시작 직후 차단된다. DB 복원·Viewer 실행·USB 쓰기 없음. 새 결과가 없어 공유 ZIP도 만들지 않았다. 사람 검수·UAC 취소·다른 OS/계정·제거는 미완료다.
+- 다음: 사용자 결정 대기. (가) gate의 수신 확인을 상태 값 대신 수신 소켓 목록(`TCP_TABLE_OWNER_PID_LISTENER`)과 XIPL.SERVER PID로 읽게 바꾸는 후보8(조건은 같고 측정 방법만 바뀜, 새 빌드라 회귀 승인 필요), (나) PC의 TCP 표 이상을 사람이 먼저 해소(최근 KB·VwFilter 확인 등) 후 후보7로 회귀.
 
 ## 2026-11-05 후보6 설치판 인수·회귀 (Issue #85, 회귀 미실행·차단)
 
