@@ -5,7 +5,7 @@
 - 사용자 추가 요구: auto 프로그램 실행 시 cmd/터미널 없이 프로그램 창 하나만 표시한다.
 - 기존 hide 빌드는 PE console subsystem 3이며 생성된 콘솔을 나중에 숨겼다. GUI subsystem 2 + attach로 바꾸고 실제 PE 헤더 검사 기준도 바꿨다. PowerShell CLI는 파이프/명시적 대기를 사용하며 내부 CLI/worker의 출력·대기는 유지한다.
 - 준비 점검(sysinfo/DB)과 DB 복원 서비스 명령, 보고서 환경 수집의 무창 플래그 누락을 실패 시험 후 수정했다. 새 콘솔 생성만 제한하며 SQL/서비스 명령·TC 판정은 바꾸지 않는다.
-- 추가 감사로 OCR·Viewer PID·XIPL·WU 근거 수집과 시나리오의 XIPL 정리·Git 조회도 무창 플래그를 적용했다. 수정 후 화면 점유를 명시한 전체 단위시험 **776 passed / 4 skipped / 265 subtests passed**. 콘솔 호출·PE 헤더의 실패 재현을 먼저 확인했다. 남은 실제 PE2·무콘솔 부모의 CLI 출력/종료 코드는 후보6에서 확인한다.
+- 추가 감사로 OCR·Viewer PID·XIPL·WU 근거 수집과 시나리오의 XIPL 정리·Git 조회도 무창 플래그를 적용했다. 수정 후 화면 점유를 명시한 전체 단위시험 **776 passed / 4 skipped / 265 subtests passed**. 콘솔 호출·PE 헤더의 실패 재현을 먼저 확인했다. 실제 PE2·무콘솔 부모의 CLI 출력/종료 코드도 후보6에서 확인했다.
 - 실행 중 프로세스가 사라지는 구간에 Tk 화면 시험 2개가 실행된 것을 확인했다. 이후 사용자 지정 화면 점유를 `BELLALUN_DESKTOP_BUSY=1`로 시험/빌드에 명시해 실제 Tk 실행을 차단한다. 이 변수는 시험 코드에만 적용하며 제품 환경 gate를 우회하지 않는다.
 - 표시 이름만 반영한 후보5(소스4678633)는 빌드 종료0이나 설치하지 않았다. 후보6(소스 `76d218a1978e6df84457ee0544bd47a77258c7e1`, dirty=false)은 팀 설정 포함 WMI PID11384 빌드 종료0이며 후보4에서 무창 업데이트했다. EXE SHA-256 `C2DD6BAF8AEB3529500661B8CB2038AE1409EB1F1438CC1CAB2015AB79CD7DA3`, Setup SHA-256 `E39089DDCD7DF6C3CECCF6133B7F77CA74E50134BC66A506233C6E7AB7EDB1E2`.
 - 실제 PE2/attach, 콘솔 없는 부모에서 버전·공유 ZIP 정상 종료0/누락·변조·추가 각각1과 한글 출력, PowerShell 파이프 종료0을 확인했다. 설치 EXE 해시·Users 수정 ACL·공용 바로가기2개·후보4의 통제 파일 해시 보존도 일치했다. 근거는 `work/qa-candidate6-*-cli-results.json`, `work/setup-candidate6-results.json`과 설치 로그다. 검사 도구의 기존 계정 이름 변환 실패를 보완해 14규칙을 조사했고 ACL은 바꾸지 않았다.
