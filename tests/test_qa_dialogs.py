@@ -12,12 +12,11 @@ def widgets(parent):
 
 
 @pytest.mark.parametrize('agree', [False, True])
-def test_real_confirmation_requires_check_and_closes_without_product(agree, monkeypatch):
+def test_real_confirmation_requires_check_and_closes_without_product(agree, monkeypatch, tk_root):
     from bellalunauto.qa_dialogs import confirm_plan
     from bellalunauto import runplan
     monkeypatch.setattr(runplan, 'format_plan', lambda plan: '합성 대상 · DB 변경 · 복구 정책')
-    root = tk.Tk()
-    root.withdraw()
+    root = tk_root
     checked = []
 
     def interact():
@@ -32,9 +31,24 @@ def test_real_confirmation_requires_check_and_closes_without_product(agree, monk
         else:
             next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '취소').invoke()
     root.after(30, interact)
-    root.after(2000, root.destroy)
+    timed_out = []
+    def timeout():
+        timed_out.append(True)
+        for dialog in root.winfo_children():
+            dialog.destroy()
+    timer = root.after(2000, timeout)
     try:
         assert confirm_plan(root, {}) is agree
         assert checked == ([True, True] if agree else [True])
+        assert not timed_out
     finally:
-        root.destroy()
+        root.after_cancel(timer)
+
+
+@pytest.fixture(scope='module')
+def tk_root():
+    # 애플리케이션과 같이 Tcl/Tk 루트 하나에 여러 대화상자를 연다.
+    root = tk.Tk()
+    root.withdraw()
+    yield root
+    root.destroy()
