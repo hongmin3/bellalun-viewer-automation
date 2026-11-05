@@ -2,22 +2,23 @@
 
 이 표는 설치 성공·프로그램 기동·제품 시험·사람 검수를 따로 기록한다. 기준은 SPEC의 REQ-DIST-001~006, REQ-QA-001~005와 TEST-QA-001~005다.
 
-2026-11-05 후보4의 빌드, 같은 관리자 계정의 무창 업데이트·재설치, 설치판 CLI와 이전 보고서 공유 ZIP을 아래 범위에서 확인했다. 첫 GUI·UAC 직접 선택·제품 UI 회귀는 수행하지 않았다. `implemented`는 구현 연결을 뜻하며 설치 인수 전체나 제품 검증 완료를 뜻하지 않는다. 배포 게이트는 미통과이며 작업 `#80`은 열려 있다.
+2026-11-05 후보6의 빌드, 같은 관리자 계정의 후보4→후보6 무창 업데이트, 설치판 CLI와 이전 보고서 공유 ZIP을 아래 범위에서 확인했다. 첫 GUI·UAC 직접 선택·제품 UI 회귀는 수행하지 않았다. `implemented`는 구현 연결을 뜻하며 설치 인수 전체나 제품 검증 완료를 뜻하지 않는다. 배포 게이트는 미통과다. `#80`·`#84`는 사용자 요청으로 작업 대체 사유로 닫았고 기존 예약은 취소했다. 새 회귀 이슈·예약은 사용자 허락 대기다.
 
 ## 인수할 후보의 신원
 
 | 항목 | 현재 기록 |
 |---|---|
-| 후보·버전 | 후보4 / 1.0.1 |
-| 소스 commit / dirty 여부 | `f00005a473098d5fa0b7eb7fc5c980e5717bea3c` / `false` |
+| 후보·버전 | 후보6 / 1.0.1 |
+| 소스 commit / dirty 여부 | `76d218a1978e6df84457ee0544bd47a77258c7e1` / `false` |
 | Setup 이름 | `BellalunAuto-1.0.1-candidate-setup.exe` |
-| Setup SHA-256 | `0A25F058B7CADE6ACB09F573976AD3E7449D86A152773F1CCCABBBB25F09CA29` |
+| Setup SHA-256 | `E39089DDCD7DF6C3CECCF6133B7F77CA74E50134BC66A506233C6E7AB7EDB1E2` |
 | 설치 EXE | 설치 폴더의 `BellalunAuto.exe`. 빌드 산출물과 해시 일치 |
-| EXE SHA-256 | `B650E1C0D69E41FE0E3E89A7FCD63C233A27D5A85AE3E24D2E2B530AF23531AD` |
-| build-info SHA-256 | `6c24b035337b127c968b30fda54fb56977e080e37fac7de580096f8e23da2d2a` |
+| EXE SHA-256 | `C2DD6BAF8AEB3529500661B8CB2038AE1409EB1F1438CC1CAB2015AB79CD7DA3` |
+| build-info SHA-256 | `3578aa47bfe4e452bbc17b2f03a4e914ef3f543d703578b9b36c4ce8c35aea4c` |
 | assets-manifest 판·SHA-256 | `restored-approved-2026-10-15` / `744855587afe3b3684583a75060d745f3c9a8cae28ff38fb1d01e5fa90acb618` |
 | 팀 공통 설정 포함 | `team_settings.included=true`. 값은 이 문서에 기록하지 않음 |
-| 빌드 결과 | WMI 분리 빌드(PID 21052), 종료 코드 0. compile·tests 생략 없음 |
+| 빌드 결과 | WMI 분리 빌드(PID 11384), 종료 코드 0. compile·tests 생략 없음. 776 passed / 4 skipped / 265 subtests |
+| 콘솔 계약 | 실제 PE GUI subsystem 2 / attach. 콘솔 없는 부모의 CLI 파이프·종료 코드 확인. Explorer GUI 표시는 미완료 |
 | 설치한 날짜·OS·계정 유형 | 2026-11-05 / Windows 11 Pro `10.0.26200` 64-bit / 같은 계정의 High 관리자 세션 |
 | 승인한 제품 시험 범위·실행 번호·결과·게이트 기록 | 미완료 |
 | 배포 게이트 | `release_gate.passed=false` / 게이트 미통과 후보 |
@@ -30,7 +31,7 @@
 
 | 조건 | 현재 후보 실측 | 과거 근거와 한계 |
 |---|---|---|
-| Windows 11 Pro x64 | 부분 확인: `10.0.26200`에서 무창 업데이트·재설치·CLI | 첫 GUI·제품 시험은 미완료 |
+| Windows 11 Pro x64 | 부분 확인: `10.0.26200`에서 후보6 무창 업데이트·CLI | 첫 GUI·제품 시험·후보6 재설치는 미완료 |
 | Windows 11 IoT Enterprise LTSC x64 | 미완료 | 후보5·6까지만 과거 실행. 후보7 이후 LTSC 미검증 |
 | Windows 10 x64 | 미완료 | 기존 기록에도 별도 호스트 실행 없음 |
 | 개발 도구 없는 별도 PC 또는 VM | 미완료 | 같은 PC에서 도구를 제외한 최소 환경 실행과 구분 |
@@ -50,17 +51,19 @@
 | 완료 후 열기 | 원래 사용자의 일반 권한으로 GUI 시작. 관리자로 먼저 시작한 Setup도 별도 측정 | 미완료 |
 | 시작 메뉴·바탕화면·직접 실행 | 같은 설치 EXE·작업 폴더·설정 사용 | 부분 확인: 공용 바탕화면·시작 메뉴 바로가기 존재, target·working directory 일치. GUI 실행은 미완료 |
 | 새 CMD·PowerShell·Win+R / 다른 CWD | 명령 검색과 출력·종료 코드 정상, 작업 경로 유지 | 부분 확인: 설치 EXE 직접 CLI `--version` 종료 0. 새 셸·Win+R·다른 CWD 조합은 미완료 |
-| 기존 판 위 업데이트 | 같은 AppId·위치, resources 교체, 새 EXE 해시 일치 | 부분 확인: `955dd11`의 1.0.1 → 후보4의 1.0.1 무창 업데이트 성공 로그, 설치 EXE 해시 일치 |
-| 같은 판 재설치 | 같은 위치 재설치 후 기동 자료·작업 자료 유지 | 부분 확인: 후보4 무창 재설치 성공 로그와 통제 파일 해시 보존. GUI 기동은 미완료 |
+| 기존 판 위 업데이트 | 같은 AppId·위치, resources 교체, 새 EXE 해시 일치 | 부분 확인: 후보4 → 후보6의 1.0.1 무창 업데이트 성공 로그, 설치 EXE 해시 일치 |
+| 같은 판 재설치 | 같은 위치 재설치 후 기동 자료·작업 자료 유지 | 후보6 미완료. 과거 후보4 무창 재설치와 통제 파일 보존은 별도 기록 |
 | 작업 폴더 권한 | Users 수정 권한과 사용자별 실제 쓰기 구분 | 부분 확인: ACL 14규칙 조사, Users의 상속되는 Modify/Synchronize Allow 확인. 다른 계정 쓰기는 미완료 |
-| 업데이트 자료 보존 | 작업의 config·Reports·Evidence·Log·Runs·review 기록 보존. 전후 파일 목록·해시 대조 | 부분 확인: 통제 파일 1개의 재설치 전후 SHA-256 동일. 실제 설정·보고서 등의 보존은 미완료 |
+| 업데이트 자료 보존 | 작업의 config·Reports·Evidence·Log·Runs·review 기록 보존. 전후 파일 목록·해시 대조 | 부분 확인: 후보4의 통제 파일 1개와 후보6 설치 후 SHA-256 동일. 실제 설정·보고서 등의 보존은 미완료 |
 | 제거 | 설치기가 추가한 PATH만 제거, 다른 PATH 보존, 작업 자료 보존 | 미완료 |
 | 제거 후 재설치 | 보존 자료 재사용, 오래된 보고서를 새 실행 결과로 연결하지 않음 | 미완료 |
 | 다른 드라이브·한글·공백 설치/작업 경로 | 권한·경로·새 셸 실행 확인 | 미완료 |
 
 자료 보존은 시험용 사본으로 전후 파일 목록과 해시를 비교한다. 설치기 성공 코드나 파일 개수만으로 보존 성공을 기록하지 않는다. 실제 설정·환자 자료·사내 Baseline은 공개 증거에 넣지 않는다.
 
-후보4의 근거는 `work/setup-candidate4-before.json`, `work/setup-candidate4-results.json`, `work/setup-candidate4-install.log`, `work/setup-candidate4-reinstall.log`, `work/qa-candidate4-cli-results.json`이다. 두 설치 로그 모두 `Installation process succeeded.`와 재부팅 불필요를 기록했다. 이전 설치판은 소스 `955dd11aa66286721fea97b6e5808709a12e647f`, 버전 1.0.1이었고 설치 폴더의 작업 폴더와 기억 파일은 없었다. 첫 GUI를 열지 않아 후보4의 `config.json`도 아직 없다.
+후보6의 근거는 `work/setup-candidate6-results.json`, `work/setup-candidate6-install.log`, `work/qa-candidate6-staged-cli-results.json`, `work/qa-candidate6-installed-cli-results.json`이다. 설치 성공 로그와 EXE 해시 일치, ACL 14규칙 중 Users 수정 권한, 두 바로가기와 통제 파일 보존을 확인했다. 계정 이름을 해석할 수 없는 기존 ACL 4개를 구분해 조사했으며 ACL을 변경하지 않았다. 첫 GUI를 열지 않아 `config.json`은 아직 없다.
+
+과거 후보4의 근거는 `work/setup-candidate4-before.json`, `work/setup-candidate4-results.json`, `work/setup-candidate4-install.log`, `work/setup-candidate4-reinstall.log`, `work/qa-candidate4-cli-results.json`이다. 후보4는 `955dd11` 설치판에서 업데이트·재설치했고 후보5는 빌드만 했다. 후보6의 재설치·첫 실행을 이 과거 결과로 대신하지 않는다.
 
 통제 파일은 `작업/QA_설치_자료보존_점검/f00005a-marker.txt`이며 보존 SHA-256은 `48B2611C17521BA6054405588576EA1DEF045FCB97A8A88B8F718B3BADBB660D`다. 실제 설정이나 보고서가 있던 환경의 업데이트 보존 시험을 대신하지 않는다.
 
