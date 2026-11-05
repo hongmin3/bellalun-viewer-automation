@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="2a89cbd48e5fcd21387a15bae57e3ac54d0d13636bf344317ef7458b38007b7a">
+<meta name="spec-source-sha256" content="9de871db83191e636d8f6fb7887a18b3e0764520f8051a640104c3ad464d3bb4">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -550,15 +550,16 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-002">
 <h3><span class="idtag">REQ-DIST-002</span> 실행 화면과 프로세스 관리</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
-<details class="history"><summary>변경 이력 4</summary>
+<details class="history"><summary>변경 이력 5</summary>
 <ul>
+<li><span class="hist">2026-11-05 (자동화 선택 항목 표시 이름) · Changed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>: 실행 항목과 확인 화면의 이름을 &quot;기본기능 체크리스트 자동화 수행&quot;, &quot;Windows Update 체크리스트 자동화 수행&quot;으로 표시한다. 선택한 체크리스트만 실행한다는 안내로 정리했다. 기존 CLI 명령·실행 범위·판정은 유지한다.</li>
 <li><span class="hist">2026-10-15 · Added</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: BellalunAuto의 한국어 실행·설정 화면, 작업 폴더 분리, 읽기 전용 자체진단, 기존 CLI 연결을 구현했다. 자기 EXE의 worker 감시, PC 공통 제품 잠금, UAC 경로 전달, 중지·비정상 종료 정리와 비공개 로그 처리를 포함한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-WU-001">REQ-WU-001</a>: 과거 회귀 변환과 실시간 실행을 구분하고, 새 live 전체 완료 메타데이터 없이 완료로 판단하지 않는다. USB 부재·실패·미완료와 설정 순회 실패의 판정도 보존한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: Nuitka standalone에서 <code>sys.executable</code>이 존재하지 않는 <code>python.exe</code>를 반환하는 경우를 재현했다. Windows 실제 EXE 경로로 자식 작업을 실행하며 소스 실행과 명시한 실행 경로는 유지한다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: 실제 리포트 생성 함수가 붙이는 <code>Result_</code> 접두사를 WU 완료 탐색에 반영했다. 리포트 생성 함수를 직접 사용하는 통합 시험으로 새 live 전체 결과만 인정하는지 확인한다.</li>
 </ul>
 </details>
-<p>명령 없는 실행은 한국어 화면을 연다. 두 전체 실행, 준비 점검, PC별 설정,
+<p>명령 없는 실행은 한국어 화면을 연다. 자동화 선택 항목은 &quot;기본기능 체크리스트 자동화 수행&quot;과 &quot;Windows Update 체크리스트 자동화 수행&quot; 두 개로 표시한다. 선택한 항목의 체크리스트만 수행한다. 준비 점검, PC별 설정,
 진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령(<code>selfcheck</code>, <code>portability-check</code> 포함)을 유지한다.
 화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.</p>
@@ -735,13 +736,14 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-QA-001">
 <h3><span class="idtag">REQ-QA-001</span> 실행 전 확인 화면</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/runplan.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runs.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-001">TEST-QA-001</a>; <code>tests/test_runplan.py</code>, <code>tests/test_qa_runs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-QA-001">TEST-QA-001</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">2026-11-05 (자동화 선택 항목 표시 이름) · Changed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>: 실행 항목과 확인 화면의 이름을 &quot;기본기능 체크리스트 자동화 수행&quot;, &quot;Windows Update 체크리스트 자동화 수행&quot;으로 표시한다. 선택한 체크리스트만 실행한다는 안내로 정리했다. 기존 CLI 명령·실행 범위·판정은 유지한다.</li>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Added</span> <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>: Viewer·SQL·DB·Baseline 해시·변경·복구 정책을 표시하고 직접 체크한 동의만으로 GUI 시험을 시작한다. UAC와 데이터 변경 동의를 분리한다.</li>
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">
-<p>화면에서 기본기능 전체나 Windows Update 전체를 누르면 시작하기 전에 이번 실행이 무엇을 바꾸는지 보여 주고 동의를 받는다.</p>
+<p>화면에서 &quot;기본기능 체크리스트 자동화 수행&quot;이나 &quot;Windows Update 체크리스트 자동화 수행&quot;을 누르면 시작하기 전에 이번 실행이 무엇을 바꾸는지 보여 주고 동의를 받는다.</p>
 </div></section>
 <section class="field"><h4>순서</h4><div class="field-body">
 <ol>
@@ -1330,6 +1332,11 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 </section>
 <section class="card kind-test" id="TEST-QA-001">
 <h3><span class="idtag">TEST-QA-001</span> 실행 계획과 직접 동의</h3>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-05 (자동화 선택 항목 표시 이름) · Changed</span> <a class="idref" href="#TEST-QA-001">TEST-QA-001</a>: 다른 제품/자동화 프로세스가 실행 중이면 실제 Tk 창을 여는 시험 2개를 보류한다. 다른 자동화의 화면을 점유하지 않도록 하며 제품 환경 gate는 변경하지 않는다.</li>
+</ul>
+</details>
 <ul>
 <li>검증 대상: <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>.</li>
 <li>자동 절차: <code>tests/test_runplan.py</code>로 합성 Baseline의 날짜·해시·배포 자료 판, Viewer·SQL·DB 대상, 변경·복구 정책, 누락 자료, WU USB 범위를 확인한다. <code>tests/test_qa_runs.py</code>로 동의 없이 GUI 실행 컨트롤러가 자식 프로세스를 시작하지 않는지 확인한다.</li>

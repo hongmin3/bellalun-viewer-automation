@@ -680,11 +680,11 @@ def launch(layout, workspace_chosen=False) -> int:
     root.deiconify()
     ttk.Label(root, text=f"BellalunAuto {__version__}", font=("맑은 고딕", 19, "bold"), padding=12).pack(anchor="w")
     ttk.Label(root, text=f"작업 폴더: {layout.workspace}", wraplength=920).pack(anchor="w", padx=12)
-    ttk.Label(root, text="제품 시험 중에는 마우스·키보드 사용을 피하세요. 두 전체 시험은 순서대로 실행합니다.", padding=12).pack(anchor="w")
+    ttk.Label(root, text="체크리스트를 선택하면 해당 자동화만 실행합니다. 제품 시험 중에는 마우스·키보드 사용을 피하세요.", padding=12).pack(anchor="w")
     toolbar = ttk.Frame(root, padding=10)
     toolbar.pack(fill="x")
     buttons = []
-    status = tk.StringVar(value="대기 중 · 시험을 선택하세요.")
+    status = tk.StringVar(value="대기 중 · 수행할 체크리스트를 선택하세요.")
     ttk.Label(root, textvariable=status, padding=10, wraplength=960).pack(anchor="w")
     progress = ttk.Progressbar(root, mode="indeterminate")
     progress.pack(fill="x", padx=12)
@@ -744,7 +744,7 @@ def launch(layout, workspace_chosen=False) -> int:
         show_diagnostics(root, layout, settings)
 
     # selfcheck와 portability-check는 같은 점검이라 화면에는 하나만 둔다(REQ-DIST-002).
-    for label, action in (("준비 점검", "selfcheck"), ("기본기능 전체 실행", "run-regression"), ("Windows Update 실시간 전체 실행", "run-winupdate")):
+    for label, action in (("준비 점검", "selfcheck"), ("기본기능 체크리스트 자동화 수행", "run-regression"), ("Windows Update 체크리스트 자동화 수행", "run-winupdate")):
         button = ttk.Button(toolbar, text=label, command=prepare if action == 'selfcheck' else lambda selected=action: run(selected))
         button.pack(side="left", padx=4)
         buttons.append(button)

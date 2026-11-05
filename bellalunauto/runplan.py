@@ -32,7 +32,8 @@ def build_plan(layout, config, action):
     파일 날짜는 UTC, sha256은 실제 파일 전체의 해시다. 누락/조회 실패는
     확인 불가로 남긴다. 실행 허용 여부는 기존 환경 gate가 판단한다.
     """
-    labels = {'run-regression': '기본기능 전체', 'run-winupdate': 'Windows Update 전체'}
+    labels = {'run-regression': '기본기능 체크리스트 자동화 수행',
+              'run-winupdate': 'Windows Update 체크리스트 자동화 수행'}
     if action not in labels:
         raise ValueError('실행 계획은 기본기능 전체 또는 Windows Update 전체에만 제공됩니다.')
     cfg = bundled_config(config, layout.resource_dir)
