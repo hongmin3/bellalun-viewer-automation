@@ -114,6 +114,7 @@ class BellalunDb:
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", _PS_TEMPLATE],
             capture_output=True, env=env,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
         out = proc.stdout.decode("utf-8", "replace").strip()
         err = proc.stderr.decode("utf-8", "replace").strip()
@@ -155,6 +156,7 @@ class BellalunDb:
             proc = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", _PS_BATCH],
                 capture_output=True, env=env,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
             )
             if not os.path.exists(out_file):
                 err = proc.stderr.decode("utf-8", "replace").strip()

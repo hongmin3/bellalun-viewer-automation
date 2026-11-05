@@ -1706,7 +1706,8 @@ def close_leftover_export_manager(say):
 def _kill_viewer(pid):
     import subprocess
     subprocess.run(["taskkill", "/PID", str(pid), "/F"],
-                   capture_output=True)
+                   capture_output=True,
+                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
 
 
 def _need(ui, ctrl_id, what, timeout=20):

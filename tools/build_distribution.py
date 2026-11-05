@@ -181,7 +181,7 @@ def nuitka_command(root, output, version):
     root, output = Path(root), Path(output)
     command = [sys.executable, '-m', 'nuitka', '--mode=standalone', '--mingw64', '--jobs=2',
                '--assume-yes-for-downloads', '--enable-plugin=tk-inter',
-               '--windows-console-mode=hide', '--output-filename=BellalunAuto.exe',
+               '--windows-console-mode=attach', '--output-filename=BellalunAuto.exe',
                f'--output-dir={output}', f'--report={output / "nuitka-report.xml"}',
                '--include-module=run', '--include-package=core', '--include-package=bellalunauto',
                '--nofollow-import-to=tests.test_*', '--company-name=Bellalun QA',
@@ -194,10 +194,11 @@ def nuitka_command(root, output, version):
 
 
 def validate_console_subsystem(executable):
-    """Reject PE GUI binaries: PowerShell direct invocation does not wait for them.
+    """Verify GUI subsystem: Explorer must not create a terminal for this EXE.
 
-    Nuitka hide uses console subsystem while hiding a newly spawned console.
-    This checks the actual artifact, independently of the compiler option list.
+    Attach mode uses an existing CLI console but does not allocate a new one.
+    PowerShell callers explicitly wait via a pipeline or Start-Process -Wait.
+    The actual PE header is checked independently of the compiler option list.
     """
     with Path(executable).open('rb') as stream:
         dos_header = stream.read(64)
@@ -211,8 +212,8 @@ def validate_console_subsystem(executable):
             or struct.unpack_from('<H', header, 24)[0] != 0x20b):
         raise ValueError('x64 PE32+ 실행 파일이 아닙니다')
     subsystem = struct.unpack_from('<H', header, 92)[0]
-    if subsystem != 3:
-        raise ValueError('PowerShell 출력·대기를 위해 PE console subsystem 3이 필요합니다')
+    if subsystem != 2:
+        raise ValueError('새 콘솔 없는 화면 실행을 위해 PE GUI subsystem 2가 필요합니다')
     return subsystem
 
 
@@ -493,7 +494,7 @@ def build(args):
             'tools': versions, 'asset_version': assets['asset_version'],
             'compilation': provenance,
             'application': {'path': 'BellalunAuto.exe', 'sha256': sha256(distribution / 'BellalunAuto.exe'),
-                            'pe_subsystem': pe_subsystem, 'windows_console_mode': 'hide'},
+                            'pe_subsystem': pe_subsystem, 'windows_console_mode': 'attach'},
             'compatibility': assets['compatibility'],
             'skipped': {'compile': args.skip_compile, 'tests': args.skip_tests},
             'release_gate': gate,

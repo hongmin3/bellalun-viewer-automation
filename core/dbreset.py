@@ -92,7 +92,7 @@ backup_dir = staging_dir
 
 def _service_state(name):
     out = subprocess.run(["sc", "query", name], capture_output=True, text=True,
-                         errors="replace")
+                         errors="replace", creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     text = (out.stdout or "") + (out.stderr or "")
     for token in ("RUNNING", "STOPPED", "START_PENDING", "STOP_PENDING"):
         if token in text:
@@ -107,7 +107,7 @@ def _service_start_mode(name):
     `START_TYPE : 2   AUTO_START`).
     """
     out = subprocess.run(["sc", "qc", name], capture_output=True, text=True,
-                         errors="replace")
+                         errors="replace", creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     text = (out.stdout or "") + (out.stderr or "")
     for token in ("AUTO_START", "DEMAND_START", "DISABLED", "BOOT_START",
                   "SYSTEM_START"):
@@ -140,15 +140,16 @@ def ensure_database_service(ctx, timeout=SERVICE_START_TIMEOUT):
     if mode_before == "DEMAND_START":
         # 재부팅하면 또 꺼진 채로 시작한다. 회귀는 그때마다 같은 지점에서 멈춘다.
         subprocess.run(["sc", "config", name, "start=", "auto"],
-                       capture_output=True)
+                       capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         changed.append("시작 유형 DEMAND_START -> AUTO_START")
     elif mode_before == "DISABLED":
         subprocess.run(["sc", "config", name, "start=", "auto"],
-                       capture_output=True)
+                       capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         changed.append("시작 유형 DISABLED -> AUTO_START")
 
     if before != "RUNNING":
-        subprocess.run(["net", "start", name], capture_output=True)
+        subprocess.run(["net", "start", name], capture_output=True,
+                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         end = time.time() + timeout
         while time.time() < end and _service_state(name) != "RUNNING":
             time.sleep(1)
@@ -168,11 +169,12 @@ def stop_app_processes():
     정리한다.
     """
     for name in APP_SERVICES:
-        subprocess.run(["net", "stop", name], capture_output=True)
+        subprocess.run(["net", "stop", name], capture_output=True,
+                       creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     for name in APP_PROCESSES:
         subprocess.run(
             ["taskkill", "/IM", f"{name}.exe", "/F", "/T"],
-            capture_output=True)
+            capture_output=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
 
 
 def start_app_services(timeout=SERVICE_START_TIMEOUT):
@@ -184,7 +186,8 @@ def start_app_services(timeout=SERVICE_START_TIMEOUT):
     state = {}
     for name in APP_SERVICES:
         if _service_state(name) != "RUNNING":
-            subprocess.run(["net", "start", name], capture_output=True)
+            subprocess.run(["net", "start", name], capture_output=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         end = time.time() + timeout
         while time.time() < end:
             current = _service_state(name)

@@ -244,6 +244,12 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.
 
+탐색기·바로가기·설치 완료 후 열기로 시작하면 BellalunAuto 프로그램 창만 열고 cmd/터미널 콘솔을 새로 만들지 않는다. Windows GUI 실행 파일로 빌드하고 실제 PE 헤더를 검사한다.
+
+기존 콘솔에서 CLI로 실행하면 해당 콘솔을 활용하며 명령 인수·표준 출력·종료 코드를 유지한다. PowerShell은 GUI 실행 파일의 종료를 기다리도록 파이프 또는 명시적 대기 호출을 사용한다. 프로그램 내부의 CLI/worker 호출은 파이프와 프로세스 대기를 유지한다.
+
+준비 점검·DB 조회·DB 복원에 필요한 서비스 명령·보고서 환경 수집의 콘솔 자식도 새 창 없이 실행한다. Viewer 제품 창과 사용자 직접 조작이 필요한 Windows 권한 창은 이 제한과 구분한다.
+
 감시 프로세스는 자기 EXE의 명시적 worker 모드로 엔진을 실행한다. worker가 다시 감시 프로세스를
 만들지 않는다. 종료 코드·진행 상태·새 전체 리포트 확인과 비정상 종료의 제품 정리를 보존한다.
 같은 PC의 제품 조작은 작업 폴더가 달라도 하나만 실행한다.
@@ -662,6 +668,8 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 
 ### TEST-DIST-001 배포 실행과 경로
 
+`tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`는 콘솔 자식 명령의 인수·결과를 보존하면서 무창 실행 플래그가 전달되는지 확인한다. 실제 서비스·DB·OCR 프로그램·화면을 조작하지 않고 외부 호출 경계에서 검사한다. 빌드한 EXE의 GUI PE 헤더와 콘솔 없는 부모의 CLI 파이프·종료 코드는 별도로 실측한다.
+
 임시 한글/공백 경로에서 설정 저장·CWD 독립·절대 경로 유지·중복 실행·자식 명령·worker 재귀 방지를
 자동 검증한다. 설치 EXE에서 version/selfcheck/GUI/CLI와 새 셸을 실행하고 사용자 자료 보존을 확인한다.
 실제 EXE의 두 전체 실행 결과와 개발 도구 없는 환경 검증을 별도로 기록한다.
@@ -799,7 +807,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
-| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py` | implemented |
+| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py` | implemented |
 | REQ-DIST-003 | `tools/build_distribution.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py` | implemented |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | implemented |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |

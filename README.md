@@ -7,6 +7,7 @@
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
+탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
 실행 번호별 진행·보고서는 `작업/Runs/<run_id>/run.json`에 연결됩니다. 자동 실행이 끝나면
 화면의 **수동 검토**에서 PASS가 아닌 TC를 확인하고 검수 완료를 별도로 기록하세요.
 **공유 ZIP**에서는 스크린샷·DICOM·Viewer 로그 구간을 선택하며, 기본은 모두 제외입니다.

@@ -209,7 +209,7 @@ class DistributionBuildTests(unittest.TestCase):
         self.assertIn('--include-module=tests.workflow01', command)
         self.assertIn('--nofollow-import-to=tests.test_*', command)
         self.assertNotIn('--nofollow-import-to=tests', command)
-        self.assertIn('--windows-console-mode=hide', command)
+        self.assertIn('--windows-console-mode=attach', command)
         self.assertIn('--mingw64', command)
         self.assertIn('--jobs=2', command)
         self.assertEqual(command[-1], str(ROOT / 'BellalunAuto.py'))
@@ -221,7 +221,7 @@ class DistributionBuildTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode('ascii', errors='replace'))
         self.assertIn('--assets', result.stdout.decode('utf-8'))
 
-    def test_gui_subsystem_binary_is_rejected_because_powershell_does_not_wait(self):
+    def test_gui_launch_rejects_console_subsystem_that_can_open_a_terminal(self):
         for subsystem in (2, 3):
             content = bytearray(512)
             content[:2] = b'MZ'
@@ -234,10 +234,10 @@ class DistributionBuildTests(unittest.TestCase):
             executable.write_bytes(content)
             with self.subTest(subsystem=subsystem):
                 if subsystem == 2:
+                    self.assertEqual(self.builder.validate_console_subsystem(executable), 2)
+                else:
                     with self.assertRaises(ValueError):
                         self.builder.validate_console_subsystem(executable)
-                else:
-                    self.assertEqual(self.builder.validate_console_subsystem(executable), 3)
 
     def test_runtime_resources_require_runtime_licenses_and_omit_build_only_packages(self):
         # Installed distribution metadata is a build-host dependency. A metadata

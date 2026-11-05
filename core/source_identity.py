@@ -17,7 +17,8 @@ def _git(root, *args):
         return None
     try:
         return subprocess.run([git, *args], cwd=str(root), capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", check=True).stdout.strip()
+                              encoding="utf-8", errors="replace", check=True,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return None
 

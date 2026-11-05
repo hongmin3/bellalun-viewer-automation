@@ -44,7 +44,8 @@ def ocr(box, scale=3, psm=6, path=None):
     try:
         img.save(temp)
         p = subprocess.run([TESSERACT_EXE, temp, "stdout", "-l", "eng",
-                            "--psm", str(psm)], capture_output=True)
+                            "--psm", str(psm)], capture_output=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return p.stdout.decode("utf-8", "replace").strip()
     finally:
         os.remove(temp)

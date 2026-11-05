@@ -128,7 +128,8 @@ foreach($e in $els){{try{{$pat=$e.GetCurrentPattern([System.Windows.Automation.I
 if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True)
+                              capture_output=True,
+                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
     def _uia_open_process(self):
@@ -150,7 +151,8 @@ foreach($e in $els){{try{{$r=$e.Current.BoundingRectangle;if($r.Y -ge 30){{$pat=
 if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True)
+                              capture_output=True,
+                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
     def process_editor_info(self, move_inside=False):
@@ -176,7 +178,8 @@ if($null -ne $found){{
 }}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True)
+                              capture_output=True,
+                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         raw = proc.stdout.decode("utf-8", "replace").strip()
         if not raw:
             return None
@@ -220,7 +223,8 @@ if($null -ne $found){{
         args = [self.tesseract, "stdin", "stdout", "-l", "eng", *options]
         try:
             process = subprocess.run(args, input=payload.getvalue(),
-                                     capture_output=True, timeout=30)
+                                     capture_output=True, timeout=30,
+                                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         except subprocess.TimeoutExpired as error:
             detail = (error.stderr or b"")
             if isinstance(detail, bytes):
@@ -410,7 +414,8 @@ $newVal = $pat.Current.Value
 Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
-                              capture_output=True)
+                              capture_output=True,
+                              creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         out = proc.stdout.decode("utf-8", "replace").strip()
         if out.startswith("ERROR"):
             raise RuntimeError(f"XIPL Parameter Editor field '{field_name}' 설정 실패: {out}")
@@ -569,7 +574,8 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
 '''
             proc = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", script],
-                capture_output=True)
+                capture_output=True,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true"):
                 time.sleep(1)
                 return True

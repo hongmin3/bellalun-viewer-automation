@@ -11,6 +11,7 @@ def _ps(script):
         ["powershell", "-NoProfile", "-NonInteractive", "-Command",
          "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;" + script],
         capture_output=True,
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
     )
     return proc.stdout.decode("utf-8", "replace").strip()
 

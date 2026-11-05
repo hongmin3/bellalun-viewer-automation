@@ -54,6 +54,8 @@ def tk_root():
     import os
     from pathlib import Path
     import subprocess
+    if os.environ.get('BELLALUN_DESKTOP_BUSY') == '1':
+        pytest.skip('운영자가 화면 사용 중으로 지정해 실제 Tk 화면 시험을 보류합니다.')
     peers = {'vxvueauto.exe', 'vxvue.exe', 'viewer.exe'}
     if os.name == 'nt':
         tasklist = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32' / 'tasklist.exe'

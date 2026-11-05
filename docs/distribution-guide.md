@@ -97,9 +97,15 @@ python tools/release_gate.py --installed-verification <verification.json> --scop
 원본 소스를 읽는 검사는 빌드 환경에서 수행하고 설치판 자체진단에서는 수행하지 않는다.
 정적 검사 실패 시 빌드를 중단한다. Nuitka는 자체 `run`, `core`, `bellalunauto`와 실제 `tests/*.py`
 TC 시나리오를 명시적으로 포함하며 `tests.test_*` 단위시험만 제외한다.
-hide 모드는 기존 콘솔을 사용하고 새로 생성된 콘솔은 숨긴다. PE console subsystem을 사용하므로
-새 PowerShell의 직접 실행·출력 리다이렉션·종료코드 대기가 동작한다. 빌드 시 실제 PE 헤더도 확인한다.
-탐색기 실행에서 콘솔이 잠깐 보일 가능성은 Nuitka의 알려진 Windows 제한이며 실제 실행을 별도 확인한다.
+attach 모드와 Windows GUI 실행 파일(PE subsystem 2)을 사용해 탐색기·바로가기 실행에서 콘솔을 새로 만들지 않는다. 기존 콘솔에서 CLI로 호출하면 해당 콘솔을 사용한다. 빌드 시 실제 PE 헤더도 확인한다.
+PowerShell은 GUI 실행 파일의 종료를 자동으로 기다리지 않을 수 있으므로 CLI는 파이프로 호출한다.
+
+```powershell
+& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default
+$LASTEXITCODE
+```
+
+파일로 결과를 받거나 명시적으로 기다릴 때는 `Start-Process -Wait -PassThru`와 출력 리다이렉션을 사용한다. 설치판 검증 도구와 프로그램 내부 worker 호출은 기존처럼 파이프를 수집하고 프로세스 종료를 기다린다. 준비 점검·DB·서비스 명령·환경 수집의 콘솔 자식은 `CREATE_NO_WINDOW`로 실행한다. 실제 첫 GUI 표시는 다른 자동화가 화면을 쓰지 않을 때 별도로 확인한다.
 컴파일 작업 수는 `--jobs=2`로 고정한다.
 
 개발 진단용 `--skip-tests` 및 `--skip-compile --compiled-dir <standalone-folder>`는 생략 내역을
