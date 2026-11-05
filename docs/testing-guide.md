@@ -47,6 +47,8 @@
 
 ## 긴 실행 전 사전 검사
 
+WF_02의 3D-N/W는 촬영 전에 그룹 목록을 읽고 새 그룹의 Raw/Recon/Syn 도착을 기다린다. 전체 건수 기대값도 함께 대조한다. 후보8의 조기 판정 조사, 실측 시간 분포와 DB 시간 초과의 미확정 범위는 [촬영 대기 조사](wf02-acquisition-investigation.md)를 참고한다.
+
 소스 검증 환경은 `python -m pip install -r requirements-dev.txt`로 준비한다.
 설치된 BellalunAuto에는 Python이나 시험용 의존성을 별도로 설치하지 않는다.
 

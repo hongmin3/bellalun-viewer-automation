@@ -122,6 +122,12 @@ Issue #85에서 두 전체 회귀를 승인받았다. 시작 직전 VXvue 제품
 
 근거는 Git 제외 `work/candidate7-regression/`(화면 2장, `gui-results.json`)와 `work/setup-candidate7-install.log`에 있다.
 
+### 2026-11-06 WF_02 조기 판정 조사·수정 후보 준비
+
+후보8 FAIL 시점의 Viewer 완료는 촬영 시작 후85.196초였다. 기존75초 대기는 Recon/Syn 도착 전 실패했다. 실제 WF_02 실행 경로의 지연 도착·이전 그룹 오판·skip 대기 시험4건이 수정 전 실패했고, 새 그룹의 세 타입을 기다리도록 수정한 뒤 관련33개가 통과했다. 전체798 passed/4 skipped/265 subtests, 정적7종·readiness 및 독립 코드 검토를 통과했다. 이는 소스 검증 결과이며 새 설치판 인수 완료가 아니다. [조사 근거·시간 분포·DB 원인의 미확정 범위](wf02-acquisition-investigation.md)를 참고한다.
+
+후보8 설치판의 단독 진단은 04:05~04:11 종료0·WF_02 PASS27/FAIL0이었다. 3D-W는 약33.7초 완료해 원래 지연은 미재현이며, SQL 수집의 WF_02 활성 요청45행에서 차단은0이었다. 이 통과는 수정 후보 검증을 대신하지 않는다. 수정 후보를 빌드·업데이트하고 승인된 기본기능·WU 두 전체를 한 번 실행할 계획이다. 설치판 신원·실행 기록·새 게이트 결과가 생기기 전까지 후보8의 게이트 거부는 그대로 유지한다. 사람 검수·UAC 취소·다른OS/계정·제거·다른PC는 미완료다.
+
 ### 2026-11-05~06 후보8 두 전체 회귀
 
 사용자가 22:35 (가)를 택했다. XIPL 9784 gate의 조건(XIPL.SERVER 프로세스 + 9784 수신)은 그대로 두고 측정 방법만 바꿨다. TCP 표의 상태 값 대신 XIPL.SERVER가 소유한 수신 소켓이 실제 TCP 접속을 받는지 본다(소스 `7d5b1fa`).
@@ -131,7 +137,7 @@ Issue #85에서 두 전체 회귀를 승인받았다. 시작 직전 VXvue 제품
 3. 실행 전 대조: Baseline `restored-approved-2026-10-15`, DB 4개 BAK의 SHA-256이 배포 manifest와 같다. Viewer 1.0.12.105, SQL `.\BELLALUN`, USB `D:`(`VXVUE1`)·`D:\BellalunWU09`. 다른 자동화·VXvue 실행 없음.
 4. `tools/run_installed_suites.py --suites run-regression,run-winupdate`를 WMI로 분리 실행했다. 실행 기록의 설치 대조는 파일 1007개 불일치 0이다. CLI 실행이라 실행 기록에는 "화면 동의 없음(CLI)"으로 남는다.
 5. 기본기능(22:47~00:57, 129.4분, 종료 1): TC 27건 PASS 22 / FAIL 3 / MANUAL 1(`Install_01`) / SKIP 1(`WF_16`). FAIL은 `WF_14` UPS 미복원과 `XIPL_03` Step 9 3D 파라미터 기본값 복귀(둘 다 알려진 제품 결함), `WF_02` 하나다.
-6. `WF_02`: 개정본 범위(2D·3D-N)의 판정은 통과했다. 자동화가 Send TC용으로 더한 3D-W 촬영 단계에서 Recon/Syn이 75초 대기 안에 DB에 들어오지 않아 FAIL이고 Step 6~8은 미수행이다. 같은 시각 Viewer 로그(`C:\BellalunData\Log\Viewer6_11_05.log`)에는 `[DATABASE] 쿼리 시간 제한이 만료되었습니다`가 한 번 있고, 3D-W의 Recon/Syn 추가(`Image84`·`Image85`)가 23:00:47·51에 기록됐다. 이 지연과 FAIL의 인과는 확정하지 않았다. 같은 후보의 WU 실행 안 `WF_02`는 같은 단계를 통과했다. 자동화 기대값과 대기 시간은 바꾸지 않았다.
+6. `WF_02`: 개정본 범위(2D·3D-N)의 판정은 통과했다. 자동화가 Send TC용으로 더한 3D-W 촬영 단계에서 Recon/Syn이 75초 대기 안에 DB에 들어오지 않아 FAIL이고 Step 6~8은 미수행이다. 같은 시각 Viewer 로그(`C:\BellalunData\Log\Viewer/2026_11_05.log`)에는 `[DATABASE] 쿼리 시간 제한이 만료되었습니다`가 한 번 있고, 3D-W의 Recon/Syn 추가(`Image84`·`Image85`)가 23:00:47·51에 기록됐다. 이 지연과 FAIL의 인과는 확정하지 않았다. 같은 후보의 WU 실행 안 `WF_02`는 같은 단계를 통과했다. 자동화 기대값과 대기 시간은 바꾸지 않았다.
 7. WU(00:57~02:43, 리포트 기준 105.4분·실행 기록 기준 105.5분, 종료 0): TC 13건 PASS 10 / SKIP 3(`WU_01`·`WU_12`·`WU_13`, 사람 수행), FAIL 0. 실행 전 점검 OK 10 / BLOCK 0.
 8. `release_gate.py --installed-verification --scope both --commit 7d5b1fa…`: 사유 1건으로 거부. 기본기능의 알려진 결함 밖 FAIL(`WF_02` 3D-W 픽스처 단계와 그 미수행 Step)이다. 나머지 25개 검사는 통과했다(전체 26개). 기록 `work/candidate8-regression/release-gate.json`.
 9. 이 PC의 GPU 상태: NVIDIA Quadro P400이 장치 관리자에 "현재 없음"으로 남아 있고 XIPL·Viewer 로그에 `No GPUS`가 있다. 11-04·11-05 실행에도 같았다. 3D Recon은 GPU 없는 경로로 처리됐다.

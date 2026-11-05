@@ -31,6 +31,8 @@ Viewer·SQL Server·Tesseract OCR과 시험에 필요한 외부 서버/USB는 �
 
 ## 빌드 환경과 명령
 
+후보8의 WF_02 조기 판정은 [촬영 대기 조사](wf02-acquisition-investigation.md)에서 원인과 미확정 범위를 구분했다. 수정 후보는 새 그룹의 Raw/Recon/Syn 완료 대기를 사용한다. 소스 시험 통과와 후보8의 기존 두 전체 결과를 수정 후보의 설치판 통과로 대신하지 않는다. 새 후보의 전체 회귀와 배포 게이트는 인수표에서 확인한다.
+
 Windows x64 CPython **3.12.10**, Nuitka **4.3**, Inno Setup **6.7.3**을 사용한다.
 지원 대상 OS는 Windows 10/11 x64이며 설치 프로그램은 최소 Windows 10을 요구한다.
 최근 후보(후보8·10·11)의 빌드와 전체 실행 호스트는 Windows 11 Pro(빌드 26200)이다.

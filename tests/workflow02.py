@@ -123,6 +123,25 @@ def _wait_types(ctx, study_key, required, timeout=DB_TIMEOUT):
     return flows.wait_instance_types(ctx.db, study_key, required, timeout=timeout)
 
 
+def _acquire_3d(ctx, ui, index, study_key):
+    """현재 촬영의 새 그룹에 Raw/Recon/Syn이 모두 도착할 때까지 기다린다.
+
+    후보8에서 Viewer는 85.196초 뒤 완료했지만 전체 건수의 75초 대기는
+    Recon/Syn 도착 전에 실패했다. 기존 공용 3D 대기(상한 180초)를 쓰며,
+    대기 결과와 전체 건수를 함께 판정해 다른 그룹의 영상으로 통과하지 않는다.
+    """
+    known = viewer_processing.acquired_groups(ctx.db, study_key)
+    capture = flows.demo_acquire_step(ui, index, settle=0)
+    if capture.get("skipped"):
+        capture["wait"] = {"group": None, "instances": [], "waited": 0,
+                           "timed_out": True, "skipped": True}
+    else:
+        capture["wait"] = viewer_processing.wait_new_group(
+            ctx.db, study_key, known,
+            required_types=viewer_processing.INSTANCE_TYPES_3D)
+    return capture
+
+
 def _capture(ctx, ui, name, result):
     path = os.path.join(ctx.evidence_root, "Flow", "02_WorkFlow", name)
     screen.grab(ui.main_window().rect, path=path)
@@ -279,9 +298,8 @@ def run(ctx):
                             note="Procedure + / 3D-N Preset / LCC / OK")
         _capture(ctx, ui, "04_registered_3dn.png", result)
 
-        shot_3d = flows.demo_acquire_step(
-            ui, 2, settle=0)
-        counts = _wait_types(ctx, target["Key"], {0: 1, 1: 1, 2: 1, 3: 1})
+        shot_3d = _acquire_3d(ctx, ui, 2, target["Key"])
+        counts = _instance_counts(ctx, target["Key"])
         structure_3d = _image_structure(ctx, target["Key"])
         three_d = [row for row in structure_3d["instances"]
                    if int(row["InstanceType"]) in (1, 2, 3)]
@@ -291,6 +309,7 @@ def run(ctx):
         result.assert_true(
             5, "3D Raw/Recon/Syn 영상 데이터 생성",
             counts == {0: 1, 1: 1, 2: 1, 3: 1}
+            and not shot_3d["wait"]["timed_out"]
             and _valid_image_structure(structure_3d, [0, 1, 2, 3], 2, 2)
             and same_3d_series_group,
             expected=("InstanceType 0/1/2/3 각 1건, Series/Group 각 2건, "
@@ -319,11 +338,12 @@ def run(ctx):
                      "확장이다 — Send TC 의 3D-W 수신 검증에 필요하다.")
             _capture(ctx, ui, "05a_registered_3dw.png", result)
 
-            shot_3dw = flows.demo_acquire_step(ui, 3, settle=0)
-            counts_w = _wait_types(ctx, target["Key"], {0: 1, 1: 2, 2: 2, 3: 2})
+            shot_3dw = _acquire_3d(ctx, ui, 3, target["Key"])
+            counts_w = _instance_counts(ctx, target["Key"])
             result.assert_true(
                 5, "3D-W 영상 데이터 생성 (픽스처 확장)",
-                counts_w == {0: 1, 1: 2, 2: 2, 3: 2},
+                counts_w == {0: 1, 1: 2, 2: 2, 3: 2}
+                and not shot_3dw["wait"]["timed_out"],
                 expected="3D-W 촬영으로 Raw/Recon/Syn 이 각 1건씩 더 생긴다 "
                          "(InstanceType {0:1, 1:2, 2:2, 3:2})",
                 actual={"capture": shot_3dw, "instance_types": counts_w},

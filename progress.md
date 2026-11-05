@@ -1,5 +1,15 @@
 # 진행 상태
 
+## 2026-11-06 WF_02 원인 조사·후보9 준비 (Issue #86)
+
+- 저장소 시작: HEAD=origin/main `0a65ce9`, clean. 설치판 후보8 EXE 해시가 승인 값과 같다. 기존 설치판·로그를 대상으로 조사하며 원인 확인 전 전체 재회귀를 시작하지 않았다.
+- 자동화 결함 확인: Viewer 3D-W 완료 85.196초에 비해 WF_02 전체 건수 대기는 75초였다. 실제 `workflow02.run` 경로에 84초 Recon/Syn 도착을 주면 같은 누락 건수로 실패한다. 이전 그룹의 Recon/Syn 추가만으로 현재 촬영이 미완료여도 통과하는 경우도 재현했다. 최초 Viewer DB 시간 초과의 근본 원인은 미확정이며 자동화 폴링 원인이라고 단정하지 않는다.
+- 수정: 3D-N/W F8 전 그룹을 읽고 기존 `wait_new_group`(상한180초)으로 새 그룹의 세 타입 도착을 기다린다. 기존 전체 건수·3D-N 구조 검증·게이트 유지. 실패 시험 4건 확인 후 관련 33개 통과. 수정 전 전체 단위시험은 792 passed / 4 skipped / 265 subtests였다(화면 점유로 Tk 시험 제외).
+- 실환경 진단 완료: 후보8 Baseline DB4 복원 후 최초 WF_01은 DICOM 미등록으로 진입 전 차단되어 setup-dicom을 추가했다. setup-dicom·WF_01 종료0, WF_02 단독 04:05~04:11 종료0·PASS27/FAIL0(보고서 `Result_20261106_041134.json`, TC353.909초). 3D-W 완료 약33.7초·No GPUS 동일, 원래 지연은 미재현이다. SQL DMV 0.5초 수집은 준비 포함1423회, WF_02 활성 요청45행·blocking0·최장요청3670ms. 최초 실패 때의 DB 차단 원인을 배제하는 근거로 확대하지 않는다. 원문/화면 사본·요약은 `work/wf02-diagnostic-20261106_035928/`.
+- 수정 소스 검증: 전체798 passed / 4 skipped / 265 subtests, 정적7종·readiness·workspace gate 종료0. 독립 코드 검토에서 Critical/Important/Minor 없음, 문서 검토의 progress 현재상태 갱신1건 반영. 완료 정리 삭제0·실패0. `BELLALUN_DESKTOP_BUSY=1`로 실제 Tk 시험2개를 보류했고 나머지 skip2개는 기존 선택 Inno 경로다.
+- 다음: 문서/HTML·정리·commit/push → 후보9 빌드·업데이트 → 설치판 두 전체1회·배포게이트·새 공유ZIP 검증. 빌드·전체 실행의 실제 상태는 Git 제외 `work/qa-build-candidate9.*`와 새 실행 기록에서 확인한다. 두 전체 실행 중 저장소 수정·커밋 금지.
+- 상세 조사: `docs/wf02-acquisition-investigation.md`. 실측 분포/원문 해시는 Git 제외 `work/wf02-investigation/history.json`. 사람 검수·UAC취소·다른OS/계정·제거·다른PC는 계속 미완료다.
+
 ## 2026-11-05 XIPL 9784 점검 수정·후보8 (Issue #85 이어서)
 
 - 사용자 결정(22:35): "가로 해도 문제가 없다면 가로". 후보7 보고의 (가)를 택했다. gate 조건(XIPL.SERVER 프로세스 + 9784 수신)은 그대로 두고 측정 방법만 바꾼 후보8을 만들어 기본기능·WU 두 전체를 한 번 수행한다. (나)의 PC 드라이버·업데이트 확인은 이번에 하지 않는다.
