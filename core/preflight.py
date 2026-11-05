@@ -7,6 +7,7 @@ QA 결과를 신뢰할 수 없다. 매 실행 전에 전제 조건을 먼저 확
 """
 
 import os
+import socket
 
 from core import sysinfo
 
@@ -17,29 +18,56 @@ XIPL_KEEPALIVE = "XIPL.KEEPALIVE"
 XIPL_PORT = 9784
 
 
-def _listening_ports():
+def _process_ids(name):
+    out = sysinfo._ps(f"Get-Process -Name '{name}' -ErrorAction SilentlyContinue | "
+                      "ForEach-Object { $_.Id }")
+    return {line.strip() for line in out.splitlines() if line.strip().isdigit()}
+
+
+def _listen_sockets(port):
+    """port의 수신 모양 소켓 (로컬 주소, 소유 PID) 목록.
+
+    TCP 표의 State 값은 읽지 않는다. 2026-11-05 시험 PC에서 OS가 수신 소켓 상태를
+    CLOSED·FIN_WAIT_1이나 정의 밖 값(0)으로 돌려줘 `-State Listen` 조회가 실제
+    수신 소켓을 놓쳤고 State 접근 자체가 예외를 냈다. 원격 포트가 0인 행만 수신
+    소켓 후보로 보고, 실제로 연결을 받는지는 _accepts가 확인한다.
+    """
     out = sysinfo._ps(
-        "Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | "
-        "ForEach-Object { \"$($_.LocalPort):$($_.OwningProcess)\" }")
-    ports = {}
+        f"Get-NetTCPConnection -LocalPort {int(port)} -ErrorAction SilentlyContinue | "
+        "ForEach-Object { \"$($_.LocalAddress)|$($_.RemotePort)|$($_.OwningProcess)\" }")
+    sockets = []
     for line in out.splitlines():
-        if ":" in line:
-            p, pid = line.strip().split(":", 1)
-            if p.isdigit():
-                ports[int(p)] = pid
-    return ports
+        parts = line.strip().split("|")
+        if len(parts) == 3 and parts[1] == "0" and parts[2].isdigit():
+            sockets.append((parts[0], parts[2]))
+    return sockets
+
+
+def _accepts(address, port):
+    host = {"0.0.0.0": "127.0.0.1", "::": "::1"}.get(address, address)
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
 
 
 def check_xipl():
     """XIPL.SERVER 가동 여부.
 
-    프로세스 존재 + 서비스 포트(9784) LISTEN 두 가지를 모두 본다.
+    프로세스 존재 + 서비스 포트(9784) 수신 두 가지를 모두 본다.
     프로세스만 떠 있고 포트를 못 여는 경우가 실제로 있어서 한쪽만으로는 부족하다.
+    수신은 XIPL.SERVER가 소유한 수신 소켓이 실제 TCP 접속을 받는 것으로 확인한다.
     """
     procs = sysinfo.process_names()
     running = XIPL_PROCESS in procs
     keepalive = XIPL_KEEPALIVE in procs
-    listening = XIPL_PORT in _listening_ports()
+    listening = False
+    if running:
+        pids = _process_ids(XIPL_PROCESS)
+        owned = [addr for addr, pid in _listen_sockets(XIPL_PORT) if pid in pids]
+        # TCP 표에 죽은 행이 섞일 수 있어 XIPL이 가진 수신 소켓을 차례로 본다.
+        listening = any(_accepts(addr, XIPL_PORT) for addr in dict.fromkeys(owned))
     return {
         "ok": running and listening,
         "process": running,

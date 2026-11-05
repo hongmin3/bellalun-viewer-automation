@@ -404,6 +404,9 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 > **주의** 예외 문장·인자·설정 값은 계정·비밀번호·환자 정보를 담을 수 있어 창과 기록에 넣지 않는다.
 #### 지킬 것
 - 점검 기준과 실행 차단 조건(환경 gate)은 바꾸지 않는다. 해결 동선은 설정 화면을 여는 것까지만 하고 값을 대신 바꾸지 않는다.
+- XIPL 영상 처리 행은 `XIPL.SERVER` 프로세스가 있고, 그 프로세스가 9784 포트의 수신 소켓을 갖고, 그 포트가 실제 TCP 접속을 받을 때만 통과한다. 셋 중 하나라도 아니면 실행을 막는다.
+
+  이유: 2026-11-05 시험 PC에서 Windows가 수신 소켓의 연결 상태 값을 CLOSED·FIN_WAIT_1 등으로 틀리게 보고했다. 상태 값만 보면 열려 있는 포트도 미개방으로 판정된다.
 
 ### REQ-REGRESSION-002 변경 영향에 따른 검증과 UI 회귀 승인
 
@@ -794,6 +797,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 - 검증 대상: REQ-QA-005.
 - 자동 절차: `tests/test_qa_runs.py`로 화면 항목은 디스플레이 설정, SQL·서비스는 서비스 관리, 나머지는 PC별 설정으로 연결되는지 확인한다. `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`로 기존 진단·환경 gate를 회귀 확인한다.
+- XIPL 절차: `tests/test_xipl_gate.py`로 XIPL 행이 상태 값과 무관하게 프로세스·소켓 소유자·실제 접속을 모두 보는지 확인한다.
 - 설치판 절차: 실패 행의 원인·해결 방법과 설정 화면 열기를 확인하고, 사람이 수정한 뒤 다시 점검한다. 해결 버튼만으로 준비 완료나 시험 실행이 되지 않는지 확인한다.
 - Expected Result: 같은 점검 기준과 실행 차단 조건을 유지하고 설정 값을 대신 바꾸지 않는다. 실패 행 선택·설정 열기·재점검 GUI의 실측은 별도로 남긴다.
 
@@ -805,7 +809,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
-| REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py` | implemented |
+| REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
