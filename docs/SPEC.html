@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="de4dd6cbf754567d6a8002fd1c9efb59025110be3dab7949d48d3235be296b42">
+<meta name="spec-source-sha256" content="64ee98ced9a172d6f452db29b16a70bc1f9bac1616e717b0e8c7d4dd1837a4cb">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -759,9 +759,10 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-QA-002">
 <h3><span class="idtag">REQ-QA-002</span> 실행 번호로 진행·중단·완료·보고서 연결</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-QA-002">TEST-QA-002</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Added</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: 실행 번호별 계획·동의·진행·중단·완료·새 보고서·결론과 다음 행동을 기록한다. 정상 전체 완료의 FAIL 종료 코드 1을 비정상 종료와 구별한다.</li>
+<li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Fixed</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: NTFS 파일 시각의 정밀도 차이로 새 진행 상태를 놓치거나 같은 초의 이전 실행 상태를 읽던 문제를 시작 전 내용 해시와 새 기록 비교로 수정했다.</li>
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">
@@ -802,9 +803,10 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-QA-004">
 <h3><span class="idtag">REQ-QA-004</span> 결과 공유 ZIP</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/share.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-004">TEST-QA-004</a>; <code>tests/test_share_package.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-QA-004">TEST-QA-004</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Added</span> <a class="idref" href="#REQ-QA-004">REQ-QA-004</a>: 공유 범위를 선택하는 상대 경로 ZIP과 파일 크기·SHA-256 manifest, 누락·추가·변조·외부 링크 검증을 추가한다. 실제 실패 JSON의 Viewer 로그 구간만 선택적으로 분리한다.</li>
+<li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Fixed</span> <a class="idref" href="#REQ-QA-004">REQ-QA-004</a>: 실제 전체 보고서의 서로 다른 TC 폴더에 동명 증거 파일이 있으면 ZIP 생성이 실패하던 문제를 수정했다. TC별 하위 경로와 각 보고서 링크를 함께 보존한다.</li>
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">

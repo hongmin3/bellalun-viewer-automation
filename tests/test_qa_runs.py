@@ -153,3 +153,21 @@ def test_partial_report_does_not_mean_automatic_completion(tmp_path):
     (folder / 'Result_partial.json').write_text('{"results": [{"tc_id":"only", "verdict":"PASS"}]}', encoding='utf-8')
     record.finish(0)
     assert record.data['status'] == 'abnormal'
+
+
+def test_progress_accepts_new_file_with_coarse_timestamp_but_not_unchanged_old_state(tmp_path):
+    from bellalunauto.runs import RunRecord
+    folder = tmp_path / 'work'
+    folder.mkdir()
+    state = folder / 'regression_state.json'
+    state.write_text('{"current_tc":"OLD","index":9}', encoding='utf-8')
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    record.refresh_progress()
+    assert not record.data['progress'].get('current_tc')
+    state.write_text('{"current_tc":"NEW","index":2,"total":3}', encoding='utf-8')
+    epoch_second = int(record.data['started_epoch'])
+    record.data['started_epoch'] = epoch_second + .9
+    os.utime(state, (epoch_second, epoch_second))
+    record.refresh_progress()
+    assert record.data['progress']['current_tc'] == 'NEW'
+    assert record.data['progress']['completed'] == 1

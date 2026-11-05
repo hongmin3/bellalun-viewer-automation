@@ -165,7 +165,7 @@ class SharePackageTests(unittest.TestCase):
         path = self.package(include_logs=True)
         self.assertEqual(verify_package(path), [])
         with zipfile.ZipFile(path) as archive:
-            name = 'logs/' + failure.name
+            name = 'logs/failure/' + failure.name
             self.assertIn(name, archive.namelist())
             value = json.loads(archive.read(name))
             self.assertEqual(value['log']['lines'], ['12:00:00 selected Viewer log'])
@@ -174,6 +174,26 @@ class SharePackageTests(unittest.TestCase):
             self.assertNotIn('path', value['log'])
             self.assertNotIn('crash', value)
             self.assertNotIn('foreground', value)
+
+    def test_same_evidence_basename_keeps_distinct_tc_paths(self):
+        paths = []
+        for tc in ('TC1', 'TC2'):
+            folder = self.root / 'Evidence' / tc
+            folder.mkdir()
+            image = folder / '01_selected.png'
+            image.write_bytes(tc.encode())
+            paths.append(image)
+        self.data.write_text(json.dumps({'results': [{'evidence': [str(p) for p in paths]}]}))
+        self.report.write_text(''.join('<a href="' + p.as_uri() + '">증거</a>' for p in paths), encoding='utf-8')
+        output = self.package(include_evidence=True)
+        self.assertEqual(verify_package(output), [])
+        with zipfile.ZipFile(output) as archive:
+            data = json.loads(archive.read('reports/result.json'))
+            refs = data['results'][0]['evidence']
+            self.assertNotEqual(refs[0], refs[1])
+            for ref, expected in zip(refs, (b'TC1', b'TC2')):
+                self.assertEqual(archive.read(ref.removeprefix('../')), expected)
+                self.assertIn(ref, archive.read('reports/결과 보고서.html').decode('utf-8'))
 
 
 if __name__ == '__main__':

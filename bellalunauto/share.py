@@ -176,7 +176,14 @@ def create_package(output, *, run_id, reports, review=None, include_evidence=Fal
                 continue
             if _sensitive(target):
                 raise ValueError('민감한 증거 파일은 공유할 수 없습니다: ' + target.name)
-            add(target, kind + '/' + target.name)
+            evidence_root = max((root for root in roots if target.is_relative_to(root)),
+                                key=lambda root: len(root.parts))
+            name = kind + '/' + target.relative_to(evidence_root).as_posix()
+            # 서로 다른 실행 루트까지 명시한 경우에도 같은 상대 경로를 구분한다.
+            if name.casefold() in {item.casefold() for item in mapping.values()}:
+                prefix = hashlib.sha256(str(target).encode('utf-8')).hexdigest()[:16]
+                name = kind + '/' + prefix + '/' + target.relative_to(evidence_root).as_posix()
+            add(target, name)
             if kind == 'logs' and target.suffix.lower() == '.json':
                 payloads[mapping[target]] = _failure_log_window(target)
 

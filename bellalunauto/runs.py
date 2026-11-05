@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import getpass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,13 @@ def _write(path, data):
             os.unlink(temporary)
 
 
+def _fingerprint(path):
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return None
+
+
 class RunRecord:
     def __init__(self, workspace, path, data):
         self.workspace, self.path, self.data = Path(workspace), Path(path), data
@@ -47,13 +55,15 @@ class RunRecord:
         path = Path(workspace) / 'Runs' / run_id / 'run.json'
         existing = {str(p): [p.stat().st_mtime_ns, p.stat().st_size]
                     for p in (Path(workspace) / 'Reports').glob('*') if p.is_file()}
+        initial_states = {name: _fingerprint(Path(workspace) / 'work' / name)
+                          for name in ('regression_state.json', 'winupdate_checkpoint.json')}
         record = cls(workspace, path, {
             'schema': 1, 'run_id': run_id, 'action': action, 'started': _now(),
             'started_epoch': stamp, 'plan': plan,
             'consent': {'source': 'GUI' if consent else '화면 동의 없음(CLI)',
                         'at': _now() if consent else None, 'user': getpass.getuser()},
             'status': 'running', 'stop_requested': False, 'progress': {},
-            'reports': [], 'existing_reports': existing, 'review_status': '실행 중',
+            'reports': [], 'existing_reports': existing, 'initial_states': initial_states, 'review_status': '실행 중',
         })
         record.save()
         return record
@@ -70,7 +80,10 @@ class RunRecord:
         progress = dict(self.data.get('progress', {}), elapsed_seconds=elapsed)
         name = 'winupdate_checkpoint.json' if self.data['action'] == 'run-winupdate' else 'regression_state.json'
         path = self.workspace / 'work' / name
-        if path.is_file() and path.stat().st_mtime >= self.data['started_epoch']:
+        # NTFS의 파일 시각과 time.time()의 세부 정밀도가 달라도 새 기록을 놓치지 않는다.
+        # 같은 초에 남은 이전 실행은 시작 전 내용 해시로 배제한다.
+        if (path.is_file() and path.stat().st_mtime >= int(self.data['started_epoch'])
+                and _fingerprint(path) != self.data.get('initial_states', {}).get(name)):
             state = _read(path)
             if name.startswith('winupdate'):
                 payload = state.get('payload', {})
@@ -96,7 +109,7 @@ class RunRecord:
             if not path.is_file() or path.suffix.lower() not in {'.json', '.html', '.txt', '.csv', '.xlsx'}:
                 continue
             stat = path.stat()
-            if stat.st_mtime < self.data['started_epoch']:
+            if stat.st_mtime < int(self.data['started_epoch']):
                 continue
             if self.data['existing_reports'].get(str(path)) == [stat.st_mtime_ns, stat.st_size]:
                 continue
