@@ -1,16 +1,21 @@
 # 진행 상태
 
-## 2026-11-05 첫 사용자 QA 흐름 (진행 중)
+## 2026-11-05 첫 사용자 QA 흐름 (후보 준비 완료·UI 실측 대기)
 
 - REQ-QA-001~005: 실행 전 직접 동의, 실행 번호·진행·보고서, 별도 수동 검수, 선택 공유 ZIP, 준비 실패 해결 동선을 구현했다. 엔진·설치기를 재사용하고 TC 기대값·PASS 기준·환경 gate는 변경하지 않았다.
 - 독립 검토에서 정상 FAIL 완료 상태, 실제 실패 로그 JSON 공유, WU 마지막 두 단계 진행 표시 3건을 재현 시험 후 수정했다. 재검토에서 추가 중요 결함 없음.
 - 최종 전체 단위시험 756 passed / 2 skipped / 265 subtests passed. 정적 7종 통과, readiness 및 workspace gate failed=0. 경고는 기존 미확정 사항·일부 사양 용어·Git 제외 생성물이다.
+- skip 2개는 `test_distribution_build.py`의 선택적 `work/InnoSetup6/ISCC.exe`가 없는 버전 조회·Pascal 컴파일 시험이다. 실제 빌드는 별도 설치된 Inno Setup을 `--iscc`로 지정해 검증·Setup 생성을 마쳤다. 첫 GUI/제품 실측을 이 단위 결과로 대신하지 않는다.
 - 실제 Tk 동의 화면에서 미체크 시작 금지·직접 체크·취소를 확인했다. 제품 UI·DB 복원은 수행하지 않았다.
 - 추가 실측: 이전 실제 전체 보고서 4형식·121개 자료를 한글/공백 다른 경로로 공유·추출하고 네트워크 접근 차단 상태에서 검증했다. 동명 TC 증거 충돌은 실패 재현 후 수정(공유시험 12개), 실행 시각 경계는 재현 후 수정(새 기록 100회 누락 0)했다.
 - 후보2 빌드는 실제 보고서 공유 결함을 발견해 중단했다. 후보3은 빌드 환경의 Tk 시험 초기화 실패로 컴파일 전에 멈췄다. 시험을 애플리케이션과 같은 단일 Tk 루트로 정리한 뒤 빌드 환경 전체 시험 756개 통과를 확인했다. 둘 다 설치·회귀에 쓰지 않았으며 후보4를 새 소스 커밋으로 빌드한다.
 - 별도 프로필의 headless Edge로 다른 경로의 이전 실제 공유 HTML이 표시됨을 확인했다(DNS 외부 차단·백그라운드 네트워크 비활성화). 현재 후보 새 결과·다른 PC·DICOM 실측은 미완료다.
-- 인수표: docs/installation-acceptance.md. 새 후보 Setup·다른 계정/OS·공유 ZIP 실측·두 묶음 설치판 회귀는 아직 미완료다. 과거 후보 실측과 구분한다.
-- 다음: 로컬 게이트 → 소스 신원 확정 → --team-settings 포함 WMI 분리 빌드 → Setup/오프라인 공유 실측 → EXE 해시와 약 4시간 범위·DB·USB를 제시하고 승인 대기. #80은 실제 완료 조건 확인 전 닫지 않는다.
+- 후보4: WMI 분리 빌드 종료 코드 0, `--team-settings` 포함. 소스 `f00005a473098d5fa0b7eb7fc5c980e5717bea3c`, source_dirty=false. 산출물 `work/release-1.0.1-candidate4/`.
+- EXE SHA-256 `B650E1C0D69E41FE0E3E89A7FCD63C233A27D5A85AE3E24D2E2B530AF23531AD`; Setup SHA-256 `0A25F058B7CADE6ACB09F573976AD3E7449D86A152773F1CCCABBBB25F09CA29`.
+- 실측: Windows 11 Pro 10.0.26200 x64 관리자 세션. `955dd11` 기반 기존 1.0.1 위 무창 업데이트와 후보4 재설치 로그 성공. 설치 EXE 해시 일치, Users Modify ACL(14개 규칙 조회), 공용 바탕화면·시작 메뉴 바로가기, 점검용 파일의 SHA-256 보존을 확인했다. 실제 설정·보고서 보존과 다른 계정 쓰기는 미검증이다.
+- 설치판 CLI: version=1.0.1/exit 0; 실제 공유 ZIP verify-share=0; missing/tampered/extra 각 exit 1. 결과 `work/qa-candidate4-cli-results.json`, 설치 결과 `work/setup-candidate4-results.json`. 인수표는 `docs/installation-acceptance.md`.
+- 사용자 최신 결정: **실제 UI 회귀는 퇴근 때 사용자가 별도로 요청하기 전에는 실행하지 않는다.** 현재 같은 PC에서 VXvue 자동화 실행 중이라는 답변을 받았으므로 Bellalun GUI·마우스·키보드·USB를 사용하지 않았다. 첫 GUI 자동 설정·완료 후 열기·UAC 취소 실측도 보류. config.json은 아직 없으며 첫 GUI 실행에서 생성해야 한다.
+- 다음 요청 시: VXvue UI/USB 점유 재확인 → 첫 실행/UAC 인수 → 같은 후보의 EXE 해시·두 묶음 약 4시간·DB 복원·USB 범위 제시 → 사용자 답변 후 실행. #80은 OPEN이며 실제 배포 게이트·완료 조건을 채우기 전에는 닫지 않는다.
 
 ## 2026-11-05 변경 영향별 회귀 기준
 
