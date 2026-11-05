@@ -1,5 +1,20 @@
 # 진행 상태
 
+## 2026-11-05 후보6 설치판 인수·회귀 (Issue #85, 회귀 미실행·차단)
+
+- 사용자 승인: 후보6으로 기본기능·WU 두 전체를 즉시 실행한다(DB 4개 복원·서비스 변경·USB 포함). 시작 직전 VXvue 제품은 실행 중이 아니었다. 유휴 Codex 세션만 있었다. USB `D:`(`VXVUE1`)와 `D:\BellalunWU09`가 있었다.
+- 신원 대조(17:05): 설치 EXE SHA-256 `C2DD6BAF…7DA3`, build-info SHA-256 `3578aa47…aea4c`. 둘 다 승인 값과 일치했다.
+- 첫 실행(공용 바탕화면 바로가기 → Explorer, 일반 권한): 프로그램 창 하나만 떴다. 실행 전후 새 `cmd`·`conhost`·터미널 프로세스는 0개였다. `작업\config.json`이 자동 생성되고 준비 점검 창이 자동으로 열렸다.
+- **결함(후보6 FAIL):** Explorer·바로가기로 띄운 GUI에서 준비 점검이 표를 채우지 못한다. 대화상자에 `점검 실패 / OSError`만 보인다. 첫 실행과 수동 [준비 점검] 클릭 모두 재현된다(재현 2/2).
+  같은 EXE를 콘솔이 있는 관리자 부모에서 띄운 GUI는 23행을 정상 표시했다. 일반 권한 콘솔의 `selfcheck` CLI도 정상이었다. 소스의 `diagnostics`를 콘솔 없는 `pythonw`로 돌려도 정상이었다.
+  원인은 확정하지 못했다. 후보6에서 바꾼 Nuitka `--windows-console-mode=attach`(PE GUI subsystem)로 부모 콘솔 없이 시작한 경우에만 생긴다. `qa_dialogs.refresh`가 예외 이름만 보여 주어 호출 위치가 남지 않는다. Nuitka가 콘솔 없을 때 표준 출력 핸들을 바꾸는 상태를 `pythonw`에서 흉내 냈지만 재현되지 않았다.
+- **환경 차단:** 준비 점검의 `XIPL 영상 처리`가 FAIL(`포트 9784 미개방`)이다. `XIPL.SERVER` 로그는 10:27 연결 종료 뒤 멈춰 있었다. 승인 범위의 서비스 변경으로 `XIPL.SERVER`만 종료했고, KEEPALIVE가 17:11에 다시 띄웠다("Listen Initialized").
+  재기동 뒤 `127.0.0.1:9784` 접속은 성공했다. 그러나 이 PC의 TCP 연결 표가 상태를 잘못 돌려준다. 9784 행은 상태가 비어 있고, `0.0.0.0:445`는 `FIN_WAIT_1`로 나온다. 그래서 `Get-NetTCPConnection -State Listen` 기반 점검(`core/preflight.py`, 실행 차단 항목)이 계속 FAIL이다.
+  gate는 바꾸지 않았다. 이 상태로는 두 전체가 시작 직후 차단되므로 `run_installed_suites.py`를 실행하지 않았다. DB 복원·Viewer 실행·USB 쓰기도 하지 않았다.
+- 미완료로 둔 것: UAC 직접 선택·취소, 동의 화면, 진행·중단·완료, 두 전체 회귀, 사람 검수, 새 결과 공유 ZIP, 다른 OS·계정·제거.
+- 근거(Git 제외): `work/candidate6-regression/` 화면 5장, `medium-selfcheck.txt`, `repro-*.txt`. 통제 파일 SHA-256 `48B2611C…660D` 보존을 확인했다.
+- 다음: (1) TCP 표 이상 해소(재부팅 등, PC 단독 실행 필요) 여부를 사용자에게 확인한다. (2) GUI `OSError`의 원인 수정과 새 후보 빌드에는 새 승인이 필요하다. 후보6으로 회귀를 계속할지, 수정 후보로 바꿀지를 사용자가 정한다.
+
 ## 2026-11-05 프로그램 창만 열기
 
 - 사용자 추가 요구: auto 프로그램 실행 시 cmd/터미널 없이 프로그램 창 하나만 표시한다.
