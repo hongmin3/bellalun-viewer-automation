@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="50e706c4b8616dddc0503d25a32e0299e1c2b68ec65b7f2c2883b98484550fe7">
+<meta name="spec-source-sha256" content="5de82bcf5efaba2ba98ea666b1554945ef56d413e3220581c53366b611ca717f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -482,9 +482,11 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <section class="card kind-req" id="REQ-REPORT-001">
 <h3><span class="idtag">REQ-REPORT-001</span> 체크리스트별 결과 보고</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>, <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a></span></div>
-<details class="history"><summary>변경 이력 4</summary>
+<details class="history"><summary>변경 이력 6</summary>
 <ul>
 <li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Changed</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 구조화된 기대·실제값을 JSON에 추가 보존하고 HTML에서는 항목별로 펼쳐 읽는다. 수집 시간 기록을 TC 상세에 표시한다.</li>
+<li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Verified</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 실제 WF14 보고서를 Edge·Chrome에서 각각 열어 시간표4개·펼치기·로컬링크25개를 확인했다. 누락 링크와 페이지 오류는 없었다. 사양 원본의 취소선 확인 결과 UPS 제외는 삭제된 규정이므로 기존 복원 판정을 유지한다.</li>
+<li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Verified</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>, <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 소스173eb3c의 별도 빌드 EXE로 WF14 단독 재실행을 완료했다(31분44초). 전후56페이지·목록89행849항목 대조와 변경 설정 정리를 수행했으며 기존 기준의 UPS 불일치로 TC FAIL을 유지했다. 수집 시간4개와 Edge 보고서 펼치기·링크25개를 확인했다. 전체 회귀는 보류하며 성능 향상은 확정하지 않는다. 상세는 <code>docs/wf14-single-validation.md</code>.</li>
 <li><span class="hist">2026-11-05 (변경 영향별 회귀와 설치판 검증, 1.0.1 관리자 설치와 첫 실행) · Added</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: HTML·TXT 리포트 맨 앞에 &quot;결론 — 한눈에 보기&quot;를 둔다. 결론 한 문장과, PASS가 아닌 TC마다 멈춘 Step·기대값과 실제값·원인(등록된 결함 설명 또는 판정 근거 첫 문장)을 한 줄로 보인다. 알려진 결함 판별은 릴리스 게이트와 같은 함수를 쓴다.</li>
 <li><span class="hist">2026-11-05 (변경 영향별 회귀와 설치판 검증, 1.0.1 관리자 설치와 첫 실행) · Fixed</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 같은 TC에 알려진 결함과 새 실패가 섞이면 새 실패를 보이고, 결과가 0건이면 성공으로 표시하지 않는다.</li>
 <li><span class="hist">2026-10-15 · Fixed</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 개별 XIPL_01/02/03/06의 준비 실패를 <code>stop=False</code>로 FAIL 리포트에 남긴다. 원래 TC·InstanceType·Step 기준을 유지하며 실패 기록 중 재예외로 리포트가 사라지는 문제를 막는다.</li>
@@ -1077,9 +1079,10 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-WU-006">
 <h3><span class="idtag">REQ-WU-006</span> 실패 증거와 반복 실행 통계</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/failure_evidence.py</code>, <code>core/setting_values.py</code>, <code>tools/wu_flake_stats.py</code>, <code>tests/winupdate.py</code>, <code>tests/workflow14.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a>; <code>tests/test_failure_evidence.py</code>, <code>tests/test_wu_flake_stats.py</code>, <code>tests/test_workflow14_evidence.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-WU-006">TEST-WU-006</a></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 4</summary>
 <ul>
 <li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Changed</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: WF14 전후 페이지·목록 수집 4구간 시간을 예외 발생 때에도 기록한다. 설정 그룹·페이지 레일은 현재 Setting 창에서 얕게 탐색한다. 실제 UI 속도와 제품 동작은 아직 검증하지 않았다.</li>
+<li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Verified</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>, <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 소스173eb3c의 별도 빌드 EXE로 WF14 단독 재실행을 완료했다(31분44초). 전후56페이지·목록89행849항목 대조와 변경 설정 정리를 수행했으며 기존 기준의 UPS 불일치로 TC FAIL을 유지했다. 수집 시간4개와 Edge 보고서 펼치기·링크25개를 확인했다. 전체 회귀는 보류하며 성능 향상은 확정하지 않는다. 상세는 <code>docs/wf14-single-validation.md</code>.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: Viewer 소멸·단계 중단 때 <code>Evidence/failure/</code>에 로그 ±30초·메모리·GDI/USER 핸들·전면 창·WER 덤프 판정을 남긴다. Setting 순회는 페이지별 핸들 수를 기록한다. <code>tools/wu_flake_stats.py</code>로 여러 리포트의 판정 갈림을 센다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-006">REQ-WU-006</a>: WF14 Setting 순회의 페이지별 GDI/USER 핸들이 리포트에 남지 않던 사양·코드 불일치를 고쳤다. Step 7 순회 판정의 actual에 1·2회차 핸들과 증가 요약을 싣는다.</li>
 </ul>

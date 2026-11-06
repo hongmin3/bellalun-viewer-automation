@@ -6,7 +6,7 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간은 새 소스 실행부터 기록됩니다. 이 변경의 설치판 동작·속도는 UI 회귀 전까지 미검증입니다.
+결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행과 Edge·Chrome 보고서 표시를 확인했으며, 전체 회귀와 속도 개선 입증은 보류 중입니다. [단독 검증 기록](docs/wf14-single-validation.md)을 참고하세요.
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
 탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
