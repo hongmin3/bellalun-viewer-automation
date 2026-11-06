@@ -123,6 +123,8 @@ Remaining run time)은 **설정이 아니라 실시간 장치 상태**라 비교
 from __future__ import annotations
 
 import os
+import time
+from datetime import datetime
 
 from core import (flows, screen, setting_changes, setting_lists,
                   setting_transfer, setting_values, snapshot, specs)
@@ -190,6 +192,18 @@ def _sweep_handle_evidence(before_vals, after_vals):
     return out
 
 
+def _timed_collect(result, name, collector, *args, **kwargs):
+    started_wall, started_perf = datetime.now(), time.perf_counter()
+    outcome = "error"
+    try:
+        value = collector(*args, **kwargs)
+        outcome = "completed"
+        return value
+    finally:
+        result.record_timing(name, started_wall, started_perf, outcome,
+                             kind="collection")
+
+
 def run(ctx):
     r = TCResult("TC_Basic_WorkFlow_14", "Setting Export 및 Import")
     tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
@@ -232,7 +246,7 @@ def run(ctx):
                  "기준이며, Import 가 실패했을 때 되돌릴 목표값이기도 하다.")
 
         # --- Step 7 보강의 1회차: 설정 화면 값 판독 --------------------
-        before_vals = setting_values.read_all(
+        before_vals = _timed_collect(r, "pages_before", setting_values.read_all,
             ui, tesseract_exe=tess,
             capture_dir=os.path.join(evidence, "pages_before"))
         n_items = sum(len(v) for v in before_vals["pages"].values())
@@ -258,7 +272,7 @@ def run(ctx):
                    "판정력은 DB 전수 대조가 보증한다.")
 
         # --- Step 7 보강의 1회차: 목록 행 상세값 판독 -------------------
-        before_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES,
+        before_lists = _timed_collect(r, "lists_before", setting_lists.sweep, ui, ctx.db, LIST_PAGES,
                                           tesseract_exe=tess)
         r.add(0, "[근거 수집] Setting 목록 행 상세값 판독(1회차)", PASS,
               expected="스크롤 아래 숨은 행을 포함한 목록 전 행의 상세값",
@@ -473,7 +487,7 @@ def run(ctx):
                                  len(summary['덮은 설정테이블']))
 
         # Step 7 보강 — 화면 컨트롤 값 항목 단위 대조 (좌표/이미지 비교 아님)
-        after_vals = setting_values.read_all(
+        after_vals = _timed_collect(r, "pages_after", setting_values.read_all,
             ui, tesseract_exe=tess,
             capture_dir=os.path.join(evidence, "pages_after"))
         swept_ok = not (before_vals.get("viewer_died")
@@ -510,7 +524,7 @@ def run(ctx):
         # 제거하면서 끝 행 도달을 보장하는 전용 탐색기 + 전후 DB 무변경 시험" 이었고,
         # `core/setting_lists.py` 가 그것이다.
         db_before_lists = snapshot.take(ctx.db)
-        after_lists = setting_lists.sweep(ui, ctx.db, LIST_PAGES,
+        after_lists = _timed_collect(r, "lists_after", setting_lists.sweep, ui, ctx.db, LIST_PAGES,
                                          tesseract_exe=tess)
         db_after_lists = snapshot.take(ctx.db)
         lists_readonly, lists_diff = snapshot.config_identical(

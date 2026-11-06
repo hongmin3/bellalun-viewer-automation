@@ -194,6 +194,9 @@ TEST-VERDICT-002, `tests/test_human_only_skip.py`, `tests/test_release_gate.py`.
 기본기능과 Windows Update 리포트가 각각의 제목·기준 문서·판정 이유를 보존한다.
 #### 입력
 TC/Step 결과, report title/source document/source sheet 메타데이터, expected/actual/note.
+구조화된 기대값·실제값은 JSON의 `expected_data`·`actual_data`에도 보존한다.
+HTML은 복잡한 값을 접어 펼칠 수 있는 항목별 표로 표시한다.
+시간 기록이 있는 TC는 단계 이름·소요 초·완료 또는 오류 상태를 표시한다.
 #### 선행 조건
 선택한 실행 흐름의 리포트 문맥이 제공된다.
 #### 동작

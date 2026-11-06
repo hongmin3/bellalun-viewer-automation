@@ -1,14 +1,23 @@
 # 진행 상태
 
-## 2026-11-06 WF_02 원인 조사·후보9 준비 (Issue #86)
+## UI 제어 없는 개선 (2026-11-06)
 
-- 저장소 시작: HEAD=origin/main `0a65ce9`, clean. 설치판 후보8 EXE 해시가 승인 값과 같다. 기존 설치판·로그를 대상으로 조사하며 원인 확인 전 전체 재회귀를 시작하지 않았다.
-- 자동화 결함 확인: Viewer 3D-W 완료 85.196초에 비해 WF_02 전체 건수 대기는 75초였다. 실제 `workflow02.run` 경로에 84초 Recon/Syn 도착을 주면 같은 누락 건수로 실패한다. 이전 그룹의 Recon/Syn 추가만으로 현재 촬영이 미완료여도 통과하는 경우도 재현했다. 최초 Viewer DB 시간 초과의 근본 원인은 미확정이며 자동화 폴링 원인이라고 단정하지 않는다.
-- 수정: 3D-N/W F8 전 그룹을 읽고 기존 `wait_new_group`(상한180초)으로 새 그룹의 세 타입 도착을 기다린다. 기존 전체 건수·3D-N 구조 검증·게이트 유지. 실패 시험 4건 확인 후 관련 33개 통과. 수정 전 전체 단위시험은 792 passed / 4 skipped / 265 subtests였다(화면 점유로 Tk 시험 제외).
-- 실환경 진단 완료: 후보8 Baseline DB4 복원 후 최초 WF_01은 DICOM 미등록으로 진입 전 차단되어 setup-dicom을 추가했다. setup-dicom·WF_01 종료0, WF_02 단독 04:05~04:11 종료0·PASS27/FAIL0(보고서 `Result_20261106_041134.json`, TC353.909초). 3D-W 완료 약33.7초·No GPUS 동일, 원래 지연은 미재현이다. SQL DMV 0.5초 수집은 준비 포함1423회, WF_02 활성 요청45행·blocking0·최장요청3670ms. 최초 실패 때의 DB 차단 원인을 배제하는 근거로 확대하지 않는다. 원문/화면 사본·요약은 `work/wf02-diagnostic-20261106_035928/`.
-- 수정 소스 검증: 전체798 passed / 4 skipped / 265 subtests, 정적7종·readiness·workspace gate 종료0. 독립 코드 검토에서 Critical/Important/Minor 없음, 문서 검토의 progress 현재상태 갱신1건 반영. 완료 정리 삭제0·실패0. `BELLALUN_DESKTOP_BUSY=1`로 실제 Tk 시험2개를 보류했고 나머지 skip2개는 기존 선택 Inno 경로다.
-- 다음: 문서/HTML·정리·commit/push → 후보9 빌드·업데이트 → 설치판 두 전체1회·배포게이트·새 공유ZIP 검증. 빌드·전체 실행의 실제 상태는 Git 제외 `work/qa-build-candidate9.*`와 새 실행 기록에서 확인한다. 두 전체 실행 중 저장소 수정·커밋 금지.
-- 상세 조사: `docs/wf02-acquisition-investigation.md`. 실측 분포/원문 해시는 Git 제외 `work/wf02-investigation/history.json`. 사람 검수·UAC취소·다른OS/계정·제거·다른PC는 계속 미완료다.
+- #86 종료 후 이 세션으로 이관. WF14 수집 4구간 시간·HTML 시간표, 구조화된 JSON 값과 HTML 접기, 설정 레일의 얕은 탐색을 추가했다.
+- UI·DB 복원·USB 쓰기·설치 회귀는 실행하지 않는다. 속도 개선 수치는 아직 없다. 기존 후보9 결과와 미커밋 문서를 보존해 함께 정리한다.
+- 다음 실환경 검증: 새 빌드의 설정 레일 탐색·WF14 전수 판독/원상복구, 공용 결과 변경 영향으로 기본+WU 설치판 회귀. 사용자 승인 후 수행한다.
+- 남은 설계: 페이지·목록 순회 통합, 상태 기반 행 대기, 통합 배포 대시보드와 WU 원본 단계 시각. UI 상태 신호를 확인하지 못한 최적화는 실제 관찰 후 결정한다.
+- 소스 검증: 807 passed / 2 skipped / 265 subtests. 독립 검토에서 WU 저장점 재개 데이터 손실을 발견해 왕복 시험과 복원을 추가했다. 정적7종·readiness·workspace gate 통과(기존 경고 유지).
+
+## 2026-11-06 후보9 두 전체 종료·WU_09 제품 충돌 조사 대기 (Issue #86)
+
+- WF_02 자동화 결함은 실패 시험4건 확인 후 수정했다. 75초 조기 판정과 이전 그룹의 결과를 현재 촬영으로 오판하는 문제를 새 그룹의 Raw/Recon/Syn 도착 대기(기존 공용 상한180초)로 고쳤다. 정확한 건수·3D-N 구조·게이트 유지. 조사 표·시간 분포·최초 Viewer DB timeout 원인의 미확정 범위는 `docs/wf02-acquisition-investigation.md`.
+- 소스 검증·독립 검토: 798 passed / 4 skipped / 265 subtests, 정적7종·readiness·workspace gate 통과. `44052ec7d8ccb3cde0e59b769e24f53833207c64`를 main에 push했다. 후보8 단독 진단은 PASS27/FAIL0으로 원래 지연 미재현, SQL 차단0이었다. 최초 실패 때의 SQL 원인을 배제하지 않는다.
+- 후보9: 같은 소스·dirty=false, 팀 설정 포함 WMI 빌드 종료0(compile/tests 생략 없음). EXE `0a37093feac4a63dbe55e73b8b755cc880d055f1121badbeccade55926c7d875`, Setup `225082dc32858cc96d66a7eb984e2da4e8179387e181e821c09b4ab1742664d0`, build-info `8da8eb45dbec53b09dfb6cede925679118de8d8ee07028b32b96795bc6eea611`. 후보8 위 무창 업데이트·설치 파일1007개 대조 불일치0. 기존 작업 파일325개(설정 포함) 해시 전부 보존. Users Modify·바로가기2개, Explorer 기동 프로그램 창1개·새 콘솔0·준비23행(22OK+관리자 안내1) 확인.
+- 설치판 두 전체1회 완료: 기록 `C:/BellalunAuto 실행 기록/후보9-full-20261106_045123`. 기본 `20261106-045125-a36633b7` 04:51~06:54, 122.9분, 종료1, PASS23/FAIL2/MANUAL1/SKIP1. WF_02 PASS27/FAIL0, 3D-N 대기33.7초·3D-W22.9초 및 후속 Tool·종료 통과. FAIL은 기존 WF_14 UPS 복원·XIPL_03 Step9 제품 결함뿐이다. WU `20261106-065431-58e67b2b` 06:54~08:40, 106.4분, 종료1, PASS9/FAIL1(WU_09)/SKIP3. 체인 끝까지 수행. 각 스냅샷287/244파일 해시 대조 통과. wrapper 종료0은 기록 수집 성공이며 제품 시험 통과가 아니다.
+- 새 WU_09 실패: 08:31:38 USB IMG Export 시작 후 08:31:53 `EXPORT.MANAGER.exe 1.0.12.105` 충돌. Windows Event1000(모듈 ntdll.dll, 예외 c0000374)·1001 및 끊긴 제품 로그를 대조했다. IMG3개 존재만으로 성공시키지 않았고 Import는 미수행이다. 자동화는 유일한 Manager 창/완료 문구를 확인하지 못해 FAIL했다. 충돌 유발 원인·빈도는 미확정이며 자동화 결함이라고 단정하지 않는다. 근거 `docs/wu09-export-crash-investigation.md`, 로컬 `work/candidate9-regression/wu09-crash-events.json`.
+- 배포 게이트: `work/candidate9-regression/release-gate.json`, 26개 중25개 통과·거부1건(WU_09). 기대값·상한·허용 목록 변경 없음. 배포 통과/완료로 표시하지 않는다.
+- 공유 ZIP: 각 실행 직후 보존 스냅샷에서 보고서8개와 PNG117개를 선택했다. 원본 보고서는 보존하고 공유 입력의 링크만 각 스냅샷으로 다시 연결했다. 파일125개 해시·상대링크123개 일치, 설치판 verify-share0·누락/변조/추가 각1. 같은 PC 다른 한글/공백 경로에서 네트워크 차단 검증. DICOM 제외, 로그 선택했으나 참조 로그 없음. 기록 `work/공유 검증/후보9 두 전체 오프라인/verification.json`. 다른PC·브라우저 화면은 미확인.
+- 다음: 추가 USB 단독 진단·제품 충돌 조사 범위 승인 대기. 기존 검사·USB 관리 폴더를 사용하고 DB 복원 없이 관찰하는 범위를 우선 제안한다. 추가 UI 실행·새 회귀는 시작/예약하지 않았다. 사람 검수·UAC 취소·다른OS/계정·제거·다른PC는 미완료다.
 
 ## 2026-11-05 XIPL 9784 점검 수정·후보8 (Issue #85 이어서)
 

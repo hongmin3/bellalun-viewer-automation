@@ -495,7 +495,8 @@ def result_from_dict(data):
     r = TCResult(data["tc_id"], data.get("title") or data["tc_id"])
     for item in data.get("checks") or []:
         r.checks.append(Check(item.get("step"), item.get("title"), item.get("status"),
-                              item.get("expected", ""), item.get("actual", ""),
+                              item.get("expected_data", item.get("expected", "")),
+                              item.get("actual_data", item.get("actual", "")),
                               item.get("note", ""),
                               blocks_verdict=item.get("blocks_verdict")))
     r.evidence = list(data.get("evidence") or [])

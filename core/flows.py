@@ -267,7 +267,17 @@ def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=15):
     end = time.time() + timeout
     hits = []
     while time.time() < end:
-        hits = [c for c in ui.controls(max_depth=7)
+        # Limit rail lookup to Setting and avoid repeated deep recursion.
+        from core import setting_values
+        rail_ids = set(SETTING_GROUPS.values())
+        for group in SETTING_GROUPS:
+            rail_ids.update(setting_pages(group).values())
+        if ctrl_id in rail_ids:
+            window = setting_values.setting_window(ui)
+            controls = setting_values.shallow(ui, window)
+        else:
+            controls = ui.controls(max_depth=7)
+        hits = [c for c in controls
                 if c.ctrl_id == ctrl_id and c.visible
                 and c.rect[2] - c.rect[0] > 20]
         if hits:

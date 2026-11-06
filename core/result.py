@@ -24,6 +24,25 @@ PASS, FAIL, MANUAL, SKIP, BLOCKED = (
 STATUSES = (PASS, FAIL, MANUAL, SKIP, BLOCKED)
 
 
+def _report_value(value):
+    """구조화된 값을 접어 표시하고 모든 값의 HTML 문자를 이스케이프한다."""
+    if isinstance(value, dict):
+        rows = ''.join('<tr><th>' + html.escape(str(key)) + '</th><td>'
+                       + _report_value(item) + '</td></tr>'
+                       for key, item in value.items())
+        return ('<details class="fold"><summary>항목별 값 보기</summary>'
+                '<table>' + rows + '</table></details>')
+    if isinstance(value, list):
+        return ('<details class="fold"><summary>상세 ' + str(len(value))
+                + '건 보기</summary>' + ''.join(_report_value(item) + '<br>'
+                                              for item in value) + '</details>')
+    text = html.escape(str(value))
+    if len(text) > 300:
+        return ('<details class="fold"><summary>상세 값 보기</summary><pre>'
+                + text + '</pre></details>')
+    return '<code>' + text + '</code>'
+
+
 def _note_field(note, label):
     """Markdown 비고에서 ``**label**: 값`` 한 필드를 읽는다."""
     import re
@@ -117,6 +136,9 @@ class Check:
             "unblock_condition": self.unblock_condition,
             "not_verified": self.not_verified,
         }
+        for key, value in (("expected_data", self.expected), ("actual_data", self.actual)):
+            if isinstance(value, (dict, list)):
+                data[key] = value
         if self.blocks_verdict is not None:
             data["blocks_verdict"] = bool(self.blocks_verdict)
         return data
@@ -1009,7 +1031,7 @@ def _render_html(results, meta, siblings=None):
                         f"{e(source['source_expected_result'])}</div>"
                         if source["source_expected_result"] else "")
                      + f"<code>{e(str(c.expected))}</code></td>"
-                     f"<td><code>{e(str(c.actual))}</code></td>"
+                     f"<td>{_report_value(c.actual)}</td>"
                      f"<td class='note'>{e(c.note)}</td></tr>")
         P.append("</table>")
 
@@ -1092,6 +1114,13 @@ def _render_html(results, meta, siblings=None):
                  f" &nbsp;|&nbsp; 소요 {r.duration_seconds:.1f}s</div>")
 
         # 사양·검증 목적 (기준 문서 원문)
+        if r.timings:
+            P.append('<h3>단계별 소요 시간</h3><table><tr><th>단계</th><th>초</th><th>상태</th></tr>')
+            for timing in r.timings:
+                P.append('<tr><td>' + e(str(timing.get('name', ''))) + '</td><td>'
+                         + e(str(timing.get('duration_seconds', ''))) + '</td><td>'
+                         + e(str(timing.get('outcome', ''))) + '</td></tr>')
+            P.append('</table>')
         cells = []
         if spec.get("precondition"):
             cells.append(("사전 조건 (Precondition)", spec["precondition"]))
@@ -1143,7 +1172,7 @@ def _render_html(results, meta, siblings=None):
                         f"{e(source['source_expected_result'])}</div>"
                         if source["source_expected_result"] else "")
                      + f"<code>{e(str(c.expected))}</code></td>"
-                     f"<td><code>{e(str(c.actual))}</code></td>"
+                     f"<td>{_report_value(c.actual)}</td>"
                      f"<td class='note'>{e(c.note)}</td></tr>")
         P.append("</table>")
 
