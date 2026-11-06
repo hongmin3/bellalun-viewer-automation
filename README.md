@@ -16,8 +16,8 @@
 받은 파일은 `BellalunAuto.exe verify-share <ZIP 경로>`로 무결성과 상대 링크를 점검합니다.
 준비 실패는 **준비 점검 → 실패 행 선택 → 설정 화면 열기 → 다시 점검** 순서로 해결합니다.
 지원 OS·다른 계정·설치 수명주기의 실제 확인 범위는 [인수표](docs/installation-acceptance.md)에 있습니다.
-1.0.1 후보9는 WF_02 촬영 대기를 수정한 뒤 빌드·업데이트·설치판 두 전체 회귀까지 실행했습니다.
-[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 전체 회귀에서 통과했습니다. 현재 배포 게이트는 [WU_09 USB Export 중 제품 충돌](docs/wu09-export-crash-investigation.md)로 거부된 상태입니다. UAC 취소·사람 검수·다른 OS와 계정은 미검증입니다.
+소스173eb3c의 1.0.1 설치판으로 WU 호환성 전체를109.3분 수행해 PASS10/SKIP3, WU 범위 게이트14개 통과를 확인했습니다. [실행 결과와 제한](docs/wu-installed-validation.md)을 참고하세요. 기본기능 전체의 새 실행, UAC 취소·사람 검수·다른 OS와 계정은 미완료입니다.
+[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 통과했습니다. 후보9의 [WU_09 USB Export 중 제품 충돌](docs/wu09-export-crash-investigation.md)은 이번에는 재현되지 않고 USB 왕복이 통과했지만, 원인 수정이나 재발 해소를 확정하지 않습니다. 기존 UPS·XIPL 문제와 WU 보고서의 전체 소요 시간 표시 문제는 남아 있습니다.
 
 수정 후에는 소스에서 단위시험·정적 검사를 수행하고, 필요한 UI 회귀는 빌드한 EXE로 실행합니다.
 영향 범위에 따라 단독 TC·기본기능·WU·두 묶음 전체를 선택하며, UI 실행 전에 대상·시간·DB 복원 여부를 설명하고 사용자 승인을 받습니다.
