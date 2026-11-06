@@ -1,7 +1,7 @@
 # BellalunAuto 내부 배포
 
 BellalunAuto 설치판은 Python·Git·개발 소스 없이 기존 기본기능 및 Windows Update 자동화를 실행한다.
-Viewer·SQL Server·Tesseract OCR과 시험에 필요한 외부 서버/USB는 대상 QA PC에 별도로 준비한다.
+Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대상 QA PC에 준비한다. 새 Setup은 OCR을 자동 준비하고 승인 Baseline·체크리스트·매뉴얼을 포함한다.
 설치 성공, 프로그램 기동, 제품 시험 성공은 각각 구분하여 기록한다.
 
 이 안내서는 설치·설정·실행 방법을 설명한다. 전달받은 패키지의 실제 검증 범위는
@@ -10,6 +10,12 @@ Viewer·SQL Server·Tesseract OCR과 시험에 필요한 외부 서버/USB는 �
 아래 절차는 검증·승인된 내부 패키지를 전달받은 뒤 적용한다.
 
 ## 팀원 설치와 첫 실행
+
+Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을 확인한다. OCR이 없으면 포함된 고정 설치 파일로 준비하므로 대상 PC에서 인터넷은 필요하지 않다. 정상 기존 OCR은 재사용한다. 완료 화면과 `작업/install-preparation.txt`에서 결과를 읽고, 실패하면 원인을 해결한 뒤 관리자 권한으로 `BellalunAuto prepare-install`을 다시 실행한다. 실패한 Setup 종료 코드는3이다.
+
+빌드 PC에서는 `packaging/components.json`의 공식 고정 OCR 파일을 받아 해시를 검사한다. 오프라인 빌드는 `--ocr-installer <설치 파일>`로 지정한다. 포터블은 관리자 권한으로 `prepare-install`을 실행해 준비한다.
+
+신규 PC 설정에는 탐지한 제품 경로와 OCR·Baseline 경로가 저장된다. 기존 설정은 그대로 보존하며 잘못된 OCR·Baseline 경로는 PC별 설정에서 수정한다. Baseline은 설치 폴더의 승인 백업 파일4개를 준비하는 뜻이며 설치 중 사용자 DB를 복원하지 않는다. 기존 전체 회귀 통과 기록은 해당 EXE에 한정하며 새 후보의 제품 회귀는 별도다.
 
 1. 배포 담당자가 제공한 `SHA256SUMS.txt`와 설치 파일 해시를 `Get-FileHash -Algorithm SHA256`으로 대조한다.
 2. `BellalunAuto-<version>-setup.exe`를 실행하고 UAC에서 [예]를 누른다. UAC를 취소하거나 관리자 권한을 얻지 못하면 설치하지 않는다(화면 동작은 아래 실측 기록).

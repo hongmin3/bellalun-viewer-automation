@@ -71,6 +71,10 @@ const
   EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
   OwnershipKey = 'Software\BellalunAuto\Installer';
 
+var
+  PreparationFailed: Boolean;
+  PreparationSummary: String;
+
 { Only an earlier BellalunAuto install owns the resources folder; a hand-picked unrelated folder is never touched. }
 function IsExistingBellalunAuto(): Boolean;
 begin
@@ -152,8 +156,10 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  PathValue, AppToken, PreviousToken: String;
+  PathValue, AppToken, PreviousToken, SummaryFile: String;
   Owned, Changed: Boolean;
+  ExitCode, I: Integer;
+  Lines: TArrayOfString;
 begin
   if CurStep <> ssPostInstall then Exit;
   RegQueryStringValue(HKLM64, EnvironmentKey, 'Path', PathValue);
@@ -185,6 +191,46 @@ begin
   end
   else
     RegDeleteValue(HKLM64, OwnershipKey, 'PathAdded');
+
+  PreparationFailed := True;
+  PreparationSummary := '파일 설치 완료 / 자동 준비 실패' + #13#10 +
+    'BellalunAuto prepare-install을 관리자 권한으로 다시 실행하세요.';
+  WizardForm.StatusLabel.Caption := 'OCR과 승인 시험 자료를 준비하고 있습니다...';
+  SummaryFile := ExpandConstant('{app}\작업\install-preparation.txt');
+  { Do not accept a stale summary left by an earlier installation. }
+  DeleteFile(SummaryFile);
+  if Exec(ExpandConstant('{app}\BellalunAuto.exe'), 'prepare-install',
+          ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+  begin
+    Log('자동 준비 종료 코드: ' + IntToStr(ExitCode));
+    PreparationFailed := ExitCode <> 0;
+    if LoadStringsFromFile(SummaryFile, Lines) and (GetArrayLength(Lines) > 0) then
+    begin
+      PreparationSummary := '';
+      for I := 0 to GetArrayLength(Lines) - 1 do
+        PreparationSummary := PreparationSummary + Lines[I] + #13#10;
+    end
+    else
+      PreparationFailed := True;
+  end;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpFinished then
+  begin
+    WizardForm.FinishedLabel.AutoSize := False;
+    WizardForm.FinishedLabel.Height := WizardForm.FinishedPage.ClientHeight -
+      WizardForm.FinishedLabel.Top - WizardForm.RunList.Height - ScaleY(12);
+    WizardForm.FinishedLabel.Caption := PreparationSummary;
+    WizardForm.RunList.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(6);
+  end;
+end;
+
+function GetCustomSetupExitCode(): Integer;
+begin
+  Result := 0;
+  if PreparationFailed then Result := 3;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

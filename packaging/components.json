@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "tesseract": {
+    "version": "5.5.3",
+    "filename": "tesseract-ocr-w64-setup-5.5.3.20260724.exe",
+    "url": "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe",
+    "sha256": "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4",
+    "sha256_source": "https://api.github.com/repos/tesseract-ocr/tesseract/releases/tags/5.5.3",
+    "default_install_dir": "C:\\Program Files\\Tesseract-OCR",
+    "timeout_sec": 900,
+    "license": "Apache-2.0; installer contains component license notices",
+    "signature_note": "VXvue pin reused; SHA-256 release digest verified. No claim of a valid Authenticode signature."
+  }
+}

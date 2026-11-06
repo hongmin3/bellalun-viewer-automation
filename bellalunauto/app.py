@@ -559,6 +559,9 @@ def main(argv=None):
         if not arguments:
             from bellalunauto.gui import launch
             return launch(layout)
+        if arguments == ['prepare-install']:
+            from bellalunauto.prerequisites import prepare_install
+            return prepare_install(layout)
         if arguments[0] == 'verify-share':
             from bellalunauto.share import verify_package
             if len(arguments) != 2:

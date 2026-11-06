@@ -36,11 +36,11 @@ Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목�
 
 다음은 검증·승인된 내부 패키지를 전달받은 뒤의 절차입니다. 검증한 범위는 [호환성 검증 기록](docs/compatibility-2026-10-18.md)을 봅니다.
 팀원용 `BellalunAuto`는 기존 자동화 엔진을 실행하는 설치 프로그램과 한국어 실행 화면을 제공합니다.
-배포 PC에는 Python·pip·Git·소스 저장소를 설치하지 않습니다. Viewer·SQL Server·XIPL·OCR와
-시험용 외부 서버는 준비되어 있어야 합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
+배포 PC에는 Python·pip·Git·소스 저장소를 설치하지 않습니다. Viewer·제품 SQL/Server/XIPL과 시험용 외부 서버·USB를 준비합니다.
+새 Setup은 OCR과 승인 Baseline·시험 자료를 포함하고 설치 중 실행·해시를 검사합니다. OCR이 없으면 자동 설치하며 정상 기존 OCR과 설정은 재사용합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
 
 1. 승인된 내부 `BellalunAuto-<version>-setup.exe`를 관리자 권한(UAC [예])으로 설치합니다.
-2. 완료 화면의 "BellalunAuto 열기" 또는 시작 메뉴에서 엽니다. 처음 열면 이 PC의 제품·데이터·SQL·XIPL·OCR 위치를 자동으로 찾아 저장합니다.
+2. 완료 화면과 `작업/install-preparation.txt`에서 준비 결과를 확인하고 "BellalunAuto 열기" 또는 시작 메뉴에서 엽니다. 신규 설정에는 탐지한 제품·OCR·Baseline 경로가 연결됩니다. 설치 중 DB 복원·제품 시험은 실행하지 않습니다.
 3. 준비 점검이 바로 보입니다. 서버 주소·시험 계정처럼 찾을 수 없는 값만 [PC별 설정]에서 입력합니다.
 4. [준비 점검]의 [FAIL] 행을 해결한 뒤 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택합니다. 변경 범위에 직접 동의한 뒤 시험 시작 때 UAC를 승인합니다.
 5. 결과는 설치 폴더 아래 `작업\Reports`에 생깁니다. HTML 리포트 맨 위 "결론 — 한눈에 보기"에서 성공·실패와 원인을 먼저 확인합니다.

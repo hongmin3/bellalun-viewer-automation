@@ -270,6 +270,20 @@ class DistributionBuildTests(unittest.TestCase):
         public_assets = json.loads((output / 'resources/assets-manifest.json').read_text(encoding='utf-8'))
         self.assertNotIn('source', public_assets['files'][0])
 
+    def test_offline_component_is_hash_checked_before_staging(self):
+        spec = {'tesseract': {'filename': 'fixture.exe', 'sha256': hashlib.sha256(b'fixture').hexdigest()}}
+        source = self.home / 'fixture.exe'
+        source.write_bytes(b'fixture')
+        manifest = self.home / 'components.json'
+        manifest.write_text(json.dumps(spec), encoding='utf-8')
+        output = self.home / 'component-dist'
+        self.builder.stage_components(ROOT, output, source, manifest=manifest)
+        self.assertEqual((output / 'resources/installers/fixture.exe').read_bytes(), b'fixture')
+        source.write_bytes(b'tampered')
+        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+            self.builder.stage_components(ROOT, self.home / 'bad-dist', source, manifest=manifest)
+        self.assertFalse((self.home / 'bad-dist/resources/installers/fixture.exe').exists())
+
     def compiler_reports(self):
         compiler = self.home / 'toolchain with spaces/gcc.exe'
         compiler.parent.mkdir()

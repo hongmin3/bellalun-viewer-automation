@@ -13,7 +13,10 @@ BellalunAuto — 팀원 사용 안내
    리포트 맨 위 "결론 — 한눈에 보기"에서 성공/실패와 원인을 먼저 봅니다. FAIL·MANUAL·SKIP은 PASS와 구분합니다.
    업데이트·재설치·제거해도 '작업' 폴더는 남습니다.
 
-필요 없는 것: Python·Git·개발 소스. 별도 준비: Bellalun Viewer, SQL Server, Tesseract OCR, 시험 서버, USB.
+필요 없는 것: Python·Git·개발 소스·OCR 별도 설치·Baseline 별도 복사.
+Setup이 포함된 OCR을 자동 설치하고 승인 Baseline·시험 자료를 검증합니다. 정상 OCR과 기존 설정은 재사용합니다.
+완료 화면과 작업\install-preparation.txt에서 결과를 확인하세요. 실패하면 관리자 권한으로 BellalunAuto prepare-install을 다시 실행하세요.
+별도 준비: Bellalun Viewer와 제품 설치에 포함된 SQL·Server·XIPL, 시험 서버, USB. Setup은 DB를 복원하지 않습니다.
 새 PowerShell/CMD에서 BellalunAuto --version, Win+R에서 BellalunAuto를 쓸 수 있습니다(설치 전 열린 셸은 다시 여십시오).
 제거 프로그램은 설치한 파일과 설치 프로그램이 추가한 PATH 항목만 지웁니다.
 

@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON_VERSION = '3.12.10'
 INNO_VERSION = '6.7.3'
 TK_VERSION = '8.6.15'
-PUBLIC_LICENSE_VERSIONS = {'Tcl': TK_VERSION, 'Tk': TK_VERSION,
+PUBLIC_LICENSE_VERSIONS = {'Tesseract': '5.5.3', 'Tcl': TK_VERSION, 'Tk': TK_VERSION,
                            'OpenSSL': '3.0.16', 'zlib': '1.3.1'}
 PINNED = {'Nuitka': '4.3', 'Pillow': '12.1.1', 'pytesseract': '0.3.13',
           'openpyxl': '3.1.5', 'pypdf': '6.1.1', 'ordered-set': '4.1.0',
@@ -354,6 +354,41 @@ def stage_team_settings(source, resources):
             'has_test_account': 'viewer' in payload}
 
 
+def component_installer(root, source=None):
+    """공식 고정 파일은 빌드 PC에서만 받는다. 설치 PC에서는 다운로드하지 않는다."""
+    from urllib.request import urlopen
+    spec = json.loads((Path(root) / 'packaging/components.json').read_text(encoding='utf-8'))['tesseract']
+    path = Path(source) if source else Path(root) / 'work/component-cache' / spec['filename']
+    if not path.is_file() and source is None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_suffix('.part')
+        try:
+            with urlopen(spec['url'], timeout=60) as response, partial.open('wb') as target:
+                shutil.copyfileobj(response, target)
+            if sha256(partial) != spec['sha256']:
+                raise ValueError('OCR 다운로드 SHA-256 불일치')
+            partial.replace(path)
+        finally:
+            partial.unlink(missing_ok=True)
+    if sha256(path) != spec['sha256']:
+        raise ValueError('OCR 설치 파일 SHA-256 불일치')
+    return path
+
+
+def stage_components(root, distribution, installer, *, manifest=None):
+    manifest = Path(manifest) if manifest else Path(root) / 'packaging/components.json'
+    spec = json.loads(manifest.read_text(encoding='utf-8'))['tesseract']
+    if Path(spec['filename']).name != spec['filename']:
+        raise ValueError('OCR 설치 파일 이름이 올바르지 않습니다.')
+    if sha256(installer) != spec['sha256']:
+        raise ValueError('OCR 설치 파일 SHA-256 불일치')
+    resources = Path(distribution) / 'resources'
+    target = resources / 'installers' / spec['filename']
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(installer, target)
+    shutil.copyfile(manifest, resources / 'components.json')
+
+
 def stage_resources(root, distribution, assets):
     sys.path.insert(0, str(root))
     from bellalunauto.runtime import default_config
@@ -439,6 +474,7 @@ def build(args):
         raise ValueError('비어 있는 전용 output 폴더를 지정하십시오')
     _not_link(output)
     assets = load_assets(args.assets)
+    ocr_installer = component_installer(root, getattr(args, 'ocr_installer', None))
     if getattr(args, 'team_settings', None):
         if str(ROOT) not in sys.path:
             sys.path.insert(0, str(ROOT))
@@ -481,6 +517,7 @@ def build(args):
     distribution = output / f'BellalunAuto-{__version__}'
     shutil.copytree(compiled, distribution)
     stage_resources(root, distribution, assets)
+    stage_components(root, distribution, ocr_installer)
     team = stage_team_settings(getattr(args, 'team_settings', None), distribution / 'resources')
     write_candidate_marker(distribution, gate)
     audit_distribution(distribution)
@@ -532,6 +569,7 @@ def main(argv=None):
     parser.add_argument('--assets', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--iscc', required=True, type=Path)
+    parser.add_argument('--ocr-installer', type=Path, help='검증된 고정 OCR 설치 파일. 생략하면 빌드 PC에서 공식 파일을 받습니다.')
     parser.add_argument('--skip-tests', action='store_true', help='개발용: 생략 내역을 build-info에 기록')
     parser.add_argument('--skip-compile', action='store_true', help='개발용: 기존 standalone 재사용, build-info 기록')
     parser.add_argument('--compiled-dir', type=Path)

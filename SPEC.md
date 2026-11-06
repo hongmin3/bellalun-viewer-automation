@@ -316,6 +316,17 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 > **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 > **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
 
+### REQ-DIST-007 설치 중 자동화 구성품 준비
+
+#### 하는 일
+다른 PC에서도 Setup 하나로 OCR과 승인 시험 자료를 준비한다. Bellalun Server·XIPL·SQL 본체는 제품 설치 프로그램이 담당한다.
+#### 순서
+1. 빌드할 때 고정 버전 Tesseract Windows 설치 파일을 SHA-256으로 확인하고 배포본에 넣는다. Setup 실행 중 인터넷 연결은 필요하지 않다.
+2. Setup은 파일 복사 후 `prepare-install`을 기다린다. 실행 가능한 OCR과 `eng.traineddata`가 있으면 재사용하고, 없으면 포함된 설치 파일을 다시 검증한 뒤 자동 설치한다. 설치 뒤 버전 실행과 언어 파일을 재확인한다.
+3. 포함된 Baseline 4개와 체크리스트·매뉴얼을 승인 자료 목록의 SHA-256과 대조한다. Baseline 준비는 파일 배치와 설정 연결까지다. 기존 DB 복원이나 제품 시험은 실행하지 않는다.
+4. 새 설정은 기존 첫 실행 탐지 규칙으로 만들고 OCR·자료 경로를 연결한다. 이미 저장한 설정은 바이트 그대로 보존한다. 유효하지 않은 기존 OCR·Baseline 경로는 해결 방법과 함께 알린다.
+5. 설치 완료 화면과 작업 폴더의 `install-preparation.txt`에 항목별 결과와 다음 행동을 남긴다. 준비 실패 시 Setup은 종료 코드 3을 반환한다. `prepare-install`로 다시 준비할 수 있다.
+
 ### REQ-DIST-006 관리자 설치와 첫 실행 준비
 
 #### 하는 일
@@ -743,6 +754,12 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.
 - Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.
 
+### TEST-DIST-007 구성품 자동 준비
+
+- 검증 대상: REQ-DIST-007.
+- 정상 OCR 재사용, 누락 시 자동 설치·설치 후 재검사, 변조 설치 파일·자료 거부, 설치 실패·시간 초과, 기존 설정 보존과 신규 경로 연결을 격리 시험한다.
+- Setup의 준비 명령 대기·결과 표시·종료 코드 연결을 확인한다. 제품 UI와 DB 복원은 실행하지 않는다.
+
 ### TEST-DIST-006 관리자 설치와 첫 실행 준비
 
 - 검증 대상: REQ-DIST-006, REQ-DIST-002.
@@ -827,6 +844,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | implemented |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py` | implemented |
+| REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | implemented |
 | REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | implemented |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py` | implemented |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py` | implemented |
