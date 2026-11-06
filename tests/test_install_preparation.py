@@ -162,6 +162,21 @@ class PreparationTests(unittest.TestCase):
             self.assertNotEqual(prep.prepare_install(self.layout), 0)
         child.assert_not_called()
 
+    def test_path_ocr_inside_workspace_is_never_executed(self):
+        self.assets()
+        self.layout.workspace.mkdir()
+        bad = self.layout.workspace / 'tesseract.exe'
+        bad.write_bytes(b'untrusted')
+        language = self.layout.workspace / 'tessdata/eng.traineddata'
+        language.parent.mkdir()
+        language.write_bytes(b'language')
+        self.layout.config_path.write_text(json.dumps({'xipl': {'tesseract_exe': str(self.exe)}}))
+        with patch.object(prep.shutil, 'which', return_value=str(bad)), \
+             patch.object(prep.subprocess, 'run', side_effect=self.run_child) as child:
+            prep.prepare_install(self.layout)
+        self.assertFalse(any(isinstance(call.args[0], list) and call.args[0][0] == str(bad)
+                             for call in child.call_args_list))
+
 
 if __name__ == '__main__':
     unittest.main()

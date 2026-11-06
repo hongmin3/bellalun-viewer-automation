@@ -56,11 +56,15 @@ def ocr_ready(executable):
         return False
 
 
-def ensure_ocr(resources, configured):
+def ensure_ocr(resources, configured, *, workspace=None):
     resources = Path(resources)
     spec = json.loads((resources / 'components.json').read_text(encoding='utf-8'))['tesseract']
     default = Path(spec['default_install_dir']) / 'tesseract.exe'
     selected = Path(configured) if configured else None
+    def allowed(candidate):
+        return workspace is None or not candidate.resolve().is_relative_to(Path(workspace).resolve())
+    if selected and not allowed(selected):
+        raise ValueError('OCR 실행 파일을 사용자 작업 폴더 밖에 설치하세요.')
     if selected and ocr_ready(selected):
         return selected
     if selected and selected != default:
@@ -70,6 +74,8 @@ def ensure_ocr(resources, configured):
     if on_path:
         candidates.append(Path(on_path))
     for candidate in candidates:
+        if not allowed(candidate):
+            continue
         if ocr_ready(candidate):
             return candidate
     installer = resources / 'installers' / spec['filename']
@@ -111,7 +117,8 @@ def prepare_install(layout):
         baseline = Path(config.get('baseline_dir') or '')
         if not all((baseline / name).is_file() for name in BASELINES):
             raise ValueError('설정의 Baseline 경로에 백업 4개가 없습니다. PC별 설정을 확인하세요.')
-        ocr = ensure_ocr(layout.resource_dir, (config.get('xipl') or {}).get('tesseract_exe', ''))
+        ocr = ensure_ocr(layout.resource_dir, (config.get('xipl') or {}).get('tesseract_exe', ''),
+                         workspace=layout.workspace)
         if existing and Path((config.get('xipl') or {}).get('tesseract_exe') or '') != ocr:
             raise ValueError('기존 설정을 보존했습니다. PC별 설정의 OCR 경로를 다음 값으로 저장하세요: ' + str(ocr))
         lines.append('[OK] OCR 실행·영어 언어 파일 확인: ' + str(ocr))
