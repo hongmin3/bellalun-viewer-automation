@@ -284,6 +284,23 @@ class DistributionBuildTests(unittest.TestCase):
             self.builder.stage_components(ROOT, self.home / 'bad-dist', source, manifest=manifest)
         self.assertFalse((self.home / 'bad-dist/resources/installers/fixture.exe').exists())
 
+    def test_release_artifacts_publish_under_version_without_intermediates(self):
+        output = self.home / 'build'
+        output.mkdir()
+        for name in ['setup.exe', 'portable.zip', 'build-info.json', 'SHA256SUMS.txt', 'compile.log']:
+            (output / name).write_bytes(name.encode())
+        target = self.builder.publish_release(output, '1.0.2',
+                    [output / name for name in ['setup.exe', 'portable.zip', 'build-info.json']],
+                    release_root=self.home / 'release')
+        self.assertEqual(target, self.home / 'release/1.0.2')
+        self.assertEqual({p.name for p in target.iterdir()},
+                         {'setup.exe', 'portable.zip', 'build-info.json', 'SHA256SUMS.txt'})
+        self.assertTrue((output / 'compile.log').exists())
+        with self.assertRaisesRegex(ValueError, '이미'):
+            self.builder.publish_release(output, '1.0.2', [], release_root=self.home / 'release')
+        with self.assertRaises(ValueError):
+            self.builder.publish_release(output, '../escape', [], release_root=self.home / 'release')
+
     def compiler_reports(self):
         compiler = self.home / 'toolchain with spaces/gcc.exe'
         compiler.parent.mkdir()

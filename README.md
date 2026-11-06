@@ -6,6 +6,8 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
+1.0.2 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업381개 보존을 확인했습니다. [설치 파일 위치·검증 범위](docs/setup-preparation-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 새 EXE의 제품 전체 회귀는 아직 확인하지 않았습니다.
+
 결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행과 Edge·Chrome 보고서 표시를 확인했으며, 전체 회귀와 속도 개선 입증은 보류 중입니다. [단독 검증 기록](docs/wf14-single-validation.md)을 참고하세요.
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
@@ -54,6 +56,7 @@ BellalunAuto.exe run-winupdate
 
 설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
 사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
+배포 파일은 `release/<버전>/`에 정리합니다. 현재 Setup은 `release/1.0.2/BellalunAuto-1.0.2-candidate-setup.exe`입니다.
 아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 
 ## 0. 온보딩 요약 — 5분 안에 전체 그림

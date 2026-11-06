@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="68c9091acca78288bf79f47e92578d3ddfbad275116433d6273f03b765240d66">
+<meta name="spec-source-sha256" content="0bfa2c5a1490281890ba90fde95c01e7d3f5d5ef3ebf257a8a12b199e54aec07">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -595,8 +595,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-003">
 <h3><span class="idtag">REQ-DIST-003</span> 컴파일과 내부 자료 배포</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/build_distribution.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code></span></div>
-<details class="history"><summary>변경 이력 10</summary>
+<details class="history"><summary>변경 이력 11</summary>
 <ul>
+<li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 최종 배포 파일을 <code>release/&lt;버전&gt;/</code>에 모으도록 변경했다. 현재1.0.2 파일5개를 옮겼고 구버전 배포·컴파일 폴더18개를 제거했다. 빌드 기록과 실행 증거는 Git 밖에 보존한다.</li>
 <li><span class="hist">2026-11-05 (바로가기 실행의 준비 점검 OSError) · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 수정 소스 <code>ee43d7d</code>로 후보7을 빌드해 후보6 위에 업데이트했다. 바로가기 실행의 준비 점검이 23행을 정상 표시했다. 이 PC의 TCP 표 이상으로 XIPL 9784 gate가 FAIL이라 제품 회귀는 실행하지 않았다.</li>
 <li><span class="hist">2026-11-05 (콘솔 없이 프로그램 창 실행) · Changed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 콘솔 창을 만든 뒤 숨기는 빌드 대신 새 콘솔을 만들지 않는 GUI 실행 파일로 빌드한다. 실제 PE subsystem 2를 검사하고 기존 콘솔의 CLI 출력과 내부 프로세스 대기를 유지한다. PowerShell CLI는 파이프/명시적 대기 사용을 안내한다.</li>
 <li><span class="hist">2026-11-05 (콘솔 없이 프로그램 창 실행) · Changed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-QA-004">REQ-QA-004</a>: 후보6을 팀 설정과 함께 WMI로 빌드해 무창 업데이트했다. 실제 PE2/attach와 콘솔 없는 부모의 CLI 출력·종료 코드, 설치 해시·권한·바로가기·공유 ZIP 검증을 확인했다. 첫 GUI·UAC 취소·제품 회귀는 미완료다.</li>
@@ -612,6 +613,7 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <p>Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파일하고 Inno Setup으로 설치한다.
 하나의 빌드 스크립트가 검사·컴파일·패키징을 수행한다. 도구/의존성 버전을 고정하고 버전·소스 commit·
 도구 버전·파일 목록·SHA256을 남긴다. 동일 빌드의 포터블 ZIP도 만든다.</p>
+<p>최종 Setup·포터블 ZIP·build-info·SHA256SUMS와 후보 표식은 <code>release/&lt;버전&gt;/</code>에 정리한다. 컴파일 중간파일과 로그는 <code>--output</code> 작업 폴더에 둔다. 같은 버전 폴더에 이미 파일이 있으면 덮어쓰지 않고 빌드 전에 중단한다. <code>release/</code>는 사내 배포 파일이므로 Git에서 제외한다.</p>
 <p>자체 Python 소스/바이트코드·단위시험·Git·개발 문서·중간파일·디버그 심볼을 배포하지 않는다.
 자체 소스를 추출하거나 외부 python.exe를 실행하지 않는다. 동적 TC import를 컴파일에 포함한다.
 소스를 읽는 검사는 빌드 단계에서 수행하고 배포판 자체진단은 소스 없이 동작한다.</p>
@@ -711,9 +713,10 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-DIST-007">
 <h3><span class="idtag">REQ-DIST-007</span> 설치 중 자동화 구성품 준비</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
-<li><span class="hist">설치 구성품 자동 준비</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: VXvue Setup을 참고해 설치 후 OCR 자동 준비·승인 자료 SHA-256 검증·신규 PC 설정 연결·완료 요약·실패 종료 코드3을 추가했다. 고정 OCR 설치 파일을 포함해 대상 PC에서는 다운로드하지 않는다. 기존 설정을 보존하고 DB 복원·제품 시험은 실행하지 않는다.</li>
+<li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: VXvue Setup을 참고해 설치 후 OCR 자동 준비·승인 자료 SHA-256 검증·신규 PC 설정 연결·완료 요약·실패 종료 코드3을 추가했다. 고정 OCR 설치 파일을 포함해 대상 PC에서는 다운로드하지 않는다. 기존 설정을 보존하고 DB 복원·제품 시험은 실행하지 않는다.</li>
+<li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: 소스820개 통과와 새 EXE 준비 명령·실제 업데이트를 확인했다. 설치 파일1,010개 해시 일치·작업381개 보존·자동 준비0이다. 다른PC OCR 누락 설치와 새 EXE 제품 회귀는 미검증이다.</li>
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">

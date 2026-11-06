@@ -466,8 +466,42 @@ def write_candidate_marker(directory, gate):
     return path
 
 
+def release_destination(version, release_root=None):
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+        raise ValueError('릴리즈 버전 형식이 올바르지 않습니다.')
+    base = Path(release_root) if release_root is not None else ROOT / 'release'
+    _not_link(base.absolute())
+    target = base.absolute() / version
+    _not_link(target)
+    if target.exists() and any(target.iterdir()):
+        raise ValueError('해당 버전 릴리즈가 이미 있습니다. 버전을 올리거나 기존 릴리즈를 먼저 정리하세요.')
+    return target
+
+
+def publish_release(output, version, artifacts, *, release_root=None):
+    target = release_destination(version, release_root)
+    output = Path(output).resolve()
+    files = [Path(file).resolve() for file in artifacts] + [output / 'SHA256SUMS.txt']
+    if (output / CANDIDATE_MARKER).is_file():
+        files.append(output / CANDIDATE_MARKER)
+    if len({file.name.casefold() for file in files}) != len(files):
+        raise ValueError('중복 릴리즈 파일 이름')
+    for file in files:
+        _not_link(file)
+        if file.parent != output or not file.is_file():
+            raise ValueError('작업 폴더의 릴리즈 파일만 옮길 수 있습니다.')
+    target.mkdir(parents=True, exist_ok=True)
+    for file in files:
+        shutil.move(str(file), str(target / file.name))
+    return target
+
+
 def build(args):
     root = ROOT
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from bellalunauto import __version__
+    release_destination(__version__)  # fail before expensive compilation
     output = Path(args.output).expanduser().absolute()
     # Require a fresh location: never delete or merge pre-existing private outputs.
     if output.exists() and any(output.iterdir()):
@@ -557,7 +591,8 @@ def build(args):
         installer = installer.rename(output / installer_name)
     artifacts = [archive, installer, output / 'build-info.json']
     (output / 'SHA256SUMS.txt').write_text(''.join(f'{sha256(file)}  {file.name}\n' for file in artifacts), encoding='utf-8')
-    print(f"빌드 완료({gate['label']}): {output}")
+    released = publish_release(output, __version__, artifacts)
+    print(f"빌드 완료({gate['label']}): {released} (중간파일: {output})")
     return 0
 
 

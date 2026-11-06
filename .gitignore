@@ -10,6 +10,7 @@ Log/
 Reports/
 Temp/
 work/
+release/
 
 # Python/IDE artifacts
 __pycache__/
