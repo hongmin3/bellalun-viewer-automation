@@ -196,7 +196,16 @@ TEST-VERDICT-002, `tests/test_human_only_skip.py`, `tests/test_release_gate.py`.
 TC/Step 결과, report title/source document/source sheet 메타데이터, expected/actual/note.
 구조화된 기대값·실제값은 JSON의 `expected_data`·`actual_data`에도 보존한다.
 HTML은 복잡한 값을 접어 펼칠 수 있는 항목별 표로 표시한다.
+
+VXvue와 동일한 `core/report_layout.py` 표시 계약으로 목차·판정 배지·구조화 값·긴 비고·검색·상세 접기·인쇄를 제공한다. 외부 네트워크나 다른 저장소를 읽지 않는다.
+
+결론·전체 시간·판정 합계 다음에 실패와 수동 확인 카드를 배치한다. 전체 TC 목록에서 검색·판정 필터로 상세를 찾고 PASS 검증은 접어 둔다. 같은 TC를 반복 실행해도 각 실행의 링크는 고유하다. 필터로 숨긴 상세에 직접 이동하면 필터를 해제하고 해당 실행을 연다.
+
+값 `0`·`False`·`None`·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON/CSV/TXT와 판정 기준은 바꾸지 않는다.
+
 시간 기록이 있는 TC는 단계 이름·소요 초·완료 또는 오류 상태를 표시한다.
+
+총 소요시간은 전체 실행의 시작·종료 구간으로 계산한다. WU 집계 결과 객체의 시간 합계를 실제 시험 시간으로 표시하지 않는다. 재개 실행은 이번 실행의 구간만 표시한다. 전체 구간을 모르는 과거 WU 자료는 시간을 알 수 없다고 표시한다.
 #### 선행 조건
 선택한 실행 흐름의 리포트 문맥이 제공된다.
 #### 동작
@@ -837,7 +846,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
-| REQ-REPORT-001 | `core/result.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py` | implemented |
+| REQ-REPORT-001 | `core/result.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | implemented |

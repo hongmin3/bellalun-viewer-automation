@@ -26,21 +26,8 @@ STATUSES = (PASS, FAIL, MANUAL, SKIP, BLOCKED)
 
 def _report_value(value):
     """구조화된 값을 접어 표시하고 모든 값의 HTML 문자를 이스케이프한다."""
-    if isinstance(value, dict):
-        rows = ''.join('<tr><th>' + html.escape(str(key)) + '</th><td>'
-                       + _report_value(item) + '</td></tr>'
-                       for key, item in value.items())
-        return ('<details class="fold"><summary>항목별 값 보기</summary>'
-                '<table>' + rows + '</table></details>')
-    if isinstance(value, list):
-        return ('<details class="fold"><summary>상세 ' + str(len(value))
-                + '건 보기</summary>' + ''.join(_report_value(item) + '<br>'
-                                              for item in value) + '</details>')
-    text = html.escape(str(value))
-    if len(text) > 300:
-        return ('<details class="fold"><summary>상세 값 보기</summary><pre>'
-                + text + '</pre></details>')
-    return '<code>' + text + '</code>'
+    from .report_layout import render_value
+    return render_value(value)
 
 
 def _note_field(note, label):
@@ -381,79 +368,7 @@ class TCResult:
 
 
 # ---------------------------------------------------------------------
-_STYLE = """
-:root{--fg:#1a1a1a;--mut:#666;--line:#d8d8d8;--head:#f3f4f6;--card:#fafafa}
-body{font-family:'Malgun Gothic',sans-serif;margin:0;color:var(--fg);background:#fff}
-.wrap{max-width:1500px;margin:0 auto;padding:24px}
-h1{font-size:22px;margin:0 0 4px}
-h2{font-size:16px;margin:26px 0 8px;padding-top:10px;border-top:2px solid #eee}
-h3{font-size:13px;margin:14px 0 4px;color:#444}
-.meta{color:var(--mut);font-size:12px;margin-bottom:18px}
-table{border-collapse:collapse;width:100%;font-size:12.5px;margin-bottom:8px}
-th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
-th{background:var(--head);font-weight:600}
-td.s{font-weight:700;text-align:center}
-/* 단계별 판정 표 — 기대값/실제값을 **같은 폭**으로 고정하고 판정 열을 줄인다
-   (2026-08-21 사용자 요청). `table-layout:fixed` + colgroup 이라야 브라우저가
-   내용 길이로 폭을 재조정하지 않아 두 열이 실제로 같은 크기로 보인다. */
-table.steps{table-layout:fixed}
-table.steps td,table.steps th{overflow-wrap:anywhere;word-break:break-word}
-table.steps col.c-step{width:38px}
-table.steps col.c-title{width:15%}
-table.steps col.c-verdict{width:46px}
-table.steps col.c-exp{width:27%}
-table.steps col.c-act{width:27%}
-table.steps col.c-note{width:auto}
-table.steps td.s{padding:6px 2px;font-size:10.5px;letter-spacing:-.4px}
-table.steps code{font-size:11.5px}
-/* 실패 항목 표도 같은 균형을 쓴다(TC/Step 열만 다르다). */
-table.fails{table-layout:fixed}
-table.fails td,table.fails th{overflow-wrap:anywhere;word-break:break-word}
-table.fails col.c-tc{width:190px}
-table.fails col.c-step{width:38px}
-table.fails col.c-title{width:15%}
-table.fails col.c-exp{width:27%}
-table.fails col.c-act{width:27%}
-table.fails col.c-note{width:auto}
-.PASS{color:#0a7f3f}.FAIL{color:#c62828}.MANUAL{color:#a06000}.SKIP{color:#777}.BLOCKED{color:#6a1b9a}
-.sum td.s{font-size:13px}
-tr.hdr td{background:var(--card)}
-code{font-family:Consolas,monospace;font-size:12px;word-break:break-all}
-/* 대시보드 */
-.dash{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0 6px}
-.tile{flex:1 1 150px;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--card)}
-.tile .n{font-size:26px;font-weight:700;line-height:1.1}
-.tile .k{font-size:11.5px;color:var(--mut);margin-top:2px}
-.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--line);margin:8px 0 2px}
-.bar span{display:block}
-.bPASS{background:#2e9e63}.bFAIL{background:#d34a4a}.bMANUAL{background:#e0a740}.bSKIP{background:#b8b8b8}.bBLOCKED{background:#8e44ad}
-.legend{font-size:11.5px;color:var(--mut)}
-.k{font-size:11px;color:var(--mut)}
-table.cov{table-layout:fixed}
-table.cov td,table.cov th{overflow-wrap:anywhere}
-tr.gh td{background:#eef1f5;font-weight:700;font-size:12.5px}
-table.holds{table-layout:fixed}
-table.holds td,table.holds th{overflow-wrap:anywhere}
-/* TC 카드 */
-.spec{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 12px}
-.spec>div{flex:1 1 260px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--card)}
-.spec h4{margin:0 0 4px;font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
-.spec pre{margin:0;font-family:'Malgun Gothic',sans-serif;font-size:12px;white-space:pre-wrap;line-height:1.5}
-.files code{display:block}
-.badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid var(--line);margin-left:6px;vertical-align:2px;color:var(--mut);background:#fff}
-a{color:#1558b0}
-.note{white-space:pre-wrap}
-/* 접이식 섹션 — 참고 정보(사양 원문/소요 시간/부록 표)를 기본은 접어 두고
-   필요할 때만 펼친다(2026-09-04 사용자 요청: 리포트가 너무 복잡하다). 정보를
-   지우지 않고 첫 화면 분량만 줄인다. */
-details.fold{margin:6px 0 12px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
-details.fold>summary{cursor:pointer;padding:7px 10px;font-size:12.5px;font-weight:600;color:#333;list-style:none}
-details.fold>summary::-webkit-details-marker{display:none}
-details.fold>summary::before{content:'▸ ';color:var(--mut)}
-details.fold[open]>summary::before{content:'▾ '}
-details.fold>summary:hover{background:#eef1f5}
-details.fold>.fold-body{padding:2px 10px 10px}
-"""
+# HTML 공통 스타일은 core.report_layout에서 관리한다.
 
 
 #: 자동화 커버리지 총괄 섹션의 분류 표시 순서 (2026-08-21 사용자 요청).
@@ -837,6 +752,7 @@ def _render_html(results, meta, siblings=None):
     BLOCKED·SKIPPED 사유 / 자동화 코드 위치 / 실행 환경과 버전.
     """
     e = html.escape
+    from . import report_layout as view
     total = {status: 0 for status in STATUSES}
     for r in results:
         for k, v in r.counts.items():
@@ -846,10 +762,26 @@ def _render_html(results, meta, siblings=None):
     for r in results:
         if r.verdict in tc_total:
             tc_total[r.verdict] += 1
-    wall = sum(r.duration_seconds for r in results)
     first_start = min((r.started for r in results), default=None)
     last_end = max(((r.completed or datetime.now()) for r in results),
                    default=None)
+    wall = max(0.0, (last_end - first_start).total_seconds()) if first_start and last_end else 0.0
+    execution = meta.get('execution') or {}
+    if execution:
+        try:
+            start = datetime.fromisoformat(execution['started'])
+            end = datetime.fromisoformat(execution['completed'])
+            if end < start:
+                raise ValueError('종료가 시작보다 빠릅니다.')
+            first_start, last_end = start, end
+            wall = (end - start).total_seconds()
+        except (KeyError, TypeError, ValueError):
+            first_start = last_end = None
+            wall = None
+    elif meta.get('execution_mode') in {'live', 'historical'}:
+        # 과거 WU 집계 객체의 시각은 제품 시험 구간이 아니다.
+        first_start = last_end = None
+        wall = None
 
     cl = meta.get("checklist") or {}
     mods = meta.get("modules") or {}
@@ -863,8 +795,13 @@ def _render_html(results, meta, siblings=None):
     source_doc = meta.get("source_doc", "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx")
     source_sheet = meta.get("source_sheet", "개정 TC")
 
-    P = [f"<style>{_STYLE}</style>", "<div class='wrap'>",
-         f"<h1>{e(report_title)}</h1>",
+    keys, seen_ids = [], {}
+    for result in results:
+        seen_ids[result.tc_id] = seen_ids.get(result.tc_id, 0) + 1
+        count = seen_ids[result.tc_id]
+        keys.append(result.tc_id if count == 1 else f'{result.tc_id}-{count}')
+    result_keys = {id(result): key for result, key in zip(results, keys)}
+    P = [
          "<div class='meta'>기준 문서 "
          f"<code>{e(source_doc)}</code> "
          f"(시트 <code>{e(source_sheet)}</code>) &nbsp;|&nbsp; 생성 "
@@ -877,19 +814,21 @@ def _render_html(results, meta, siblings=None):
     colors = {"ok": ("#e7f6ec", "#1e7b3a", "성공"), "warn": ("#fff6e0", "#8a5a00", "주의"),
               "bad": ("#fdecec", "#b42318", "실패")}
     bg, fg, word = colors[summary["level"]]
-    P.append("<h2 style='border:0;padding:0;margin-top:6px'>결론 — 한눈에 보기</h2>")
+    P.append("<section id='overview'><h2 style='border:0;padding:0;margin-top:6px'>결론 — 한눈에 보기</h2>")
     P.append(f"<div style='background:{bg};border-left:6px solid {fg};padding:12px 16px;"
              f"font-size:16px;margin:6px 0 12px'><b style='color:{fg}'>{word}</b> · "
              f"{e(summary['headline'])}</div>")
+    summary_rows_start = len(P)
     if summary["rows"]:
         P.append("<table class='fails'><tr><th>결과</th><th>TC</th><th>멈춘 곳(Step · 확인 항목)</th>"
                  "<th>기대값 → 실제값</th><th>기록된 원인(판정 근거 첫 문장)</th></tr>")
-        for row in summary["rows"]:
+        summary_keys = [key for result, key in zip(results, keys) if result.verdict != PASS]
+        for row, summary_key in zip(summary["rows"], summary_keys):
             label = row["verdict"] + (" · 알려진 제품 결함" if row["known_defect"] else "")
             values = (f"<code>{e(row['expected'])}</code> → <code>{e(row['actual'])}</code>"
                       if row["verdict"] == FAIL else "-")
             P.append(f"<tr><td><span class='s {e(row['verdict'])}'>{e(label)}</span></td>"
-                     f"<td><a href='#{e(row['tc_id'])}'>{e(row['tc_id'])}</a>"
+                     f"<td><a href='#{e(summary_key)}'>{e(row['tc_id'])}</a>"
                      f"<div class='k'>{e(row['title'])}</div></td>"
                      f"<td>Step {e(row['step'])} · {e(row['check'])}</td><td>{values}</td>"
                      f"<td class='note'>{e(row['reason'])}</td></tr>")
@@ -897,6 +836,8 @@ def _render_html(results, meta, siblings=None):
         P.append("<div class='meta'>원인 칸은 각 판정에 기록된 근거의 첫 문장이다. 리포트가 원인을 추측해 만들지 않는다. "
                  "전체 근거와 증거는 TC 이름을 눌러 상세에서 본다.</div>")
 
+    summary_rows_html = ''.join(P[summary_rows_start:])
+    del P[summary_rows_start:]
     # --- 대시보드 -----------------------------------------------------
     P.append("<h2 style='border:0;padding:0;margin-top:6px'>요약 대시보드</h2>")
     P.append("<div class='dash'>")
@@ -907,9 +848,12 @@ def _render_html(results, meta, siblings=None):
                  f"<div class='k'>TC {k}</div></div>")
     P.append(f"<div class='tile'><div class='n'>{checks}</div>"
              "<div class='k'>검증 항목(Step 단위)</div></div>")
-    P.append(f"<div class='tile'><div class='n'>{wall / 60:.1f}<span "
+    wall_label = f'{wall / 60:.1f}' if wall is not None else '미기록'
+    P.append(f"<div class='tile'><div class='n'>{wall_label}<span "
              "style='font-size:14px'> 분</span></div>"
              "<div class='k'>총 소요 시간</div></div>")
+    if wall is None:
+        P.append("<div class='meta'>전체 실행 시간 미기록 · TC 집계 시간으로 대신 계산하지 않습니다.</div>")
     P.append("</div>")
 
     P.append("<div class='bar'>")
@@ -925,7 +869,15 @@ def _render_html(results, meta, siblings=None):
     if first_start and last_end:
         P.append(f"<div class='meta'>실행 구간 {first_start:%Y-%m-%d %H:%M:%S} "
                  f"~ {last_end:%Y-%m-%d %H:%M:%S}</div>")
+        if execution.get('basis'):
+            P.append("<div class='meta'>시간 기준: " + e(str(execution['basis'])) + "</div>")
+    P.append('</section>')
+    if summary_rows_html:
+        P.append('<details class="appendix"><summary>확인할 TC 요약 · 판정과 기록된 원인</summary>'
+                 + summary_rows_html + '</details>')
 
+    # 환경은 실제 판정과 TC 상세 뒤에서 읽는다.
+    env_start = len(P)
     # --- 실행 환경 ----------------------------------------------------
     if meta.get("env"):
         P.append("<h2>실행 환경 및 버전</h2><table>")
@@ -938,6 +890,9 @@ def _render_html(results, meta, siblings=None):
             P.append(f"<tr><th style='width:230px'>{e(str(k))}</th>"
                      f"<td>{cell}</td></tr>")
         P.append("</table>")
+
+    environment_html = ''.join(P[env_start:])
+    del P[env_start:]
 
     # --- 자동화 커버리지 총괄 (기준 체크리스트 전체) --------------------
     # 2026-08-21 사용자 요청: "실제 자동화 TC 를 못 만들어서 MANUAL 로 남겨 놓은
@@ -1007,33 +962,31 @@ def _render_html(results, meta, siblings=None):
     # --- 먼저 볼 것: FAIL 원인 ----------------------------------------
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
     if fails:
-        P.append(f"<h2>실패 항목 {len(fails)}건 — 원인</h2>")
+        P.append(f"<section id='failures' class='failure-panel'><h2>실패 항목 {len(fails)}건 — 원인</h2>")
         P.append("<div class='meta'>회귀는 앞 단계가 뒤 TC 의 전제다. "
                  "<b>가장 위의 FAIL 부터</b> 읽는다 — 아래 FAIL 중 일부는 그 "
                  "실패의 결과일 수 있다.</div>")
-        P.append("<table class='fails'><colgroup>"
-                 "<col class='c-tc'><col class='c-step'><col class='c-title'>"
-                 "<col class='c-exp'><col class='c-act'><col class='c-note'>"
-                 "</colgroup>"
-                 "<tr><th>TC</th>"
-                 "<th>Step</th><th>확인 항목</th>"
-                 "<th>기대값</th><th>실제값</th><th>판정 근거 / 비고</th></tr>")
+        known = _known_defects() or {}
         for r, c in fails:
             source = _step_context(meta, r.tc_id, c.step)
-            P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
-                     f"<td>{e(step_label(c.step))}</td>"
-                     f"<td>{e(c.title)}"
-                     + (f"<div class='k'>수행 절차: "
-                        f"{e(source['step_description'])}</div>"
-                        if source["step_description"] else "") + "</td>"
-                     f"<td>"
-                     + (f"<div class='k'>기준: "
-                        f"{e(source['source_expected_result'])}</div>"
-                        if source["source_expected_result"] else "")
-                     + f"<code>{e(str(c.expected))}</code></td>"
-                     f"<td>{_report_value(c.actual)}</td>"
-                     f"<td class='note'>{e(c.note)}</td></tr>")
-        P.append("</table>")
+            has_known = any((r.tc_id, check.title) in known for check in r.checks if check.status == FAIL)
+            kind = classify_fail(r.tc_id, {'title': c.title, 'actual': c.actual}, has_known, known)
+            annotation = {'known': '등록된 알려진 제품 결함', 'cascade': '앞선 실패로 미수행된 연쇄 기록',
+                          'real': '기록된 FAIL · 제품 원인은 별도 확인'}[kind]
+            P.append('<article class="failure-card"><h3><a href=\'#' + e(result_keys[id(r)]) + '\'>'
+                     + e(r.tc_id) + '</a> · ' + e(r.title) + '</h3><p>'
+                     + view.render_badge(c.status, annotation) + ' Step ' + e(step_label(c.step))
+                     + ' · ' + e(c.title) + '</p>')
+            if source['step_description']:
+                P.append('<p class="k">수행 절차: ' + e(source['step_description']) + '</p>')
+            P.append('<div class="comparison"><div><h3>합격 기준 / 기대값</h3>'
+                     + (('<p class="k">기준: ' + e(source['source_expected_result']) + '</p>')
+                        if source['source_expected_result'] else '')
+                     + view.render_value(c.expected) + '</div><div class="actual"><h3>확인 결과 / 실제값</h3>'
+                     + view.render_value(c.actual) + '</div></div><p><b>기록된 판정 근거</b> '
+                     + view.render_note(c.note) + '</p><p><a href="#' + e(result_keys[id(r)])
+                     + '">TC 상세와 증거 확인</a></p></article>')
+        P.append('</section>')
 
     # --- MANUAL / SKIP / BLOCKED 사유 (TC 별로 한 행) ------------------
     # 2026-08-21 사용자 요청: MANUAL Step 을 전부 행으로 펼치지 않고 **TC 별로
@@ -1045,22 +998,22 @@ def _render_html(results, meta, siblings=None):
             holds.append((r, items))
     if holds:
         total_items = sum(len(x) for _, x in holds)
-        P.append(f"<h2>수동 확인 / 미수행 / 수행 불가 — TC {len(holds)}건 "
+        P.append(f"<section id='manual' class='manual-panel'><h2>수동 확인 / 미수행 / 수행 불가 — TC {len(holds)}건 "
                  f"(확인 항목 {total_items}개) — 사유와 해제 조건</h2>")
         P.append("<div class='meta'>TC 하나에 여러 항목이 걸려 있어도 "
                  "<b>한 행</b>으로 묶어 적는다. 항목별 원문 사유는 각 TC 상세의 "
                  "단계별 판정 표에 그대로 남아 있다.</div>")
-        P.append("<table class='holds'><colgroup><col style='width:190px'>"
-                 "<col style='width:52px'><col style='width:25%'>"
-                 "<col style='width:28%'><col style='width:20%'><col></colgroup>"
-                 "<tr><th>TC</th><th>건수</th><th>확인 항목</th>"
-                 "<th>사유</th><th>해제 조건</th>"
-                 "<th>이 실행으로 말할 수 없는 것</th></tr>")
         for r, items in holds:
-            labels = "<br>".join(
-                f"<span class='s {c.status}'>[{c.status}]</span> "
-                f"Step {e(step_label(c.step))} {e(c.title)}"
-                for c in items)
+            P.append('<article class="manual-card"><h3><a href="#' + e(result_keys[id(r)]) + '">'
+                     + e(r.tc_id) + ' · ' + e(r.title) + '</a> ' + view.render_badge(r.verdict) + '</h3>')
+            if r.verdict == PASS:
+                P.append('<p class="k">참고 정보 · TC는 통과했으며 아래 항목은 보조 미수행 기록입니다.</p>')
+            for c in items:
+                P.append('<p>' + view.render_badge(c.status) + ' Step ' + e(step_label(c.step))
+                         + ' · ' + e(c.title) + '</p>')
+                P.append('<div class="comparison"><div><h3>확인할 기준 / 기대값</h3>'
+                         + view.render_value(c.expected) + '</div><div class="actual"><h3>자동화가 확인한 것</h3>'
+                         + view.render_value(c.actual) + '</div></div>')
             # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
             # 중복을 접어 **서로 다른 사유만** 남긴다.
             reasons, seen = [], set()
@@ -1069,46 +1022,37 @@ def _render_html(results, meta, siblings=None):
                 if text and text not in seen:
                     seen.add(text)
                     reasons.append(text)
-            body = "<br><br>".join(e(x) for x in reasons) or "(사유 미기재)"
+            body = view.render_note('\n\n'.join(reasons) or '(사유 미기재)')
             unblock = "<br>".join(e(c.unblock_condition) for c in items
                                   if c.unblock_condition)
             unverified = "<br>".join(e(c.not_verified) for c in items
                                      if c.not_verified)
-            P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a><br>"
-                     f"<span class='k'>{e(r.title)}</span></td>"
-                     f"<td style='text-align:center'>{len(items)}</td>"
-                     f"<td>{labels}</td><td class='note'>{body}</td>"
-                     f"<td class='note'>{unblock or '(비고에 별도 기재되지 않음)'}</td>"
-                     f"<td class='note'>{unverified or '(비고에 별도 기재되지 않음)'}</td></tr>")
-        P.append("</table>")
+            P.append('<p><b>사유</b> ' + body + '</p><p><b>해제 조건</b> '
+                     + (unblock or '(비고에 별도 기재되지 않음)') + '</p><p><b>이 실행으로 말할 수 없는 것</b> '
+                     + (unverified or '(비고에 별도 기재되지 않음)') + '</p></article>')
+        P.append('</section>')
 
     # --- TC 요약 표 + 목차 ---------------------------------------------
-    P.append("<h2>TC 별 판정</h2>")
-    P.append("<table class='sum'><tr><th>TC ID</th><th>Title</th>"
-             "<th>자동화 범위</th><th>판정</th><th>P</th><th>F</th><th>M</th>"
-             "<th>S</th><th>B</th><th>시작</th><th>종료</th><th>소요</th></tr>")
-    for r in results:
+    P.append("<section id='tc-results'><h2>전체 TC 결과 · TC 별 판정</h2>")
+    P.append(view.render_tools())
+    P.append("<div class='table-wrap'><table class='sum'><thead><tr><th>TC</th><th>시험</th>"
+             "<th>실제 결과</th><th>검증 항목</th><th>소요</th></tr></thead><tbody>")
+    for index, r in enumerate(results):
         c = r.counts
-        lvl = (scope.get(r.tc_id) or {}).get("level", "-")
-        end = r.completed or datetime.now()
-        P.append(f"<tr><td><a href='#{e(r.tc_id)}'>{e(r.tc_id)}</a></td>"
-                 f"<td>{e(r.title)}</td><td>{e(str(lvl))}</td>"
-                 f"<td class='s {r.verdict}'>{r.verdict}</td>"
-                 f"<td>{c[PASS]}</td><td>{c[FAIL]}</td><td>{c[MANUAL]}</td>"
-                 f"<td>{c[SKIP]}</td><td>{c[BLOCKED]}</td>"
-                 f"<td>{r.started:%H:%M:%S}</td><td>{end:%H:%M:%S}</td>"
+        counts = ' · '.join(f'{status} {c[status]}' for status in STATUSES if c[status])
+        P.append(f"<tr data-tc='{e(r.tc_id)}' data-idx='{e(keys[index])}' data-status='{e(r.verdict)}'>"
+                 f"<td><a href='#{e(keys[index])}'>{e(r.tc_id)}</a></td>"
+                 f"<td>{e(r.title)}</td><td>{view.render_badge(r.verdict)}</td><td>{e(counts)}</td>"
                  f"<td>{r.duration_seconds:.1f}s</td></tr>")
-    P.append("</table>")
+    P.append("</tbody></table></div><p id='filter-empty' class='empty' hidden>검색 결과 없음</p></section>")
 
     # --- TC 상세 -------------------------------------------------------
-    for r in results:
+    P.append("<h2 id='tc-details'>TC 상세 근거</h2>")
+    for index, r in enumerate(results):
         spec = cl.get(r.tc_id) or {}
         sc = scope.get(r.tc_id) or {}
         end = r.completed or datetime.now()
-        P.append(f"<h2 id='{e(r.tc_id)}'>{e(r.tc_id)} — {e(r.title)} "
-                 f"<span class='{r.verdict}'>[{r.verdict}]</span>"
-                 + (f"<span class='badge'>{e(str(sc.get('level')))}</span>"
-                    if sc.get("level") else "") + "</h2>")
+        detail_start = len(P)
         P.append(f"<div class='meta'>시작 {r.started:%Y-%m-%d %H:%M:%S}"
                  f" &nbsp;→&nbsp; 종료 {end:%Y-%m-%d %H:%M:%S}"
                  f" &nbsp;|&nbsp; 소요 {r.duration_seconds:.1f}s</div>")
@@ -1152,29 +1096,26 @@ def _render_html(results, meta, siblings=None):
         P.append("<h3>단계별 판정 — 기대값 / 실제값 / 근거</h3>")
         # 기대값/실제값을 **같은 폭**으로 고정하고 판정 열을 좁힌다
         # (2026-08-21 사용자 요청: 표를 봤을 때 두 값이 바로 대조되어야 한다).
-        P.append("<table class='steps'><colgroup>"
-                 "<col class='c-step'><col class='c-title'>"
-                 "<col class='c-verdict'><col class='c-exp'><col class='c-act'>"
-                 "<col class='c-note'></colgroup>"
-                 "<tr><th>Step</th><th>확인 항목</th>"
-                 "<th>판정</th><th>기대값</th><th>실제값</th>"
-                 "<th>판정 근거 / 비고</th></tr>")
-        for c in r.checks:
+        step_header = ("<div class='table-wrap'><table class='steps'><colgroup>"
+                       "<col style='width:6%'><col style='width:20%'><col style='width:8%'>"
+                       "<col style='width:23%'><col style='width:23%'><col style='width:20%'>"
+                       "</colgroup><thead><tr><th>Step</th><th>확인 항목</th><th>판정</th>"
+                       "<th>기대값</th><th>실제값</th><th>판정 근거 / 비고</th></tr></thead><tbody>")
+        attention_rows, pass_rows = [], []
+        for order, c in enumerate(r.checks, 1):
             source = _step_context(meta, r.tc_id, c.step)
-            P.append(f"<tr><td>{e(step_label(c.step))}</td>"
-                     f"<td>{e(c.title)}"
-                     + (f"<div class='k'>수행 절차: "
-                        f"{e(source['step_description'])}</div>"
-                        if source["step_description"] else "") + "</td>"
-                     f"<td class='s {c.status}'>{c.status}</td>"
-                     f"<td>"
-                     + (f"<div class='k'>기준 기대 결과: "
-                        f"{e(source['source_expected_result'])}</div>"
-                        if source["source_expected_result"] else "")
-                     + f"<code>{e(str(c.expected))}</code></td>"
-                     f"<td>{_report_value(c.actual)}</td>"
-                     f"<td class='note'>{e(c.note)}</td></tr>")
-        P.append("</table>")
+            row = view.render_step(order=order, step=step_label(c.step), title=c.title, status=c.status,
+                                   expected=c.expected, actual=c.actual, note=c.note,
+                                   source_description=source['step_description'],
+                                   source_expected=source['source_expected_result'],
+                                   unblock_condition=c.unblock_condition, not_verified=c.not_verified)
+            (pass_rows if c.status == PASS else attention_rows).append(row)
+        if attention_rows:
+            P.append(step_header + ''.join(attention_rows) + '</tbody></table></div>')
+        if pass_rows:
+            P.append('<details class="step-pass"><summary>PASS 검증 ' + str(len(pass_rows))
+                     + '개 · 기대값·실제값 보기</summary>' + step_header + ''.join(pass_rows)
+                     + '</tbody></table></div></details>')
 
         # 증거 (클릭 가능한 링크)
         if r.evidence:
@@ -1185,6 +1126,12 @@ def _render_html(results, meta, siblings=None):
                          f"<a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
             P.append("</table>")
 
+        detail_body = ''.join(P[detail_start:])
+        del P[detail_start:]
+        P.append(view.render_tc_detail(key=keys[index], tc_id=r.tc_id, title=r.title,
+                                      status=r.verdict, body_html=detail_body))
+
+    P.append("<details id='run-info' class='appendix'><summary>환경·원본·부록</summary>" + environment_html)
     # --- 부록: 자동화 커버리지 총괄 -------------------------------------
     # 위에서 모아 둔 `cov` 를 여기서 접은 상태로 렌더링한다 — 이번 실행 결과와
     # 무관한 정적 참고 자료라 본문 끝 부록으로 둔다.
@@ -1201,5 +1148,14 @@ def _render_html(results, meta, siblings=None):
             P.append(f"<tr><th style='width:80px'>{e(k)}</th>"
                      f"<td><a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
         P.append("</table>")
-    P.append("</div>")
-    return "\n".join(P)
+    P.append("</details>")
+    nav = [('overview', '결과 요약')]
+    if fails:
+        nav.append(('failures', '실패 원인'))
+    if holds:
+        nav.append(('manual', '수동 확인'))
+    nav.extend([('tc-results', '전체 TC 결과'), ('tc-details', '상세 근거'), ('run-info', '환경·원본')])
+    return view.render_shell(title=report_title, product='BELLALUN', subtitle='체크리스트 QA 결과',
+                             nav=nav, body_html='\n'.join(P),
+                             overall=next((status for status in (FAIL, BLOCKED, MANUAL, PASS, SKIP)
+                                           if tc_total[status]), None))

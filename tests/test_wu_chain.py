@@ -311,6 +311,11 @@ class ChainResumeTests(unittest.TestCase):
         self.assertEqual(self.calls, ["TC_B", "WU09_USB", "TC_WindowsUpdate_10"])
         meta = self.finished[-1]["extra_meta"]
         self.assertTrue(meta["resumed"])
+        from datetime import datetime
+        execution = meta['execution']
+        self.assertGreaterEqual(datetime.fromisoformat(execution['completed']),
+                                datetime.fromisoformat(execution['started']))
+        self.assertIn('이번', execution['basis'])
         self.assertEqual(meta["reused_stages"],
                          ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup", "TC_A"])
         self.assertTrue(self.finished[-1]["chain_completed"])

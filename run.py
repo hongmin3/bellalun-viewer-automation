@@ -979,6 +979,9 @@ def _run_winupdate_chain(ctx, resume=False):
 
     def meta_extra():
         return {"resumed": bool(resume), "resume_count": checkpoint.resume_count,
+                "execution": {"started": started.isoformat(),
+                              "completed": datetime.now().isoformat(),
+                              "basis": "이번 WU 체인 실행 구간(재개 전 대기 제외)"},
                 "reused_stages": list(reused), "stage_trips": dict(trips),
                 "checkpoint": path, "preflight": preflight_meta}
 

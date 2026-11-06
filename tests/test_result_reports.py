@@ -9,6 +9,77 @@ from core.result import BLOCKED, PASS, TCResult, write_reports
 
 
 class ResultReportTests(unittest.TestCase):
+    def test_common_layout_filters_and_unique_repeated_tc_details(self):
+        results = [TCResult('TC_REPEAT', '반복 시험'), TCResult('TC_REPEAT', '반복 시험')]
+        for result in results:
+            result.add(1, '검증', PASS, 0, {'value': False})
+            result.finalize()
+        with tempfile.TemporaryDirectory() as directory:
+            paths = write_reports(results, directory, 'layout')
+            with open(paths['html'], encoding='utf-8') as stream:
+                text = stream.read()
+        self.assertIn('report-layout-version', text)
+        self.assertIn('id="report-search"', text)
+        self.assertIn('id="TC_REPEAT"', text)
+        self.assertIn('id="TC_REPEAT-2"', text)
+        self.assertIn('PASS 검증 1개', text)
+        self.assertIn('False', text)
+
+    def test_repeated_tc_failure_links_target_the_failed_instance(self):
+        passed, failed = TCResult('TC_REPEAT', '첫 시험'), TCResult('TC_REPEAT', '둘째 시험')
+        passed.add(1, '확인', PASS, 1, 1)
+        failed.add(1, '확인', 'FAIL', 1, 0, stop=False)
+        for result in (passed, failed):
+            result.finalize()
+        with tempfile.TemporaryDirectory() as directory:
+            paths = write_reports([passed, failed], directory, 'repeat')
+            with open(paths['html'], encoding='utf-8') as stream:
+                text = stream.read()
+        self.assertGreaterEqual(text.count("href='#TC_REPEAT-2'>TC_REPEAT</a>"), 3)
+        self.assertIn('class="failure-card"', text)
+
+    def test_execution_window_overrides_wu_aggregation_times(self):
+        result = self._result()
+        meta = {'execution_mode': 'live', 'report_title': 'WU',
+                'execution': {'started': '2026-11-06T13:55:49',
+                              'completed': '2026-11-06T15:47:26'}}
+        with tempfile.TemporaryDirectory() as directory:
+            paths = write_reports([result], directory, 'timing', meta=meta)
+            with open(paths['html'], encoding='utf-8') as stream:
+                text = stream.read()
+        self.assertIn('111.6', text)
+        self.assertIn('2026-11-06 13:55:49', text)
+        self.assertIn('2026-11-06 15:47:26', text)
+
+    def test_invalid_execution_window_is_not_claimed_as_total(self):
+        for end in ('not-a-time', '2026-11-06T13:00:00'):
+            with self.subTest(end=end), tempfile.TemporaryDirectory() as directory:
+                paths = write_reports([self._result()], directory, 'invalid', meta={
+                    'execution': {'started': '2026-11-06T14:00:00', 'completed': end}})
+                with open(paths['html'], encoding='utf-8') as stream:
+                    self.assertIn('전체 실행 시간 미기록', stream.read())
+
+    def test_overlapping_tc_durations_are_not_added_twice(self):
+        from datetime import datetime
+        results = [self._result(), self._result()]
+        for result in results:
+            result.started = datetime(2026, 11, 6, 14, 0)
+            result.completed = datetime(2026, 11, 6, 14, 20)
+        with tempfile.TemporaryDirectory() as directory:
+            paths = write_reports(results, directory, 'overlap')
+            with open(paths['html'], encoding='utf-8') as stream:
+                text = stream.read()
+        self.assertIn("class='n'>20.0<span", text)
+        self.assertNotIn("class='n'>40.0<span", text)
+
+    def test_old_wu_without_execution_window_does_not_claim_total_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = write_reports([self._result()], directory, 'old',
+                                  meta={'execution_mode': 'historical'})
+            with open(paths['html'], encoding='utf-8') as stream:
+                text = stream.read()
+        self.assertIn('전체 실행 시간 미기록', text)
+
     def _result(self):
         result = TCResult("TC_SAMPLE", "사용자용 결과 문서")
         result.add(1, "자동 확인", PASS, "정상", "정상")
