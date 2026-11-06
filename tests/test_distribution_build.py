@@ -287,14 +287,14 @@ class DistributionBuildTests(unittest.TestCase):
     def test_release_artifacts_publish_under_version_without_intermediates(self):
         output = self.home / 'build'
         output.mkdir()
-        for name in ['setup.exe', 'portable.zip', 'build-info.json', 'SHA256SUMS.txt', 'compile.log']:
+        for name in ['setup.exe', 'build-info.json', 'SHA256SUMS.txt', 'compile.log']:
             (output / name).write_bytes(name.encode())
         target = self.builder.publish_release(output, '1.0.2',
-                    [output / name for name in ['setup.exe', 'portable.zip', 'build-info.json']],
+                    [output / name for name in ['setup.exe', 'build-info.json']],
                     release_root=self.home / 'release')
         self.assertEqual(target, self.home / 'release/1.0.2')
         self.assertEqual({p.name for p in target.iterdir()},
-                         {'setup.exe', 'portable.zip', 'build-info.json', 'SHA256SUMS.txt'})
+                         {'setup.exe', 'build-info.json', 'SHA256SUMS.txt'})
         self.assertTrue((output / 'compile.log').exists())
         with self.assertRaisesRegex(ValueError, '이미'):
             self.builder.publish_release(output, '1.0.2', [], release_root=self.home / 'release')

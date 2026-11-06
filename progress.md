@@ -2,6 +2,8 @@
 
 ## 2026-11-06 설치 구성품 자동 준비 완료
 
+- 후속 요청으로 포터블 ZIP 생성을 중단했다. 현재1.0.2 ZIP도 삭제했으며 릴리즈는 Setup·build-info·체크섬·후보 표식4개다. Setup 파일은 동일하고 체크섬 목록은 남은2개 파일에 맞췄다.
+
 - VXvue 설치 후 준비 명령을 참고해 OCR 오프라인 설치, Baseline4종과 자료 해시 검증, 기존 설정 보존·신규 설정 연결, 완료 요약과 실패 종료 코드3을 구현했다. 제품 Server·SQL·XIPL 설치나 DB 복원은 실행하지 않는다.
 - 공식 Tesseract5.5.3 release digest와26,573,224바이트 설치 파일 SHA-256을 대조했다. 기존 OCR5.4는 정상 재사용한다. 새 PC 누락 경로는 격리 시험이며 실제 clean PC 설치는 미검증이다.
 - 코드 검토의 기존 OCR 설정 불일치·PATH 작업 폴더 후보 실행 문제를 실패 시험 후 수정했다. 소스820 passed/4 skipped/267 subtests, 정적7종·readiness·workspace 검사 통과.

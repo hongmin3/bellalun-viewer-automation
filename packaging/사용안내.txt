@@ -21,4 +21,4 @@ Setup이 포함된 OCR을 자동 설치하고 승인 Baseline·시험 자료를 
 제거 프로그램은 설치한 파일과 설치 프로그램이 추가한 PATH 항목만 지웁니다.
 
 내부 체크리스트·사양/매뉴얼·승인 Baseline이 들어 있습니다.
-설치 파일과 포터블 ZIP을 공개 저장소·공개 Release에 올리지 마십시오. 제3자 라이선스: third-party-licenses 폴더.
+설치 파일을 공개 저장소·공개 Release에 올리지 마십시오. 제3자 라이선스: third-party-licenses 폴더.

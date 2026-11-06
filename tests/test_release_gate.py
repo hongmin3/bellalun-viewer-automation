@@ -288,17 +288,16 @@ class BuildIntegrationTests(unittest.TestCase):
         result = self.builder._release_gate().gate_for_build(None, None, SHA, False)
         self.assertEqual(result["status"], "candidate")
         self.assertEqual(result["label"], "게이트 미통과 후보")
-        self.assertEqual(self.builder.artifact_names("1.0.0", result),
-                         ("BellalunAuto-1.0.0-candidate-portable.zip",
-                          "BellalunAuto-1.0.0-candidate-setup.exe"))
+        self.assertEqual(self.builder.installer_filename("1.0.0", result),
+                         "BellalunAuto-1.0.0-candidate-setup.exe")
         marker = self.builder.write_candidate_marker(self.home, result)
         self.assertIn("게이트 입력", marker.read_text(encoding="utf-8"))
 
     def test_passing_gate_keeps_formal_names_and_writes_no_marker(self):
         result = self.builder._release_gate().gate_for_build(*self._paths(), SHA, False)
         self.assertTrue(result["passed"], result["reasons"])
-        self.assertEqual(self.builder.artifact_names("1.0.0", result),
-                         ("BellalunAuto-1.0.0-portable.zip", "BellalunAuto-1.0.0-setup.exe"))
+        self.assertEqual(self.builder.installer_filename("1.0.0", result),
+                         "BellalunAuto-1.0.0-setup.exe")
         self.assertIsNone(self.builder.write_candidate_marker(self.home, result))
         self.assertFalse((self.home / self.builder.CANDIDATE_MARKER).exists())
 

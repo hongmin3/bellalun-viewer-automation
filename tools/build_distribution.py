@@ -20,7 +20,6 @@ import struct
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
-import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_VERSION = '3.12.10'
@@ -445,10 +444,10 @@ def _release_gate():
     return module
 
 
-def artifact_names(version, gate):
+def installer_filename(version, gate):
     """게이트 미통과 후보는 산출물 이름에 -candidate 를 붙여 정식본과 구별한다."""
     tag = '' if gate.get('passed') else '-candidate'
-    return f'BellalunAuto-{version}{tag}-portable.zip', f'BellalunAuto-{version}{tag}-setup.exe'
+    return f'BellalunAuto-{version}{tag}-setup.exe'
 
 
 CANDIDATE_MARKER = '게이트-미통과-후보.txt'
@@ -575,12 +574,7 @@ def build(args):
     _write_json(distribution / 'build-info.json', info)
     _write_json(output / 'build-info.json', info)
     write_candidate_marker(output, gate)
-    archive_name, installer_name = artifact_names(__version__, gate)
-    archive = output / archive_name
-    with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as stream:
-        for file in sorted(distribution.rglob('*')):
-            if file.is_file():
-                stream.write(file, Path(distribution.name) / file.relative_to(distribution))
+    installer_name = installer_filename(__version__, gate)
     run_checked([str(Path(args.iscc).absolute()), f'/DAppVersion={__version__}',
                  f'/DSourceDir={distribution}', f'/DOutputDir={output}',
                  str(root / 'packaging/BellalunAuto.iss')], log_path=output / 'installer.log')
@@ -589,7 +583,7 @@ def build(args):
         raise ValueError('설치 파일 누락')
     if installer.name != installer_name:
         installer = installer.rename(output / installer_name)
-    artifacts = [archive, installer, output / 'build-info.json']
+    artifacts = [installer, output / 'build-info.json']
     (output / 'SHA256SUMS.txt').write_text(''.join(f'{sha256(file)}  {file.name}\n' for file in artifacts), encoding='utf-8')
     released = publish_release(output, __version__, artifacts)
     print(f"빌드 완료({gate['label']}): {released} (중간파일: {output})")

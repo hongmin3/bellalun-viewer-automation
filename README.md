@@ -57,6 +57,7 @@ BellalunAuto.exe run-winupdate
 설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
 사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
 배포 파일은 `release/<버전>/`에 정리합니다. 현재 Setup은 `release/1.0.2/BellalunAuto-1.0.2-candidate-setup.exe`입니다.
+배포용 실행 패키지는 Setup만 생성하며 포터블 ZIP은 만들지 않습니다.
 아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 
 ## 0. 온보딩 요약 — 5분 안에 전체 그림

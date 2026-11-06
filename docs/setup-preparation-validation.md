@@ -27,6 +27,8 @@
 
 ## 배포 폴더 정리
 
+후속 요청으로 포터블 ZIP 생성을 중단하고 현재1.0.2 ZIP도 제거했다. 현재 릴리즈는 Setup·build-info·SHA256SUMS·후보 표식4개이며 체크섬2개가 일치한다. 아래5개 이동과3개 해시 대조는 ZIP 삭제 전의 이력이다. Setup의 해시는 바뀌지 않았다.
+
 사용자 요청으로 현재 파일5개를 `release/1.0.2/`로 옮겼다. Setup·ZIP·build-info의 SHA-256 3개를 이동 후 다시 대조해 모두 일치했다. 이후 빌드는 `release/<버전>/`에 최종 파일만 모으고 같은 버전의 기존 파일은 덮어쓰지 않는다. 중간파일은 `--output`에 남긴다.
 
 구버전 배포·컴파일 폴더18개(9.67GiB)를 제거했고 저장소 내 구버전 Setup·ZIP 잔존0개를 확인했다. 빌드 메타데이터·로그와 포함된 실행 증거는 `work/release-build-records/`에 보존했다. 과거 문서의 구버전 배포 경로는 이제 실물이 없는 역사 기록이다. 정리 내역은 `work/release-cleanup-result.json`, 이동 검증은 `work/release-layout-verification.json`에 있다.

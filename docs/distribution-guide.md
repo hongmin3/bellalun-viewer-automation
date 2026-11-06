@@ -15,7 +15,7 @@ Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대�
 
 Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을 확인한다. OCR이 없으면 포함된 고정 설치 파일로 준비하므로 대상 PC에서 인터넷은 필요하지 않다. 정상 기존 OCR은 재사용한다. 완료 화면과 `작업/install-preparation.txt`에서 결과를 읽고, 실패하면 원인을 해결한 뒤 관리자 권한으로 `BellalunAuto prepare-install`을 다시 실행한다. 실패한 Setup 종료 코드는3이다.
 
-빌드 PC에서는 `packaging/components.json`의 공식 고정 OCR 파일을 받아 해시를 검사한다. 오프라인 빌드는 `--ocr-installer <설치 파일>`로 지정한다. 포터블은 관리자 권한으로 `prepare-install`을 실행해 준비한다.
+빌드 PC에서는 `packaging/components.json`의 공식 고정 OCR 파일을 받아 해시를 검사한다. 오프라인 빌드는 `--ocr-installer <설치 파일>`로 지정한다. 배포용 실행 패키지는 Setup만 만든다.
 
 신규 PC 설정에는 탐지한 제품 경로와 OCR·Baseline 경로가 저장된다. 기존 설정은 그대로 보존하며 잘못된 OCR·Baseline 경로는 PC별 설정에서 수정한다. Baseline은 설치 폴더의 승인 백업 파일4개를 준비하는 뜻이며 설치 중 사용자 DB를 복원하지 않는다. 기존 전체 회귀 통과 기록은 해당 EXE에 한정하며 새 후보의 제품 회귀는 별도다.
 
@@ -33,9 +33,7 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 업데이트는 같은 AppId로 같은 위치에 수행하고, 설치 폴더의 `resources`는 새 판으로 통째로 바꾼다. 제거는 설치 프로그램이 추가했다고 기록한 PATH 토큰만 제거하며,
 `작업` 폴더의 설정·결과·증거를 지우지 않는다. Setup은 `작업` 폴더에만 Users 수정 권한을 준다. 설치 직후 제품 시험은 자동 실행하지 않는다.
 
-포터블 사용자는 ZIP을 전용 폴더에 풀고 `BellalunAuto.exe`를 실행한다.
-포터블 실행은 PATH/App Paths를 등록하지 않는다. 다른 설치/포터블 실행과의 제품 조작 잠금은 공유한다.
-포터블의 작업 폴더는 EXE 옆 `작업`이다. 그 밖의 프로그램 폴더 위치에는 쓰지 않는다.
+포터블 ZIP은 사용자 요청으로 생성·배포하지 않는다. 팀원은 Setup을 사용한다.
 
 ## 빌드 환경과 명령
 
@@ -183,17 +181,16 @@ Baseline/PROCEDURE.bak
 
 최종 배포 파일은 `release/<version>/`에 둔다. 같은 버전 폴더가 비어 있지 않으면 컴파일 전에 중단하므로 다음 배포는 버전을 올린다. 컴파일·검증에 쓰는 `--output`은 이 폴더와 구분한다. 현재 파일은 [설치 준비 검증](setup-preparation-validation.md)을 따른다.
 
-빌드 출력은 다음과 같다. Setup·ZIP·외부build-info·SHA256SUMS와 후보 표식만 `release/<version>/`로 옮긴다. standalone 폴더와 중간파일은 `--output`에 남는다.
+빌드 출력은 다음과 같다. Setup·외부build-info·SHA256SUMS와 후보 표식만 `release/<version>/`로 옮긴다. standalone 폴더와 중간파일은 `--output`에 남는다.
 
 - `BellalunAuto-<version>/`: 검사한 동일 standalone 배포 폴더.
-- `BellalunAuto-<version>-portable.zip`: 동일 폴더를 담은 포터블 ZIP.
 - `BellalunAuto-<version>-setup.exe`: 동일 폴더를 담은 설치 프로그램.
 - `build-info.json`: 버전, 소스 commit/dirty 여부, 도구/전이 의존성 버전, 자료 버전/호환성,
   생략 내역, 파일 목록·크기·SHA256. 배포 폴더 안에도 동일 내용을 둔다.
   실제 MinGW64 GCC의 절대 경로·`--version`·target·실행 파일 SHA256, Nuitka/SCons 보고서의
   원본 경로와 SHA256, 애플리케이션 EXE 해시도 기록한다. 보고서 원문은 배포 폴더에 넣지 않는다.
   Tcl/Tk는 8.6.15이며 init/tk 스크립트와 DLL/`_tkinter.pyd` 존재·버전·해시를 확인한다.
-- `SHA256SUMS.txt`: 설치 프로그램, ZIP, 외부 build-info의 SHA256.
+- `SHA256SUMS.txt`: 설치 프로그램과 외부 build-info의 SHA256.
 - `compile/`, `compile.log`, `installer.log`: 빌드 담당자용 중간 산출물이며 배포하지 않는다.
 
 build-info의 파일 목록은 자기 자신의 순환 해시를 제외한다. 외부 build-info의 해시는 SHA256SUMS에 기록한다.
