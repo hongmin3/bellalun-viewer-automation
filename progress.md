@@ -9,7 +9,8 @@
 - d0d3101·dirty=false의1.0.3 빌드(compile/tests 생략 없음)와 설치 종료0, 설치파일1,010개 해시 일치·기존 작업401개 누락0·config 보존을 확인했다. 설치 준비 요약만 갱신됐다.
 - 실제 EXE 준비 점검의 OCR 지문/WARN과 격리 합성 실패 안내 표시를 확인했다. 클릭 후 선택 변화는 미확인이므로 버튼 실제 동작 통과로 기록하지 않는다.
 - 설치용 `release/1.0.3/BellalunAuto-1.0.3-release.zip` 생성·CRC·내부4개 해시 일치 확인. 상세와 해시는 `docs/ocr-release-validation.md`.
-- 남은 작업: 같은 EXE의 기본기능+WU 전체 실행 범위 승인 답변 대기. DB 복원·제품 설정·USB 쓰기를 포함한 약4~4.5시간 계획을 제시했다. 승인 전 실행하지 않는다. 다른 PC 실측도 별도다.
+- 남은 작업: Issue #93으로 같은 EXE의 기본기능+WU 전체1회가 승인됐다. run541은 설치1,010개·EXE/Setup/ZIP 신원과qa-test-02 desktop 예약을 재확인했으나, 가용 메모리1 GiB 미만 반복으로 제품 시험 시작 전에 멈췄다. 기존 격리 미리보기만 종료해도803.9 MiB였다. 권장2 GiB 이상 확보 후 같은 승인 범위로 재개한다.
+- run541 UI: OCR WARN·원인/다음 행동과 합성 실패 안내 표시만 확인했다. 입력 후 선택 변화·폴더 열기·다시 점검·정상 복귀는 미검증이다. 기본27/WU13 미수행, DB/DICOM/USB 변경 없음, 신규 제품 보고서·게이트 없음. 상세는 `docs/ocr-release-validation.md`, 로컬 기록은 `work/installed-1.0.3-preflight-run541/preflight.json`. 다른 PC 실측은 별도다.
 
 ## 2026-11-06 VXvue·Bellalun 보고서 통일
 
