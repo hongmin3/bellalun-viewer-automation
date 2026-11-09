@@ -12,9 +12,9 @@
 
 HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 확인을 먼저 보여 주고, TC 검색·판정 필터·PASS 상세 접기·인쇄를 지원합니다. [비교·검증 기록](docs/report-unification.md)을 참고하세요. 1.0.3 설치판에는 이 개선이 포함됩니다.
 
-1.0.3 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업401개 누락0·config 보존을 확인했습니다. [설치 ZIP 위치·검증 범위](docs/ocr-release-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 새 EXE의 제품 전체 회귀는 아직 확인하지 않았습니다. 이전1.0.2 설치 준비 근거는 [과거 검증](docs/setup-preparation-validation.md)에 보존합니다.
+1.0.3 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업401개 누락0·config 보존을 확인했습니다. 이후 같은 설치판으로 기본기능과 실시간 WU 전체를 각1회 수행했으며, 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS6/FAIL4/SKIP3으로 **배포 게이트는 거부됐습니다**. [설치 ZIP 위치·현재 검증 결과](docs/ocr-release-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 OS 실측은 미확인입니다. 이전1.0.2 설치 준비 근거는 [과거 검증](docs/setup-preparation-validation.md)에 보존합니다.
 
-결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행과 Edge·Chrome 보고서 표시를 확인했으며, 전체 회귀와 속도 개선 입증은 보류 중입니다. [단독 검증 기록](docs/wf14-single-validation.md)을 참고하세요.
+결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행은 [단독 검증 기록](docs/wf14-single-validation.md), 현재1.0.3 전체 실행의 실패·HTML 확인은 [설치판 검증](docs/ocr-release-validation.md)에 구분합니다. 속도 개선 입증은 남아 있습니다.
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
 탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
@@ -24,8 +24,8 @@ HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 �
 받은 파일은 `BellalunAuto.exe verify-share <ZIP 경로>`로 무결성과 상대 링크를 점검합니다.
 준비 실패는 **준비 점검 → 실패 행 선택 → 설정 화면 열기 → 다시 점검** 순서로 해결합니다.
 지원 OS·다른 계정·설치 수명주기의 실제 확인 범위는 [인수표](docs/installation-acceptance.md)에 있습니다.
-소스173eb3c의 1.0.1 설치판으로 WU 호환성 전체를109.3분 수행해 PASS10/SKIP3, WU 범위 게이트14개 통과를 확인했습니다. [실행 결과와 제한](docs/wu-installed-validation.md)을 참고하세요. 기본기능 전체의 새 실행, UAC 취소·사람 검수·다른 OS와 계정은 미완료입니다.
-[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 통과했습니다. 후보9의 [WU_09 USB Export 중 제품 충돌](docs/wu09-export-crash-investigation.md)은 이번에는 재현되지 않고 USB 왕복이 통과했지만, 원인 수정이나 재발 해소를 확정하지 않습니다. 기존 UPS·XIPL 문제와 WU 보고서의 전체 소요 시간 표시 문제는 남아 있습니다.
+이전 소스173eb3c의1.0.1 설치판 WU는109.3분·PASS10/SKIP3·WU 게이트14개 통과였습니다. [당시 실행 결과와 제한](docs/wu-installed-validation.md)을 참고하세요. 이 성공을 현재1.0.3 결과로 사용하지 않습니다. UAC 취소·사람 검수·다른 OS와 계정의 미완료 범위는 유지합니다.
+[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 통과했습니다. 후보9의 [WU_09 USB Export 제품 충돌](docs/wu09-export-crash-investigation.md)은 이후1.0.1 실행에서 재현되지 않고 USB 왕복이 통과했지만 원인 수정·재발 해소는 미확정입니다. 현재1.0.3 WU09는 검색 옵션을 찾지 못해 USB 왕복을 완료하지 못했습니다. 기존 UPS·XIPL 결함과 이번에 관찰된 자동화 실패를 현재 검증 기록에서 구분합니다.
 
 수정 후에는 소스에서 단위시험·정적 검사를 수행하고, 필요한 UI 회귀는 빌드한 EXE로 실행합니다.
 영향 범위에 따라 단독 TC·기본기능·WU·두 묶음 전체를 선택하며, UI 실행 전에 대상·시간·DB 복원 여부를 설명하고 사용자 승인을 받습니다.

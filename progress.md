@@ -7,9 +7,11 @@
 - 실제 Tesseract로 합성 크롭10사례(일반/역상8·중복1·짧은근사1) 기대 결과 일치. 공백 언어 경로의 래퍼 따옴표 오류를 재현하고 TSV 직접 인자 전달로 해결했다.
 - 독립 검토의 WF03 증거 경로 초기화·저신뢰 경쟁 후보·기본 엔진 지문·캡처실패 분류를 회귀시험 후 수정했다.
 - d0d3101·dirty=false의1.0.3 빌드(compile/tests 생략 없음)와 설치 종료0, 설치파일1,010개 해시 일치·기존 작업401개 누락0·config 보존을 확인했다. 설치 준비 요약만 갱신됐다.
-- 실제 EXE 준비 점검의 OCR 지문/WARN과 격리 합성 실패 안내 표시를 확인했다. 클릭 후 선택 변화는 미확인이므로 버튼 실제 동작 통과로 기록하지 않는다.
+- 실제 EXE 준비 점검은 후속 run542/543에서 진입·행 선택 변화·OCR WARN 원인/다음 행동·다시 점검·정상 복귀를 확인했다. 별도 합성 사례의 최근 실패 선택과 증거 폴더 실제 열기도 확인했다. 실제 제품 OCR 통과와 구분한다.
 - 설치용 `release/1.0.3/BellalunAuto-1.0.3-release.zip` 생성·CRC·내부4개 해시 일치 확인. 상세와 해시는 `docs/ocr-release-validation.md`.
-- 남은 작업: Issue #93으로 같은 EXE의 기본기능+WU 전체1회가 승인됐다. run541은 설치1,010개·EXE/Setup/ZIP 신원과qa-test-02 desktop 예약을 재확인했으나, 가용 메모리1 GiB 미만 반복으로 제품 시험 시작 전에 멈췄다. 기존 격리 미리보기만 종료해도803.9 MiB였다. 권장2 GiB 이상 확보 후 같은 승인 범위로 재개한다.
+- run542 전체 각 1회 종료: qa-test-02, 같은 설치 EXE·d0d3101·dirty=false. 기본 11-09 21:06:10~23:05:26(119.3분) PASS19/FAIL6/MANUAL1/SKIP1, WU 23:05:34~11-10 00:43:38(98.1분) PASS6/FAIL4/SKIP3·live·chain_completed=true. 벽시계 217분28초, 양쪽 제품 종료1. 게이트 26개 중 24통과/2거부다. 신규 27/13행 보고서·종료 기록까지 대조했다.
+- 새 실패/미수행: WF03/08·WU08은 Patient ID를 정확히 읽어도 잘린 후보19번 때문에 unreadable로 거부됐다. Print Overlay·Header·서버 선택·DB 저장값·Film 표시 검증은 미수행이다. WF14/WU11은 기존 UPS 외 Print Overlay 목록 열거 실패, XIPL05/07·WU05는 로그/창 미확인, WU09는 검색 옵션 미확인으로 USB 왕복 미완료다. 기본 XIPL03 Step9의 기존 FAIL도 보존했다. 원인·제품 결함을 추정해 확정하지 않고 추가 수정/재실행은 하지 않았다.
+- 보존/보고: 사전402개·스냅샷351/307개·외부OCR202개 재해시 불일치0, config 유지·설치1,010개/EXE/Setup/ZIP 신원 일치. 옛 Export3개는 실제 작업 폴더에서 사라졌지만 사전 복사본에 보존됐다. Chrome의 HTML 요약·시간·필터·검색·링크 대상 누락0/페이지 오류0을 확인했다. 상세는 `docs/ocr-release-validation.md`, 로컬 기록은 `work/installed-1.0.3-full-run542/`다. 후보 배포는 보류하고 추가 수정·새 빌드·재실행은 별도 범위 확인이 필요하다. 다른 PC/OS는 미수행이다.
 - run541 UI: OCR WARN·원인/다음 행동과 합성 실패 안내 표시만 확인했다. 입력 후 선택 변화·폴더 열기·다시 점검·정상 복귀는 미검증이다. 기본27/WU13 미수행, DB/DICOM/USB 변경 없음, 신규 제품 보고서·게이트 없음. 상세는 `docs/ocr-release-validation.md`, 로컬 기록은 `work/installed-1.0.3-preflight-run541/preflight.json`. 다른 PC 실측은 별도다.
 
 ## 2026-11-06 VXvue·Bellalun 보고서 통일
