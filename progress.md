@@ -1,5 +1,14 @@
 # 진행 상태
 
+## 2026-11-10 1.0.4 후보 빌드·산출물 검증 완료
+
+- 기존 분리 실행 run546을 중복 실행·종료 없이 인수했다. 08:13:57~08:41:44 KST, 감독 finished/exit_code=0과 Nuitka·Inno 성공 로그를 확인했다. 소스98477088cafb9ad4e1cfcfeee955bd934cf1227e·dirty=false, compile/tests 생략 없음, PE subsystem2다. 제품 코드는 추가로 바꾸지 않았다.
+- `release/1.0.4/`의 후보 Setup·build-info·체크섬·후보 표식과 설치용 ZIP을 검증했다. standalone의 build-info 등재1,010개 파일 전수 크기/해시 일치, 별도 metadata1개를 포함해 총1,011개 파일이며 build-info 내외부 일치, 실제 PE 헤더2, Setup/build-info 체크섬 일치다. 새 standalone EXE의 `--version`·`--help`는 각각 종료0·stderr 없음이며 버전1.0.4와 도움말 내용을 확인했다.
+- ZIP은 별도 신규 경로에서 생성 후 최종 폴더로 옮겼다. 최종 위치에서 CRC5개·내부 SHA-256 4개와 원본 Setup/build-info/후보 표식 일치를 재확인했다. 기존 파일은 덮어쓰지 않았다.
+- 기존1.0.3 설치 EXE·build-info·Setup·ZIP은 인계 사전 해시4개와 일치한다. 설치 파일1,010개는 기존 build-info와 일치하며, 설정과 기존 배포 폴더까지 포함한1,018개 파일의 이번 인수 전후 크기/해시도 같다. 설치판 소스d0d3101을 유지한다.
+- 이번 로컬 전체 시험906 passed / 0 skipped / 293 subtests(49.88초), 정적7종·추적성50 TC 위반0을 확인했다. 정리64문서·삭제0, readiness failed0(기존WARN2), workspace failed0/gateFailures0, 문서 동기화·diff 검사를 확인했다. workspace의 verify 미설정 경고와 별개로 단위시험을 직접 실행했다. 검증 스크립트 독립 검토의 Critical/Important 지적은 없다.
+- 설치 업데이트·전체 UI·DB 복원·DICOM·USB 시험은 수행하지 않았다. 93번 재개·새 이슈·원격 예약도 하지 않았다. 게이트는 candidate/passed=false다. 실제 결함 해소나 배포 통과를 뜻하지 않는다. 상세 산출물·해시·다음 승인 범위는 `docs/reliability-2026-11-10.md`, 로컬 증거는 `work/terminal-build-1.0.4-20261110/`다.
+
 ## 2026-11-10 1.0.4 실패 경로 보강
 
 - 사용자 요청: 이전 실측 실패와 VXvue 조사 결과에 따라 코드를 수정하고 코드 검증한다. 새 전체 UI 회귀는 사용자 승인 전 실행하지 않는다.

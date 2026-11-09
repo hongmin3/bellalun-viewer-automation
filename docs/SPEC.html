@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="f214949fb45bfa296c9f3e68c50661cb2df732fe852c4da828b8978e20d0cb33">
+<meta name="spec-source-sha256" content="ce4a6df21c00979e9ccba8a445451e02845722548cbc1f93b591a6f39043d7f8">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -334,8 +334,9 @@ OCR 실패 증거의 기본 위치는 실행 Context의 Evidence/OCR이며 CWD �
 <section class="card kind-req" id="REQ-DIST-008">
 <h3><span class="idtag">REQ-DIST-008</span> 설치 파일 릴리즈 ZIP</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_zip.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>; <code>tests/test_release_zip.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a>: 소스9847708·dirty=false의 run546 후보 빌드를 생략 없이 완료했다. build-info 등재1,010개 파일과 Setup 체크섬, 새 EXE의 <code>--version</code>·<code>--help</code>, 설치용 ZIP의 CRC5개·내부 해시4개를 검증했다. 기존1.0.3 설치 파일·설정·Setup·ZIP의 보존을 확인했다. 설치 업데이트·제품 UI 회귀는 미수행이며 게이트 미통과 후보를 유지한다. 산출물과 해시는 <a href="../docs/reliability-2026-11-10.md">검증 기록</a>에 있다.</li>
 <li><span class="hist">1.0.3 — 2026-11-09</span> <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a>: Setup·메타데이터·체크섬·후보 표식을 설치용 릴리즈 ZIP으로 묶고 CRC·내부 SHA-256을 재검사한다. 포터블 실행판은 만들지 않는다.</li>
 </ul>
 </details>
@@ -681,8 +682,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-003">
 <h3><span class="idtag">REQ-DIST-003</span> 컴파일과 내부 자료 배포</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/build_distribution.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code></span></div>
-<details class="history"><summary>변경 이력 12</summary>
+<details class="history"><summary>변경 이력 13</summary>
 <ul>
+<li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>, <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a>: 소스9847708·dirty=false의 run546 후보 빌드를 생략 없이 완료했다. build-info 등재1,010개 파일과 Setup 체크섬, 새 EXE의 <code>--version</code>·<code>--help</code>, 설치용 ZIP의 CRC5개·내부 해시4개를 검증했다. 기존1.0.3 설치 파일·설정·Setup·ZIP의 보존을 확인했다. 설치 업데이트·제품 UI 회귀는 미수행이며 게이트 미통과 후보를 유지한다. 산출물과 해시는 <a href="../docs/reliability-2026-11-10.md">검증 기록</a>에 있다.</li>
 <li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 사용자 요청에 따라 포터블 ZIP 생성을 중단하고 Setup만 배포한다. 현재1.0.2 ZIP도 제거하고 체크섬 목록을 Setup·build-info로 갱신했다.</li>
 <li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 최종 배포 파일을 <code>release/&lt;버전&gt;/</code>에 모으도록 변경했다. 현재1.0.2 파일5개를 옮겼고 구버전 배포·컴파일 폴더18개를 제거했다. 빌드 기록과 실행 증거는 Git 밖에 보존한다.</li>
 <li><span class="hist">2026-11-05 (바로가기 실행의 준비 점검 OSError) · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a>: 수정 소스 <code>ee43d7d</code>로 후보7을 빌드해 후보6 위에 업데이트했다. 바로가기 실행의 준비 점검이 23행을 정상 표시했다. 이 PC의 TCP 표 이상으로 XIPL 9784 gate가 FAIL이라 제품 회귀는 실행하지 않았다.</li>

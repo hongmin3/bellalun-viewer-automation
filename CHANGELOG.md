@@ -2,6 +2,8 @@
 
 ## 1.0.4 후보 — 2026-11-10
 
+- REQ-DIST-003, REQ-DIST-008: 소스9847708·dirty=false의 run546 후보 빌드를 생략 없이 완료했다. build-info 등재1,010개 파일과 Setup 체크섬, 새 EXE의 `--version`·`--help`, 설치용 ZIP의 CRC5개·내부 해시4개를 검증했다. 기존1.0.3 설치 파일·설정·Setup·ZIP의 보존을 확인했다. 설치 업데이트·제품 UI 회귀는 미수행이며 게이트 미통과 후보를 유지한다. 산출물과 해시는 [검증 기록](docs/reliability-2026-11-10.md)에 있다.
+
 - REQ-OCR-001: 잘린 카탈로그 후보를 스크롤로 드러내고 HWND/Control ID를 재확인한 뒤 판독한다. 선택 직전에도 대상 컨트롤을 새로 조회한다. 경쟁 후보 제외·OCR 임계값 완화는 하지 않는다.
 - REQ-REGRESSION-001: 클릭한 콤보에 인접한 유일한 팝업과 필수 항목을 기다린다. Print Overlay는 DB 전체 항목0일 때만 존재하는 빈 Position 목록을 완료로 인정한다. Post Reconstruction은 두 필수 컨트롤을 함께 기다리며 이미 열린 창을 다시 누르지 않는다.
 - REQ-OCR-001, REQ-REGRESSION-001: 실행 Context의 OCR 증거 경로와 WF08 전용 경로를 연결했다. XIPL05 F8 대기 실패에는 로그 원문 없이 단계·영역·신호 개수를 남긴다. 해당 실패의 실제 원인 해소는 미확정이다.
