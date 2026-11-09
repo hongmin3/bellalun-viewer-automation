@@ -9,6 +9,34 @@ from PIL import Image
 from core import ocr_selection as selection
 
 
+def test_default_failure_evidence_uses_context_root_after_cwd_changes(tmp_path, monkeypatch):
+    token = selection.set_evidence_root(tmp_path / 'run')
+    try:
+        monkeypatch.chdir(tmp_path)
+        with mock.patch.object(selection, '_environment', return_value={}):
+            selection.save_failure({}, [], None, None)
+        assert list((tmp_path / 'run' / 'OCR').glob('ocr-*/selection.json'))
+        assert not (tmp_path / 'Evidence').exists()
+    finally:
+        selection.reset_evidence_root(token)
+
+
+def test_reveal_failure_never_returns_stale_selected_control(tmp_path):
+    calls = []
+    row = control()
+    def reveal(c):
+        calls.append(c)
+        if len(calls) > 1:
+            raise RuntimeError('row disappeared after scrolling')
+        return c
+    with mock.patch.object(selection.ImageGrab, 'grab', return_value=Image.new('RGB', (120, 30))), \
+         mock.patch.object(selection, 'run_ocr', return_value=data('Top')):
+        with pytest.raises(selection.SelectionError) as failure:
+            selection.select([row], 'Top', reveal=reveal, evidence_dir=tmp_path)
+    assert failure.value.reason == 'capture-failed'
+    assert list(tmp_path.rglob('selection.json'))
+
+
 def control(number=1):
     return SimpleNamespace(hwnd=number, ctrl_id=number, rect=(0, 0, 120, 30))
 

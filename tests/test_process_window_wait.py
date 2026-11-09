@@ -81,6 +81,31 @@ class CancelWindowTests(unittest.TestCase):
         self.assertEqual(ui.clicks, [])
 
 
+class PostReconstructionTests(unittest.TestCase):
+    def test_waits_for_both_window_controls_without_second_click(self):
+        ui = _FakeUi({vp.POST_RECON: lambda u: True,
+                      vp.PARAM_COMBO: lambda u: bool(u.clicks),
+                      2043: lambda u: u.polls > 12})
+        with _no_sleep(), mock.patch.object(vp, 'expand_tools'):
+            vp.open_post_reconstruction(ui)
+        self.assertEqual(len(ui.clicks), 1)
+
+    def test_already_open_is_not_toggled(self):
+        ui = _FakeUi({vp.PARAM_COMBO: lambda u: True, 2043: lambda u: True})
+        with mock.patch.object(vp, 'expand_tools'):
+            vp.open_post_reconstruction(ui)
+        self.assertEqual(ui.clicks, [])
+
+    def test_partial_window_times_out(self):
+        ui = _FakeUi({vp.POST_RECON: lambda u: True,
+                      vp.PARAM_COMBO: lambda u: True})
+        with _no_sleep(), mock.patch.object(vp, 'expand_tools'), \
+             mock.patch('time.time', side_effect=_clock()):
+            with self.assertRaisesRegex(RuntimeError, 'Post Reconstruction window did not open'):
+                vp.open_post_reconstruction(ui)
+        self.assertEqual(len(ui.clicks), 1)
+
+
 def _clock():
     t = [0.0]
 

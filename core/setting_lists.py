@@ -847,7 +847,7 @@ def _collect_print_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHE
                     "못했다")
                 complete = False
                 continue
-            result = collect(ui, hits[0], expected_count=None,
+            result = collect(ui, hits[0], expected_count=0 if expected == 0 else None,
                              exclude_ids=exclude_ids, notches=notches,
                              settle=settle, tesseract_exe=tesseract_exe)
             steps_total += result["steps"]

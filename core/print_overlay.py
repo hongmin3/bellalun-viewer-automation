@@ -283,6 +283,25 @@ def _ocr(control, tesseract_exe):
     return uitext.ocr(control, tesseract_exe)
 
 
+def _reveal_catalogue_row(ui, catalogue, row, up, down):
+    """잘린 후보를 버리지 않고 전부 보인 뒤 재조회한 컨트롤을 돌려준다."""
+    for attempt in range(51):
+        fresh = list({c.hwnd: c for c in children(catalogue.hwnd, 5)
+                      if c.hwnd == row.hwnd and c.ctrl_id == row.ctrl_id
+                      and c.text == 'ListItem'}.values())
+        if len(fresh) != 1:
+            raise RuntimeError('Print Overlay catalogue row changed during scroll')
+        current = fresh[0]
+        l, t, r, b = current.rect
+        cl, ct, cr, cb = catalogue.rect
+        if current.visible and cl <= l < r <= cr and ct <= t < b <= cb:
+            return current
+        if attempt == 50 or b - t > cb - ct or l < cl or r > cr:
+            break
+        ui.click(up if t < ct else down, settle=.08)
+    raise RuntimeError('Print Overlay catalogue row could not be fully revealed')
+
+
 def _catalogue_row(ui, list_id, index, expected, tesseract_exe, evidence_dir=None):
     lists = _visible(ui, list_id)
     if not lists:
@@ -317,8 +336,10 @@ def _catalogue_row(ui, list_id, index, expected, tesseract_exe, evidence_dir=Non
     rows = sorted({c.hwnd: c for c in children(catalogue.hwnd, 5)
                    if c.text == "ListItem" and c.visible}.values(),
                   key=lambda c: c.rect[1])
+    def reveal(row):
+        return _reveal_catalogue_row(ui, catalogue, row, up[0], down[0])
     row, detail = ocr_selection.select(rows, expected, tesseract_exe,
-                                       evidence_dir=evidence_dir)
+                                       evidence_dir=evidence_dir, reveal=reveal)
     return row, detail
 
 
@@ -346,12 +367,8 @@ def _pick_combo_by_text(ui, control_id, wanted, tesseract_exe, what, evidence_di
         raise RuntimeError(f"{what} 콤보({control_id})를 찾지 못했습니다"
                            "(비활성일 수 있습니다).")
     ui.click(hits[0], settle=1.0)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    if not popups:
-        raise RuntimeError(f"{what} 콤보({control_id}) 목록이 열리지 않았습니다.")
-    items = sorted({c.hwnd: c for c in children(popups[0].hwnd, 4)
-                    if c.visible and c.text == "TextButton"}.values(),
-                   key=lambda c: c.rect[1])
+    from .combo_popup import wait_items
+    items = wait_items(ui, hits[0], children)
     target, detail = ocr_selection.select(items, wanted, tesseract_exe,
                                          match='exact', evidence_dir=evidence_dir)
     ui.click(target, settle=1.0)

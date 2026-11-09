@@ -407,7 +407,9 @@ def run(ctx):
         if not flows.ensure_patient_screen(ui):
             raise RuntimeError("Patient screen is not ready")
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
-        saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess)
+        overlay_evidence = os.path.join(ctx.evidence_root, 'Flow', '08_Print', 'OCR')
+        saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess,
+                                                  evidence_dir=overlay_evidence)
         result.assert_true(
             1, "DICOM Print Overlay 6개 항목을 Header/Top/Bottom에 저장",
             print_overlay.matches_expected_areas(saved["items"]),
@@ -437,7 +439,7 @@ def run(ctx):
                           if x["kind"] == "Print")
         applied = print_overlay.apply_to_print_server(
             ui, ctx.db, print_spec["name"], saved["overlay"]["Key"],
-            tesseract_exe=tess)
+            tesseract_exe=tess, evidence_dir=overlay_evidence)
         result.assert_equal(2, "PRINT_TEST에 Print Overlay 적용",
                             saved["overlay"]["Key"], applied.get("Overlay"),
                             note=f"saved row: {applied}")

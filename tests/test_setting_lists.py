@@ -785,6 +785,34 @@ class CollectPrintOverlayTest(unittest.TestCase):
         self.assertEqual(result["signatures"], [])
         self.assertTrue(any("찾지 못했다" in r for r in result["reasons"]))
 
+    def test_db_zero_is_passed_to_existing_empty_position_lists(self):
+        name = self._fake_control(101)
+        name.text = 'ListItem'
+        ui = mock.Mock()
+        ui.by_id.side_effect = lambda cid: [self._fake_control(cid)]
+        counts = []
+        def collect(ui, pane, expected_count=None, **kw):
+            counts.append(expected_count)
+            return {'signatures': [], 'steps': 0, 'complete': expected_count == 0,
+                    'reasons': [], 'details': {}}
+        with mock.patch.object(setting_lists, 'children', return_value=[name]), \
+             mock.patch.object(setting_lists, 'expected_row_count', return_value=0), \
+             mock.patch.object(setting_lists, 'collect', side_effect=collect):
+            result = setting_lists._collect_print_overlay(ui, mock.Mock())
+        self.assertEqual(counts, [0, 0, 0])
+        self.assertTrue(result['complete'])
+
+    def test_db_zero_does_not_hide_missing_position_control(self):
+        name = self._fake_control(101)
+        name.text = 'ListItem'
+        ui = mock.Mock()
+        ui.by_id.side_effect = lambda cid: [self._fake_control(cid)] if cid == setting_lists.PRINT_OVERLAY_NAME_LIST else []
+        with mock.patch.object(setting_lists, 'children', return_value=[name]), \
+             mock.patch.object(setting_lists, 'expected_row_count', return_value=0):
+            result = setting_lists._collect_print_overlay(ui, mock.Mock())
+        self.assertFalse(result['complete'])
+        self.assertEqual(len(result['reasons']), 3)
+
 
 class SweepRoutesPhysicianAndPrintOverlayTest(unittest.TestCase):
     """`sweep()`이 `patient.physician`/`dicom.print_overlay` 키에서 전용

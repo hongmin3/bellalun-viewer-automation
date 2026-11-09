@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import json
 import hashlib
 import re
 import subprocess
@@ -1619,16 +1620,29 @@ def _qc_launch_and_expose(ctx, ui, tile_xy, tag, log_mark, click_time, log_ready
     qc_win = _qc_window(ui, opened[0])
     ui.click(_canvas_point(qc_win), settle=.5)
     ui.key("F8", settle=1)
-    end = time.time() + 30
+    started = time.time()
+    end = started + 30
     ready = False
+    raw_log = log_text = ''
     while time.time() < end:
-        log_text = _log_lines_from(_viewer_log_since(log_mark), click_time)
+        raw_log = _viewer_log_since(log_mark)
+        log_text = _log_lines_from(raw_log, click_time)
         if log_ready(log_text):
             ready = True
             break
         time.sleep(.5)
     if not ready:
-        raise flows.FlowError(f"{tag}: F8 촬영 후 파라미터 적용 로그를 확인하지 못했습니다.")
+        # 로그 원문/환자 정보를 복제하지 않고 대기 단계와 신호 유무를 남긴다.
+        diagnostic = {'phase': 'waiting-parameter-log', 'f8_sent': True,
+                      'qc_window': list(qc_win.rect),
+                      'canvas_point': list(_canvas_point(qc_win)),
+                      'elapsed_seconds': round(time.time() - started, 2),
+                      'log_bytes': len(raw_log.encode('utf-8')),
+                      'filtered_lines': len(log_text.splitlines())}
+        path = _ev(ctx, f'TC_XIPL_compatibility_05_{tag}_wait.json')
+        Path(path).write_text(json.dumps(diagnostic, indent=2) + '\n', encoding='utf-8')
+        raise flows.FlowError(f"{tag}: F8 촬영 후 파라미터 적용 로그를 확인하지 못했습니다. "
+                              f"대기 진단={path}")
     shot = _ev(ctx, f"TC_XIPL_compatibility_05_{tag}_captured.png")
     vp.capture_viewer_window(ui, shot)
     return shot

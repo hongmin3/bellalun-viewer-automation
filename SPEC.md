@@ -63,6 +63,12 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 임의 순번 선택이나 전역 유사도 완화로 통과시키지 않는다. 저장 결과의 기존 DB 교차 검증과
 필름 Header/Top/Bottom 화면 검증은 유지한다. 기존 오버레이/서버도 이름으로 선택한다.
 
+카탈로그에서 잘린 후보는 제외하지 않고 스크롤 후 온전한 영역을 다시 조회해 캡처한다.
+각 후보 캡처와 선택 직전에 HWND·Control ID를 확인하며 소실·식별자 변경·스크롤 한계는
+클릭하지 않고 실패 증거에 남긴다. 콤보는 클릭한 위치에 인접한 유일한 ItemList의
+항목 준비를 제한 시간 동안 기다리며, 다른 팝업이나 경합 상태를 선택하지 않는다.
+OCR 실패 증거의 기본 위치는 실행 Context의 Evidence/OCR이며 CWD 변경에 영향받지 않는다.
+
 기준 OCR은 배포에 포함된 Tesseract 5.5.3이다. 정상 기존 OCR·PC별 설정은 덮어쓰지 않으며
 기준과 다른 버전은 WARN과 실행파일·eng.traineddata SHA-256으로 식별한다.
 준비 시 `ocr-runtime.json`에 지문을 저장한다. 지문에는 개인 절대경로를 넣지 않는다.
@@ -73,6 +79,11 @@ TEST-OCR-001: `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`,
 `tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py`에서 기본/대체 판독,
 동점·짧은 문구·낮은 신뢰도·빈 후보·엔진 오류·증거 저장·기존 설정 보존과 재판독을 확인한다.
 실제 제품 UI 검증은 REQ-REGRESSION-002에 따라 빌드 EXE로 별도 승인 후 수행한다.
+
+`tests/test_combo_popup.py`는 연결된 팝업의 지연·경합·필수 항목 미로딩과 시간초과를,
+`tests/test_setting_lists.py`는 DB0/미확인/컨트롤 미존재를 구분하는 기존 전수 수집을,
+`tests/test_process_window_wait.py`는 처리창의 부분 준비·지연·시간초과를 확인한다.
+`tests/test_qc_wait_diagnostics.py`는 XIPL05 로그 대기 실패의 단계 진단과 원문 비복제를 확인한다.
 
 ### REQ-OCR-002 준비 점검과 OCR 실패 안내
 
@@ -900,7 +911,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
-| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `tests/workflow03.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py` | implemented |
+| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | implemented |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | implemented |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |

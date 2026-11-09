@@ -2998,15 +2998,15 @@ def examined_search(ui, patient_id, wait=3):
             f"{EXAMINED_SEARCH['text']}/{EXAMINED_SEARCH['button']})을 "
             "찾지 못했습니다.")
     ui.click(field[0], settle=.5)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    options, seen = [], set()
-    for c in children(popups[0].hwnd, 3) if popups else []:
-        if c.text == "TextButton" and c.visible and c.hwnd not in seen:
-            seen.add(c.hwnd)
-            options.append(c)
+    from .combo_popup import wait_items
+    try:
+        options = wait_items(ui, field[0], children,
+                             required_id=EXAMINED_SEARCH['patient_id_option'])
+    except RuntimeError as error:
+        raise FlowError(f'Patient ID 검색 옵션을 찾지 못했습니다: {error}') from error
     option = [c for c in options
               if c.ctrl_id == EXAMINED_SEARCH["patient_id_option"]]
-    if not option:
+    if len(option) != 1:
         raise FlowError("Patient ID 검색 옵션을 찾지 못했습니다.")
     ui.click(option[0], settle=.5)
     ui.set_text(edit[0], patient_id)

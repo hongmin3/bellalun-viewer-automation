@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
+from contextvars import ContextVar
 import csv
 import io
 import json
@@ -16,6 +17,15 @@ import subprocess
 from PIL import Image, ImageGrab, ImageOps
 
 PROFILES = (('auto', 3, 7), ('invert', 4, 7), ('binary', 4, 6), ('auto', 4, 11))
+_evidence_root = ContextVar('ocr_evidence_root', default=None)
+
+
+def set_evidence_root(root):
+    return _evidence_root.set(Path(root).resolve())
+
+
+def reset_evidence_root(token):
+    _evidence_root.reset(token)
 
 
 def normalize(text):
@@ -129,7 +139,9 @@ def _environment(executable):
 
 
 def save_failure(detail, images, executable, evidence_dir):
-    base = Path(evidence_dir) if evidence_dir else Path('Evidence') / 'OCR'
+    root = _evidence_root.get()
+    base = (Path(evidence_dir) if evidence_dir else
+            (root / 'OCR' if root else Path(tempfile.gettempdir()) / 'BellalunAuto' / 'OCR'))
     base.mkdir(parents=True, exist_ok=True)
     target = Path(tempfile.mkdtemp(prefix='ocr-', dir=base))
     for index, image in enumerate(images):
@@ -145,21 +157,28 @@ def save_failure(detail, images, executable, evidence_dir):
     detail['evidence'] = str(target)
 
 
-def select(controls, wanted, executable=None, *, evidence_dir=None, match='fuzzy'):
+def select(controls, wanted, executable=None, *, evidence_dir=None, match='fuzzy',
+           reveal=None):
     """유일한 후보만 반환한다. OCR 실패/경합이면 증거를 남기고 예외를 낸다."""
     if match not in {'fuzzy', 'exact', 'contains', 'prefix'}:
         raise ValueError('지원하지 않는 OCR 일치 방식')
     # 같은 HWND가 중복 열거된 것은 별도 후보가 아니다.
     controls = list({control.hwnd: control for control in controls}.values())
-    images, reads, rectangles = [], [], []
-    for control in controls:
-        rectangles.append(list(control.rect))
+    images, reads, rectangles, capture_errors = [], [], [], []
+    for index, control in enumerate(controls):
         try:
+            if reveal is not None:
+                fresh = reveal(control)
+                if (fresh.hwnd, fresh.ctrl_id) != (control.hwnd, control.ctrl_id):
+                    raise ValueError('판독 중 후보 식별자 변경')
+                control = controls[index] = fresh
             image = ImageGrab.grab(bbox=tuple(control.rect), all_screens=True)
             if image.width < 1 or image.height < 1:
                 raise ValueError('빈 컨트롤 영역')
-        except Exception:
+        except Exception as error:
             image = None
+            capture_errors.append({'candidate': index, 'error': type(error).__name__})
+        rectangles.append(list(control.rect))
         images.append(image)
         reads.append([])
     selected, scores, reason = None, [], 'unreadable'
@@ -173,9 +192,18 @@ def select(controls, wanted, executable=None, *, evidence_dir=None, match='fuzzy
         if selected is not None and all(image is not None for image in images):
             break
         selected = None
+    if selected is not None and reveal is not None:
+        try:
+            fresh = reveal(controls[selected])
+            if (fresh.hwnd, fresh.ctrl_id) != (controls[selected].hwnd, controls[selected].ctrl_id):
+                raise ValueError('선택 직전 후보 식별자 변경')
+            controls[selected] = fresh
+        except Exception as error:
+            capture_errors.append({'candidate': selected, 'error': type(error).__name__})
+            selected, reason = None, 'capture-failed'
     detail = {'schema_version': 1, 'wanted': wanted, 'match': match,
               'attempts': attempts, 'scores': scores, 'reads': reads,
-              'rectangles': rectangles, 'reason': reason}
+              'rectangles': rectangles, 'reason': reason, 'capture_errors': capture_errors}
     if selected is None:
         if any(image is None for image in images):
             detail['reason'] = reason = 'capture-failed'

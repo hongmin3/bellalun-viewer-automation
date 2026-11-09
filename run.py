@@ -58,6 +58,8 @@ class Context:
             self.cfg.get("data_dir", r"D:\BellalunData"))
         self.db = BellalunDb(self.cfg.get("sql_server", r".\BELLALUN"))
         self.evidence_root = os.path.join(self.root, "Evidence")
+        from core.ocr_selection import set_evidence_root
+        set_evidence_root(self.evidence_root)
         self.reports_root = os.path.join(self.root, "Reports")
 
 

@@ -1000,11 +1000,25 @@ def open_process(ui, timeout=30):
     raise RuntimeError("Viewer Image Processing window did not open")
 
 
-def open_post_reconstruction(ui):
+def open_post_reconstruction(ui, timeout=30):
+    def ready():
+        return bool(_visible(ui, PARAM_COMBO) and _visible(ui, 2043))
+    if ready():
+        return
     expand_tools(ui)
-    ui.click(_visible(ui, POST_RECON)[0], settle=3)
-    if not _visible(ui, PARAM_COMBO) or not _visible(ui, 2043):
-        raise RuntimeError("Viewer Post Reconstruction window did not open")
+    button = _wait_visible(ui, POST_RECON, timeout / 2)
+    if button:
+        ui.click(button[0], settle=.5)
+        end = time.time() + timeout / 2
+        while True:
+            if ready():
+                return
+            if time.time() >= end:
+                break
+            time.sleep(.5)
+    raise RuntimeError("Viewer Post Reconstruction window did not open; "
+                       f"button={bool(button)}, parameter={bool(_visible(ui, PARAM_COMBO))}, "
+                       f"reconstruction={bool(_visible(ui, 2043))}")
 
 
 def _parameter_name_key(value):
