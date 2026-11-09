@@ -10,9 +10,9 @@
 실패한 컨트롤 크롭과 OCR 환경을 남겨 PC별 차이를 비교합니다. [OCR 점검 방법](docs/ocr-portability.md)을 참고하세요.
 릴리즈 ZIP은 Setup 설치 파일을 묶는 형식입니다. 새 EXE의 실제 UI 검증은 해당 빌드의 검증 기록을 따릅니다.
 
-소스의 HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 확인을 먼저 보여 주고, TC 검색·판정 필터·PASS 상세 접기·인쇄를 지원합니다. [비교·검증 기록](docs/report-unification.md)을 참고하세요. 현재1.0.2 설치 파일은 이 리포트 변경 전 빌드입니다.
+HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 확인을 먼저 보여 주고, TC 검색·판정 필터·PASS 상세 접기·인쇄를 지원합니다. [비교·검증 기록](docs/report-unification.md)을 참고하세요. 1.0.3 설치판에는 이 개선이 포함됩니다.
 
-1.0.2 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업381개 보존을 확인했습니다. [설치 파일 위치·검증 범위](docs/setup-preparation-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 새 EXE의 제품 전체 회귀는 아직 확인하지 않았습니다.
+1.0.3 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업401개 누락0·config 보존을 확인했습니다. [설치 ZIP 위치·검증 범위](docs/ocr-release-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 새 EXE의 제품 전체 회귀는 아직 확인하지 않았습니다. 이전1.0.2 설치 준비 근거는 [과거 검증](docs/setup-preparation-validation.md)에 보존합니다.
 
 결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행과 Edge·Chrome 보고서 표시를 확인했으며, 전체 회귀와 속도 개선 입증은 보류 중입니다. [단독 검증 기록](docs/wf14-single-validation.md)을 참고하세요.
 
