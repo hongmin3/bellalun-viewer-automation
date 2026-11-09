@@ -17,7 +17,7 @@ OCR 유사도0.85·차순위차0.15·신뢰도35·최대4판독, 짧은 문구 �
 
 재현 테스트의 실패를 확인한 후 수정했고 독립 검토에서 중복 HWND 재조회 결함을 추가로 재현·수정했다. 전체 단위시험과 정적 검사 결과는 progress.md에 기록한다. 스크롤과 팝업의 실제 제품 동작, DB 저장값·필름 표시, USB 완료는 코드 시험만으로 통과 판정하지 않는다.
 
-소스 시험은903 passed / 3 skipped / 293 subtests다. 건너뛴3건은 기존 조건이며 새 실패를 SKIP으로 돌리지 않았다. 바이트코드 컴파일·정적 검사·추적성 TC50건 위반0·SPEC readiness를 확인했다. 독립 검토에서 추가 Critical/Important는 발견하지 못했다.
+별도 worktree 시험903 passed/3 skipped 후, 정규 main에서는 기존 Inno6.7.3 위치를 명시해906 passed / 0 skipped / 293 subtests를 확인했다. 고정된 로컬 Inno 경로만 찾던 시험에 BELLALUN_TEST_ISCC 환경변수 선택을 추가했으며 기존 컴파일러로 버전 probe·설치 스크립트 컴파일 검사도 실제 수행했다. 바이트코드 컴파일·정적7종·추적성 TC50건 위반0·SPEC readiness·workspace gate를 확인했다(기존 경고 유지). 독립 검토에서 추가 Critical/Important는 발견하지 못했다.
 
 기존1.0.3 설치판·Setup·ZIP·원본 보고서·증거는 그대로 보존한다. 해당 실제 전체 실행과 거부된 배포 게이트는 [과거 검증](ocr-release-validation.md)을 따른다. 새 후보의 UI 실행은 아직 승인받지 않았으며 배포 PASS가 아니다.
 

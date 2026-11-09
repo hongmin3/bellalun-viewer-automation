@@ -6,7 +6,7 @@
 - OCR 카탈로그의 잘린 후보를 스크롤로 드러내고 HWND/Control ID 재조회 후 판독·선택한다. 동일 HWND 중복 열거는 제거하며 경쟁 후보를 버리거나 임계값을 낮추지 않는다.
 - 클릭 콤보와 인접한 유일한 팝업/필수 항목 준비 대기, DB 전체 항목0일 때만 빈 Position 목록 인정, Post Reconstruction 두 필수 컨트롤 준비 대기와 이미 열린 상태 처리를 구현했다.
 - 실행 Context의 OCR 증거 경로와 WF08 명시 경로를 연결했다. XIPL05 F8 대기 실패의 단계·영역·소요·로그 신호 수를 남긴다. 이 항목의 제품 실패 원인 해소는 아직 미확정이다.
-- 재현 RED→GREEN과 독립 검토를 수행했다. 검토 중 중복 HWND 재조회 결함을 추가 재현·수정했으며 재검토의 추가 Critical/Important 지적은 없다. 전체 소스 시험903 passed / 3 skipped / 293 subtests, 바이트코드 컴파일·정적 검사·추적성 TC50건 위반0·SPEC readiness 통과(기존 경고 유지)다. 후보 빌드·실제 UI 결과는 별도다.
+- 재현 RED→GREEN과 독립 검토를 수행했다. 검토 중 중복 HWND 재조회 결함을 추가 재현·수정했으며 재검토의 추가 Critical/Important 지적은 없다. 별도 worktree903 passed/3 skipped 후 정규 main에서 기존 Inno6.7.3 경로를 명시해906 passed / 0 skipped / 293 subtests를 확인했다. 바이트코드 컴파일·정적7종·추적성 TC50건 위반0·SPEC readiness·workspace gate 통과(기존 경고 유지)다. 후보 빌드·실제 UI 결과는 별도다.
 - 기존1.0.3 설치판·Setup·ZIP·원본 결과와 기존 결함 허용 목록/수동 범위는 보존한다. 새 UI/DB 복원/DICOM/USB 시험은 미수행이다. 변경 영향이 공용이므로 새 후보 기본27+실시간WU13 각1회가 필요하다. 상세는 `docs/reliability-2026-11-10.md`.
 
 ## 2026-11-09 OCR 이식성과 준비 점검 고도화

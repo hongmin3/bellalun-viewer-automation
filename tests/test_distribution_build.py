@@ -148,14 +148,14 @@ class DistributionBuildTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == 'nt', 'Windows Inno version probe')
     def test_iscc_preprocessor_version_probe_works_without_building_an_installer(self):
-        iscc = ROOT / 'work/InnoSetup6/ISCC.exe'
+        iscc = Path(os.environ.get('BELLALUN_TEST_ISCC') or ROOT / 'work/InnoSetup6/ISCC.exe')
         if not iscc.is_file():
             self.skipTest('optional local Inno compiler not installed')
         self.assertEqual(self.builder.inno_version(iscc), '6.7.3')
 
     @unittest.skipUnless(os.name == 'nt', 'Windows Inno compiler validation')
     def test_installer_pascal_is_accepted_by_the_pinned_compiler(self):
-        iscc = ROOT / 'work/InnoSetup6/ISCC.exe'
+        iscc = Path(os.environ.get('BELLALUN_TEST_ISCC') or ROOT / 'work/InnoSetup6/ISCC.exe')
         if not iscc.is_file():
             self.skipTest('optional local Inno compiler not installed')
         payload = self.home / 'synthetic compiler-only payload'

@@ -68,6 +68,8 @@ python -m pytest tests -q
 일치, `except` 블록 안의 PASS 기록, 공유 `ctypes.windll` 함수의 `restype`·`argtypes` 변경을 검사한다.
 기준선은 비어 있다(`core/ui.py`의 기존 6건은 전용 `WinDLL` 사본으로 옮겼다). 새 위반이 생기면 실패한다.
 
+기존 Inno Setup이 `work/InnoSetup6/ISCC.exe` 밖에 있으면 `BELLALUN_TEST_ISCC`에 해당 실행파일 경로를 지정한다. 배포 빌드 시험의 실제 컴파일러 버전 probe·설치 스크립트 검사에 사용하며 새 도구를 설치하지 않는다.
+
 ## Viewer 조작 없는 실측 명령
 
 ```powershell
