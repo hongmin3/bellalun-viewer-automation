@@ -184,6 +184,8 @@ def workflow_03(ctx):
     patient_id = (ctx.cfg.get("xipl") or {}).get(
         "test_patient_id", "DATA_FLOW_MWL_01")
     try:
+        evidence = os.path.join(ctx.evidence_root, "Flow", "03_Overlay")
+        os.makedirs(evidence, exist_ok=True)
         session = vp.open_test_study(ctx)
         ui = session["ui"]
 
@@ -216,12 +218,12 @@ def workflow_03(ctx):
 
         # --- Step 2: Print Overlay 등록 및 Print에서 선택 --------------
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
-        po = print_overlay.ensure_print_overlay(ui, ctx.db, tess)
+        po = print_overlay.ensure_print_overlay(ui, ctx.db, tess, evidence_dir=evidence)
         print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
                           if x["kind"] == "Print")
         applied = print_overlay.apply_to_print_server(
             ui, ctx.db, print_spec["name"], po["overlay"]["Key"],
-            tesseract_exe=tess)
+            tesseract_exe=tess, evidence_dir=evidence)
         # 개정본은 "Print Overlay를 추가한다"(Step 2)와 "Print 설정에서 선택한다"
         # (Step 3)를 별개 단계로 둔다. 한 판정으로 묶으면 어느 쪽이 실패했는지
         # 리포트에서 구분되지 않으므로 나눠서 기록한다.
@@ -293,8 +295,6 @@ def workflow_03(ctx):
             actual=study,
             note="DATA.STUDY/PATIENT로 대조. 열린 검사의 환자정보가 Expected 4다.")
 
-        evidence = os.path.join(ctx.evidence_root, "Flow", "03_Overlay")
-        os.makedirs(evidence, exist_ok=True)
         shot = os.path.join(evidence, "05_image_overlay.png")
         win = ui.main_window()
         if win:

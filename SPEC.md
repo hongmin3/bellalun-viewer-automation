@@ -5,8 +5,8 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.3.0 |
-| Project Version | BellalunAuto 1.0.1; Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-05 |
+| Project Version | BellalunAuto 1.0.3; Viewer 제품 릴리스 변경 없음 |
+| Last Updated | 2026-11-09 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -50,6 +50,45 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 - 근거가 없는 PASS, 미확정 Release Note/OS 기준값의 추정, WU_09 완료의 미검증 승격.
 - 승인된 시험 흐름 밖의 DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.
 - 회귀 밖 독립 설치 패키지 점검을 기본 회귀에 임의 편입하는 작업.
+
+### REQ-OCR-001 PC 간 OCR 판독과 선택 증거
+
+프린트 오버레이 카탈로그·Header 콤보·서버 오버레이 선택은 공통 판독 경로를 사용한다.
+컨트롤별 한 번 캡처한 이미지에 기본 판독을 먼저 적용하고, 불확실하면 반전·이진화와
+다른 문자 배치 모드로 최대 4가지 판독을 수행한다. 선택은 정규화한 문구가 유일하고,
+유사도 0.85 이상·차순위와 0.15 이상 차이·문자 신뢰도 35 이상일 때만 허용한다.
+4자 이하 문구는 완전일치만 허용하며 HVL의 관찰된 AVL 오독만 명시적으로 정규화한다.
+후보가 모호하거나 판독 실패이면 클릭하지 않고 원본 크롭·전처리 크롭·판독문·신뢰도·
+후보 점수·컨트롤 영역·화면 환경과 OCR 실행파일/언어 데이터 지문을 고유 증거 폴더에 남긴다.
+임의 순번 선택이나 전역 유사도 완화로 통과시키지 않는다. 저장 결과의 기존 DB 교차 검증과
+필름 Header/Top/Bottom 화면 검증은 유지한다. 기존 오버레이/서버도 이름으로 선택한다.
+
+기준 OCR은 배포에 포함된 Tesseract 5.5.3이다. 정상 기존 OCR·PC별 설정은 덮어쓰지 않으며
+기준과 다른 버전은 WARN과 실행파일·eng.traineddata SHA-256으로 식별한다.
+준비 시 `ocr-runtime.json`에 지문을 저장한다. 지문에는 개인 절대경로를 넣지 않는다.
+화면 지원 범위는 1920×1080·96 DPI·주 모니터 보호를 유지한다.
+저장 캡처 manifest를 입력하는 오프라인 재판독 도구로 PC별 판독 성공·모호함·실패를 비교한다.
+
+TEST-OCR-001: `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`,
+`tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py`에서 기본/대체 판독,
+동점·짧은 문구·낮은 신뢰도·빈 후보·엔진 오류·증거 저장·기존 설정 보존과 재판독을 확인한다.
+실제 제품 UI 검증은 REQ-REGRESSION-002에 따라 빌드 EXE로 별도 승인 후 수행한다.
+
+### REQ-OCR-002 준비 점검과 OCR 실패 안내
+
+자동화 프로그램의 준비 점검은 OCR 기준 버전과 실제 엔진·언어 데이터 지문을 표시하고,
+정상 다른 버전은 WARN, 실행 또는 언어 파일 누락은 FAIL로 구분한다. 최근 OCR 실패가 있으면
+대상 문구·실패 종류·재시도 수·해결 행동을 안내하고 해당 증거 폴더를 열 수 있게 한다.
+환자 원문이나 전체 화면은 요약에 복사하지 않는다. 기존 PC별 설정을 자동 수정하지 않는다.
+TEST-OCR-002: `tests/test_ocr_diagnostics.py`에서 준비 점검과 실패 안내를 확인한다.
+
+### REQ-DIST-008 설치 파일 릴리즈 ZIP
+
+내부 Setup과 build-info·체크섬·후보 표식을 하나의 설치용 ZIP으로 묶는다.
+포터블 실행판은 생성하지 않는다. 입력 해시와 버전·파일 이름을 대조하고 추가 자료·링크·
+경로 탈출·기존 출력 덮어쓰기를 거부한다. 사용 안내와 모든 내부 파일의 SHA-256을 포함하고
+생성 직후 ZIP CRC와 내부 해시를 다시 확인한다. UI 미검증 후보는 후보 표시를 보존한다.
+TEST-DIST-008: `tests/test_release_zip.py`에서 변조·누락·추가파일·경로·후보 표식과 실제 CLI를 검증한다.
 
 ## 3. 시스템 구성
 
@@ -832,6 +871,24 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 설치판 절차: 실패 행의 원인·해결 방법과 설정 화면 열기를 확인하고, 사람이 수정한 뒤 다시 점검한다. 해결 버튼만으로 준비 완료나 시험 실행이 되지 않는지 확인한다.
 - Expected Result: 같은 점검 기준과 실행 차단 조건을 유지하고 설정 값을 대신 바꾸지 않는다. 실패 행 선택·설정 열기·재점검 GUI의 실측은 별도로 남긴다.
 
+### TEST-OCR-001 OCR 판독·선택·환경 기록
+
+- 대상: REQ-OCR-001.
+- 절차: `tests/test_ocr_selection.py`, `tests/test_print_overlay_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_ocr_replay.py`를 실행한다.
+- 기대: 모호한 후보·저신뢰 경쟁 후보·빈 캡처는 선택하지 않고 실패 증거를 저장한다. WF03에서 첫 Print 호출 전 증거 경로가 준비된다. 저장 캡처의 선택/거부 결과를 같은 판독 경로로 비교한다. 기존 OCR·PC별 설정은 보존한다.
+
+### TEST-OCR-002 준비 점검의 OCR 안내
+
+- 대상: REQ-OCR-002.
+- 절차: `tests/test_ocr_diagnostics.py`와 기존 준비 점검 시험을 실행한다.
+- 기대: 기준 버전은 OK, 정상 다른 버전은 WARN, 실행/언어 누락은 FAIL이며 최근 실패의 다음 행동과 증거 폴더를 안내한다.
+
+### TEST-DIST-008 설치용 ZIP 무결성
+
+- 대상: REQ-DIST-008.
+- 절차: `tests/test_release_zip.py`와 실제 빌드 산출물의 ZIP 생성·읽기 검사를 수행한다.
+- 기대: 입력 SHA-256·버전·후보 표식을 확인하고 ZIP CRC·모든 내부 해시가 일치한다. 변조·누락·추가 파일·기존 출력 덮어쓰기를 거부한다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -843,6 +900,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
+| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `tests/workflow03.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py` | implemented |
+| REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | implemented |
+| REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | implemented |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |

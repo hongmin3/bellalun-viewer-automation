@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="7476c837e750358d9338e372baa101849e1ffb40604870a8191b67992a74b22e">
+<meta name="spec-source-sha256" content="def88f9a6ffbadfd78f94d5124db6742281124d8bf820dfb23dbacb8b6c2ef5d">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,8 +92,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.3.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.1; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-05</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>26</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>25</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>27</b><span>implemented</span></div></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.3.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.3; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-09</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="stats"><div class="stat"><b>29</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>28</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>30</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -101,6 +101,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <ul><li class="toc-2"><a href="#feature-index">기능 목록</a></li>
 <li class="toc-2"><a href="#sec-1">1. 목적</a></li>
 <li class="toc-2"><a href="#sec-2">2. 프로젝트 범위</a></li>
+<li class="toc-id kind-req"><a href="#REQ-OCR-001">REQ-OCR-001 <span>PC 간 OCR 판독과 선택 증거</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-OCR-002">REQ-OCR-002 <span>준비 점검과 OCR 실패 안내</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-DIST-008">REQ-DIST-008 <span>설치 파일 릴리즈 ZIP</span></a></li>
 <li class="toc-2"><a href="#sec-3">3. 시스템 구성</a></li>
 <li class="toc-2"><a href="#sec-4">4. 전체 동작 흐름</a></li>
 <li class="toc-2"><a href="#sec-5">5. 기능 요구사항</a></li>
@@ -162,6 +165,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-QA-003">TEST-QA-003 <span>수동 검토와 자동 결과 보존</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-QA-004">TEST-QA-004 <span>선택 공유와 오프라인 무결성</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-QA-005">TEST-QA-005 <span>준비 실패 해결과 재점검</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-OCR-001">TEST-OCR-001 <span>OCR 판독·선택·환경 기록</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-OCR-002">TEST-OCR-002 <span>준비 점검의 OCR 안내</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-DIST-008">TEST-DIST-008 <span>설치용 ZIP 무결성</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -172,6 +178,18 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <div class="table-wrap"><table class="index responsive">
 <thead><tr><th>ID</th><th>이름</th><th>상태</th><th>구현</th><th>테스트</th></tr></thead>
 <tbody>
+<tr class="group"><th colspan="5"><span class="gcode">OCR</span></th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a></td><td data-label="이름">PC 간 OCR 판독과 선택 증거</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>tests/workflow03.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_replay.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a></td><td data-label="이름">준비 점검과 OCR 실패 안내</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>bellalunauto/qa_dialogs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a>; <code>tests/test_ocr_diagnostics.py</code></td></tr>
+<tr class="group"><th colspan="5"><span class="gcode">DIST</span> 팀원용 설치와 실행</th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a></td><td data-label="이름">설치 파일 릴리즈 ZIP</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/release_zip.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>; <code>tests/test_release_zip.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a></td><td data-label="이름">설치와 실행 경로</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a></td><td data-label="이름">실행 화면과 프로세스 관리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code>, <code>core/sysinfo.py</code>, <code>core/db.py</code>, <code>core/dbreset.py</code>, <code>core/screen.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/flows.py</code>, <code>core/update_evidence.py</code>, <code>core/source_identity.py</code>, <code>tests/xipl_flows.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code>, <code>tests/test_console_children.py</code>, <code>tests/test_console_dbreset.py</code>, <code>tests/test_console_ocr.py</code>, <code>tests/test_console_stdin.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="이름">컴파일과 내부 자료 배포</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/build_distribution.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="이름">설치판 진단과 최종 실행 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a></td><td data-label="이름">설치판의 승인 범위를 확인하는 릴리스 게이트</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a></td><td data-label="이름">설치 중 자동화 구성품 준비</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a></td><td data-label="이름">관리자 설치와 첫 실행 준비</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REGRESSION</span> 기준 체크리스트 실행</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="이름">기준 체크리스트 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_workflow02_acquisition.py</code>, <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a></td><td data-label="이름">변경 영향에 따른 검증과 UI 회귀 승인</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></td></tr>
@@ -183,14 +201,6 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="이름">체크리스트별 결과 보고</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code></td></tr>
-<tr class="group"><th colspan="5"><span class="gcode">DIST</span> 팀원용 설치와 실행</th></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a></td><td data-label="이름">설치와 실행 경로</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a></td><td data-label="이름">실행 화면과 프로세스 관리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code>, <code>core/sysinfo.py</code>, <code>core/db.py</code>, <code>core/dbreset.py</code>, <code>core/screen.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/flows.py</code>, <code>core/update_evidence.py</code>, <code>core/source_identity.py</code>, <code>tests/xipl_flows.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code>, <code>tests/test_console_children.py</code>, <code>tests/test_console_dbreset.py</code>, <code>tests/test_console_ocr.py</code>, <code>tests/test_console_stdin.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="이름">컴파일과 내부 자료 배포</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/build_distribution.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="이름">설치판 진단과 최종 실행 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a></td><td data-label="이름">설치판의 승인 범위를 확인하는 릴리스 게이트</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a></td><td data-label="이름">설치 중 자동화 구성품 준비</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a></td><td data-label="이름">관리자 설치와 첫 실행 준비</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">QA</span> 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결)</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-001">REQ-QA-001</a></td><td data-label="이름">실행 전 확인 화면</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/runplan.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-001">TEST-QA-001</a>; <code>tests/test_runplan.py</code>, <code>tests/test_qa_runs.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-002">REQ-QA-002</a></td><td data-label="이름">실행 번호로 진행·중단·완료·보고서 연결</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code></td></tr>
@@ -267,6 +277,61 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li>승인된 시험 흐름 밖의 DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.</li>
 <li>회귀 밖 독립 설치 패키지 점검을 기본 회귀에 임의 편입하는 작업.</li>
 </ul>
+<section class="card kind-req" id="REQ-OCR-001">
+<h3><span class="idtag">REQ-OCR-001</span> PC 간 OCR 판독과 선택 증거</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>tests/workflow03.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_replay.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.3 — 2026-11-09</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 프린트 항목·Header·서버/Overlay 이름 선택을 공통 판독으로 연결했다. 한 캡처의 제한된 재판독·신뢰도·후보 점수차로 모호한 클릭을 막고 실패 크롭·판독·영역·OCR 지문을 저장한다. 오프라인 캡처 비교 도구를 추가했다.</li>
+</ul>
+</details>
+<p>프린트 오버레이 카탈로그·Header 콤보·서버 오버레이 선택은 공통 판독 경로를 사용한다.
+컨트롤별 한 번 캡처한 이미지에 기본 판독을 먼저 적용하고, 불확실하면 반전·이진화와
+다른 문자 배치 모드로 최대 4가지 판독을 수행한다. 선택은 정규화한 문구가 유일하고,
+유사도 0.85 이상·차순위와 0.15 이상 차이·문자 신뢰도 35 이상일 때만 허용한다.
+4자 이하 문구는 완전일치만 허용하며 HVL의 관찰된 AVL 오독만 명시적으로 정규화한다.
+후보가 모호하거나 판독 실패이면 클릭하지 않고 원본 크롭·전처리 크롭·판독문·신뢰도·
+후보 점수·컨트롤 영역·화면 환경과 OCR 실행파일/언어 데이터 지문을 고유 증거 폴더에 남긴다.
+임의 순번 선택이나 전역 유사도 완화로 통과시키지 않는다. 저장 결과의 기존 DB 교차 검증과
+필름 Header/Top/Bottom 화면 검증은 유지한다. 기존 오버레이/서버도 이름으로 선택한다.</p>
+<p>기준 OCR은 배포에 포함된 Tesseract 5.5.3이다. 정상 기존 OCR·PC별 설정은 덮어쓰지 않으며
+기준과 다른 버전은 WARN과 실행파일·eng.traineddata SHA-256으로 식별한다.
+준비 시 <code>ocr-runtime.json</code>에 지문을 저장한다. 지문에는 개인 절대경로를 넣지 않는다.
+화면 지원 범위는 1920×1080·96 DPI·주 모니터 보호를 유지한다.
+저장 캡처 manifest를 입력하는 오프라인 재판독 도구로 PC별 판독 성공·모호함·실패를 비교한다.</p>
+<p><a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>: <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>,
+<code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_replay.py</code>에서 기본/대체 판독,
+동점·짧은 문구·낮은 신뢰도·빈 후보·엔진 오류·증거 저장·기존 설정 보존과 재판독을 확인한다.
+실제 제품 UI 검증은 <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>에 따라 빌드 EXE로 별도 승인 후 수행한다.</p>
+</section>
+<section class="card kind-req" id="REQ-OCR-002">
+<h3><span class="idtag">REQ-OCR-002</span> 준비 점검과 OCR 실패 안내</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/qa_dialogs.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a>; <code>tests/test_ocr_diagnostics.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.3 — 2026-11-09</span> <a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a>: 준비 점검에 OCR 버전/언어 지문과 차이 안내, 최근 실패의 해결 행동과 증거 폴더 열기를 연결했다. 기존 설정·정상 OCR은 보존한다.</li>
+</ul>
+</details>
+<p>자동화 프로그램의 준비 점검은 OCR 기준 버전과 실제 엔진·언어 데이터 지문을 표시하고,
+정상 다른 버전은 WARN, 실행 또는 언어 파일 누락은 FAIL로 구분한다. 최근 OCR 실패가 있으면
+대상 문구·실패 종류·재시도 수·해결 행동을 안내하고 해당 증거 폴더를 열 수 있게 한다.
+환자 원문이나 전체 화면은 요약에 복사하지 않는다. 기존 PC별 설정을 자동 수정하지 않는다.
+<a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a>: <code>tests/test_ocr_diagnostics.py</code>에서 준비 점검과 실패 안내를 확인한다.</p>
+</section>
+<section class="card kind-req" id="REQ-DIST-008">
+<h3><span class="idtag">REQ-DIST-008</span> 설치 파일 릴리즈 ZIP</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_zip.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>; <code>tests/test_release_zip.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.3 — 2026-11-09</span> <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a>: Setup·메타데이터·체크섬·후보 표식을 설치용 릴리즈 ZIP으로 묶고 CRC·내부 SHA-256을 재검사한다. 포터블 실행판은 만들지 않는다.</li>
+</ul>
+</details>
+<p>내부 Setup과 build-info·체크섬·후보 표식을 하나의 설치용 ZIP으로 묶는다.
+포터블 실행판은 생성하지 않는다. 입력 해시와 버전·파일 이름을 대조하고 추가 자료·링크·
+경로 탈출·기존 출력 덮어쓰기를 거부한다. 사용 안내와 모든 내부 파일의 SHA-256을 포함하고
+생성 직후 ZIP CRC와 내부 해시를 다시 확인한다. UI 미검증 후보는 후보 표시를 보존한다.
+<a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>: <code>tests/test_release_zip.py</code>에서 변조·누락·추가파일·경로·후보 표식과 실제 CLI를 검증한다.</p>
+</section>
 </section>
 <section class="chapter" id="sec-3">
 <h2>3. 시스템 구성</h2>
@@ -922,7 +987,7 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 </section>
 <section class="card kind-req" id="REQ-REGRESSION-002">
 <h3><span class="idtag">REQ-REGRESSION-002</span> 변경 영향에 따른 검증과 UI 회귀 승인</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
 <details class="history"><summary>변경 이력 1</summary>
 <ul>
 <li><span class="hist">2026-11-05 (변경 영향별 회귀와 설치판 검증, 1.0.1 관리자 설치와 첫 실행) · Changed</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 소스에서 단위시험·정적 검사를 수행하고 제품 UI 회귀는 설치판으로 수행한다. 변경 영향에 따라 단독 TC·기본기능·WU·두 묶음 전체를 고르며, UI 실행 전에 범위·이유·예상 시간·DB 복원 등 상태 변경을 설명하고 사용자 답변을 기다린다.</li>
@@ -1484,6 +1549,33 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <li>Expected Result: 같은 점검 기준과 실행 차단 조건을 유지하고 설정 값을 대신 바꾸지 않는다. 실패 행 선택·설정 열기·재점검 GUI의 실측은 별도로 남긴다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-OCR-001">
+<h3><span class="idtag">TEST-OCR-001</span> OCR 판독·선택·환경 기록</h3>
+<div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a></span></div>
+<ul>
+<li>대상: <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>.</li>
+<li>절차: <code>tests/test_ocr_selection.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_ocr_replay.py</code>를 실행한다.</li>
+<li>기대: 모호한 후보·저신뢰 경쟁 후보·빈 캡처는 선택하지 않고 실패 증거를 저장한다. WF03에서 첫 Print 호출 전 증거 경로가 준비된다. 저장 캡처의 선택/거부 결과를 같은 판독 경로로 비교한다. 기존 OCR·PC별 설정은 보존한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-OCR-002">
+<h3><span class="idtag">TEST-OCR-002</span> 준비 점검의 OCR 안내</h3>
+<div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a></span></div>
+<ul>
+<li>대상: <a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a>.</li>
+<li>절차: <code>tests/test_ocr_diagnostics.py</code>와 기존 준비 점검 시험을 실행한다.</li>
+<li>기대: 기준 버전은 OK, 정상 다른 버전은 WARN, 실행/언어 누락은 FAIL이며 최근 실패의 다음 행동과 증거 폴더를 안내한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-DIST-008">
+<h3><span class="idtag">TEST-DIST-008</span> 설치용 ZIP 무결성</h3>
+<div class="card-meta"><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a></span></div>
+<ul>
+<li>대상: <a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a>.</li>
+<li>절차: <code>tests/test_release_zip.py</code>와 실제 빌드 산출물의 ZIP 생성·읽기 검사를 수행한다.</li>
+<li>기대: 입력 SHA-256·버전·후보 표식을 확인하고 ZIP CRC·모든 내부 해시가 일치한다. 변조·누락·추가 파일·기존 출력 덮어쓰기를 거부한다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -1497,6 +1589,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-005">REQ-QA-005</a></td><td data-label="Implementation"><code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>core/preflight.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-005">TEST-QA-005</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_preflight.py</code>, <code>tests/test_screen_contract.py</code>, <code>tests/test_console_stdin.py</code>, <code>tests/test_xipl_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_workflow02_acquisition.py</code>, <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a></td><td data-label="Implementation"><code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a></td><td data-label="Implementation"><code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>tests/workflow03.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></td><td data-label="Test"><a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_replay.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>bellalunauto/qa_dialogs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a>; <code>tests/test_ocr_diagnostics.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a></td><td data-label="Implementation"><code>tools/release_zip.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>; <code>tests/test_release_zip.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="Implementation"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>

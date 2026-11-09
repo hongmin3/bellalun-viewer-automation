@@ -8,6 +8,8 @@ from pathlib import Path, PureWindowsPath
 import shutil
 import subprocess
 
+from core.ocr_runtime import inspect_runtime
+
 from .resources import bundled_config
 from .runtime import load_config, save_config
 
@@ -122,6 +124,17 @@ def prepare_install(layout):
         if existing and Path((config.get('xipl') or {}).get('tesseract_exe') or '') != ocr:
             raise ValueError('기존 설정을 보존했습니다. PC별 설정의 OCR 경로를 다음 값으로 저장하세요: ' + str(ocr))
         lines.append('[OK] OCR 실행·영어 언어 파일 확인: ' + str(ocr))
+        identity = inspect_runtime(ocr)
+        layout.workspace.mkdir(parents=True, exist_ok=True)
+        (layout.workspace / 'ocr-runtime.json').write_text(
+            json.dumps(identity, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        version = identity['version'] or '확인 불가'
+        reference = identity['reference_version']
+        if identity['reference_match']:
+            lines.append(f'[OK] OCR 기준 버전 일치: {version} (기준 {reference})')
+        else:
+            lines.append(f'[WARN] OCR 기준 버전 불일치 또는 식별 불가: {version} (기준 {reference}). '
+                         '기존 OCR은 보존하며 ocr-runtime.json으로 환경을 비교하세요.')
         if existing:
             lines.append('[OK] 기존 PC별 설정 보존')
         else:

@@ -15,7 +15,7 @@ Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대�
 
 Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을 확인한다. OCR이 없으면 포함된 고정 설치 파일로 준비하므로 대상 PC에서 인터넷은 필요하지 않다. 정상 기존 OCR은 재사용한다. 완료 화면과 `작업/install-preparation.txt`에서 결과를 읽고, 실패하면 원인을 해결한 뒤 관리자 권한으로 `BellalunAuto prepare-install`을 다시 실행한다. 실패한 Setup 종료 코드는3이다.
 
-빌드 PC에서는 `packaging/components.json`의 공식 고정 OCR 파일을 받아 해시를 검사한다. 오프라인 빌드는 `--ocr-installer <설치 파일>`로 지정한다. 배포용 실행 패키지는 Setup만 만든다.
+빌드 PC에서는 `packaging/components.json`의 공식 고정 OCR 파일을 받아 해시를 검사한다. 오프라인 빌드는 `--ocr-installer <설치 파일>`로 지정한다. 실행 패키지는 Setup으로 만들고 필요하면 설치용 릴리즈 ZIP으로 묶는다.
 
 신규 PC 설정에는 탐지한 제품 경로와 OCR·Baseline 경로가 저장된다. 기존 설정은 그대로 보존하며 잘못된 OCR·Baseline 경로는 PC별 설정에서 수정한다. Baseline은 설치 폴더의 승인 백업 파일4개를 준비하는 뜻이며 설치 중 사용자 DB를 복원하지 않는다. 기존 전체 회귀 통과 기록은 해당 EXE에 한정하며 새 후보의 제품 회귀는 별도다.
 
@@ -33,7 +33,15 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 업데이트는 같은 AppId로 같은 위치에 수행하고, 설치 폴더의 `resources`는 새 판으로 통째로 바꾼다. 제거는 설치 프로그램이 추가했다고 기록한 PATH 토큰만 제거하며,
 `작업` 폴더의 설정·결과·증거를 지우지 않는다. Setup은 `작업` 폴더에만 Users 수정 권한을 준다. 설치 직후 제품 시험은 자동 실행하지 않는다.
 
-포터블 ZIP은 사용자 요청으로 생성·배포하지 않는다. 팀원은 Setup을 사용한다.
+포터블 ZIP은 생성·배포하지 않는다. 팀원은 Setup을 사용한다. 2026-11-09 요청부터 Setup·build-info·체크섬·후보 표식·사용 안내를 묶는 설치용 릴리즈 ZIP을 지원한다.
+
+```powershell
+python tools/release_zip.py --release release/1.0.3 --output <새 폴더>/BellalunAuto-1.0.3-release.zip
+```
+
+입력 폴더는 Setup 빌더가 만든 버전별 폴더다. 추가 파일·변조·누락·기존 ZIP 덮어쓰기를 거부한다.
+후보 표시를 보존하고 ZIP CRC·내부 모든 파일 SHA-256을 검사한다. ZIP은 사내 자료를 포함하므로 공개 Release에 올리지 않는다.
+OCR 환경 지문과 실패 해결은 [OCR 안내](ocr-portability.md)를 따른다.
 
 ## 빌드 환경과 명령
 

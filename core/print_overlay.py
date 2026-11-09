@@ -11,11 +11,9 @@ from __future__ import annotations
 import os
 import re
 import time
-from difflib import SequenceMatcher
 
-from PIL import ImageGrab, ImageOps
 
-from . import flows
+from . import flows, uitext, ocr_selection
 from .ui import children
 
 
@@ -282,16 +280,10 @@ def _norm(value):
 
 
 def _ocr(control, tesseract_exe):
-    import pytesseract
-
-    if tesseract_exe:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
-    image = ImageGrab.grab(bbox=control.rect, all_screens=True).convert("L")
-    image = ImageOps.autocontrast(image).resize((image.width * 3, image.height * 3))
-    return pytesseract.image_to_string(image, config="--psm 7", lang="eng").strip()
+    return uitext.ocr(control, tesseract_exe)
 
 
-def _catalogue_row(ui, list_id, index, expected, tesseract_exe):
+def _catalogue_row(ui, list_id, index, expected, tesseract_exe, evidence_dir=None):
     lists = _visible(ui, list_id)
     if not lists:
         raise RuntimeError(f"Print Overlay catalogue control {list_id} not found")
@@ -325,24 +317,9 @@ def _catalogue_row(ui, list_id, index, expected, tesseract_exe):
     rows = sorted({c.hwnd: c for c in children(catalogue.hwnd, 5)
                    if c.text == "ListItem" and c.visible}.values(),
                   key=lambda c: c.rect[1])
-    candidates = []
-    for row in rows:
-        observed = _ocr(row, tesseract_exe)
-        score = SequenceMatcher(None, _norm(expected), _norm(observed)).ratio()
-        if _norm(expected) and _norm(expected) in _norm(observed):
-            score = 1.0
-        # At the native 35px row height Tesseract consistently reads the
-        # leading H in HVL as A.  Keep this narrow and explicit; do not relax
-        # the threshold for other catalogue labels.
-        if _norm(expected) == "hvl" and _norm(observed).startswith("avl"):
-            score = 1.0
-        candidates.append((score, row, observed))
-    score, row, observed = max(candidates, key=lambda item: item[0])
-    if score < .72:
-        raise RuntimeError(
-            f"Print Overlay item not found: expected={expected!r}, "
-            f"best OCR={observed!r}, score={score:.3f}")
-    return row, observed
+    row, detail = ocr_selection.select(rows, expected, tesseract_exe,
+                                       evidence_dir=evidence_dir)
+    return row, detail
 
 
 def _saved(db, name=OVERLAY_NAME):
@@ -358,7 +335,7 @@ def _saved(db, name=OVERLAY_NAME):
     return {"overlay": overlay, "items": items}
 
 
-def _pick_combo_by_text(ui, control_id, wanted, tesseract_exe, what):
+def _pick_combo_by_text(ui, control_id, wanted, tesseract_exe, what, evidence_dir=None):
     """콤보를 열어 **OCR 로 읽은 항목 문구**가 맞는 것을 고른다.
 
     팝업 항목 순서에 의존하지 않는다. 원하는 문구를 못 찾으면 아무것도 누르지 않고
@@ -375,20 +352,11 @@ def _pick_combo_by_text(ui, control_id, wanted, tesseract_exe, what):
     items = sorted({c.hwnd: c for c in children(popups[0].hwnd, 4)
                     if c.visible and c.text == "TextButton"}.values(),
                    key=lambda c: c.rect[1])
-    seen = []
-    target = None
-    for item in items:
-        text = _norm(_ocr(item, tesseract_exe))
-        seen.append(text)
-        if text == _norm(wanted):
-            target = item
-            break
-    if target is None:
-        raise RuntimeError(
-            f"{what} 콤보에서 {wanted!r} 항목을 찾지 못했습니다. "
-            f"읽은 항목={seen}. 잘못된 항목을 고르지 않도록 중단합니다.")
+    target, detail = ocr_selection.select(items, wanted, tesseract_exe,
+                                         match='exact', evidence_dir=evidence_dir)
     ui.click(target, settle=1.0)
-    return {"wanted": wanted, "items_read": seen}
+    return {"wanted": wanted, "items_read": detail['reads'] if 'reads' in detail else [],
+            "selection": detail}
 
 
 def header_targets(item_count, position=HEADER_POSITION):
@@ -408,7 +376,8 @@ def header_matches(overlay, item_count, position=HEADER_POSITION):
 
 
 def ensure_header_layout(ui, db, item_count, position=HEADER_POSITION,
-                         name=OVERLAY_NAME, tesseract_exe=None, save=True):
+                         name=OVERLAY_NAME, tesseract_exe=None, save=True,
+                         evidence_dir=None):
     """Header 표시 위치와 Layout 을 설정한다.
 
     표시 위치가 `None` 이면 Header 항목을 아무리 넣어도 **필름에 나오지 않는다**
@@ -438,10 +407,11 @@ def ensure_header_layout(ui, db, item_count, position=HEADER_POSITION,
     picked = {}
     picked["position"] = _pick_combo_by_text(
         ui, HEADER_POSITION_CONTROL, position.title(), tesseract_exe,
-        "Header 표시 위치")
+        "Header 표시 위치", evidence_dir=evidence_dir)
     # 표시 위치가 None 이 아니어야 Layout 콤보가 활성화된다(실측).
     picked["layout"] = _pick_combo_by_text(
-        ui, HEADER_LAYOUT_CONTROL, layout_label, tesseract_exe, "Header Layout")
+        ui, HEADER_LAYOUT_CONTROL, layout_label, tesseract_exe, "Header Layout",
+        evidence_dir=evidence_dir)
 
     if not save:
         return {"position": position, "layout": layout_label,
@@ -467,7 +437,7 @@ def ensure_header_layout(ui, db, item_count, position=HEADER_POSITION,
             "changed": True, "saved": True}
 
 
-def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
+def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME, evidence_dir=None):
     """Create the six-item TC overlay through Setting > DICOM > Print Overlay."""
     header_count = len(PRINT_ITEMS_BY_AREA["header"])
 
@@ -487,9 +457,12 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
                       key=lambda c: c.rect[1])
         if not rows:
             raise RuntimeError(f"Saved Print Overlay is not selectable: {name}")
-        ui.click(rows[0], settle=.8)
+        chosen, _ = ocr_selection.select(rows, name, tesseract_exe,
+                                         evidence_dir=evidence_dir)
+        ui.click(chosen, settle=.8)
         header = ensure_header_layout(ui, db, header_count, name=name,
-                                      tesseract_exe=tesseract_exe)
+                                      tesseract_exe=tesseract_exe,
+                                      evidence_dir=evidence_dir)
         refreshed = _saved(db, name)
         refreshed["header"] = header
         refreshed["by_position"] = {pos: sorted(fids) for pos, fids
@@ -506,7 +479,9 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
                       key=lambda c: c.rect[1])
         if not rows:
             raise RuntimeError(f"Saved Print Overlay is not selectable: {name}")
-        ui.click(rows[0], settle=.5)
+        chosen, _ = ocr_selection.select(rows, name, tesseract_exe,
+                                         evidence_dir=evidence_dir)
+        ui.click(chosen, settle=.5)
         # 배치가 다른 기존 Overlay를 자동으로 고치지 않는다.
         #
         # 삭제하고 다시 만드는 방법은 막혀 있다 — Print 서버가 참조 중인 Overlay는
@@ -541,7 +516,8 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
     for area in PRINT_AREAS:
         add_button = _visible(ui, PRINT_AREA_ADD[area])[0]
         for label, index in PRINT_ITEMS_BY_AREA[area]:
-            row, observed = _catalogue_row(ui, 2489, index, label, tesseract_exe)
+            row, observed = _catalogue_row(ui, 2489, index, label, tesseract_exe,
+                                           evidence_dir=evidence_dir)
             ui.click(row, settle=.2)
             ui.click(add_button, settle=.5)
             if ui.dialog():
@@ -557,7 +533,7 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
     # 가장 작은 것을 고른다("Layout 한 칸당 한 항목씩 표시한다").
     header = ensure_header_layout(
         ui, db, header_count, name=name, tesseract_exe=tesseract_exe,
-        save=False) if header_count else None
+        save=False, evidence_dir=evidence_dir) if header_count else None
 
     flows.setting_update(ui, wait=3)
     if ui.dialog():
@@ -594,7 +570,8 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME):
 
 
 def apply_to_print_server(ui, db, print_name, overlay_key,
-                          overlay_name=OVERLAY_NAME, tesseract_exe=None):
+                          overlay_name=OVERLAY_NAME, tesseract_exe=None,
+                          evidence_dir=None):
     """Select the saved overlay on the named DICOM Print server and persist it."""
     flows.open_dicom_setting(ui, "print", wait=2)
     server_list = _visible(ui, 2429)
@@ -605,7 +582,9 @@ def apply_to_print_server(ui, db, print_name, overlay_key,
                   key=lambda c: c.rect[1])
     if not rows:
         raise RuntimeError(f"DICOM Print server is not visible: {print_name}")
-    ui.click(rows[0], settle=.6)
+    selected_server, _ = ocr_selection.select(rows, print_name, tesseract_exe,
+                                             match='contains', evidence_dir=evidence_dir)
+    ui.click(selected_server, settle=.6)
     combo = _visible(ui, 2474)
     if not combo:
         raise RuntimeError("DICOM Print Overlay selector (2474) not found")
@@ -618,17 +597,9 @@ def apply_to_print_server(ui, db, print_name, overlay_key,
     options = sorted({c.hwnd: c for c in options}.values(), key=lambda c: c.rect[1])
     # TextButton IDs are the current dropdown ordinal, not PRINT_OVERLAY.Key.
     # Read the rendered labels and select the configured overlay by name.
-    observed = [(c, _ocr(c, tesseract_exe)) for c in options]
-    scored = [(SequenceMatcher(None, _norm(overlay_name), _norm(label)).ratio(),
-               c, label) for c, label in observed]
-    best = max(scored, default=(0.0, None, ""), key=lambda item: item[0])
-    exact = [best[1]] if best[0] >= .85 else []
-    if not exact:
-        raise RuntimeError(
-            f"Print Overlay dropdown has no named item {overlay_name!r}; "
-            f"available={[(c.ctrl_id, label) for c, label in observed]}, "
-            f"best_score={best[0]:.3f}")
-    ui.click(exact[0], settle=.5)
+    selected_overlay, _ = ocr_selection.select(options, overlay_name, tesseract_exe,
+                                               evidence_dir=evidence_dir)
+    ui.click(selected_overlay, settle=.5)
     flows.setting_update(ui, wait=3)
     if ui.dialog():
         ui.dismiss_dialog(timeout=2)

@@ -7,6 +7,65 @@ from pathlib import Path
 import subprocess
 
 
+def diagnostic_state(row):
+    if row.get('warning'):
+        return 'WARN'
+    return '안내' if row.get('notice') else 'OK' if row['ok'] else 'FAIL'
+
+
+def _evidence_folder(workspace, folder):
+    base = Path(workspace).resolve() / 'Evidence'
+    target = Path(folder).resolve()
+    if not target.is_relative_to(base) or not target.is_dir():
+        raise ValueError('선택한 작업 폴더의 Evidence 안에서 증거 폴더를 선택하세요.')
+    return target
+
+
+def open_ocr_evidence(workspace, row):
+    """파일에서 가져온 경로 대신 검증된 로컬 증거 폴더만 연다."""
+    if not row or not row.get('evidence_dir'):
+        raise ValueError('최근 OCR 선택 실패 행을 먼저 선택하세요.')
+    os.startfile(str(_evidence_folder(workspace, row['evidence_dir'])))
+
+
+def recent_ocr_failure(workspace):
+    """OCR 실패 메타데이터만 읽는다. 인식 원문·환자 값은 화면에 옮기지 않는다."""
+    base = Path(workspace) / 'Evidence'
+    if not base.is_dir() or base.is_symlink():
+        return None
+    candidates = []
+    for path in base.rglob('selection.json'):
+        try:
+            # Resolve before opening so a link cannot escape local Evidence.
+            if not path.resolve().is_relative_to(base.resolve()) or path.stat().st_size > 1024 * 1024:
+                continue
+            candidates.append((path.stat().st_mtime_ns, path))
+        except OSError:
+            continue
+    reasons = {'unreadable': '읽기 실패', 'ambiguous': '후보 중복', 'capture-failed': '화면 캡처 실패'}
+    safe_labels = {'HVL', 'Top', 'Bottom', 'Left', 'Right', 'Center', 'None', 'Header', 'Footer'}
+    for _, path in sorted(candidates, key=lambda item: item[0], reverse=True):
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if not isinstance(data, dict) or data.get('reason') not in reasons:
+                continue
+            attempts = data.get('attempts')
+            if type(attempts) is not int or not 0 <= attempts <= 100:
+                continue
+            wanted = data.get('wanted')
+            wanted = wanted if isinstance(wanted, str) and wanted in safe_labels else '비공개 항목(증거에서 확인)'
+            folder = _evidence_folder(workspace, path.parent)
+        except (OSError, ValueError, TypeError):
+            continue
+        return {'name': '최근 OCR 선택 실패', 'ok': True, 'warning': True,
+                'detail': f"대상: {wanted} · 원인: {reasons[data['reason']]} · 재판독 {attempts}회 · 증거: {folder}",
+                'fix': '증거 폴더의 캡처와 selection.json을 확인하세요. 화면 배율 100%·해상도 1920×1080, '
+                       '가림/중복 항목, OCR 환경 지문을 비교한 뒤 해당 시험만 다시 실행하세요. '
+                       '이전 실패 기록은 자동 삭제하지 않습니다.',
+                'evidence_dir': str(folder)}
+    return None
+
+
 def remediation_target(name):
     if any(word in name for word in ('화면', '해상도', '배율', 'DPI')):
         return 'ms-settings:display'
@@ -109,9 +168,11 @@ def show_diagnostics(root, layout, open_config):
         tree.delete(*tree.get_children())
         rows.clear()
         for row in result:
-            key = tree.insert('', 'end', values=('안내' if row.get('notice') else 'OK' if row['ok'] else 'FAIL', row['name'], row['detail']))
+            key = tree.insert('', 'end', values=(diagnostic_state(row), row['name'], row['detail']))
             rows[key] = row
         failures = [key for key, row in rows.items() if not row['ok'] and not row.get('notice')]
+        if not failures:
+            failures = [key for key, row in rows.items() if row.get('warning')]
         if failures:
             tree.selection_set(failures[0])
             select()
@@ -133,7 +194,15 @@ def show_diagnostics(root, layout, open_config):
         except OSError:
             messagebox.showerror('설정 열기 실패', 'Windows 설정 또는 PC별 설정에서 직접 확인하세요.', parent=dialog)
     tree.bind('<<TreeviewSelect>>', select)
+    def open_evidence():
+        try:
+            open_ocr_evidence(layout.workspace, selected())
+        except (OSError, ValueError):
+            messagebox.showerror('증거 폴더 열기', '최근 OCR 선택 실패 행을 선택하세요. '
+                                 '증거 폴더가 없으면 해당 시험을 다시 실행한 뒤 점검하세요.', parent=dialog)
+
     ttk.Button(dialog, text='선택 항목 설정 화면 열기', command=resolve).pack(side='left', padx=12, pady=10)
+    ttk.Button(dialog, text='OCR 실패 증거 폴더 열기', command=open_evidence).pack(side='left', padx=6)
     ttk.Button(dialog, text='다시 점검', command=refresh).pack(side='left', padx=12)
     ttk.Button(dialog, text='닫기', command=dialog.destroy).pack(side='right', padx=12)
     refresh()

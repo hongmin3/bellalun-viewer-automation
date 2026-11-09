@@ -237,6 +237,29 @@ def diagnostics(layout, check_connections=True):
         if name.startswith('XIPL ') and not found:
             fix = xipl_cause + fix
         add(name, found, detail, fix)
+        if name == 'Tesseract OCR':
+            from core.ocr_runtime import inspect_runtime
+            identity = inspect_runtime(value)
+            errors = identity['errors']
+            healthy = not errors
+            version = identity['version'] or '확인 불가'
+            reference = identity['reference_version']
+            difference = '일치' if identity['reference_match'] else '차이 있음'
+            detail = (f'버전 {version} · 기준 {reference}: {difference} · '
+                      f"실행 SHA-256: {identity['executable_sha256'] or '확인 불가'} · "
+                      f"eng SHA-256: {identity['eng_traineddata_sha256'] or '확인 불가'}")
+            if errors:
+                detail += ' · 실행/영어 언어 파일 확인 실패'
+            add('OCR 환경 지문', healthy, detail,
+                'PC별 설정에서 실행 가능한 tesseract.exe와 같은 설치의 tessdata/eng.traineddata를 확인하세요. '
+                '기존 OCR은 보존하고 정상 PC의 버전·SHA-256과 비교하세요. '
+                '새 PC는 Setup의 기준 5.5.3을 사용하세요. 변경 후 준비 점검을 다시 실행하세요.')
+            if healthy and not identity['reference_match']:
+                items[-1]['warning'] = True
+    from .qa_dialogs import recent_ocr_failure
+    failure = recent_ocr_failure(layout.workspace)
+    if failure:
+        items.append(failure)
     if os.name == 'nt':
         from core import display, sysinfo
         add('화면 해상도', display.screen_size() == (1920, 1080), display.screen_size(),
@@ -294,9 +317,9 @@ def _print_diagnostics(layout):
     else:
         print('결론: 시험을 시작할 수 있습니다.')
     for row in rows:
-        tag = '안내' if row.get('notice') else ('PASS' if row['ok'] else 'FAIL')
+        tag = 'WARN' if row.get('warning') else '안내' if row.get('notice') else ('PASS' if row['ok'] else 'FAIL')
         print(f"[{tag}] {row['name']}: {row['detail']}")
-        if not row['ok']:
+        if not row['ok'] or row.get('warning'):
             print(f"  해결 방법: {row['fix']}")
     return 1 if problems else 0
 
