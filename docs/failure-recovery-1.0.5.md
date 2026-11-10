@@ -97,3 +97,37 @@ WF03 중단 원문은 `SelectionError: OCR 선택 중단(unreadable): '1 X 2'`�
 사용자 요청으로 `run.py reset-environment`를 실행해 4개 DB를 기준 스냅샷으로 복원했다. Print Overlay는 5개에서 0개가 됐다.
 
 새 빌드와 설치, 4개 단독 재실행은 다시 승인받아 수행한다. 공용 UI 조회 계층을 바꿨으므로 REQ-REGRESSION-002 기준의 시험 범위도 함께 확인한다.
+
+## 1.0.6 후보 설치판 단독 수용
+
+9b62878 수정을 담은 1.0.6 후보(소스 `6304688`, dirty=false, 컴파일·시험 생략 없음)를 빌드해 1.0.5 위에 설치했다. 설치 EXE `d1ab0a86…8fcd`, Setup `be7e3d17…5085`, build-info `455578af…501c`다. 후보 표시와 게이트 미통과 상태는 그대로다.
+
+### run106: 선행 데이터 부재
+
+WF03이 5.9초 만에 Step 1 진입 전 `RuntimeError: Viewer XIPL fixture not found: PatientID=DATA_FLOW_MWL_01`로 끝났다. 앞서 사용자 요청으로 DB를 기준 스냅샷으로 복원해 WF01·WF02가 만드는 시험 환자가 없었다. 제품 FAIL이 아니다.
+
+### run107: fixture 준비 후 재실행
+
+2026-11-10 사용자 승인으로 같은 설치판에서 재빌드·재설치·DB 복원 없이 순서대로 실행했다. 각 명령은 clean-env와 작업 폴더 밖 CWD로 실행했다. 실행 전에 설치 1,010개 대조, config 해시, 작업 폴더 1,300개 백업을 확인했다.
+
+| 순서 | 명령 | 결과 | 소요 | 증거 | 게이트 |
+|---|---|---|---|---|---|
+| 1 | `setup-dicom` | PASS(`DICOM_Server_Setup`) | 109.0초 | 8 | 해당 없음(TC 단독만 지원). exit 0·커밋·build-info 출처·사본 해시 확인 |
+| 2 | `run-wf01` | PASS | 156.6초 | 13 | 통과 |
+| 3 | `run-wf02` | PASS | 275.0초 | 45 | 통과 |
+| 4 | `run-wf03` | FAIL(Step 2 자동화 중단) | 453.2초 | 11 | 실행 안 함(FAIL에서 정지) |
+| 5~7 | `run-wf08`·`run-wf05`·`run-xipl-02` | 미수행 | | | |
+
+`setup-dicom`은 `tools/run_installed_suites.py`가 지원하지 않는다(결과 ID가 `TC_`로 시작하지 않음). 그래서 같은 설치 EXE를 같은 조건으로 직접 실행하고 리포트·로그·증거 사본 해시를 남겼다.
+
+WF03 중단 원문은 `SelectionError: OCR 선택 중단(unreadable): 'PRINT_TEST'`다. Step 1(Image Overlay Bottom 추가)은 PASS다. Step 2는 Print Overlay 저장 뒤 DICOM Print 설정 목록에서 `PRINT_TEST` 서버 행을 고르는 곳에서 멈췄다(`core/print_overlay.py`의 `apply_to_print_server`).
+
+- 목록에 행이 1개였고, 캡처에는 `DICOM  PRIN...  PRIN...`처럼 이름 열과 AE 열이 제품 화면에서 말줄임으로 잘려 보였다.
+- 4번 판독 모두 `DICOM PRIN... PRIN...` 계열이었고(신뢰도 1~93) 일치 점수는 0.0이었다.
+- 경쟁 후보 검사와 판독 기준은 의도대로 동작했다. 기준을 낮추지 않았다.
+
+> **주의** Step 2~6은 선행 중단으로 수행하지 못한 것이다. 제품 FAIL이 아니다.
+
+WF03 소요는 1.0.5 설치판(17.8분, Step 2 Header Layout 판독 중단)에서 7.6분으로 줄었다. 두 실행은 멈춘 지점이 달라 같은 구간의 비교는 아니다. 1.0.5에서 멈췄던 Header Layout `1 X 2` 선택은 이번에 통과했다.
+
+보존 확인: 백업 1,300개 변경 0, 설치 1,010개 일치, config 해시 동일, 1.0.5·run106 증거 유지. 기록은 `work/run107/`에 있다. 다음 조치(목록 열 폭에 잘린 서버 이름 선택 방법 수정 여부, 나머지 3개 실행)는 사용자 결정을 기다린다.

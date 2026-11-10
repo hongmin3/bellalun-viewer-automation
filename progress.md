@@ -8,7 +8,10 @@
 - 작업 폴더 1,295개를 백업한 뒤 1.0.5→1.0.6으로 설치 업데이트했다. 설치 1,010개 일치, config 포함 작업 파일 변경 0이다.
 - WF03이 5.9초 만에 FAIL로 끝나 정지했다. Step 1 진입 전 `Viewer XIPL fixture not found: PatientID=DATA_FLOW_MWL_01`이다. 앞서 사용자 요청으로 DB를 기준 스냅샷으로 복원해서 WF01·WF02가 만드는 시험 환자가 없다. 제품 FAIL이 아니라 선행 데이터 부재다. WF08·WF05·XIPL02는 미수행이다.
 - 새 리포트의 "직접 확인할 TC Step" 목록은 실제로 Step 1~6의 체크리스트 절차·기대 결과로 출력됐다.
-- 다음: DICOM 서버 등록·WF01·WF02로 fixture를 만든 뒤 4개 단독을 다시 실행할지 사용자 승인을 기다린다.
+- 사용자 승인(#98→#102)으로 같은 설치판에서 run107을 실행했다(`work/run107/`, WMI 분리 실행, 재빌드·재설치·DB 복원 없음). setup-dicom PASS 109초, WF01 PASS 156.6초, WF02 PASS 275.0초(게이트 통과)로 시험 환자를 만들었다.
+- WF03은 19:21:50부터 7.6분 뒤 FAIL로 끝나 정지했다. Step 1 PASS, Step 2에서 `SelectionError: OCR 선택 중단(unreadable): 'PRINT_TEST'`다. DICOM Print 목록의 유일한 행이 화면에서 `DICOM  PRIN...  PRIN...`으로 잘려 표시됐다(`core/print_overlay.py` `apply_to_print_server`). 자동화 선택 중단이며 Step 2~6은 미수행이다. 1.0.5에서 멈췄던 Header Layout 선택은 통과했다.
+- WF08·WF05·XIPL02는 미수행이다. 백업 1,300개·설치 1,010개·config·증거 사본 해시가 모두 일치한다. 상세는 `docs/failure-recovery-1.0.5.md`의 1.0.6 절이다.
+- 다음: 잘린 서버 이름 행의 선택 방법 수정 여부와 남은 3개 실행을 사용자가 결정한다. 전체 기본기능/WU 회귀는 하지 않았다.
 
 ## 2026-11-10 1.0.5 설치판 WF03 FAIL·후속 수정(미빌드)
 
