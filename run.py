@@ -313,6 +313,12 @@ def pad_aborted_steps(ctx, results):
         if not total:
             continue
         done = {int(c.step) for c in result.checks if c.step}
+        missing = [step for step in range(1, total + 1) if step not in done]
+        # 중단 기록에는 자동화가 수행 중이던 기준 Step 을 따로 남긴다(REQ-REPORT-001).
+        # Step 은 순서대로 기록되므로 첫 미기록 Step 이 중단 위치다. 판정 Step 은 그대로 둔다.
+        for check in result.checks:
+            if getattr(check, "interrupted", False) and check.interrupted_step is None:
+                check.interrupted_step = missing[0] if missing else None
         for step in range(1, total + 1):
             if step in done:
                 continue

@@ -115,6 +115,11 @@ class Check:
         #: SKIP 이 TC 판정을 막는지(REQ-WU-003). None 은 기존 규칙(막지 않음)이다.
         #: True 인 SKIP 이 남으면 TC 판정이 PASS 가 되지 않고 MANUAL 이 된다.
         self.blocks_verdict = blocks_verdict
+        #: `TCResult.abort()` 가 남긴 중단 기록인가.
+        self.interrupted = False
+        #: 중단 기록일 때 자동화가 수행 중이던 기준 체크리스트 Step(`run.pad_aborted_steps`).
+        #: 판정 Step(`step`)은 바꾸지 않는다. WU 변환과 게이트가 그 번호를 쓴다.
+        self.interrupted_step = None
 
     def as_dict(self):
         data = {
@@ -128,6 +133,8 @@ class Check:
                 data[key] = value
         if self.blocks_verdict is not None:
             data["blocks_verdict"] = bool(self.blocks_verdict)
+        if self.interrupted_step is not None:
+            data["interrupted_step"] = self.interrupted_step
         return data
 
     @property
@@ -272,11 +279,13 @@ class TCResult:
         """
         self.aborted = True
         detail = exc if isinstance(exc, str) else f"{type(exc).__name__}: {exc}"
-        return self.add(step, title, FAIL, actual=detail, stop=False,
+        check = self.add(step, title, FAIL, actual=detail, stop=False,
                         note=note or
                         "이 단계에서 예외가 발생해 TC 가 중단됐다. 회귀는 멈추지 "
                         "않고 다음 TC 로 넘어간다. 남은 Step 은 '미수행(FAIL)'로 "
                         "채워진다 — 제품 결함 판정이 아니라 수행하지 못한 것이다.")
+        check.interrupted = True
+        return check
 
     def cleanup(self, step, title, status, expected="", actual="", note=""):
         """**정리(원복) 결과**를 기록한다. 절대 중단 신호를 내지 않는다.
@@ -456,6 +465,54 @@ def classify_fail(tc_id, check, has_known_defect, known_defects):
     return "real"
 
 
+#: 사용자가 직접 확인할 Step 의 구분. 판정(FAIL/MANUAL/BLOCKED)은 바꾸지 않는다.
+ACTION_INTERRUPTED = "자동화 중단 — 이 Step 부터 직접 수행"
+ACTION_NOT_RUN = "미수행 — 직접 수행"
+ACTION_FAIL = "실패 — 직접 재확인"
+ACTION_MANUAL = "수동 확인 — 직접 확인"
+ACTION_BLOCKED = "수행 불가 — 직접 수행"
+
+
+def user_actions(results, checklist=None):
+    """사람이 직접 확인할 **기준 체크리스트 Step** 목록(REQ-REPORT-001).
+
+    자동화 내부 단계 이름이 아니라 체크리스트의 Step 번호·수행 절차·기대 결과를 앞에
+    두고, 자동화가 남긴 원인은 참고로만 붙인다. SKIP(이 환경의 확인 대상 아님)은 넣지 않는다.
+    """
+    actions = []
+    for r in results:
+        # 미수행 채움 행은 판정 기록(WU 변환·게이트)에 그대로 두고, 중단 Step 과 겹치는
+        # 한 줄만 목록에서 접는다.
+        interrupted = {c.interrupted_step for c in r.checks
+                       if c.status == FAIL and c.interrupted and c.interrupted_step is not None}
+        for c in r.checks:
+            if c.status not in (FAIL, MANUAL, BLOCKED):
+                continue
+            if (c.step in interrupted and PAD_TITLE.match(str(c.title or ""))
+                    and str(c.actual) == PAD_ACTUAL):
+                continue
+            step = c.step
+            if c.status == FAIL and c.interrupted:
+                kind = ACTION_INTERRUPTED
+                step = c.interrupted_step if c.interrupted_step is not None else c.step
+            elif (c.status == FAIL and PAD_TITLE.match(str(c.title or ""))
+                  and str(c.actual) == PAD_ACTUAL):
+                kind = ACTION_NOT_RUN
+            else:
+                kind = {FAIL: ACTION_FAIL, MANUAL: ACTION_MANUAL,
+                        BLOCKED: ACTION_BLOCKED}[c.status]
+            source = _step_context({"checklist": checklist or {}}, r.tc_id, step)
+            # 수동·수행 불가는 비고가 이유이고, 실패는 실제값이 원인이다.
+            detail = (c.note if c.status != FAIL and c.note else c.actual) or c.note
+            reference = "" if kind == ACTION_NOT_RUN else _one_line(
+                f"{c.title}: {detail}" if str(detail) else str(c.title), 240)
+            actions.append({"tc_id": r.tc_id, "step": step, "kind": kind,
+                            "step_description": source["step_description"],
+                            "expected_result": source["source_expected_result"],
+                            "automation_reference": reference})
+    return actions
+
+
 def _first_sentence(text, limit=160):
     """판정 근거의 첫 문장만. 리포트가 원인을 지어내지 않고 기록된 문장을 줄인다."""
     text = " ".join(str(text or "").split())
@@ -583,6 +640,16 @@ def write_txt(results, path, env=None, checklist=None, command=None,
         known = " · 알려진 제품 결함" if row["known_defect"] else ""
         L.append(f"   - [{row['verdict']}{known}] {row['tc_id']} Step {row['step']} "
                  f"{row['check']}: {row['reason']}")
+    actions = user_actions(results, checklist)
+    if actions:
+        L.append(" [ 직접 확인할 TC Step ]")
+        for a in actions:
+            L.append(f"   - {a['tc_id']} Step {step_label(a['step'])} [{a['kind']}] "
+                     f"{a['step_description'] or '(체크리스트 수행 절차 없음)'}")
+            if a["expected_result"]:
+                L.append(f"       기대 결과: {a['expected_result']}")
+            if a["automation_reference"]:
+                L.append(f"       자동화 참고: {a['automation_reference']}")
     L.append(f" TC 건수   : {len(results)}")
     L.append(f" TC 판정   : PASS {tc_total[PASS]} / FAIL {tc_total[FAIL]} / "
              f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]} / "
@@ -726,6 +793,7 @@ def write_reports(results, out_dir, run_name=None, meta=None):
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({"generated": datetime.now().isoformat(timespec="seconds"),
                    "meta": meta,
+                   "user_actions": user_actions(results, meta.get("checklist")),
                    "results": _results_payload(results, meta)}, f,
                   ensure_ascii=False, indent=2, default=str)
 
@@ -958,6 +1026,21 @@ def _render_html(results, meta, siblings=None):
                          f"<td class='note'>{e(str(x.get('unblock') or '-'))}</td>"
                          "</tr>")
         cov.append("</table>")
+
+    # --- 직접 확인할 TC Step (REQ-REPORT-001) --------------------------
+    actions = user_actions(results, meta.get("checklist"))
+    if actions:
+        P.append(f"<section id='user-steps' class='manual-panel'><h2>직접 확인할 TC Step "
+                 f"{len(actions)}건</h2><div class='meta'>기준 체크리스트의 Step 번호·수행 절차·"
+                 "기대 결과입니다. 자동화 원인은 참고로만 붙입니다.</div><table><tr><th>TC</th>"
+                 "<th>Step</th><th>구분</th><th>수행 절차</th><th>기대 결과</th>"
+                 "<th>자동화 참고</th></tr>")
+        for a in actions:
+            P.append("<tr><td>" + e(a["tc_id"]) + "</td><td class='s'>"
+                     + e(step_label(a["step"])) + "</td><td>" + e(a["kind"]) + "</td><td>"
+                     + e(a["step_description"]) + "</td><td>" + e(a["expected_result"])
+                     + "</td><td class='note'>" + e(a["automation_reference"]) + "</td></tr>")
+        P.append("</table></section>")
 
     # --- 먼저 볼 것: FAIL 원인 ----------------------------------------
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]

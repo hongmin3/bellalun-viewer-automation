@@ -16,7 +16,7 @@ def test_print_ocr_uses_common_reader():
 def test_header_combo_uses_unique_common_selection(tmp_path):
     combo = SimpleNamespace(hwnd=1, visible=True, rect=(0, 0, 40, 20))
     popup = SimpleNamespace(hwnd=2, text='ItemList', visible=True, rect=(0, 20, 40, 60))
-    row = SimpleNamespace(hwnd=3, text='TextButton', visible=True, rect=(0, 0, 40, 20))
+    row = SimpleNamespace(hwnd=3, text='TextButton', visible=True, rect=(0, 20, 40, 40))
     ui = mock.Mock()
     ui.by_id.return_value = [combo]
     ui.windows.return_value = [popup]
@@ -32,7 +32,7 @@ def test_header_combo_uses_unique_common_selection(tmp_path):
 def test_ambiguous_header_never_clicks_a_row(tmp_path):
     combo = SimpleNamespace(hwnd=1, visible=True, rect=(0, 0, 40, 20))
     popup = SimpleNamespace(hwnd=2, text='ItemList', visible=True, rect=(0, 20, 40, 60))
-    row = SimpleNamespace(hwnd=3, text='TextButton', visible=True, rect=(0, 0, 40, 20))
+    row = SimpleNamespace(hwnd=3, text='TextButton', visible=True, rect=(0, 20, 40, 40))
     ui = mock.Mock()
     ui.by_id.return_value = [combo]
     ui.windows.return_value = [popup]

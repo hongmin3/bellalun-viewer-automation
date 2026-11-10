@@ -67,6 +67,10 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 각 후보 캡처와 선택 직전에 HWND·Control ID를 확인하며 소실·식별자 변경·스크롤 한계는
 클릭하지 않고 실패 증거에 남긴다. 콤보는 클릭한 위치에 인접한 유일한 ItemList의
 항목 준비를 제한 시간 동안 기다리며, 다른 팝업이나 경합 상태를 선택하지 않는다.
+콤보 팝업은 항목 창을 정해진 개수만큼 만들고 팝업 높이만큼만 그린다. 그래서 팝업 영역 밖에
+놓인 항목 창은 후보로 읽지 않는다. 실패 증거에는 콤보와 팝업 영역을 함께 남긴다.
+
+> **예시** Header Layout 팝업은 항목 창 9개 중 `1 X 1`~`2 X 3` 6개만 보였다. 아래 3개 영역은 다른 설정 컨트롤을 캡처해 선택이 거부됐다.
 OCR 실패 증거의 기본 위치는 실행 Context의 Evidence/OCR이며 CWD 변경에 영향받지 않는다.
 
 기준 OCR은 배포에 포함된 Tesseract 5.5.3이다. 정상 기존 OCR·PC별 설정은 덮어쓰지 않으며
@@ -76,7 +80,7 @@ OCR 실패 증거의 기본 위치는 실행 Context의 Evidence/OCR이며 CWD �
 저장 캡처 manifest를 입력하는 오프라인 재판독 도구로 PC별 판독 성공·모호함·실패를 비교한다.
 
 TEST-OCR-001: `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`,
-`tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py`에서 기본/대체 판독,
+`tests/test_print_overlay_selection.py`, `tests/test_ocr_replay.py`, `tests/test_combo_popup.py`에서 기본/대체 판독,
 동점·짧은 문구·낮은 신뢰도·빈 후보·엔진 오류·증거 저장·기존 설정 보존과 재판독을 확인한다.
 실제 제품 UI 검증은 REQ-REGRESSION-002에 따라 빌드 EXE로 별도 승인 후 수행한다.
 
@@ -254,6 +258,15 @@ VXvue와 동일한 `core/report_layout.py` 표시 계약으로 목차·판정 �
 값 `0`·`False`·`None`·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON/CSV/TXT와 판정 기준은 바꾸지 않는다.
 
 시간 기록이 있는 TC는 단계 이름·소요 초·완료 또는 오류 상태를 표시한다.
+
+FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리스트 Step 목록을 TXT·HTML·JSON과 체크리스트 결과의 실패·수동 열 앞에 둔다.
+
+- 각 줄은 TC ID, 체크리스트 Step 번호, 구분, 그 Step의 수행 절차와 기대 결과를 먼저 쓴다. 자동화가 남긴 원인은 `자동화 참고`로 뒤에 붙인다.
+- 구분은 `자동화 중단 — 이 Step 부터 직접 수행`, `미수행 — 직접 수행`, `실패 — 직접 재확인`, `수동 확인 — 직접 확인`, `수행 불가 — 직접 수행`이다. SKIP은 넣지 않는다.
+- 중단 기록에는 자동화가 수행 중이던 체크리스트 Step(`interrupted_step`)을 함께 남긴다. Step은 순서대로 기록하므로 기록된 Step 다음의 첫 Step이다.
+- 판정 Step 번호와 미수행 채움 행은 바꾸지 않는다. 같은 Step의 채움 행은 목록에서만 한 줄로 접는다.
+
+이유: WU 변환과 배포 게이트가 판정 Step 번호와 채움 행으로 결과를 옮긴다.
 
 총 소요시간은 전체 실행의 시작·종료 구간으로 계산한다. WU 집계 결과 객체의 시간 합계를 실제 시험 시간으로 표시하지 않는다. 재개 실행은 이번 실행의 구간만 표시한다. 전체 구간을 모르는 과거 WU 자료는 시간을 알 수 없다고 표시한다.
 #### 선행 조건
@@ -917,7 +930,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
-| REQ-REPORT-001 | `core/result.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py` | implemented |
+| REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | implemented |

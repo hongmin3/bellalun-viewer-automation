@@ -191,19 +191,35 @@ def top_windows(pid):
 
 
 def children(hwnd, max_depth=4, _depth=1):
-    """자식 컨트롤 트리를 평탄화해서 반환한다."""
-    out = []
+    """자식 컨트롤 트리를 평탄화해서 반환한다.
+
+    `EnumChildWindows` 는 손자 창까지 모두 열거하므로 한 번만 호출한다. 하위 창마다
+    다시 열거하면 깊이만큼 같은 창의 문구를 다시 읽어(WM_GETTEXT) Viewer 응답을
+    기다리는 시간이 늘어난다. 반환 집합은 예전과 같은 전체 하위 창이고 `max_depth` 는
+    호출 호환을 위해 남겨 둔다. `depth` 는 표시용 실제 깊이다.
+    """
+    out, depth = [], {hwnd: _depth - 1}
+
+    def level(child):
+        chain, node = [], child
+        while node and node not in depth and len(chain) < 64:
+            chain.append(node)
+            node = u32.GetParent(node)
+        base = depth.get(node, _depth - 1)
+        for item in reversed(chain):
+            base += 1
+            depth[item] = base
+        return depth[child]
 
     def cb(child, _):
         out.append(Control(child, u32.GetDlgCtrlID(child), _class_of(child),
                            _text_of(child), _rect_of(child),
-                           bool(u32.IsWindowVisible(child)), _depth))
-        if _depth < max_depth:
-            out.extend(children(child, max_depth, _depth + 1))
+                           bool(u32.IsWindowVisible(child)), level(child)))
         return True
 
     u32.EnumChildWindows(hwnd, _EnumProc(cb), 0)
-    return out
+    seen = set()
+    return [c for c in out if not (c.hwnd in seen or seen.add(c.hwnd))]
 
 
 # ---------------------------------------------------------------------

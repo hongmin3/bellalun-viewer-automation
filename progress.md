@@ -1,5 +1,12 @@
 # 진행 상태
 
+## 2026-11-10 1.0.5 설치판 WF03 FAIL·후속 수정(미빌드)
+
+- 승인 후 1.0.5 후보를 설치하고 단독 수용을 시작했다. WF03이 Step 2에서 자동화 중단(Header Layout 팝업 밖 항목 창 판독)으로 FAIL이고, 사용자 지시로 즉시 멈췄다. WF08·WF05·XIPL02는 미수행이다. 기록은 `work/installed-1.0.5-singles-20261110/`, 요약은 `docs/failure-recovery-1.0.5.md`에 있다.
+- 사용자 요청으로 DB를 기준 스냅샷으로 복원했다(Print Overlay 5개→0개). 설치판은 1.0.5 후보를 유지한다.
+- 수정: 콤보 팝업 영역 밖 항목 제외, `ui.children()` 단일 열거, 직접 확인할 체크리스트 Step 목록(TXT·HTML·JSON·체크리스트 xlsx). 소스 시험 975 passed / 2 skipped(이 세션 PATH에 Inno 컴파일러 없음) / 297 subtests.
+- 다음: 새 빌드 → 설치 → 단독 재실행. 빌드·UI 실행은 사용자 승인 후 한다. 속도 개선 효과는 그 실행에서 잰다.
+
 ## 2026-11-10 1.0.5 빌드 완료·단독 UI 응답 대기
 
 - 15:07:59~15:41:46 KST(33분47초), 감독 finished/exit0, 소스4e5101e131c284aa1baab1ddb8853916ad188ed6·dirty=false·compile/tests 생략 없음으로 빌드했다. 빌드 내부도969 passed / 0 skipped / 297 subtests다.

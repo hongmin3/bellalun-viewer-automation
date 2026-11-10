@@ -179,6 +179,10 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None):
 
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     written, matched_ids = 0, set()
+    try:
+        steps = read_tc_rows(source_xlsx, sheet_name)
+    except Exception:  # 단계 문구를 못 읽어도 판정 기록은 남긴다.
+        steps = {}
 
     for row in range(hdr_row + 1, ws.max_row + 1):
         tc_id = str(ws.cell(row, tc_col).value or "").strip()
@@ -189,7 +193,7 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None):
             _set(ws, row, col_of["자동화 판정"], "미수행")
             continue
         matched_ids.add(tc_id)
-        _write_row(ws, row, col_of, hits, stamp)
+        _write_row(ws, row, col_of, hits, stamp, steps)
         written += 1
 
     # 체크리스트에 없는 TC (예: _mid 보조 판정)
@@ -200,7 +204,7 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None):
         for tid in sorted(extra):
             row += 1
             ws.cell(row, tc_col, tid)
-            _write_row(ws, row, col_of, by_id[tid], stamp)
+            _write_row(ws, row, col_of, by_id[tid], stamp, steps)
 
     for name in RESULT_HEADERS:
         ws.column_dimensions[
@@ -231,7 +235,7 @@ def _set(ws, row, col, value, status=None):
     return cell
 
 
-def _write_row(ws, row, col_of, hits, stamp):
+def _write_row(ws, row, col_of, hits, stamp, steps=None):
     verdicts = [h.verdict for h in hits]
     verdict = (FAIL if FAIL in verdicts else
                BLOCKED if BLOCKED in verdicts else
@@ -239,14 +243,22 @@ def _write_row(ws, row, col_of, hits, stamp):
                PASS if PASS in verdicts else SKIP)
 
     total = {status: 0 for status in STATUSES}
+    from .result import user_actions, step_label
     fails, manuals, evidence = [], [], []
+    # 사용자가 직접 볼 기준 Step 을 앞에 쓰고 자동화 원인은 참고로 붙인다(REQ-REPORT-001).
+    for a in user_actions(hits, steps):
+        line = (f"[Step {step_label(a['step'])}] {a['kind']}: "
+                + (a["step_description"] or "(체크리스트 수행 절차 없음)"))
+        if a["expected_result"]:
+            line += f" / 기대: {a['expected_result']}"
+        if a["automation_reference"]:
+            line += f" / 자동화 참고: {a['automation_reference']}"
+        (fails if a["kind"].startswith(("자동화 중단", "미수행", "실패")) else manuals).append(line)
     for h in hits:
         for k, v in h.counts.items():
             total[k] += v
         for c in h.checks:
-            if c.status == FAIL:
-                fails.append(f"[Step {c.step}] {c.title} — 기대={c.expected} / 실제={c.actual}")
-            elif c.status in (MANUAL, SKIP, BLOCKED):
+            if c.status == SKIP:
                 # **사유(note)를 함께 적는다** (2026-08-21 사용자 요청 "비고도 잘
                 # 기록해 달라"). 제목만 적으면 체크리스트만 받은 사람이 "왜 수동인가 /
                 # 왜 대상이 아닌가"를 알 수 없어 리포트를 다시 열어야 했다.

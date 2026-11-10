@@ -4,7 +4,7 @@ import pytest
 from core import flows
 
 
-def ctrl(hwnd, cid=0, text='', rect=(10, 10, 100, 30)):
+def ctrl(hwnd, cid=0, text='', rect=(10, 40, 100, 60)):
     return C(hwnd=hwnd, ctrl_id=cid, text=text, rect=rect, visible=True)
 
 
@@ -69,3 +69,25 @@ def test_popup_waits_until_required_id_exists():
          mock.patch('time.sleep'), mock.patch.object(flows, 'examined_cards', return_value=[]):
         flows.examined_search(ui, 'SYNTHETIC-ID')
     assert ui.click.call_args_list[1].args[0] is target
+
+
+def test_wait_items_excludes_slots_outside_the_popup_viewport():
+    """Header Layout 실측: 9개 슬롯 중 6개만 팝업 안에 보였고 나머지는 아래 다른 UI를 가렸다."""
+    from core import combo_popup
+    ui = mock.Mock()
+    combo = ctrl(1, rect=(1579, 390, 1721, 416))
+    ui.windows.return_value = [ctrl(4, text='ItemList', rect=(1579, 416, 1721, 622))]
+    slots = [ctrl(10 + i, i, 'TextButton', (1579, 417 + 34 * i, 1721, 451 + 34 * i))
+             for i in range(9)]
+    items = combo_popup.wait_items(ui, combo, lambda hwnd, depth: slots)
+    assert [c.hwnd for c in items] == [10, 11, 12, 13, 14, 15]
+
+
+def test_wait_items_keeps_waiting_when_no_slot_is_inside_the_popup():
+    from core import combo_popup
+    ui = mock.Mock()
+    ui.windows.return_value = [ctrl(4, text='ItemList', rect=(10, 30, 100, 40))]
+    outside = [ctrl(8, 0, 'TextButton', (10, 50, 100, 80))]
+    with mock.patch('time.monotonic', side_effect=range(100)), mock.patch('time.sleep'):
+        with pytest.raises(RuntimeError, match='시간'):
+            combo_popup.wait_items(ui, ctrl(1), lambda hwnd, depth: outside)

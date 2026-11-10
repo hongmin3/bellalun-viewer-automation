@@ -742,8 +742,14 @@ def _pick_combo_by_text(ui, control_id, wanted, tesseract_exe, what, evidence_di
     ui.click(hits[0], settle=1.0)
     from .combo_popup import wait_items
     items = wait_items(ui, hits[0], children)
+    def diagnostics():
+        # 실패 증거에 팝업 영역을 남겨 후보 행이 실제로 보이는 범위였는지 확인한다.
+        return {'combo': list(hits[0].rect),
+                'popups': [list(w.rect) for w in ui.windows()
+                           if w.text == 'ItemList' and w.visible]}
     target, detail = ocr_selection.select(items, wanted, tesseract_exe,
-                                         match='exact', evidence_dir=evidence_dir)
+                                         match='exact', evidence_dir=evidence_dir,
+                                         diagnostics=diagnostics)
     ui.click(target, settle=1.0)
     return {"wanted": wanted, "items_read": detail['reads'] if 'reads' in detail else [],
             "selection": detail}

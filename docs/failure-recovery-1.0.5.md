@@ -42,7 +42,7 @@
 
 최종 단독 범위는 WF03·WF08·WF05·XIPL02다. 공통 Print Overlay 선택, 실제 Print 수신, 3D 전송 수신, 2D Preview/Apply를 각각 확인한다. 소스 진단은 원인 확인용이며 배포 수용 근거는 빌드 신원과 일치하는 EXE 결과로 확정한다. 전체 기본기능·WU·다른 OS 검증으로 확대해 표시하지 않는다.
 
-현재 설치판은 1.0.4이며 새 EXE의 단독 UI 수용은 미수행이다. 최신 사용자 요청에 따라 **설치 업데이트와 단독 UI는 응답을 기다린다.** 기존 1.0.3·1.0.4 배포 파일11개·실행EXE2개(총13개)와 실행판 보관본 각각1,010개 파일의 해시를 확인했다. 설치1.0.4의1,010개 파일과 config도 일치한다. 기존 작업 자료와 각 진단의 새 보고서·증거는 별도 해시 검증 사본으로 보존한다.
+빌드 당시 설치판은 1.0.4였다. 이후 사용자 승인으로 1.0.5 후보를 설치하고 단독 UI를 시작했다. 결과는 아래 [설치판 단독 수용](#설치판-단독-수용과-후속-수정) 절에 있다. 기존 1.0.3·1.0.4 배포 파일11개·실행EXE2개(총13개)와 실행판 보관본 각각1,010개 파일의 해시를 확인했다. 설치1.0.4의1,010개 파일과 config도 일치한다. 기존 작업 자료와 각 진단의 새 보고서·증거는 별도 해시 검증 사본으로 보존한다.
 
 ## 후보 빌드와 산출물 검증
 
@@ -61,6 +61,39 @@ ZIP은 신규 경로에서 생성한 뒤 최종 폴더로 옮겼다. 최종 위�
 
 **build-info의 gate는 candidate/passed=false이며 후보 파일명과 표식을 유지한다.** 빌드·CLI·해시 성공은 새 EXE의 TC 성공을 뜻하지 않는다. 응답 후 이 패키지로 업데이트하고 WF03·WF08·WF05·XIPL02를 각각 수행해 별도 수용 기록을 만든다. 같은 검증 EXE를 재컴파일하거나 기존 메타데이터를 고쳐 통과시키지 않는다.
 
-로컬 근거는 `work/run105-build/`, `work/implement105/`의 candidate-verification·final-artifacts·release-preservation·rollback-verification·held-install-verification 기록이다. 설치 업데이트·단독UI 기록 폴더는 생성하지 않았다. 다른 PC/OS와 새 전체 회귀도 이번 범위의 실행 결과가 없다.
+로컬 근거는 `work/run105-build/`, `work/implement105/`의 candidate-verification·final-artifacts·release-preservation·rollback-verification·held-install-verification 기록이다. 설치 업데이트·단독UI 기록은 `work/installed-1.0.5-singles-20261110/`에 있다. 다른 PC/OS와 새 전체 회귀도 이번 범위의 실행 결과가 없다.
 
 이전 전체 실행과 조사 근거는 [1.0.4 검증 기록](reliability-2026-11-10.md), 작업 범위는 [복구 계획](superpowers/plans/2026-11-10-failure-recovery.md), 판정 기록의 해석은 [배포 안내](distribution-guide.md)를 따른다.
+
+## 설치판 단독 수용과 후속 수정
+
+2026-11-10 사용자 승인 후 같은 후보 Setup으로 1.0.4에서 1.0.5로 설치했다(17:10:33 완료, 재시작 불필요).
+
+- 설치 전 작업 폴더 1,244개를 해시 검증한 사본으로 보존했다. 설치 뒤 `config.json`을 포함해 바뀐 파일은 0개다.
+- 설치판 EXE는 `61cb6c4f…c6fc726`, 소스 `4e5101e1…`, 설치 파일 1,010개 대조 불일치 0이다.
+- 사용자 지시로 첫 FAIL에서 멈췄다.
+
+| TC | 결과 |
+|---|---|
+| TC_Basic_WorkFlow_03 | FAIL. 17:10:47~17:28:02, Step 1 PASS, Step 2(Print Overlay 추가) 수행 중 자동화 중단 |
+| TC_Basic_WorkFlow_08 | 미수행 |
+| TC_Basic_WorkFlow_05 | 미수행 |
+| TC_XIPL_compatibility_02 | 미수행 |
+
+WF03 중단 원문은 `SelectionError: OCR 선택 중단(unreadable): '1 X 2'`다. 제품 결함 판정이 아니다.
+
+- Header Layout 팝업의 항목 창 9개 중 2번째가 네 판독 모두 `1X2`(신뢰도 84~96)로 읽혔다.
+- 아래 3개 항목 창(y 621~723)은 팝업 밖이었다. 캡처에는 다른 설정 컨트롤(`60` 입력칸, `Abso…`)이 보였고 신뢰도는 0~47이었다.
+- 경쟁 후보 검사는 의도대로 이 영역을 판독 불가 후보로 보고 선택을 거부했다.
+
+증거 51개는 `work/installed-1.0.5-singles-20261110/wf03/snapshots/`에 있고 사본 해시가 모두 일치한다. 1.0.5 후보는 게이트 미통과 후보로 그대로 둔다.
+
+### 후속 수정 (미빌드)
+
+1. 콤보 팝업은 팝업 영역 안의 항목 창만 후보로 읽는다. 실패 증거에 콤보·팝업 영역을 남긴다. 임계값·최대 4판독·경쟁 후보 검사는 그대로다.
+2. `core/ui.py`의 `children()`가 `EnumChildWindows` 결과를 하위 창마다 다시 열거하던 것을 한 번 열거로 바꿨다. 같은 창에 문구 조회(WM_GETTEXT)를 깊이만큼 반복하던 비용을 없앤다. 반환하는 창 집합은 같다. 실제 Windows 창 트리에서 중복 14건이 고유 9건으로 줄었다. Viewer 화면에서의 시간 단축은 아직 재지 않았다.
+3. 결과 리포트에 직접 확인할 체크리스트 Step 목록을 추가했다(REQ-REPORT-001). 판정과 Step 번호는 바꾸지 않았다.
+
+사용자 요청으로 `run.py reset-environment`를 실행해 4개 DB를 기준 스냅샷으로 복원했다. Print Overlay는 5개에서 0개가 됐다.
+
+새 빌드와 설치, 4개 단독 재실행은 다시 승인받아 수행한다. 공용 UI 조회 계층을 바꿨으므로 REQ-REGRESSION-002 기준의 시험 범위도 함께 확인한다.
