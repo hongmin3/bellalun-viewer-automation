@@ -276,7 +276,31 @@ def _ensure_thumbnails(ctx, ui, target, tesseract_exe, expected=2, wait=8):
     return _thumbnails(ui, tesseract_exe)
 
 
-def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known,
+def _station_ae(db):
+    """이 Viewer의 Station AE. 공유 Print SCP에서 자기 job을 가리는 기준이다."""
+    row = db.one("CONFIGURATION", "SELECT TOP 1 StationAETitle FROM DICOM_COMMON") or {}
+    ae = str(row.get("StationAETitle") or "").strip()
+    if not ae:
+        raise RuntimeError("Station AE(DICOM_COMMON.StationAETitle)를 읽지 못해 "
+                           "이 Viewer가 보낸 Print job을 가릴 수 없습니다")
+    return ae
+
+
+def _wait_own_job(server, known, station_ae, timeout=90, poll=.5):
+    """이 Viewer가 보낸 새 job과, 기다리는 동안 건너뛴 다른 장비 job을 돌려준다.
+
+    여러 장비가 같은 Print SCP를 쓴다. 1.0.7 WF08에서 QXLink job이 8초 먼저 도착해
+    그 job을 비교한 일이 있었다(REQ-REGRESSION-001).
+    """
+    jobs = server.wait_for_jobs(count=1, timeout=timeout, poll=poll,
+                                exclude_ids=known, calling_ae=station_ae)
+    ignored = [{"id": j.get("id"), "calling_ae_title": j.get("calling_ae_title")}
+               for j in server.jobs_since(known)
+               if j.get("calling_ae_title") != station_ae]
+    return (jobs[-1] if jobs else None), ignored
+
+
+def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known, station_ae,
                      job_timeout=90, select_images_verify=False):
     """썸네일 한 장을 Selected 로 필름에 올려 인쇄하고 서버 프리뷰까지 받는다.
 
@@ -321,15 +345,15 @@ def _print_thumbnail(ui, server, thumb, tag, evidence_dir, known,
         if len(buttons) == 1:          # 단일 버튼 안내창만 닫는다
             ui.click(buttons[0], settle=1)
 
-    jobs = server.wait_for_jobs(count=1, timeout=job_timeout, poll=.5,
-                                exclude_ids=known)
-    if not jobs:
+    job, ignored = _wait_own_job(server, known, station_ae, timeout=job_timeout)
+    if job is None:
         raise RuntimeError(
-            f"{tag}: Print SCP did not receive a new job within {job_timeout} seconds")
-    job = jobs[-1]
+            f"{tag}: Print SCP did not receive a new {station_ae} job within "
+            f"{job_timeout} seconds (other senders: {ignored})")
     web_path = os.path.join(evidence_dir, f"07_print_job_{tag}_{job['id']}.png")
     Path(web_path).write_bytes(server.preview(job["id"]))
-    return {"film": film_path, "web": web_path, "job": job, "layout": layout,
+    return {"film": film_path, "web": web_path, "job": job, "ignored_jobs": ignored,
+            "layout": layout,
             "similarity": _image_similarity(film_path, web_path),
             "pane_check": pane_check}
 
@@ -458,6 +482,7 @@ def run(ctx):
                            status.get("ae_title") == print_spec["ae_title"],
                            expected=print_spec, actual=status)
         known = {str(j.get("id")) for j in server.jobs()}
+        station_ae = _station_ae(ctx.db)
 
         # 인쇄 대상 썸네일 확인 (2D / 3D-N / 3D-W)
         wide_enabled = (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True)
@@ -516,15 +541,15 @@ def run(ctx):
                 ui.click(buttons[0], settle=1)
 
         wait_started_wall, wait_started = datetime.now(), time.perf_counter()
-        jobs = server.wait_for_jobs(count=1, timeout=90, poll=.5, exclude_ids=known)
+        job, ignored = _wait_own_job(server, known, station_ae, timeout=90)
         result.record_timing(
             "Print SCP 신규 job 수신", wait_started_wall, wait_started,
-            "new print job received" if jobs else "timeout",
-            {"known_ids": sorted(known),
-             "new_ids": [str(item.get("id")) for item in jobs]})
-        if not jobs:
-            raise RuntimeError("Print SCP did not receive a new job within 90 seconds")
-        job = jobs[-1]
+            "new print job received" if job else "timeout",
+            {"known_ids": sorted(known), "station_ae": station_ae,
+             "new_id": str(job.get("id")) if job else None, "ignored_jobs": ignored})
+        if job is None:
+            raise RuntimeError(f"Print SCP did not receive a new {station_ae} job "
+                               f"within 90 seconds (other senders: {ignored})")
         result.assert_true(6, "실제 DICOM Print job 수신",
                            str(job.get("id")) not in known,
                            expected="new Print SCP job", actual=job)
@@ -567,7 +592,7 @@ def run(ctx):
                 continue
             tag = kind.replace("-", "").lower()
             verify_select_images = (i == 0)
-            done = _print_thumbnail(ui, server, picked, tag, evidence_dir, known,
+            done = _print_thumbnail(ui, server, picked, tag, evidence_dir, known, station_ae,
                                     select_images_verify=verify_select_images)
             known.add(str(done["job"].get("id")))
             prints[kind] = done
@@ -579,6 +604,7 @@ def run(ctx):
                 and done["similarity"]["similarity"] >= .96,
                 expected={"new_job": True, "image_similarity": ">= 0.96"},
                 actual={"thumbnail": picked["label"], "job": done["job"],
+                        "ignored_jobs": done["ignored_jobs"],
                         "job_url": f"{server.base}/viewer.html?id={done['job']['id']}",
                         "image": done["similarity"]},
                 note="Print SCP job 메타데이터는 Film 단위라 어떤 영상이 실렸는지 "

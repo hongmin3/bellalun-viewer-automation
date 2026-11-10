@@ -160,6 +160,13 @@ CLI 명령, 기준 체크리스트, `automation_scope.json`의 TC 등급·사유
 #### 동작
 기본기능 회귀는 개정 체크리스트의 TC를 따른다. Windows Update는 전용 체크리스트와
 기존 자동화의 명시된 매핑을 사용한다. 자동 판정 불가·수동·제외 항목의 이유를 보존한다.
+
+여러 장비가 함께 쓰는 Print SCP에서는 이 Viewer가 보낸 새 job만 비교에 쓴다.
+이 Viewer가 보낸 job은 calling AE가 DB의 Station AE(`DICOM_COMMON.StationAETitle`)와 같은 job이다.
+다른 장비가 보낸 job은 기다리는 동안 건너뛰고, 그 번호와 AE를 증거에 남긴다.
+Station AE를 읽지 못하면 아무 job이나 고르지 않고 실패로 남긴다.
+
+> **예시** 1.0.7 설치판 WF08에서 3D-W 필름을 보낸 직후 다른 장비(`QXLink`)의 job 371이 먼저 도착했다. 자동화가 그 job을 집어 영상이 달라 FAIL이 됐고, Bellalun이 보낸 job 372는 8초 뒤에 도착했다.
 #### 기대 결과
 수행한 범위와 판정 상태가 일치하며 단일 TC 결과를 전체 회귀 완료로 보고하지 않는다.
 #### 예외 처리
@@ -930,7 +937,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
-| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py` | implemented |
+| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | implemented |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | implemented |

@@ -66,17 +66,26 @@ class PrintServer:
         known = {str(value) for value in known_ids}
         return [j for j in self.jobs() if str(j.get("id")) not in known]
 
-    def wait_for_jobs(self, count=1, timeout=60, poll=2.0, exclude_ids=()):
-        """신규 필름이 count건 수신될 때까지 대기한다. 도달하면 목록, 아니면 부분 목록."""
+    def wait_for_jobs(self, count=1, timeout=60, poll=2.0, exclude_ids=(), calling_ae=None):
+        """신규 필름이 count건 수신될 때까지 대기한다. 도달하면 목록, 아니면 부분 목록.
+
+        `calling_ae`를 주면 그 AE가 보낸 job만 센다. 여러 장비가 같은 SCP를 쓰면
+        다른 장비의 job이 먼저 도착할 수 있다(REQ-REGRESSION-001).
+        """
         import time
         deadline = time.time() + timeout
         # The server returns numeric IDs, while report/config values may be
         # strings.  Normalize both sides so an old job can never be mistaken
         # for the print that this run just submitted.
         exclude = {str(value) for value in exclude_ids}
+
+        def fresh():
+            return [j for j in self.jobs() if str(j.get("id")) not in exclude
+                    and (calling_ae is None or j.get("calling_ae_title") == calling_ae)]
+
         while time.time() < deadline:
-            new = [j for j in self.jobs() if str(j.get("id")) not in exclude]
+            new = fresh()
             if len(new) >= count:
                 return new
             time.sleep(poll)
-        return [j for j in self.jobs() if str(j.get("id")) not in exclude]
+        return fresh()

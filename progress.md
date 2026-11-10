@@ -5,6 +5,11 @@
 - 사용자 승인(#102 "1 잘 고쳐줘 추천대로, 2 추천대로 진행"): Print 서버 행 선택 수정 → 1.0.7 빌드 → 설치 → WF03·WF08·WF05·XIPL02 단독(FAIL 시 정지). 전체 회귀·DB 복원·USB/UPS 조작은 하지 않는다.
 - 수정: `core/print_overlay.py`의 `_select_print_server`가 행을 누르고 이름 칸(2434)의 전체 이름으로 고른다. 같은 이름 2개 이상은 거부, 이름 칸이 없을 때만 OCR. 시험 981 passed / 297 subtests, 정적 검사 7개 통과.
 - `release/1.0.6/`이 비어 있지 않아 버전을 1.0.7로 올렸다. 감독 기록은 `work/run108/`에 남긴다. fixture(`DATA_FLOW_MWL_01`)는 run107의 WF01·WF02가 만든 것을 쓴다.
+- 19:46~19:50 빌드(1a9f49a·dirty=false·생략 없음, 내부 981 passed). Setup `d0a57030…1c5a`, EXE `e48c6ddc…d220`, build-info `df23d957…67b`. 작업 폴더 1,326개 백업 뒤 1.0.6→1.0.7 설치, 설치 1,010개 일치·작업 파일 변경 0.
+- WF03 PASS(295.2초, 증거 16, 게이트 통과). 이름 칸 선택이 실화면에서 동작했다.
+- WF08 FAIL(188.0초)로 정지. Step 1~6과 3D-N은 PASS. Step 7 3D-W에서 자동화가 다른 장비 job 371(`QXLink`, `14INX17IN`, 요추 영상)을 집었다. Bellalun job 372(`BELLALUN`)는 8초 뒤 도착했고, 오프라인 대조 유사도 0.982(기준 0.96)다(`work/run108/wf08-offline/`). WF05·XIPL02 미수행.
+- 수정(미빌드): `core/printscp.py` `wait_for_jobs(calling_ae=)`, `tests/workflow08.py`의 `_station_ae`·`_wait_own_job`. 시험 986 passed / 297 subtests, 정적 검사 7개 통과.
+- 다음: 1.0.8 빌드·설치와 WF08·WF05·XIPL02(필요하면 WF03 포함) 단독 재실행을 사용자에게 확인받는다.
 
 ## 2026-11-10 1.0.6 후보 빌드·단독 수용 진행
 
