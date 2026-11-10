@@ -1,11 +1,15 @@
 # Changelog
 
-## 1.0.8 후보(1.0.7 후속 수정) — 2026-11-10
+## 1.0.9 후보(1.0.8 후속 수정) — 2026-11-10
 
+- 버전을 1.0.9로 올렸다. `release/1.0.8/`의 게이트 미통과 후보와 run109·run110 증거를 보존하기 위해서다. 사용자 지시(#102 "자동화 문제는 알아서 고치고 실제 제품 결함만 보고, 미리 SKIP으로 둔 TC 외 전 TC PASS")로 새 후보 빌드 → 1.0.8 위 설치 업데이트 → WF15·XIPL03·XIPL04 단독 → 기본기능 전체 회귀 → WU 전체를 진행한다. 결과는 완료 후 기록한다.
 - REQ-REGRESSION-001: run110 새 FAIL 3개를 조사했고 모두 자동화 원인이었다. 제품 결함이 아니므로 판정 기준은 바꾸지 않았다.
 - REQ-REGRESSION-001: WF15는 수신을 기다릴 때도 시험 환자(`DATA_FLOW_MWL_01`)의 Study만 세고 내려받는다. run110에서는 환자 없이 기다려 공유 Storage SCP의 Study 49개를 모두 받았고, 다른 장비가 보낸 객체 10개의 Study·Series UID 누락으로 파싱 오류가 나 Step 4~7을 수행하지 못했다.
 - REQ-REGRESSION-001: XIPL03의 3D Preview는 완료 로그에 더해 Apply·Cancel이 다시 활성일 때 끝난 것으로 보고, Apply는 활성 버튼만 누른다. run110에서는 완료 로그(`eNoti:5`) 1.4초 뒤 아직 "Receive Synthetic image"를 그리던 중 비활성 Apply를 눌렀다. Viewer 로그에 Apply의 `Do Post Reconstruction`이 없었고 120초 뒤 timeout 됐다.
 - REQ-REGRESSION-001: XIPL04는 영상 Parameter를 읽기 전에 Viewer 로그(`Select Image ... Step ID`)로 그 Step이 선택됐는지 확인하고, 안 되면 최대 3번 다시 누른다. run110에서는 A 영상 썸네일 클릭이 로그 없이 무시돼 B 영상을 읽었다. 제품은 `RCCRL / TEST_2D_A_M.pim`, `RCCRM / TEST_2D_B_M.pim`으로 각각 맞게 처리했다.
+
+## 1.0.8 후보(1.0.7 후속 수정) — 2026-11-10
+
 - 버전을 1.0.8로 올렸다. `release/1.0.7/`의 게이트 미통과 후보와 run108 증거를 보존하기 위해서다. 사용자 승인(#102 "1,2번 추천대로")으로 새 후보 빌드 → 1.0.7 위 설치 업데이트 → WF08·WF05·XIPL02 단독 수용(FAIL 시 정지)을 진행한다. WF03은 1.0.7에서 PASS했고 이번 수정과 무관해 제외한다. 결과는 완료 후 기록한다.
 - REQ-REGRESSION-002: 1.0.8 후보(990f647)를 빌드해 1.0.7 위에 설치하고 단독 수용을 실행했다. WF08 PASS(168.6초)·WF05 PASS(165.5초)·XIPL02 PASS(114.9초)이며 세 TC 모두 TC 범위 게이트를 통과했다. 이번 실행에는 다른 장비 job이 도착하지 않아 건너뛰기 경로는 단위 시험으로만 확인됐다. 전체 회귀는 하지 않았고 후보는 게이트 미통과로 유지한다.
 - REQ-REGRESSION-002: 같은 1.0.8 설치판으로 전체 회귀(run110)를 시작했다. 기본기능 27 TC는 PASS 21 / FAIL 4 / MANUAL 1 / SKIP 1이다. 허용 목록 밖 FAIL(WF15 Storage SCP 파싱 오류, XIPL03 Step 1 3D Apply 시간 초과, XIPL04 Step 6 다른 파라미터 표시)로 게이트가 거부해 WU는 실행하지 않고 멈췄다.
