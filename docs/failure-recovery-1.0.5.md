@@ -183,6 +183,20 @@ WF03은 1.0.7에서 PASS했고 이번 수정과 무관해 사용자 승인대로
 | TC_XIPL_compatibility_03 | FAIL | Step 1 `XIPL 3D Apply timed out after 120.0s`(진행·창 닫힘·파라미터 관측 모두 없음) | 새 문제. 알려진 Step 9 이전에 중단, Step 3~9 미수행 |
 | TC_XIPL_compatibility_04 | FAIL | Step 6 기대 `TEST_2D_A_M.pim`, 표시 `TEST_2D_B_M.pim` | 새 문제. Step 7~8 미수행 |
 
-1.0.4 전체 회귀에서 PASS였던 WF15·XIPL04가 이번에 FAIL이다. WF03·05·08·XIPL02는 PASS로 돌아왔다. 원인은 아직 조사하지 않았다. 미수행 Step을 제품 결함으로 세지 않는다.
+1.0.4 전체 회귀에서 PASS였던 WF15·XIPL04가 이번에 FAIL이다. WF03·05·08·XIPL02는 PASS로 돌아왔다. 원인 조사 결과는 아래 절에 있다. 미수행 Step을 제품 결함으로 세지 않는다.
 
 보존 확인: 설치 1,010개 일치, config 해시 동일, 백업 1,363개 변경 0, 증거 사본 280개 검증. 기록은 `work/run110/`, 리포트는 작업 폴더 `Reports/Result_20261110_230803.json`이다.
+
+### run110 새 FAIL 원인 조사와 수정 (미빌드)
+
+사용자 지시로 새 FAIL 3개를 run110 리포트·증거·Viewer 로그로 조사했다. 세 개 모두 자동화 원인이고 제품 결함이 아니다. 판정 기준과 허용 목록은 바꾸지 않았다.
+
+| TC | 근거 | 원인 | 수정 |
+|---|---|---|---|
+| WF15 | 관측 `studies_before_filter=49`, `patient_studies=49`, 파싱 오류 10건. 서버에는 이 환자 Study가 12개다 | `tests/workflow15.py`가 환자 없이 `wait_received_stable`을 불러 공유 SCP 전체를 받았다 | `_wait_received`가 `DATA_FLOW_MWL_01`을 지정한다(WF07과 같은 방식) |
+| XIPL03 | Preview 캡처(22:47:52)에 "Receive Synthetic image"와 회색 Apply. Apply 클릭 뒤 `Do Post Reconstruction` 없음. 정상 실행은 Apply 뒤 2초 안에 `Terminate PostReconThread` | `eNoti:5` 로그만으로 Preview 완료를 판정해 비활성 Apply를 눌렀다 | `_post_recon_preview_ready`가 Apply·Cancel 활성까지 기다리고, Apply는 활성 버튼만 누른다 |
+| XIPL04 | 제품 로그 `Process Parameter: RCCRL / TEST_2D_A_M.pim`, `RCCRM / TEST_2D_B_M.pim`. 22:53:33 첫 Image Process 전에 `Select Thumbnail` 로그 없음 | A 영상 썸네일 클릭이 무시돼 직전 B 영상을 읽었다 | `_select_2d_confirmed`가 `Select Image ... Step ID` 로그로 선택을 확인하고 최대 3번 다시 누른다 |
+
+XIPL03 Step 7(Preview 변화율 0.0178)은 로딩 화면을 캡처해 통과한 것이다. 수정 뒤에는 Preview가 끝난 화면을 캡처해 판정한다.
+
+검증: 새 시험 6개를 먼저 실패로 확인한 뒤 구현했다. 전체 990 passed / 2 skipped(Inno 경로 미지정) / 299 subtests, Inno 경로를 지정한 배포 시험 26 passed, 정적 검사 6개 통과. 실화면 확인은 새 빌드 뒤 사용자 승인을 받아 한다.

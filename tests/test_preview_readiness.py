@@ -180,6 +180,31 @@ class PreviewReadinessTests(unittest.TestCase):
             self.assertTrue(done)
             self.assertTrue(detail["thread_done"])
 
+    def test_3d_preview_waits_for_enabled_apply_and_cancel_after_completion_log(self):
+        # 1.0.8 run110 XIPL03: eNoti:5 직후 Apply가 아직 비활성(Receive Synthetic
+        # image)인데 눌러 클릭이 무시됐고, Apply 대기가 120초 뒤 timeout 됐다.
+        log = ("[Initialize Reconstruction. (narrow_standard.egp, TEST_3D_FLOW.xtp, x)]\n"
+               "[Failed to initialize Recon. Error: No GPUS]\n"
+               "[ProgressBar Show (CDlgPostReconstruction::OnProgressImageProcess, eNoti:5)]")
+        for enabled, expected in ((False, False), (True, True)):
+            control = SimpleNamespace(visible=True, enabled=enabled)
+            ui = SimpleNamespace(by_id=lambda _: [control])
+            with self.subTest(enabled=enabled), patch.object(
+                    flow, "_viewer_log_since", return_value=log):
+                done, _, detail = flow._post_recon_preview_ready(None, ui)
+            self.assertEqual(expected, done)
+            self.assertTrue(detail["progress_done"])
+            self.assertEqual(enabled, detail["apply_enabled"])
+            self.assertEqual(enabled, detail["cancel_enabled"])
+
+    def test_3d_preview_ready_still_requires_completion_log(self):
+        control = SimpleNamespace(visible=True, enabled=True)
+        ui = SimpleNamespace(by_id=lambda _: [control])
+        with patch.object(flow, "_viewer_log_since", return_value=""):
+            done, _, detail = flow._post_recon_preview_ready(None, ui)
+        self.assertFalse(done)
+        self.assertTrue(detail["apply_enabled"])
+
     def test_control_enabled_reads_live_handle_without_constructor_change(self):
         control = ui_module.Control(0x123456789, 1, "Button", "Apply",
                                     (0, 0, 100, 30), True, 0)

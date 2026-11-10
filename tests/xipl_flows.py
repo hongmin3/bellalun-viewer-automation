@@ -312,6 +312,51 @@ def _post_recon_complete(log_mark, ui, require_closed, not_before=None):
     return done, "log/control completion detected", detail
 
 
+def _post_recon_preview_ready(log_mark, ui):
+    """3D Preview 완료 로그에 더해 Apply·Cancel이 다시 활성일 때만 끝난 것으로 본다.
+
+    1.0.8 run110 XIPL_03: 완료 로그(`eNoti:5`) 직후 화면은 아직 "Receive Synthetic
+    image"를 그리고 Apply가 비활성이었다. 그때 누른 Apply는 무시돼 Apply 대기가
+    120초 뒤 timeout 됐다. 2D Preview(`_preview_2d_complete`)와 같은 기준이다.
+    """
+    done, reason, detail = _post_recon_complete(log_mark, ui, False)
+    apply = [c for c in ui.by_id(vp.APPLY) if c.visible]
+    cancel = [c for c in ui.by_id(vp.CANCEL) if c.visible]
+    apply_enabled = bool(apply) and all(c.enabled for c in apply)
+    cancel_enabled = bool(cancel) and all(c.enabled for c in cancel)
+    detail.update(apply_enabled=apply_enabled, cancel_enabled=cancel_enabled)
+    return done and apply_enabled and cancel_enabled, reason, detail
+
+
+_SELECT_IMAGE_LOG = r"Select Image\. \(Study Key: \d+, Step ID: {step_id}\)"
+
+
+def _select_2d_confirmed(ctx, ui, step, attempts=3, timeout=5):
+    """2D Step을 고른 뒤 Viewer 로그로 그 Step이 실제로 선택됐는지 확인한다.
+
+    1.0.8 run110 XIPL_04: A 영상 썸네일 클릭이 로그 없이 무시돼, 직전에 촬영한
+    B 영상의 Image Processing을 읽고 FAIL 했다. 제품은 Step마다 맞는 Parameter를
+    적용했다(`Process Parameter: RCCRL / TEST_2D_A_M.pim`). 선택이 확인되지 않으면
+    다시 누르고, 끝내 안 되면 다른 영상을 읽지 않고 중단한다.
+    Step은 1부터 세고, 제품 로그의 Step ID는 0부터 센다.
+    """
+    step_id = int(step) - 1
+    pattern = re.compile(_SELECT_IMAGE_LOG.format(step_id=step_id))
+    for attempt in range(1, attempts + 1):
+        mark = _viewer_log_mark(ctx)
+        vp.select_2d(ui, step)
+        end = time.monotonic() + timeout
+        while True:
+            if pattern.search(_viewer_log_since(mark)):
+                return {"step": int(step), "step_id": step_id, "attempts": attempt}
+            if time.monotonic() >= end:
+                break
+            time.sleep(.5)
+    raise flows.FlowError(
+        f"{step}번째 Step 선택이 Viewer 로그(Select Image ... Step ID: {step_id})로 "
+        f"{attempts}회 모두 확인되지 않았습니다.")
+
+
 def _parameter_display_matches(expected, displayed):
     expected_key = vp._parameter_name_key(expected)
     displayed_key = vp._parameter_name_key(displayed)
@@ -703,7 +748,7 @@ def compatibility_03(ctx, session):
         post_recon_limit = float(xipl_cfg.get("post_recon_timeout", 120))
         preview_limit = float(xipl_cfg.get("preview_3d_timeout", post_recon_limit))
         preview_completion = _poll_completion(
-            r, "XIPL 3D Preview", lambda: _post_recon_complete(log_mark, ui, False),
+            r, "XIPL 3D Preview", lambda: _post_recon_preview_ready(log_mark, ui),
             preview_limit)
         preview = _ev(ctx, "TC_XIPL_compatibility_03_preview.png")
         vp.capture(preview)
@@ -717,7 +762,7 @@ def compatibility_03(ctx, session):
 
         apply_log_mark = _viewer_log_mark(ctx)
         apply_click_time = datetime.now()
-        ui.click([c for c in ui.by_id(vp.APPLY) if c.visible][0], settle=1)
+        ui.click([c for c in ui.by_id(vp.APPLY) if c.visible and c.enabled][0], settle=1)
         apply_limit = float(xipl_cfg.get("apply_3d_timeout", post_recon_limit))
         _poll_completion(
             r, "XIPL 3D Apply",
@@ -1374,7 +1419,7 @@ def compatibility_04(ctx):
                                    required_types=vp.INSTANCE_TYPES_2D)
 
         # Step 8: 각 영상의 Image Processing 적용 Parameter가 서로 다른지 확인
-        vp.select_2d(ui, step_a)
+        selected_a = _select_2d_confirmed(ctx, ui, step_a)
         vp.open_process(ui)
         combo_a = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible]
         applied_a = ui.combo_value(combo_a[0]) if combo_a else None
@@ -1383,7 +1428,7 @@ def compatibility_04(ctx):
         r.attach(shot_img_a)
         vp.cancel_window(ui)
 
-        vp.select_2d(ui, step_b)
+        selected_b = _select_2d_confirmed(ctx, ui, step_b)
         vp.open_process(ui)
         combo_b = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible]
         applied_b = ui.combo_value(combo_b[0]) if combo_b else None
@@ -1397,11 +1442,11 @@ def compatibility_04(ctx):
         r.assert_true(6, "첫 영상(PRESET_FLOW_A)에 TEST_2D_A_M.pim 적용",
                       match_a, expected="TEST_2D_A_M.pim",
                       actual={"acquire": acquire_a, "wait": wait_a,
-                              "displayed": applied_a})
+                              "selected": selected_a, "displayed": applied_a})
         r.assert_true(7, "두 번째 영상(PRESET_FLOW_B)에 TEST_2D_B_M.pim 적용",
                       match_b, expected="TEST_2D_B_M.pim",
                       actual={"acquire": acquire_b, "wait": wait_b,
-                              "displayed": applied_b})
+                              "selected": selected_b, "displayed": applied_b})
         r.assert_true(8, "각 영상에 서로 다른 지정 Parameter 표시",
                       match_a and match_b and applied_a != applied_b,
                       expected="영상별 서로 다른 Parameter",

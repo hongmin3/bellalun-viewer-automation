@@ -381,3 +381,21 @@ def test_workflow06_without_selection_log_preserves_legacy_queue_contract(monkey
     assert result.verdict == 'PASS'
     queue = next(c for c in result.checks if c.title == 'DICOM 창 Queue 모드에서 전송 상태 확인')
     assert queue.actual['observation']['queue_expected_images'] == 0
+
+
+def test_workflow15_receive_wait_downloads_only_its_patient_on_shared_scp(monkeypatch):
+    # 1.0.8 run110: WF15가 환자 없이 기다려 공유 SCP 49개 Study를 모두 받았고,
+    # 다른 장비가 보낸 태그 누락 객체 때문에 Storage SCP DICOM 파싱 오류로 중단됐다.
+    from tests import workflow15
+    timer = clock(monkeypatch)
+    srv = server(monkeypatch, studies=[
+        dict(patient_id='OTHER', study_instance_uid='8.8', instance_count=3),
+        dict(patient_id=workflow15.PATIENT_ID, study_instance_uid='1.2', instance_count=1)])
+    def download(uid, timeout=180):
+        if uid != '1.2':
+            raise AssertionError('다른 환자의 Study를 내려받았다')
+        return archive(dicom_blob(patient=workflow15.PATIENT_ID))
+    monkeypatch.setattr(srv, 'download', download)
+    objects = workflow15._wait_received(SimpleNamespace())
+    assert [o['PatientID'] for o in objects] == [workflow15.PATIENT_ID]
+    assert timer.now < 90

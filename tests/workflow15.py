@@ -108,6 +108,17 @@ def _overlay_hits(reads, study):
     return image_overlay.hits(reads, study)
 
 
+def _wait_received(ctx):
+    """이 환자의 수신 건수가 멈출 때까지 기다린 뒤 그 환자 객체만 받는다.
+
+    환자를 주지 않으면 공유 Storage SCP의 전체 Study를 내려받는다. 1.0.8 run110에서
+    49개 Study(다른 PC가 보낸 것 포함)를 받다가, 다른 장비 객체의 태그 누락으로
+    `Storage SCP DICOM 파싱 오류`가 나 Step 4~7을 수행하지 못했다. WF_07과 같은
+    방식으로 환자를 지정한다.
+    """
+    return sv.wait_received_stable(ctx, PATIENT_ID, wait=90)
+
+
 def _open_preview(ui, scope="all"):
     """Pre-send Preview 를 열고 창을 돌려준다."""
     btn = uitext.visible(ui, flows.EXAMINED_PRE_SEND_PREVIEW)
@@ -419,7 +430,7 @@ def run(ctx):
             ui.dismiss_dialog(timeout=3)
 
         # --- Step 6~7: Queue 와 수신 --------------------------------------
-        outcome = sv.wait_received_stable(ctx, wait=90)
+        outcome = _wait_received(ctx)
         new_queue = [k for k in sv.queue_keys(ctx) if k not in known]
 
         # 수신이 안정됐다고 Queue 가 Done 이 된 것은 아니다. State 가 Done 이 될

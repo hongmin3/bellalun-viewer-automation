@@ -1,5 +1,14 @@
 # 진행 상태
 
+## 2026-11-10 run110 새 FAIL 3개 원인 조사·수정(미빌드)
+
+- 사용자 지시(#102 "자동화 문제로 확인되면 고쳐줘"): WF15·XIPL03·XIPL04의 원인을 run110 리포트·증거·Viewer 로그로 조사했다. 세 개 모두 자동화 원인이며 제품 결함이 아니다.
+- WF15: `tests/workflow15.py`가 환자 없이 `wait_received_stable`을 불러 공유 SCP의 Study 49개(이 환자 12개)를 전부 받았다. 다른 장비 객체 10개의 UID 누락으로 파싱 오류. 수정: `_wait_received`가 환자를 지정한다.
+- XIPL03: Preview 완료를 `eNoti:5` 로그만으로 판정해 비활성 Apply를 눌렀다(Preview 캡처에 "Receive Synthetic image"와 회색 Apply). 수정: `_post_recon_preview_ready`가 Apply·Cancel 활성까지 기다리고, Apply는 활성 버튼만 누른다.
+- XIPL04: A 영상 썸네일 클릭이 무시돼 B 영상을 읽었다(22:53:33 Image Process 전에 `Select Thumbnail` 로그 없음). 수정: `_select_2d_confirmed`가 `Select Image ... Step ID` 로그로 선택을 확인하고 최대 3번 다시 누른다.
+- SPEC REQ-REGRESSION-001에 규칙을 먼저 추가했다. 새 시험 6개를 먼저 써서 실패를 확인한 뒤 구현했다. 전체 990 passed / 2 skipped(Inno 경로 미지정) / 299 subtests, Inno 경로 지정 시 배포 시험 26 passed. 정적 검사 6개 통과.
+- 빌드·UI 실행은 하지 않았다. 다음: 1.0.9 빌드·설치와 재실행 범위(WF15·XIPL03·XIPL04 단독 뒤 기본기능·WU 전체 여부)를 사용자에게 확인받는다.
+
 ## 2026-11-10 1.0.8 후보(WF08 자기 job 선택) 빌드·단독 수용 진행
 
 - 사용자 승인(#102 "1,2번 추천대로 진행"): 2dc1058 수정을 담아 1.0.8 빌드 → 1.0.7 위 설치 → WF08·WF05·XIPL02 단독(FAIL 시 정지). WF03은 1.0.7에서 PASS했고 이번 수정은 WF08만 바꾸므로 제외한다. 전체 회귀·DB 복원·USB/UPS 조작은 하지 않는다.
@@ -10,7 +19,7 @@
 - 사용자 지시로 전체 회귀(run110, `work/run110/`)를 실행했다. 기본기능 21:29~23:08(98.4분), PASS 21 / FAIL 4 / MANUAL 1 / SKIP 1. WF14 UPS는 알려진 결함이다.
 - 새 FAIL 3개: WF15 `StorageScpError` 공유 SCP 객체 UID 누락 파싱 오류(Step 4~7 미수행), XIPL03 Step 1 3D Apply 120초 시간 초과(Step 3~9 미수행), XIPL04 Step 6 `TEST_2D_B_M.pim` 표시(기대 A). 게이트 거부로 WU는 실행하지 않았다.
 - 설치 1,010개 일치, config 동일, 백업 1,363개 변경 0, 증거 280개 검증.
-- 다음: 새 FAIL 3개의 원인 조사·수정과 재실행 범위를 사용자가 정한다. 후보는 게이트 미통과 표시를 유지한다.
+- 새 FAIL 3개의 조사·수정은 위 절에 있다. 후보는 게이트 미통과 표시를 유지한다.
 
 ## 2026-11-10 1.0.7 후보(Print 서버 이름 칸 선택) 빌드·단독 수용 진행
 
