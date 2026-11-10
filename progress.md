@@ -1,5 +1,14 @@
 # 진행 상태
 
+## 2026-11-11 1.0.11 수용 완료(run113): 알려진 제품 결함 외 전 TC PASS
+
+- 빌드: 2630d0b, 생략 없음. Setup `BellalunAuto-1.0.11-candidate-setup.exe`(97,446,901바이트, SHA256 `1644f513…`), 설치 EXE SHA256 `33362f46…2f01`. 1.0.10 위 설치, 작업 폴더 1,415개 보존, config 변경 없음.
+- XIPL03 단독: Step 1~8 PASS, Step 9 알려진 결함 FAIL. 3D Apply 클릭 수락 확인 수정이 실화면에서 동작했다.
+- 기본기능 전체(97.0분): PASS 23 / FAIL 2(WF14 UPS·XIPL03 Step 9, 알려진 제품 결함) / MANUAL 1(Install_01) / SKIP 1(WF16). 게이트 통과.
+- WU 전체(77.1분): PASS 10 / SKIP 3(WU_01·12·13, 사람 전용). 게이트 통과.
+- 두 리포트 합동 릴리스 게이트 통과(`work/run113/release-gate-both.json`). 후보를 정식 배포로 바꾸는 일은 하지 않았다.
+- 남은 것: 알려진 제품 결함 2건(WF14 UPS 설정 미복원, XIPL03 Apply 후 3D 파라미터 미유지)은 제품 수정 대상이다. Install_01·WF16·WU_01/12/13은 사람이 직접 확인한다.
+
 ## 2026-11-11 1.0.10(run112) XIPL03 단독 FAIL과 Apply 클릭 확인 수정
 
 - run112 XIPL03 단독: 3D Preview가 Preview 스레드 종료 로그를 120초 기다리다 timeout(Step 1 중단). 스레드는 스스로 끝나지 않으므로 1.0.10 수정의 가정이 틀렸다. 기본기능·WU는 실행하지 않았다.
