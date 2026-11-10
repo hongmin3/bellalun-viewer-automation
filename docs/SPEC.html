@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="c8db0092aaab2b5226b415a956b909bc28a964a2f329a90b61c6316bb7340f0c">
+<meta name="spec-source-sha256" content="d1fedc99ffc38aa4d651d856d8e96d1b63b8de2bf567632dd617126125a3f027">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1048,9 +1048,10 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-REGRESSION-002">
 <h3><span class="idtag">REQ-REGRESSION-002</span> 변경 영향에 따른 검증과 UI 회귀 승인</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 9</summary>
+<details class="history"><summary>변경 이력 10</summary>
 <ul>
 <li><span class="hist">1.0.8 후보(1.0.7 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.8 후보(990f647)를 빌드해 1.0.7 위에 설치하고 단독 수용을 실행했다. WF08 PASS(168.6초)·WF05 PASS(165.5초)·XIPL02 PASS(114.9초)이며 세 TC 모두 TC 범위 게이트를 통과했다. 이번 실행에는 다른 장비 job이 도착하지 않아 건너뛰기 경로는 단위 시험으로만 확인됐다. 전체 회귀는 하지 않았고 후보는 게이트 미통과로 유지한다.</li>
+<li><span class="hist">1.0.8 후보(1.0.7 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 같은 1.0.8 설치판으로 전체 회귀(run110)를 시작했다. 기본기능 27 TC는 PASS 21 / FAIL 4 / MANUAL 1 / SKIP 1이다. 허용 목록 밖 FAIL(WF15 Storage SCP 파싱 오류, XIPL03 Step 1 3D Apply 시간 초과, XIPL04 Step 6 다른 파라미터 표시)로 게이트가 거부해 WU는 실행하지 않고 멈췄다.</li>
 <li><span class="hist">1.0.8 후보(1.0.7 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.7 후보(1a9f49a)를 빌드해 설치하고 단독 수용을 실행했다. WF03은 PASS(4.9분, 게이트 통과)로 Print 서버 이름 칸 선택이 실화면에서 동작했다. WF08은 Step 7 3D-W 대조에서 다른 장비 job을 집어 FAIL이고, WF05·XIPL02는 미수행이다. 후보는 게이트 미통과로 유지한다.</li>
 <li><span class="hist">1.0.6 후보(1.0.5 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.6 후보(6304688)를 생략 없이 빌드하고 설치 업데이트했다. WF03은 DB 기준 복원 후 시험 환자 <code>DATA_FLOW_MWL_01</code>이 없어 Step 1 진입 전에 중단됐다(선행 데이터 부재). WF08·WF05·XIPL02는 미수행이며 후보는 게이트 미통과로 유지한다.</li>
 <li><span class="hist">1.0.6 후보(1.0.5 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 같은 1.0.6 설치판에서 <code>setup-dicom</code>·WF01·WF02로 시험 환자를 만든 뒤 WF03을 다시 실행했다. setup-dicom·WF01·WF02는 PASS다. WF03은 7.6분에 Step 2에서 멈췄다. DICOM Print 목록의 서버 이름이 화면에서 <code>PRIN...</code>으로 잘려 <code>PRINT_TEST</code>를 판독하지 못했다(자동화 중단, 제품 FAIL 아님). WF08·WF05·XIPL02는 미수행이며 후보는 게이트 미통과로 유지한다.</li>

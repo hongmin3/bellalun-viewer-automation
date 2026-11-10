@@ -171,3 +171,18 @@ WF03은 1.0.7에서 PASS했고 이번 수정과 무관해 사용자 승인대로
 이번 실행 중에는 다른 장비의 job이 Print SCP에 도착하지 않았다. 비교한 job은 모두 calling AE `BELLALUN`이다. 따라서 다른 장비 job을 건너뛰는 경로는 실화면에서 다시 관측되지 않았고, 단위 시험(`tests/test_printscp_jobs.py`)으로만 확인됐다.
 
 보존 확인: 백업 1,342개 변경 0, 설치 1,010개 일치(커밋·EXE 해시 일치), config 해시 동일, 1.0.5~1.0.7 후보와 run106~run108 증거 유지. 기록은 `work/run109/`에 있다. 알려진 제품 FAIL(WF14 UPS, XIPL03 Step 9)은 이번 범위 밖이라 그대로다. 전체 기본기능/WU 회귀는 하지 않았고 사용자 결정을 기다린다.
+
+## 1.0.8 후보 설치판 전체 회귀 (run110)
+
+사용자 지시로 같은 1.0.8 설치판(`990f647`, EXE `69b235c4…8648`)에서 `run-regression` → `run-winupdate`를 순서대로 실행하고, 게이트 허용 목록 밖 문제가 있으면 다음 묶음으로 가지 않게 했다. 기본기능 회귀는 21:29:52~23:08:07(98.4분)에 끝났고 27 TC 중 PASS 21 / FAIL 4 / MANUAL 1 / SKIP 1이다. 기본기능 게이트가 "알려진 결함 외 FAIL 14건"으로 거부해 WU는 실행하지 않았다.
+
+| TC | 결과 | 실패 원문 | 분류 |
+|---|---|---|---|
+| TC_Basic_WorkFlow_14 | FAIL | Step 7 `device.ups` 값 `EATON El` → `None` | 알려진 제품 결함(허용 목록) |
+| TC_Basic_WorkFlow_15 | FAIL | Step 1~3 PASS 뒤 `StorageScpError: Storage SCP DICOM 파싱 오류`(공유 SCP 객체 185개 중 일부에 StudyInstanceUID·SeriesInstanceUID 없음) | 새 문제. 수신 관측 단계 중단, Step 4~7 미수행 |
+| TC_XIPL_compatibility_03 | FAIL | Step 1 `XIPL 3D Apply timed out after 120.0s`(진행·창 닫힘·파라미터 관측 모두 없음) | 새 문제. 알려진 Step 9 이전에 중단, Step 3~9 미수행 |
+| TC_XIPL_compatibility_04 | FAIL | Step 6 기대 `TEST_2D_A_M.pim`, 표시 `TEST_2D_B_M.pim` | 새 문제. Step 7~8 미수행 |
+
+1.0.4 전체 회귀에서 PASS였던 WF15·XIPL04가 이번에 FAIL이다. WF03·05·08·XIPL02는 PASS로 돌아왔다. 원인은 아직 조사하지 않았다. 미수행 Step을 제품 결함으로 세지 않는다.
+
+보존 확인: 설치 1,010개 일치, config 해시 동일, 백업 1,363개 변경 0, 증거 사본 280개 검증. 기록은 `work/run110/`, 리포트는 작업 폴더 `Reports/Result_20261110_230803.json`이다.
