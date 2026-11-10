@@ -175,7 +175,7 @@ Station AE를 읽지 못하면 아무 job이나 고르지 않고 실패로 남�
 
 UI 조작은 제품이 그 조작을 받을 수 있는 상태가 된 뒤에 한다.
 
-- 3D Post Reconstruction의 Preview는 완료 로그가 남고 Apply·Cancel이 다시 활성일 때 끝난 것으로 본다. Apply는 활성인 버튼만 누른다.
+- 3D Post Reconstruction의 Preview는 완료 로그와 Preview 스레드 종료 로그(`Terminate PostReconThread normally closed`)가 남고 Apply·Cancel이 다시 활성일 때 끝난 것으로 본다. GPU가 없는 PC도 같다. Apply는 활성인 버튼만 누른다.
 - 촬영 Step의 영상 Parameter를 읽기 전에, Viewer 로그(`Select Image ... Step ID`)로 그 Step이 선택됐는지 확인한다. 확인이 안 되면 최대 3번 다시 누르고, 그래도 안 되면 다른 영상을 읽지 않고 중단한다.
 
 > **예시** 1.0.8 설치판 XIPL03은 Apply가 비활성일 때 눌러 클릭이 무시됐고 120초 뒤 timeout 됐다. XIPL04는 A 영상 썸네일 클릭이 무시된 채 B 영상의 Parameter를 읽어 FAIL이 됐다. 제품 로그상 두 영상의 Parameter는 각각 맞게 적용돼 있었다.

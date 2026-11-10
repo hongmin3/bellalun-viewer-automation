@@ -318,8 +318,14 @@ def _post_recon_preview_ready(log_mark, ui):
     1.0.8 run110 XIPL_03: 완료 로그(`eNoti:5`) 직후 화면은 아직 "Receive Synthetic
     image"를 그리고 Apply가 비활성이었다. 그때 누른 Apply는 무시돼 Apply 대기가
     120초 뒤 timeout 됐다. 2D Preview(`_preview_2d_complete`)와 같은 기준이다.
+
+    1.0.9 run111 회귀 XIPL_03: Apply·Cancel이 활성이어도 Preview의 PostReconThread
+    종료 로그(`Terminate PostReconThread normally closed`) 전에 누른 Apply는 처리되지
+    않았다. 성공한 실행은 모두 eNoti:5 1~3초 뒤 이 로그가 남은 다음 Apply를 눌렀다.
+    그래서 GPU가 없어도 Preview 스레드 종료까지 기다린다.
     """
     done, reason, detail = _post_recon_complete(log_mark, ui, False)
+    done = done and detail["thread_done"]
     apply = [c for c in ui.by_id(vp.APPLY) if c.visible]
     cancel = [c for c in ui.by_id(vp.CANCEL) if c.visible]
     apply_enabled = bool(apply) and all(c.enabled for c in apply)

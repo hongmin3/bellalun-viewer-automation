@@ -1,5 +1,12 @@
 # 진행 상태
 
+## 2026-11-11 1.0.9 수용(run111) 결과와 XIPL03 Apply 시점 수정
+
+- 단독: WF15 PASS, XIPL03 알려진 결함 Step 9만 FAIL(게이트 통과), XIPL04 PASS.
+- 기본기능 전체 회귀(98.7분): PASS 23 / FAIL 2(WF14 알려진 UPS 결함, XIPL03 Step 1) / MANUAL 1(Install_01) / SKIP 1(WF16). 게이트 거부로 WU 미실행.
+- XIPL03 원인: Preview 스레드 종료 로그 전에 Apply를 눌러 Viewer가 처리하지 않았다(01:58:24 eNoti:5, 01:58:26 Apply, 종료 로그는 timeout 뒤 02:00:26). 성공 실행은 eNoti:5 1~3초 뒤 종료 로그 다음 Apply. 자동화 원인으로 보고 `_post_recon_preview_ready`가 종료 로그를 기다리게 고쳤다.
+- 다음: 1.0.10 빌드 → 1.0.9 위 설치 → XIPL03 단독 → 기본기능 전체 → WU 전체(`work/run112/`).
+
 ## 2026-11-10 1.0.9 후보(run110 수정 3개) 빌드·수용 진행
 
 - 사용자 지시(#102): 자동화 문제는 묻지 않고 고치고, 실제 제품 결함만 보고한다. 미리 SKIP으로 둔 TC(WF16)와 사람 전용 MANUAL(Install_01)을 빼고 전 TC PASS가 목표다.
