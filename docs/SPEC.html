@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="8642412172c6f7725681c7108a52a4c1c6ad1da7b137efaa7cd0b8cc9e90ffd7">
+<meta name="spec-source-sha256" content="474ef3cf39ad94ab9eab4bde0d3ff76dcfd252122382dbcb8e70e1c12669e99f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -280,8 +280,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <section class="card kind-req" id="REQ-OCR-001">
 <h3><span class="idtag">REQ-OCR-001</span> PC 간 OCR 판독과 선택 증거</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>core/combo_popup.py</code>, <code>tests/workflow03.py</code>, <code>tests/workflow08.py</code>, <code>run.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_combo_popup.py</code>, <code>tests/test_ocr_replay.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a></span></div>
-<details class="history"><summary>변경 이력 4</summary>
+<details class="history"><summary>변경 이력 5</summary>
 <ul>
+<li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 기존 성공 보고서와 추가FAIL을 비교해 OCR 부분노출 회복 실패·Queue 후발등록 누락·수신조회 오류 소실·Preview 활성 판정/완료 대기의 공백을 조사했다. 오프라인 재현과 확인 범위·미확정 원인·구현 및 집중검증 기준을 기록했다. 제품 코드는 이번 조사에서 변경하지 않았다.</li>
 <li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 잘린 카탈로그 후보를 스크롤로 드러내고 HWND/Control ID를 재확인한 뒤 판독한다. 선택 직전에도 대상 컨트롤을 새로 조회한다. 경쟁 후보 제외·OCR 임계값 완화는 하지 않는다.</li>
 <li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 실행 Context의 OCR 증거 경로와 WF08 전용 경로를 연결했다. XIPL05 F8 대기 실패에는 로그 원문 없이 단계·영역·신호 개수를 남긴다. 해당 실패의 실제 원인 해소는 미확정이다.</li>
 <li><span class="hist">2026-11-10 (1.0.3 설치판 실측 검증)</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a>: 실제 Patient ID 판독 성공에도 잘린 다른 후보 때문에 선택이 거부된 증거를 보존했다. 준비 점검 선택 변화·다시 점검·정상 복귀와 격리 합성 실패의 증거 폴더 실제 열기를 확인했다. <a href="../docs/ocr-release-validation.md">상세 검증</a>을 따른다.</li>
@@ -387,8 +388,9 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <section class="card kind-req" id="REQ-REGRESSION-001">
 <h3><span class="idtag">REQ-REGRESSION-001</span> 기준 체크리스트 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow09.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_workflow02_acquisition.py</code>, <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></span></div>
-<details class="history"><summary>변경 이력 15</summary>
+<details class="history"><summary>변경 이력 16</summary>
 <ul>
+<li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 기존 성공 보고서와 추가FAIL을 비교해 OCR 부분노출 회복 실패·Queue 후발등록 누락·수신조회 오류 소실·Preview 활성 판정/완료 대기의 공백을 조사했다. 오프라인 재현과 확인 범위·미확정 원인·구현 및 집중검증 기준을 기록했다. 제품 코드는 이번 조사에서 변경하지 않았다.</li>
 <li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 클릭한 콤보에 인접한 유일한 팝업과 필수 항목을 기다린다. Print Overlay는 DB 전체 항목0일 때만 존재하는 빈 Position 목록을 완료로 인정한다. Post Reconstruction은 두 필수 컨트롤을 함께 기다리며 이미 열린 창을 다시 누르지 않는다.</li>
 <li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 실행 Context의 OCR 증거 경로와 WF08 전용 경로를 연결했다. XIPL05 F8 대기 실패에는 로그 원문 없이 단계·영역·신호 개수를 남긴다. 해당 실패의 실제 원인 해소는 미확정이다.</li>
 <li><span class="hist">2026-11-06 (후보9 설치판 두 전체·WU_09 충돌) · Verified</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>/002, <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>/005: 소스173eb3c의 설치판에서 WU 전체1회를109.3분 수행했다. PASS10/SKIP3·live·체인완료·종료0, WU 범위 게이트14개 통과와 보존파일246개 해시 일치를 확인했다. USB 왕복은 이번에 통과했으며 기본기능 전체는 수행하지 않았다.</li>
