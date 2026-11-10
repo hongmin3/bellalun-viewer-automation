@@ -1,5 +1,13 @@
 # 진행 상태
 
+## 2026-11-10 1.0.4 설치 업데이트·두 전체 종료
+
+- 사용자 승인 후 기존 후보9847708·dirty=false를 그대로 설치했다. Setup 종료0·설치 파일1,010개/EXE/build-info 해시 일치, 기존 작업622개 누락0/변경0을 확인했다. 새 빌드·코드 변경·기준 완화·추가 재실행은 하지 않았다.
+- 기본09:47:33~11:49:06(121.6분), PASS19/FAIL6/MANUAL1/SKIP1·27행·종료1이다. WU11:49:26~13:33:33(104.1분), PASS9/FAIL1/SKIP3·13행·종료1·live/chain_completed=true다. 전체 벽시계3시간46분이며 실행별 스냅샷443/403개 해시 일치다.
+- 추가 실패는 기본WF03/08의OCR capture-failed(후보19 RuntimeError), WF05 수신객체0, XIPL02 Preview 변화0이다. 기존WF14 UPS·XIPL03 Step9도 유지됐다. WU08은OCR capture-failed로FAIL이며 WU09 USB Export/Import는PASS다. 미수행 채움 Step을 독립 제품 결함으로 세지 않는다.
+- 배포 게이트26개 중24통과/2거부다. 허용 밖FAIL24 check(중단 뒤 미수행 포함)와WU 목표미달로 거부됐으며 후보 표식을 유지한다. 기존자료622개 사전 복사본은 불일치0·config 유지다. 시험 후 실제 작업 폴더의 옛Export DICOM3개는 없어졌지만 사전 복사본에 보존됐고123개는 갱신됐다.
+- 현재 설치판은1.0.4다. 과거1.0.3 Setup/ZIP과 새1.0.4 배포물의 해시는 그대로다. 다른PC/OS·사람 검수·브라우저 육안 검수·추가 수정/재실행은 미수행이다. 상세는 `docs/reliability-2026-11-10.md`, 로컬 증거는 `work/installed-1.0.4-full-20261110/`다. 아래 빌드 시점의 미승인·1.0.3 보존 상태는 업데이트 이전 이력이다.
+
 ## 2026-11-10 1.0.4 후보 빌드·산출물 검증 완료
 
 - 기존 분리 실행 run546을 중복 실행·종료 없이 인수했다. 08:13:57~08:41:44 KST, 감독 finished/exit_code=0과 Nuitka·Inno 성공 로그를 확인했다. 소스98477088cafb9ad4e1cfcfeee955bd934cf1227e·dirty=false, compile/tests 생략 없음, PE subsystem2다. 제품 코드는 추가로 바꾸지 않았다.

@@ -6,7 +6,7 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-1.0.4 후보는 잘린 OCR 행 재조회·팝업 준비 대기·빈 Overlay 목록 판정·Post Reconstruction 대기를 보강합니다. run546 빌드와 build-info 등재1,010개 파일 해시·새 EXE 기본 CLI·설치용 ZIP 검증을 마쳤습니다. [산출물 위치·해시와 검증 범위](docs/reliability-2026-11-10.md)를 참고하세요. 현재 설치판은1.0.3을 유지하며1.0.4 설치 업데이트와 전체 UI 회귀는 승인 대기입니다. 배포 게이트는 미통과 후보입니다.
+1.0.4 후보는 잘린 OCR 행 재조회·팝업 준비 대기·빈 Overlay 목록 판정·Post Reconstruction 대기를 보강합니다. run546 빌드와 build-info 등재1,010개 파일 해시·새 EXE 기본 CLI·설치용 ZIP 검증을 마쳤습니다. [산출물 위치·해시와 검증 범위](docs/reliability-2026-11-10.md)를 참고하세요. 현재 설치판은1.0.4입니다. 사용자 승인 후 설치 업데이트와 기본27 TC·실시간WU13 TC를 각각1회 종료했습니다. 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3이며 배포 게이트는 거부됐습니다.
 
 1.0.3은 프린트 오버레이 OCR 재판독·모호한 선택 차단과 준비 점검의 OCR 지문·실패 증거 안내를 제공합니다.
 실패한 컨트롤 크롭과 OCR 환경을 남겨 PC별 차이를 비교합니다. [OCR 점검 방법](docs/ocr-portability.md)을 참고하세요.
