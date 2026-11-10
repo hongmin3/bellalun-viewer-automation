@@ -42,6 +42,25 @@
 
 최종 단독 범위는 WF03·WF08·WF05·XIPL02다. 공통 Print Overlay 선택, 실제 Print 수신, 3D 전송 수신, 2D Preview/Apply를 각각 확인한다. 소스 진단은 원인 확인용이며 배포 수용 근거는 빌드 신원과 일치하는 EXE 결과로 확정한다. 전체 기본기능·WU·다른 OS 검증으로 확대해 표시하지 않는다.
 
-현재 설치판은 1.0.4이며 1.0.5 빌드와 단독 UI 수용은 아직 완료하지 않았다. 기존 1.0.3·1.0.4 배포물 13개 파일의 사전 크기·해시를 기록했다. 기존 작업 자료와 각 진단의 새 보고서·증거도 별도 해시 검증 사본으로 보존한다.
+현재 설치판은 1.0.4이며 새 EXE의 단독 UI 수용은 미수행이다. 최신 사용자 요청에 따라 **설치 업데이트와 단독 UI는 응답을 기다린다.** 기존 1.0.3·1.0.4 배포 파일11개·실행EXE2개(총13개)와 실행판 보관본 각각1,010개 파일의 해시를 확인했다. 설치1.0.4의1,010개 파일과 config도 일치한다. 기존 작업 자료와 각 진단의 새 보고서·증거는 별도 해시 검증 사본으로 보존한다.
+
+## 후보 빌드와 산출물 검증
+
+2026-11-10 15:07:59~15:41:46 KST(33분47초), 감독 finished/exit_code=0과 컴파일·Inno 성공을 확인했다. 소스는 `4e5101e131c284aa1baab1ddb8853916ad188ed6`, source_dirty=false, compile/tests 생략 없음이다. 빌드 내부 소스 시험도969 passed / 0 skipped / 297 subtests(79.33초)다.
+
+배포물은 `release/1.0.5/`, standalone은 `work/release-1.0.5-run105/BellalunAuto-1.0.5/`에 있다. build-info 등재1,010개와 메타데이터1개(총1,011개)를 전수 대조해 누락·추가·크기/해시 불일치0을 확인했다. 실제 PE subsystem은2이며 EXE의 `--version`·`--help`는 각각 종료0·stderr 없음이다. 버전1.0.5와 예상 도움말을 확인했다.
+
+| 산출물 | 크기(byte) | SHA-256 |
+|---|---:|---|
+| standalone BellalunAuto.exe | 44,348,416 | `61cb6c4ff1f3cf82523f2d6d9ef6938653267f5bda73b085f5f024ef8c6fc726` |
+| BellalunAuto-1.0.5-candidate-setup.exe | 97,416,275 | `1c4dcc087ee71eb913551c33cc09a1f43b09473cbabda02ee4e3a03c63b1e01a` |
+| BellalunAuto-1.0.5-release.zip | 96,935,878 | `2b91008f47b9d334b562e8369c65daa3a9f7dc6ec93933f1d5431e6dd1477aa2` |
+| build-info.json | 170,435 | `05e88e3962dc7bec8c091e5c722ecf67f7bdb966b208ad468a60796f971ab7c2` |
+
+ZIP은 신규 경로에서 생성한 뒤 최종 폴더로 옮겼다. 최종 위치에서 CRC5개·내부 SHA-256 4개와 Setup/build-info/후보 표식의 원본 일치를 다시 확인했다. 사내 자료를 포함하므로 공개 Git·Release에 올리지 않는다.
+
+**build-info의 gate는 candidate/passed=false이며 후보 파일명과 표식을 유지한다.** 빌드·CLI·해시 성공은 새 EXE의 TC 성공을 뜻하지 않는다. 응답 후 이 패키지로 업데이트하고 WF03·WF08·WF05·XIPL02를 각각 수행해 별도 수용 기록을 만든다. 같은 검증 EXE를 재컴파일하거나 기존 메타데이터를 고쳐 통과시키지 않는다.
+
+로컬 근거는 `work/run105-build/`, `work/implement105/`의 candidate-verification·final-artifacts·release-preservation·rollback-verification·held-install-verification 기록이다. 설치 업데이트·단독UI 기록 폴더는 생성하지 않았다. 다른 PC/OS와 새 전체 회귀도 이번 범위의 실행 결과가 없다.
 
 이전 전체 실행과 조사 근거는 [1.0.4 검증 기록](reliability-2026-11-10.md), 작업 범위는 [복구 계획](superpowers/plans/2026-11-10-failure-recovery.md), 판정 기록의 해석은 [배포 안내](distribution-guide.md)를 따른다.
