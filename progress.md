@@ -1,5 +1,12 @@
 # 진행 상태
 
+## 2026-11-11 1.0.11 정식 배포 패키지
+
+- 정식 빌드 `work/official-1.0.11c/`(07:36~07:41, 종료 0, 게이트 통과). 산출물 `release/official/1.0.11/`(Setup·build-info·SHA256SUMS)와 `release/official/BellalunAuto-1.0.11-release.zip`. 둘 다 Git 밖(`release/` 무시)이다.
+- Setup 97,448,830바이트 `9cf34362…3348`, ZIP 96,968,734바이트 `5a408400…acf7`. 기존 후보 `release/1.0.11/`는 그대로 둔다.
+- 앱 EXE `2c60ab26…d669`는 시험 EXE와 PE 링크 시각·헤더 체크섬 4바이트만 다르다. 나머지 1,008개 파일은 같다. 신원 검사·`--version`·`--help` 통과. 설치·UI 실행은 하지 않았다.
+- 빌드용 checkout `work/official-1.0.11/src`, `work/official-1.0.11b/src`(git worktree, 2630d0b)는 근거로 남겨 두었다.
+
 ## 2026-11-11 1.0.11 수용 완료(run113): 알려진 제품 결함 외 전 TC PASS
 
 - 빌드: 2630d0b, 생략 없음. Setup `BellalunAuto-1.0.11-candidate-setup.exe`(97,446,901바이트, SHA256 `1644f513…`), 설치 EXE SHA256 `33362f46…2f01`. 1.0.10 위 설치, 작업 폴더 1,415개 보존, config 변경 없음.

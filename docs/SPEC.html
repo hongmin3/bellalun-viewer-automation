@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="bf9abb0390011ce996ac11e29e5e0e2260976f4f5e50ec9b85912c805f130040">
+<meta name="spec-source-sha256" content="1b54fc39b320d2c6aa4114dd4efe0ef2a96ea0f75a7d5a600a3f4eda79862d6c">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1068,8 +1068,9 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-REGRESSION-002">
 <h3><span class="idtag">REQ-REGRESSION-002</span> 변경 영향에 따른 검증과 UI 회귀 승인</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 13</summary>
+<details class="history"><summary>변경 이력 14</summary>
 <ul>
+<li><span class="hist">1.0.11 정식 배포 — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 수용을 마친 커밋 2630d0b를 run113 설치판 전체 회귀 리포트(기본기능 <code>Result_20261111_052024.json</code>, WU <code>Result_WindowsUpdate_20261111_063744.json</code>)를 게이트 입력으로 다시 빌드해 정식 배포 패키지를 만들었다. build-info의 릴리스 게이트가 <code>passed</code>이고 파일명에 <code>-candidate</code>와 후보 표식이 없다. 컴파일과 시험(995 passed / 1 skipped / 299 subtests)을 생략하지 않았다.</li>
 <li><span class="hist">1.0.11 후보(1.0.10 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.11 후보(2630d0b)를 생략 없이 빌드해 1.0.10 위에 설치하고 수용을 마쳤다(run113). XIPL03 단독은 알려진 결함 Step 9만 FAIL로 게이트를 통과했다. 기본기능 전체 회귀(97.0분)는 PASS 23 / FAIL 2 / MANUAL 1 / SKIP 1이고, FAIL은 알려진 제품 결함(WF14 UPS, XIPL03 Step 9)뿐이다. WU 전체(77.1분)는 PASS 10 / SKIP 3(사람 전용)이다. 두 리포트를 함께 본 릴리스 게이트가 통과했다. 설치 후보 파일은 정식 배포로 바꾸지 않았고 후보 표시를 유지한다.</li>
 <li><span class="hist">1.0.11 후보(1.0.10 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.10 후보(6a71f33)의 XIPL03 단독은 3D Preview 대기가 120초 뒤 timeout 됐다(Step 1 중단, 게이트 거부). Preview 스레드는 스스로 끝나지 않았다. 1.0.10에서 넣은 &quot;Preview 스레드 종료 로그까지 기다림&quot;은 잘못된 가정이었다.</li>
 <li><span class="hist">1.0.10 후보(1.0.9 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.9 후보(4508bb4)를 빌드해 1.0.8 위에 설치했다. 단독 WF15 PASS(139.0초)·XIPL03 알려진 결함 Step 9만 FAIL(559.8초)·XIPL04 PASS(368.7초)이고 세 TC 모두 TC 범위 게이트를 통과했다. 이어서 기본기능 전체 회귀는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 1 / SKIP 1이다. WF14는 알려진 UPS 결함만 FAIL이고, XIPL03은 Step 1 3D Apply timeout으로 게이트가 거부해 WU는 실행하지 않았다.</li>

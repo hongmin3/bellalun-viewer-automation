@@ -235,3 +235,16 @@ XIPL03 Step 7(Preview 변화율 0.0178)은 로딩 화면을 캡처해 통과한 
 - 기본기능 FAIL 2건은 알려진 제품 결함뿐이다: WF14 Step 7 UPS 설정 미복원, XIPL03 Step 9 Apply 후 TEST_3D 이름과 10개 값이 기본값으로 돌아감.
 - MANUAL(Install_01)과 SKIP(WF16, WU_01·12·13)은 사람 전용으로 미리 정한 TC다.
 - run110에서 새로 나온 FAIL(WF15, XIPL03 Step 1, XIPL04)과 run111·run112의 XIPL03 Step 1은 모두 자동화 수정으로 해소됐다.
+
+## 1.0.11 정식 배포 패키지
+
+| 항목 | 후보(시험한 것) | 정식 |
+|---|---|---|
+| Setup 이름 | `BellalunAuto-1.0.11-candidate-setup.exe` | `BellalunAuto-1.0.11-setup.exe` |
+| 후보 표식 | `게이트-미통과-후보.txt` 있음 | 없음 |
+| build-info 릴리스 게이트 | `candidate`(빌드 때 회귀 리포트 없음) | `passed`(run113 기본기능·WU 리포트) |
+| 앱 EXE SHA256 | `33362f46…2f01` | `2c60ab26…d669` |
+
+- 두 EXE는 크기가 같고 4바이트만 다르다. 0x88~0x89는 PE 링크 시각(`TimeDateStamp`), 0xD8~0xD9는 그 값으로 계산되는 헤더 체크섬이다. 코드·데이터 영역과 나머지 설치 파일 1,008개는 같은 바이트다.
+- 정식 산출물 검사: 신원 검사 `ok=true`(파일 1,009개, 불일치 0, 커밋 2630d0b, 변경 없음), `--version` 종료 0 `BellalunAuto 1.0.11`, `--help` 종료 0, SHA256SUMS 2개 일치, ZIP 내부 해시 검증과 CRC 검사 통과.
+- 재시도 기록: 첫 시도는 새 checkout의 줄바꿈 차이로 리소스 3개가 달라 다시 만들었다. 두 번째는 바이트를 맞춘 뒤 git 상태가 변경으로 보여 빌드 전에 멈췄다. 세 번째에서 내용 변경 없이 상태를 정리해 빌드했다.
