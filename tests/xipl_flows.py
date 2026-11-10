@@ -318,20 +318,50 @@ def _post_recon_preview_ready(log_mark, ui):
     1.0.8 run110 XIPL_03: 완료 로그(`eNoti:5`) 직후 화면은 아직 "Receive Synthetic
     image"를 그리고 Apply가 비활성이었다. 그때 누른 Apply는 무시돼 Apply 대기가
     120초 뒤 timeout 됐다. 2D Preview(`_preview_2d_complete`)와 같은 기준이다.
-
-    1.0.9 run111 회귀 XIPL_03: Apply·Cancel이 활성이어도 Preview의 PostReconThread
-    종료 로그(`Terminate PostReconThread normally closed`) 전에 누른 Apply는 처리되지
-    않았다. 성공한 실행은 모두 eNoti:5 1~3초 뒤 이 로그가 남은 다음 Apply를 눌렀다.
-    그래서 GPU가 없어도 Preview 스레드 종료까지 기다린다.
     """
     done, reason, detail = _post_recon_complete(log_mark, ui, False)
-    done = done and detail["thread_done"]
     apply = [c for c in ui.by_id(vp.APPLY) if c.visible]
     cancel = [c for c in ui.by_id(vp.CANCEL) if c.visible]
     apply_enabled = bool(apply) and all(c.enabled for c in apply)
     cancel_enabled = bool(cancel) and all(c.enabled for c in cancel)
     detail.update(apply_enabled=apply_enabled, cancel_enabled=cancel_enabled)
     return done and apply_enabled and cancel_enabled, reason, detail
+
+
+_APPLY_ACCEPTED_LOG = re.compile(
+    r"Terminate PostReconThread normally closed|Do Post Reconstruction")
+
+
+def _click_3d_apply_confirmed(ctx, ui, attempts=3, timeout=5):
+    """3D Apply를 누른 뒤 Viewer가 받아들였는지 확인하고, 아니면 다시 누른다.
+
+    1.0.9 run111 회귀·1.0.10 run112 XIPL_03: Preview 영상이 막 그려지던 때
+    (eNoti:5 0.6초 뒤) 누른 Apply는 로그도 창 변화도 없이 무시됐다. 받아들여진
+    클릭은 바로 Preview 스레드를 끝내고(`Terminate PostReconThread normally closed`)
+    창을 닫았다. 받아들여졌으면 그 클릭의 로그 위치와 시각을 돌려준다.
+    끝내 받아들여지지 않으면 결과를 추측하지 않고 중단한다.
+    """
+    for attempt in range(1, attempts + 1):
+        apply = [c for c in ui.by_id(vp.APPLY) if c.visible and c.enabled]
+        if not apply:
+            raise flows.FlowError("3D Apply 버튼이 보이지 않거나 비활성입니다.")
+        mark = _viewer_log_mark(ctx)
+        clicked = datetime.now()
+        ui.click(apply[0], settle=1)
+        end = time.monotonic() + timeout
+        while True:
+            closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
+            logged = bool(_APPLY_ACCEPTED_LOG.search(
+                _log_lines_from(_viewer_log_since(mark), clicked)))
+            if closed or logged:
+                return {"mark": mark, "clicked": clicked, "attempts": attempt,
+                        "window_closed": closed, "log_seen": logged}
+            if time.monotonic() >= end:
+                break
+            time.sleep(.5)
+    raise flows.FlowError(
+        f"3D Apply 클릭이 {attempts}회 모두 Viewer에 받아들여지지 않았습니다"
+        "(창 닫힘·Post Recon 로그 없음).")
 
 
 _SELECT_IMAGE_LOG = r"Select Image\. \(Study Key: \d+, Step ID: {step_id}\)"
@@ -766,9 +796,8 @@ def compatibility_03(ctx, session):
                       expected="처리 pane 변화율 >= 0.005 및 Apply 활성",
                       actual={"delta": preview_delta, "apply_visible": apply_visible})
 
-        apply_log_mark = _viewer_log_mark(ctx)
-        apply_click_time = datetime.now()
-        ui.click([c for c in ui.by_id(vp.APPLY) if c.visible and c.enabled][0], settle=1)
+        accepted = _click_3d_apply_confirmed(ctx, ui)
+        apply_log_mark, apply_click_time = accepted["mark"], accepted["clicked"]
         apply_limit = float(xipl_cfg.get("apply_3d_timeout", post_recon_limit))
         _poll_completion(
             r, "XIPL 3D Apply",

@@ -185,8 +185,7 @@ class PreviewReadinessTests(unittest.TestCase):
         # image)인데 눌러 클릭이 무시됐고, Apply 대기가 120초 뒤 timeout 됐다.
         log = ("[Initialize Reconstruction. (narrow_standard.egp, TEST_3D_FLOW.xtp, x)]\n"
                "[Failed to initialize Recon. Error: No GPUS]\n"
-               "[ProgressBar Show (CDlgPostReconstruction::OnProgressImageProcess, eNoti:5)]\n"
-               "[Terminate PostReconThread normally closed]")
+               "[ProgressBar Show (CDlgPostReconstruction::OnProgressImageProcess, eNoti:5)]")
         for enabled, expected in ((False, False), (True, True)):
             control = SimpleNamespace(visible=True, enabled=enabled)
             ui = SimpleNamespace(by_id=lambda _: [control])
@@ -197,23 +196,6 @@ class PreviewReadinessTests(unittest.TestCase):
             self.assertTrue(detail["progress_done"])
             self.assertEqual(enabled, detail["apply_enabled"])
             self.assertEqual(enabled, detail["cancel_enabled"])
-
-    def test_3d_preview_waits_for_preview_thread_exit_even_without_gpu(self):
-        # 1.0.9 run111 회귀 XIPL03: eNoti:5 뒤 Apply·Cancel이 활성이었지만 Preview
-        # PostReconThread 종료 로그 전에 Apply를 눌렀다. Viewer는 Apply를 처리하지
-        # 않았고 스레드는 120초 뒤 창을 닫을 때에야 끝났다. 성공한 실행은 모두
-        # eNoti:5 1~3초 뒤 종료 로그가 남은 다음 Apply를 눌렀다.
-        log = ("[Initialize Reconstruction. (narrow_standard.egp, TEST_3D_FLOW.xtp, x)]\n"
-               "[Failed to initialize Recon. Error: No GPUS]\n"
-               "[ProgressBar Show (CDlgPostReconstruction::OnProgressImageProcess, eNoti:5)]")
-        control = SimpleNamespace(visible=True, enabled=True)
-        ui = SimpleNamespace(by_id=lambda _: [control])
-        for tail, expected in (("", False), ("\n[Terminate PostReconThread normally closed]", True)):
-            with self.subTest(thread_exit=bool(tail)), patch.object(
-                    flow, "_viewer_log_since", return_value=log + tail):
-                done, _, detail = flow._post_recon_preview_ready(None, ui)
-            self.assertEqual(expected, done)
-            self.assertEqual(expected, detail["thread_done"])
 
     def test_3d_preview_ready_still_requires_completion_log(self):
         control = SimpleNamespace(visible=True, enabled=True)

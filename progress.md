@@ -1,5 +1,12 @@
 # 진행 상태
 
+## 2026-11-11 1.0.10(run112) XIPL03 단독 FAIL과 Apply 클릭 확인 수정
+
+- run112 XIPL03 단독: 3D Preview가 Preview 스레드 종료 로그를 120초 기다리다 timeout(Step 1 중단). 스레드는 스스로 끝나지 않으므로 1.0.10 수정의 가정이 틀렸다. 기본기능·WU는 실행하지 않았다.
+- 다시 본 근거: 성공한 실행에서 `Terminate PostReconThread`는 Apply 클릭이 일으킨 것이다(클릭 00:33:28.17, 로그 28.181, 창 닫힘). 실패 실행은 eNoti:5 0.6초 뒤 클릭이 무시됐다.
+- 수정: Preview 스레드 대기를 되돌리고 `_click_3d_apply_confirmed`가 클릭 수락(창 닫힘 또는 Post Recon 로그)을 5초 안에 확인, 최대 3번 다시 누른다.
+- 다음: 1.0.11 빌드 → 1.0.10 위 설치 → XIPL03 단독 → 기본기능 전체 → WU 전체(`work/run113/`).
+
 ## 2026-11-11 1.0.9 수용(run111) 결과와 XIPL03 Apply 시점 수정
 
 - 단독: WF15 PASS, XIPL03 알려진 결함 Step 9만 FAIL(게이트 통과), XIPL04 PASS.
