@@ -2,6 +2,7 @@
 
 ## 1.0.10 후보(1.0.9 후속 수정) — 2026-11-11
 
+- 버전을 1.0.10으로 올렸다. `release/1.0.9/`의 게이트 미통과 후보와 run111 증거를 보존하기 위해서다. 사용자 지시(#102)대로 새 후보 빌드 → 1.0.9 위 설치 → XIPL03 단독 → 기본기능 전체 → WU 전체를 진행한다. 결과는 완료 후 기록한다.
 - REQ-REGRESSION-001: XIPL03의 3D Preview는 Preview 스레드 종료 로그(`Terminate PostReconThread normally closed`)까지 기다린 뒤 Apply를 누른다. GPU가 없는 PC도 같다. 1.0.9 회귀(run111)에서 Apply·Cancel이 활성이었지만 이 로그 전에 Apply를 눌렀고, Viewer는 Apply를 처리하지 않아 120초 뒤 timeout 됐다. 같은 날 성공한 실행은 모두 eNoti:5 1~3초 뒤 이 로그가 남은 다음 Apply를 눌렀다. 판정 기준은 그대로다.
 - REQ-REGRESSION-002: 1.0.9 후보(4508bb4)를 빌드해 1.0.8 위에 설치했다. 단독 WF15 PASS(139.0초)·XIPL03 알려진 결함 Step 9만 FAIL(559.8초)·XIPL04 PASS(368.7초)이고 세 TC 모두 TC 범위 게이트를 통과했다. 이어서 기본기능 전체 회귀는 27 TC 중 PASS 23 / FAIL 2 / MANUAL 1 / SKIP 1이다. WF14는 알려진 UPS 결함만 FAIL이고, XIPL03은 Step 1 3D Apply timeout으로 게이트가 거부해 WU는 실행하지 않았다.
 
