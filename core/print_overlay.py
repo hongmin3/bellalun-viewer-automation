@@ -965,6 +965,39 @@ def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME, evidence_dir=
     return saved
 
 
+SERVER_NAME_FIELD = 2434
+
+
+def _select_print_server(ui, rows, print_name, tesseract_exe=None, evidence_dir=None):
+    """DICOM Print 서버 행을 이름 칸(2434)의 전체 이름으로 고른다(REQ-OCR-001).
+
+    목록 열이 좁으면 행 글자가 `PRIN...`처럼 말줄임으로 그려져 OCR이 읽지 못한다
+    (1.0.6 설치판 WF03 실측). 행을 누르면 상세 이름 칸에 전체 이름이 보이므로
+    `setup-dicom`과 같은 방식으로 읽는다. 같은 이름이 둘 이상이면 고르지 않는다.
+    이름 칸이 없거나 같은 이름 행이 없을 때만 OCR 공통 경로를 쓴다.
+    """
+    names = []
+    for row in rows:
+        ui.click(row, settle=.3)
+        fields = [c for c in ui.by_id(SERVER_NAME_FIELD) if c.visible]
+        if not fields:
+            names = None
+            break
+        names.append(ui.get_text(fields[0]))
+    if names is not None:
+        matches = [row for row, name in zip(rows, names) if name == print_name]
+        if len(matches) > 1:
+            raise RuntimeError(f"DICOM Print 서버 {print_name!r} 이름 행이 {len(matches)}개라 "
+                               f"고르지 않습니다: {names}")
+        if matches:
+            ui.click(matches[0], settle=.3)
+            return matches[0], {"method": "name_field", "names": names}
+    selected, detail = ocr_selection.select(rows, print_name, tesseract_exe,
+                                            match='contains', evidence_dir=evidence_dir)
+    ui.click(selected, settle=.3)
+    return selected, {"method": "ocr", "names": names, "ocr": detail}
+
+
 def apply_to_print_server(ui, db, print_name, overlay_key,
                           overlay_name=OVERLAY_NAME, tesseract_exe=None,
                           evidence_dir=None):
@@ -978,9 +1011,9 @@ def apply_to_print_server(ui, db, print_name, overlay_key,
                   key=lambda c: c.rect[1])
     if not rows:
         raise RuntimeError(f"DICOM Print server is not visible: {print_name}")
-    selected_server, _ = ocr_selection.select(rows, print_name, tesseract_exe,
-                                             match='contains', evidence_dir=evidence_dir)
-    ui.click(selected_server, settle=.6)
+    _, server_detail = _select_print_server(
+        ui, rows, print_name, tesseract_exe, evidence_dir=evidence_dir)
+    time.sleep(.3)  # 선택 행의 상세 영역이 다시 그려질 시간(이전 클릭 settle .6과 합계 같음)
     combo = _visible(ui, 2474)
     if not combo:
         raise RuntimeError("DICOM Print Overlay selector (2474) not found")
@@ -1006,4 +1039,5 @@ def apply_to_print_server(ui, db, print_name, overlay_key,
     if int(row.get("Overlay", -1)) != int(overlay_key):
         raise RuntimeError(
             f"Print server overlay was not applied: expected={overlay_key}, actual={row}")
+    row["server_selection"] = {"method": server_detail["method"], "names": server_detail["names"]}
     return row

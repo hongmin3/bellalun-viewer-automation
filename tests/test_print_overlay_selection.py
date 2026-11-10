@@ -461,3 +461,60 @@ def test_fully_visible_moving_catalogue_probe_restores_exact_origin_before_ocr(t
             assert row.hwnd == 20 and row.rect == (0, 0, 90, 35)
             assert detail['attempts'] == 1 and reader.call_count == 2
     assert any(call.args[0] is down for call in ui.click.call_args_list)
+
+
+def _server_rows(*hwnds):
+    return [SimpleNamespace(hwnd=h, text='ListItem', visible=True, rect=(0, h * 20, 200, h * 20 + 18))
+            for h in hwnds]
+
+
+def _name_field_ui(names):
+    """행을 누르면 이름 칸(2434)에 그 행의 전체 이름이 보이는 가짜 UI."""
+    ui = mock.Mock()
+    field = SimpleNamespace(hwnd=99, visible=True)
+    shown = {}
+    ui.click.side_effect = lambda control, **kw: shown.update(name=names.get(control.hwnd))
+    ui.by_id.side_effect = lambda cid: [field] if cid == 2434 else []
+    ui.get_text.side_effect = lambda control: shown.get('name')
+    return ui
+
+
+def test_print_server_uses_full_name_field_when_list_text_is_truncated(tmp_path):
+    # Validates: REQ-OCR-001 (목록에서 PRIN... 으로 잘려도 이름 칸으로 고른다)
+    rows = _server_rows(1, 2)
+    ui = _name_field_ui({1: 'OTHER_PRINT', 2: 'PRINT_TEST'})
+    with mock.patch.object(ocr_selection, 'select') as ocr:
+        chosen, detail = po._select_print_server(ui, rows, 'PRINT_TEST', None, evidence_dir=tmp_path)
+    assert chosen is rows[1]
+    assert detail['method'] == 'name_field' and detail['names'] == ['OTHER_PRINT', 'PRINT_TEST']
+    assert ui.click.call_args_list[-1].args[0] is rows[1]
+    ocr.assert_not_called()
+
+
+def test_print_server_duplicate_names_never_pick_a_row(tmp_path):
+    rows = _server_rows(1, 2)
+    ui = _name_field_ui({1: 'PRINT_TEST', 2: 'PRINT_TEST'})
+    with mock.patch.object(ocr_selection, 'select') as ocr:
+        with pytest.raises(RuntimeError, match='2개'):
+            po._select_print_server(ui, rows, 'PRINT_TEST', None, evidence_dir=tmp_path)
+    ocr.assert_not_called()
+
+
+def test_print_server_without_name_field_falls_back_to_common_ocr(tmp_path):
+    rows = _server_rows(1)
+    ui = mock.Mock()
+    ui.by_id.return_value = []
+    with mock.patch.object(ocr_selection, 'select', return_value=(rows[0], {'attempts': 1})) as ocr:
+        chosen, detail = po._select_print_server(ui, rows, 'PRINT_TEST', 'engine', evidence_dir=tmp_path)
+    assert chosen is rows[0] and detail['method'] == 'ocr'
+    assert ocr.call_args.kwargs['match'] == 'contains' and ocr.call_args.kwargs['evidence_dir'] == tmp_path
+    assert ui.click.call_args_list[-1].args[0] is rows[0]
+
+
+def test_print_server_name_absent_falls_back_to_ocr_and_keeps_its_refusal(tmp_path):
+    rows = _server_rows(1)
+    ui = _name_field_ui({1: 'OTHER_PRINT'})
+    with mock.patch.object(ocr_selection, 'select',
+                           side_effect=ocr_selection.SelectionError('unreadable', {'wanted': 'PRINT_TEST'})):
+        with pytest.raises(ocr_selection.SelectionError):
+            po._select_print_server(ui, rows, 'PRINT_TEST', None, evidence_dir=tmp_path)

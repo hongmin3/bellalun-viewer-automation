@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="27dd4bc3db73e122149e1ceb92939e07181abf56af33e3b86e4e3003aaa9b918">
+<meta name="spec-source-sha256" content="b953dbd9656530ec1a0c3f146a8d3d62b5b3ad52f999252e640d6a0ee8c86122">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -280,8 +280,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <section class="card kind-req" id="REQ-OCR-001">
 <h3><span class="idtag">REQ-OCR-001</span> PC 간 OCR 판독과 선택 증거</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>core/combo_popup.py</code>, <code>tests/workflow03.py</code>, <code>tests/workflow08.py</code>, <code>run.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_combo_popup.py</code>, <code>tests/test_ocr_replay.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a></span></div>
-<details class="history"><summary>변경 이력 8</summary>
+<details class="history"><summary>변경 이력 9</summary>
 <ul>
+<li><span class="hist">1.0.7 후보(1.0.6 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: DICOM Print 서버 행은 행을 누른 뒤 상세 이름 칸(Control ID 2434)의 전체 이름으로 고른다. 1.0.6 설치판 WF03에서 목록 열이 좁아 <code>PRINT_TEST</code>가 <code>PRIN...</code>으로 그려져 OCR이 읽지 못했다. 같은 이름 행이 둘 이상이면 고르지 않는다. 이름 칸이 없거나 같은 이름이 없을 때만 OCR 공통 경로를 쓰고, 판독 기준과 저장 뒤 DB 대조는 그대로다.</li>
 <li><span class="hist">1.0.6 후보(1.0.5 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 콤보 팝업 밖에 놓인 항목 창을 후보로 읽지 않는다. 1.0.5 설치판 WF03에서 Header Layout <code>1 X 2</code>를 바르게 읽고도 팝업 아래 다른 컨트롤 3개 영역 때문에 선택이 거부됐다. 실패 증거에 콤보·팝업 영역을 남긴다. 판독 기준과 경쟁 후보 검사는 유지한다.</li>
 <li><span class="hist">1.0.6 후보(1.0.5 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: UI 컨트롤 조회가 같은 창을 깊이만큼 반복해 읽던 것을 한 번 읽기로 바꿨다. 반환 집합은 같다. Viewer에서의 시간 단축은 다음 승인 실행에서 잰다.</li>
 <li><span class="hist">1.0.5 후보 — 2026-11-10</span> <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>: 고정 슬롯의 문구 변화와 행 기하를 함께 관측하고, 이미지 겹침으로 논리 후보와 부분행을 연결한다. 선택 화면 복귀 후 신원을 재확인하며 느린 조회에도 안정 표본을 확보한다. 실제 잘린 하단 테두리 1픽셀은 신원 비교에서만 제외하고 원본·OCR을 보존한다. 실패 단계·정제 오류·기하·목록 캡처와 비교 영역을 남긴다. 임계값·최대 4판독·경쟁 후보 검사는 유지한다.</li>
@@ -301,6 +302,13 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 후보 점수·컨트롤 영역·화면 환경과 OCR 실행파일/언어 데이터 지문을 고유 증거 폴더에 남긴다.
 임의 순번 선택이나 전역 유사도 완화로 통과시키지 않는다. 저장 결과의 기존 DB 교차 검증과
 필름 Header/Top/Bottom 화면 검증은 유지한다. 기존 오버레이/서버도 이름으로 선택한다.</p>
+<p>DICOM Print 서버 행은 행을 누른 뒤 상세 이름 칸(Control ID 2434)의 글자를 읽어 고른다.
+이름이 설정 이름과 정확히 같은 행이 하나일 때만 그 행을 쓰고, 둘 이상이면 클릭을 멈추고 실패로 남긴다.
+이름 칸을 찾지 못하거나 같은 이름 행이 없을 때만 위 OCR 공통 경로로 고른다.</p>
+<p class="why"><span class="why-label">이유</span> 목록 열이 좁으면 서버 이름이 말줄임으로 잘려 OCR이 읽지 못하지만, 이름 칸은 전체 이름을 담는다.</p>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>1.0.6 설치판 WF03에서 <code>PRINT_TEST</code> 행이 <code>DICOM  PRIN...  PRIN...</code>으로 그려져 OCR 4판독이 모두 실패했다. 같은 행의 이름 칸은 <code>setup-dicom</code>이 쓰는 방식으로 전체 이름을 읽었다.</p>
+</aside>
 <p>카탈로그에서 잘린 후보는 제외하지 않고 스크롤 후 온전한 영역을 다시 조회해 캡처한다.
 각 후보 캡처와 선택 직전에 HWND·Control ID를 확인하며 소실·식별자 변경·스크롤 한계는
 클릭하지 않고 실패 증거에 남긴다. 콤보는 클릭한 위치에 인접한 유일한 ItemList의
@@ -1605,7 +1613,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <ul>
 <li>대상: <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>.</li>
 <li>절차: <code>tests/test_ocr_selection.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_ocr_replay.py</code>를 실행한다.</li>
-<li>기대: 모호한 후보·저신뢰 경쟁 후보·빈 캡처는 선택하지 않고 실패 증거를 저장한다. WF03에서 첫 Print 호출 전 증거 경로가 준비된다. 저장 캡처의 선택/거부 결과를 같은 판독 경로로 비교한다. 기존 OCR·PC별 설정은 보존한다.</li>
+<li>기대: 모호한 후보·저신뢰 경쟁 후보·빈 캡처는 선택하지 않고 실패 증거를 저장한다. Print 서버 행은 이름 칸이 정확히 같은 유일한 행을 고르고, 같은 이름이 둘이면 클릭하지 않는다. 이름 칸이 없을 때만 OCR로 고른다. WF03에서 첫 Print 호출 전 증거 경로가 준비된다. 저장 캡처의 선택/거부 결과를 같은 판독 경로로 비교한다. 기존 OCR·PC별 설정은 보존한다.</li>
 </ul>
 </section>
 <section class="card kind-test" id="TEST-OCR-002">
