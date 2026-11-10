@@ -6,7 +6,9 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-1.0.4 후보는 잘린 OCR 행 재조회·팝업 준비 대기·빈 Overlay 목록 판정·Post Reconstruction 대기를 보강합니다. run546 빌드와 build-info 등재1,010개 파일 해시·새 EXE 기본 CLI·설치용 ZIP 검증을 마쳤습니다. [산출물 위치·해시와 검증 범위](docs/reliability-2026-11-10.md)를 참고하세요. 현재 설치판은1.0.4입니다. 사용자 승인 후 설치 업데이트와 기본27 TC·실시간WU13 TC를 각각1회 종료했습니다. 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3이며 배포 게이트는 거부됐습니다.
+현재 설치판은 **1.0.4**이며, **1.0.5 개발후보를 준비 중**입니다. OCR 고정 슬롯의 내용 변화에 따른 전체 후보 순회·부분행 회수·목표 복귀 확인, 후발 전송 Queue 수렴·수신 관측 오류 구분·Study별 관측 경계, XIPL 2D의 실제 Apply/Cancel 활성·영상 안정 대기를 구현했습니다. 소스 단독 진단에서 WF05와 XIPL02는 PASS이며, OCR은 실제 목록의 38개 논리 후보와 20개 화면 세대를 조사해 Patient ID 선택·복귀 확인을 통과했습니다. **새 후보 EXE 검증·빌드·설치 수용은 미완료**입니다. [1.0.5 복구 검증 기록](docs/failure-recovery-1.0.5.md)에서 소스 진단과 배포 수용 결과를 구분합니다.
+
+사용자는 개선안 전체 수정, WF03·WF08·WF05·XIPL02 단독 UI 성공 확인과 최종 배포 빌드를 승인했습니다. 기존1.0.3·1.0.4 배포물은 보존합니다. 1.0.4의 승인된 설치 업데이트·기본27 TC·실시간WU13 TC 각1회 결과는 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3이며 **배포 게이트는 거부됐습니다**. run546 빌드, build-info 등재1,010개 파일 해시와 CLI·ZIP 검증 등 [1.0.4 근거와 개선 조사](docs/reliability-2026-11-10.md)를 참고하세요.
 
 1.0.3은 프린트 오버레이 OCR 재판독·모호한 선택 차단과 준비 점검의 OCR 지문·실패 증거 안내를 제공합니다.
 실패한 컨트롤 크롭과 OCR 환경을 남겨 PC별 차이를 비교합니다. [OCR 점검 방법](docs/ocr-portability.md)을 참고하세요.
@@ -14,9 +16,9 @@
 
 HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 확인을 먼저 보여 주고, TC 검색·판정 필터·PASS 상세 접기·인쇄를 지원합니다. [비교·검증 기록](docs/report-unification.md)을 참고하세요. 1.0.3 설치판에는 이 개선이 포함됩니다.
 
-1.0.3 Setup은 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업401개 누락0·config 보존을 확인했습니다. 이후 같은 설치판으로 기본기능과 실시간 WU 전체를 각1회 수행했으며, 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS6/FAIL4/SKIP3으로 **배포 게이트는 거부됐습니다**. [설치 ZIP 위치·현재 검증 결과](docs/ocr-release-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 OS 실측은 미확인입니다. 이전1.0.2 설치 준비 근거는 [과거 검증](docs/setup-preparation-validation.md)에 보존합니다.
+이전1.0.3 Setup부터 OCR과 승인 Baseline·시험 자료를 자동 준비합니다. 당시 실제 업데이트에서 설치 파일1,010개 일치와 기존 작업401개 누락0·config 보존을 확인했습니다. 이후 같은 설치판으로 기본기능과 실시간 WU 전체를 각1회 수행했으며, 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS6/FAIL4/SKIP3으로 **배포 게이트는 거부됐습니다**. [1.0.3 설치 ZIP 위치·검증 결과](docs/ocr-release-validation.md)를 참고하세요. 다른 PC의 OCR 누락 설치와 OS 실측은 미확인입니다. 이전1.0.2 설치 준비 근거는 [과거 검증](docs/setup-preparation-validation.md)에 보존합니다.
 
-결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행은 [단독 검증 기록](docs/wf14-single-validation.md), 현재1.0.3 전체 실행의 실패·HTML 확인은 [설치판 검증](docs/ocr-release-validation.md)에 구분합니다. 속도 개선 입증은 남아 있습니다.
+결과 HTML의 복잡한 실제값은 펼쳐서 항목별로 읽을 수 있습니다. WF14의 전후 페이지·목록 수집 시간을 기록합니다. 별도 빌드 EXE의 WF14 단독 실행은 [단독 검증 기록](docs/wf14-single-validation.md), 이전1.0.3 전체 실행의 실패·HTML 확인은 [당시 설치판 검증](docs/ocr-release-validation.md)에 구분합니다. 속도 개선 입증은 남아 있습니다.
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
 탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
@@ -26,8 +28,8 @@ HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 �
 받은 파일은 `BellalunAuto.exe verify-share <ZIP 경로>`로 무결성과 상대 링크를 점검합니다.
 준비 실패는 **준비 점검 → 실패 행 선택 → 설정 화면 열기 → 다시 점검** 순서로 해결합니다.
 지원 OS·다른 계정·설치 수명주기의 실제 확인 범위는 [인수표](docs/installation-acceptance.md)에 있습니다.
-이전 소스173eb3c의1.0.1 설치판 WU는109.3분·PASS10/SKIP3·WU 게이트14개 통과였습니다. [당시 실행 결과와 제한](docs/wu-installed-validation.md)을 참고하세요. 이 성공을 현재1.0.3 결과로 사용하지 않습니다. UAC 취소·사람 검수·다른 OS와 계정의 미완료 범위는 유지합니다.
-[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 통과했습니다. 후보9의 [WU_09 USB Export 제품 충돌](docs/wu09-export-crash-investigation.md)은 이후1.0.1 실행에서 재현되지 않고 USB 왕복이 통과했지만 원인 수정·재발 해소는 미확정입니다. 현재1.0.3 WU09는 검색 옵션을 찾지 못해 USB 왕복을 완료하지 못했습니다. 기존 UPS·XIPL 결함과 이번에 관찰된 자동화 실패를 현재 검증 기록에서 구분합니다.
+이전 소스173eb3c의1.0.1 설치판 WU는109.3분·PASS10/SKIP3·WU 게이트14개 통과였습니다. [당시 실행 결과와 제한](docs/wu-installed-validation.md)을 참고하세요. 이후 버전의 검증 결과는 각 EXE의 기록을 따릅니다. UAC 취소·사람 검수·다른 OS와 계정의 미완료 범위는 유지합니다.
+[WF_02 대기 결함](docs/wf02-acquisition-investigation.md)은 수정 후 통과했습니다. 후보9의 [WU_09 USB Export 제품 충돌](docs/wu09-export-crash-investigation.md)은 이후1.0.1 실행에서 재현되지 않고 USB 왕복이 통과했지만 원인 수정·재발 해소는 미확정입니다. 이전1.0.3 WU09는 검색 옵션을 찾지 못해 USB 왕복을 완료하지 못했고, 1.0.4에서는 USB 왕복이 PASS였습니다. 기존 UPS·XIPL 결함과 이번에 관찰된 자동화 실패를 각 검증 기록에서 구분합니다.
 
 수정 후에는 소스에서 단위시험·정적 검사를 수행하고, 필요한 UI 회귀는 빌드한 EXE로 실행합니다.
 영향 범위에 따라 단독 TC·기본기능·WU·두 묶음 전체를 선택하며, UI 실행 전에 대상·시간·DB 복원 여부를 설명하고 사용자 승인을 받습니다.
@@ -64,7 +66,7 @@ BellalunAuto.exe run-winupdate
 
 설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
 사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
-배포 파일은 `release/<버전>/`에 정리합니다. 현재 Setup은 `release/1.0.2/BellalunAuto-1.0.2-candidate-setup.exe`입니다.
+배포 파일은 `release/<버전>/`에 정리합니다. 현재 설치판의 후보 Setup은 `release/1.0.4/BellalunAuto-1.0.4-candidate-setup.exe`이며 배포 게이트는 거부 상태입니다. 1.0.5 산출물은 아직 없습니다.
 배포용 실행 패키지는 Setup만 생성하며 포터블 ZIP은 만들지 않습니다.
 아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 
@@ -157,7 +159,8 @@ Bellalun Viewer\
 | 규모 | Python **32,700줄** / 모듈 86개 — core 15,925(37) · tests 14,139(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-03 재실측 |
 | 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
-| 최신 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정했으며 수정 후 전체 실행은 대기 중 |
+| 최신 설치판 전체 회귀 | 1.0.4 — 기본27 TC: PASS 19 / FAIL 6 / MANUAL 1 / SKIP 1, 실시간WU13 TC: PASS 9 / FAIL 1 / SKIP 3. 배포 게이트 거부. 1.0.5 소스 단독 WF05·XIPL02는 PASS이며 새 후보 EXE 검증은 미완료 |
+| 과거 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. 당시 OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정하고 후속 전체 실행을 준비했음 |
 | 남은 검증 | 실제 LTSC·Windows 10·개발 도구 없는 PC·다른 관리자 계정·한글 계정 설치판 검증(후보11 최소 환경 실행과 USB 연결 WU는 2026-10-21 완료). 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
 | 과거 기준 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건: PASS 23 / FAIL 2 / MANUAL 2 (119.9분), 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1. 당시 남은 FAIL은 문서화한 UPS 복원과 XIPL_03 기본값 복귀였음 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |

@@ -72,6 +72,8 @@ _u32p.WindowFromPoint.restype = w.HWND
 GA_ROOT = 2
 _u32p.GetAncestor.argtypes = (w.HWND, ctypes.c_uint)
 _u32p.GetAncestor.restype = w.HWND
+_u32p.IsWindowEnabled.argtypes = (w.HWND,)
+_u32p.IsWindowEnabled.restype = w.BOOL
 
 
 def send_unicode(ch):
@@ -107,6 +109,11 @@ class Control:
     def __init__(self, hwnd, ctrl_id, cls, text, rect, visible, depth):
         self.hwnd, self.ctrl_id, self.cls = hwnd, ctrl_id, cls
         self.text, self.rect, self.visible, self.depth = text, rect, visible, depth
+
+    @property
+    def enabled(self):
+        """생성 시점의 스냅샷 대신 해당 HWND의 현재 활성 상태를 읽는다."""
+        return bool(_u32p.IsWindowEnabled(self.hwnd))
 
     @property
     def center(self):

@@ -8,6 +8,7 @@ verifies the row text with OCR before clicking it.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import time
@@ -283,12 +284,143 @@ def _ocr(control, tesseract_exe):
     return uitext.ocr(control, tesseract_exe)
 
 
-def _reveal_catalogue_row(ui, catalogue, row, up, down):
+def _catalogue_state(ui, catalogue, list_id=None):
+    if list_id is not None:
+        found = {c.hwnd: c for c in _visible(ui, list_id)}
+        if len(found) != 1 or catalogue.hwnd not in found:
+            raise RuntimeError('Print Overlay catalogue changed during scroll')
+        catalogue = found[catalogue.hwnd]
+    nested = list({c.hwnd: c for c in children(catalogue.hwnd, 5)}.values())
+    rows = sorted((c for c in nested if c.text == 'ListItem' and c.visible),
+                  key=lambda c: (c.rect[1], c.rect[0]))
+    return catalogue, nested, rows
+
+
+def _row_geometry(rows):
+    return [{'hwnd': c.hwnd, 'ctrl_id': c.ctrl_id, 'rect': list(c.rect),
+             'visible': bool(c.visible)} for c in rows]
+
+
+def _image_key(image):
+    return hashlib.sha256(str(image.size).encode('ascii') + image.tobytes()).hexdigest()
+
+
+def _row_key(image):
+    # 행 오른쪽에 중첩되는 스크롤바는 논리 항목의 일부가 아니다. OCR 원본은 유지한다.
+    return _image_key(image.crop((0, 0, max(1, image.width-18), image.height)))
+
+
+def _content_key(image, catalogue, rows):
+    # 스크롤바/화살표의 hover·thumb 변화는 항목 내용의 이동 근거가 아니다.
+    if not rows:
+        return _image_key(image)
+    left, top = catalogue.rect[:2]
+    box = (max(0, min(c.rect[0] for c in rows) - left),
+           max(0, min(c.rect[1] for c in rows) - top),
+           min(image.width - 18, max(c.rect[2] for c in rows) - left), image.height)
+    if box[0] >= box[2] or box[1] >= box[3]:
+        raise RuntimeError('Print Overlay catalogue invalid viewport')
+    return _image_key(image.crop(box))
+
+
+def _catalogue_image(catalogue):
+    return ocr_selection.ImageGrab.grab(bbox=tuple(catalogue.rect), all_screens=True)
+
+
+def _scroll_catalogue(ui, catalogue, arrow, *, list_id=None, trace=None, track=False,
+                      observe=False):
+    """기하·내용 변화를 관측한 뒤 연속 안정 표본을 확인한다."""
+    catalogue, nested, before = _catalogue_state(ui, catalogue, list_id)
+    scrolls = [c for c in nested if c.text == 'Scroll' and c.visible]
+    if len(scrolls) != 1:
+        raise RuntimeError('Print Overlay catalogue scroll arrows not found')
+    if not track:
+        arrows = {c.hwnd: c for c in children(scrolls[0].hwnd, 2)
+                  if c.ctrl_id == arrow.ctrl_id and c.visible}
+        if len(arrows) != 1:
+            raise RuntimeError('Print Overlay catalogue scroll arrows not found')
+        arrow = next(iter(arrows.values()))
+    before_content = _content_key(_catalogue_image(catalogue), catalogue, before) if observe else None
+    target = (catalogue.rect[2] - 8, catalogue.rect[3] - 25) if track else arrow
+    ui.click(target, settle=.05)
+    changed, stable = False, 0
+    previous = (_row_geometry(before), before_content)
+    started = time.monotonic()
+    for poll in range(31):
+        catalogue, _, after = _catalogue_state(ui, catalogue, list_id)
+        geometry = _row_geometry(after)
+        content = _content_key(_catalogue_image(catalogue), catalogue, after) if observe else None
+        state = (geometry, content)
+        changed = changed or (_row_geometry(before), before_content) != state
+        stable = stable + 1 if changed and state == previous else 0
+        if stable >= 2:
+            break
+        previous = state
+        # 느린 UI 조회는 한 표본만으로도 기한을 소모한다. 변경을 관측했다면
+        # 전체 31표본 상한 안에서 안정 표본 두 개를 확보할 기회를 유지한다.
+        if not changed and time.monotonic() - started >= 1.5:
+            break
+        if poll < 30:
+            time.sleep(.05)
+    if trace is not None:
+        trace.append({'arrow': getattr(arrow, 'ctrl_id', None), 'changed': changed,
+                      'content_before': before_content, 'content_after': content,
+                      'target': list(target) if track else {
+                          'hwnd': getattr(target, 'hwnd', None),
+                          'rect': list(getattr(target, 'rect', ()))},
+                      'polls': poll + 1, 'stable': stable >= 2,
+                      'elapsed_seconds': round(time.monotonic() - started, 3),
+                      'rect': list(catalogue.rect), 'before': _row_geometry(before),
+                      'after': _row_geometry(after)})
+    if changed and stable < 2:
+        raise RuntimeError('Print Overlay catalogue scroll state did not settle')
+    return changed
+
+
+def _probe_fixed_catalogue(ui, catalogue, list_id, up, down, physical, trace):
+    """부분행 없는 목록도 내용 스크롤을 탐지한다. 기하 이동은 원점을 검증해 복원한다."""
+    original_rect = tuple(catalogue.rect)
+
+    def sample():
+        current, nested, rows = _catalogue_state(ui, catalogue, list_id)
+        if {(c.hwnd, c.ctrl_id) for c in nested if c.text == 'ListItem'} != physical:
+            raise RuntimeError('Print Overlay catalogue row changed during scroll')
+        if tuple(current.rect) != original_rect:
+            raise RuntimeError('Print Overlay catalogue origin restore mismatch')
+        return current, rows, _row_geometry(rows), _content_key(_catalogue_image(current), current, rows)
+
+    catalogue, _, origin_geometry, origin_content = sample()
+    for _ in range(3):
+        _scroll_catalogue(ui, catalogue, down, list_id=list_id, trace=trace, observe=True)
+        catalogue, _, geometry, content = sample()
+        if geometry == origin_geometry and content != origin_content:
+            return True
+        if geometry != origin_geometry:
+            no_movement = 0
+            for _ in range(50):
+                moved = _scroll_catalogue(ui, catalogue, up, list_id=list_id,
+                                         trace=trace, observe=True)
+                catalogue, _, geometry, content = sample()
+                if geometry == origin_geometry and content == origin_content:
+                    return False
+                no_movement = 0 if moved else no_movement + 1
+                if no_movement >= 3:
+                    break
+            raise RuntimeError('Print Overlay catalogue origin restore mismatch')
+        if content != origin_content:
+            raise RuntimeError('Print Overlay catalogue origin restore mismatch')
+    return False
+
+
+def _reveal_catalogue_row(ui, catalogue, row, up, down, *, list_id=None,
+                          trace=None, identities=None):
     """잘린 후보를 버리지 않고 전부 보인 뒤 재조회한 컨트롤을 돌려준다."""
+    no_movement = 0
     for attempt in range(51):
-        fresh = list({c.hwnd: c for c in children(catalogue.hwnd, 5)
-                      if c.hwnd == row.hwnd and c.ctrl_id == row.ctrl_id
-                      and c.text == 'ListItem'}.values())
+        catalogue, _, rows = _catalogue_state(ui, catalogue, list_id)
+        if identities is not None and {(c.hwnd, c.ctrl_id) for c in rows} != identities:
+            raise RuntimeError('Print Overlay catalogue row changed during scroll')
+        fresh = [c for c in rows if c.hwnd == row.hwnd and c.ctrl_id == row.ctrl_id]
         if len(fresh) != 1:
             raise RuntimeError('Print Overlay catalogue row changed during scroll')
         current = fresh[0]
@@ -298,14 +430,225 @@ def _reveal_catalogue_row(ui, catalogue, row, up, down):
             return current
         if attempt == 50 or b - t > cb - ct or l < cl or r > cr:
             break
-        ui.click(up if t < ct else down, settle=.08)
+        moved = _scroll_catalogue(ui, catalogue, up if t < ct else down,
+                                 list_id=list_id, trace=trace, observe=list_id is not None)
+        if (moved and trace and trace[-1]['before'] == trace[-1]['after']
+                and trace[-1]['content_before'] != trace[-1]['content_after']):
+            raise ocr_selection.PopulationChanged('Print Overlay catalogue viewport population changed')
+        no_movement = 0 if moved else no_movement + 1
+        if no_movement >= 3:
+            raise RuntimeError('Print Overlay catalogue scroll made no movement')
     raise RuntimeError('Print Overlay catalogue row could not be fully revealed')
 
 
+def _catalogue_generations(ui, catalogue, list_id, wanted, executable, evidence_dir,
+                            up, down, physical, trace):
+    """고정 슬롯의 모든 논리 행을 겹치는 화면으로 연결한 뒤 현재 목표를 재확인한다."""
+    images, source_rects, pages, pending = [], [], [], []
+    detail = {'schema_version': 2, 'wanted': wanted, 'match': 'fuzzy',
+              'attempts': 0, 'scores': [], 'reads': [], 'rectangles': source_rects,
+              'reason': 'capture-failed', 'capture_errors': []}
+    stage, last_image = 'catalogue-origin', None
+
+    def snapshot():
+        nonlocal catalogue, last_image
+        catalogue, nested, rows = _catalogue_state(ui, catalogue, list_id)
+        if {(c.hwnd, c.ctrl_id) for c in nested if c.text == 'ListItem'} != physical:
+            raise RuntimeError('Print Overlay catalogue row changed during scroll')
+        last_image = _catalogue_image(catalogue)
+        if last_image.size != (catalogue.rect[2]-catalogue.rect[0],
+                               catalogue.rect[3]-catalogue.rect[1]):
+            raise RuntimeError('Print Overlay catalogue invalid viewport')
+        full, partial = [], []
+        cl, ct, cr, cb = catalogue.rect
+        for slot, row in enumerate(rows):
+            l, t, r, b = row.rect
+            clipped = max(l, cl), max(t, ct), min(r, cr), min(b, cb)
+            if clipped[0] >= clipped[2] or clipped[1] >= clipped[3]:
+                raise RuntimeError('Print Overlay catalogue invalid viewport')
+            crop = last_image.crop((clipped[0]-cl, clipped[1]-ct,
+                                    clipped[2]-cl, clipped[3]-ct))
+            record = {'row': row, 'image': crop, 'key': _row_key(crop), 'slot': slot,
+                      'offset': (clipped[0]-l, clipped[1]-t),
+                      'excluded_bottom_border_pixels': int(b > cb and clipped[3] == cb)}
+            (full if clipped == tuple(row.rect) else partial).append(record)
+        if len(full) < 2:
+            raise RuntimeError('Print Overlay catalogue insufficient overlap')
+        return {'full': full, 'partial': partial,
+                'keys': [item['key'] for item in full],
+                'signature': _content_key(last_image, catalogue, rows),
+                'rows': _row_geometry(rows)}
+
+    def limit(arrow):
+        no_movement = 0
+        for _ in range(100):
+            snapshot()  # 물리 슬롯 신원은 입력 전에도 확인한다.
+            moved = _scroll_catalogue(ui, catalogue, arrow, list_id=list_id,
+                                     trace=trace, observe=True)
+            no_movement = 0 if moved else no_movement + 1
+            if no_movement >= 3:
+                return
+        raise RuntimeError('Print Overlay catalogue traversal limit')
+
+    def verify_pending():
+        remaining = []
+        for logical, item in pending:
+            if logical >= len(images):
+                remaining.append((logical, item))
+                continue
+            x, y = item['offset']
+            # 실측상 viewport 하단 1px 테두리가 잘린 행 크롭에 중첩된다.
+            # 실제 하단 경계를 넘는 행의 비교에서만 그 선을 뺀다. 원본/OCR은 유지한다.
+            border = item['excluded_bottom_border_pixels']
+            width, height = item['image'].width, item['image'].height - border
+            detail.setdefault('partial_comparisons', []).append({
+                'logical_candidate': logical, 'source_rect': list(item['row'].rect),
+                'comparison_rect': [x, y, x+max(1, width-18), y+height],
+                'coordinate_space': 'complete-row-crop',
+                'excluded_bottom_border_pixels': border, 'excluded_scrollbar_pixels': 18})
+            if height < 1:
+                raise RuntimeError('Print Overlay catalogue insufficient partial evidence')
+            expected_crop = images[logical].crop((x, y, x+width, y+height))
+            observed_crop = item['image'].crop((0, 0, width, height))
+            if _row_key(expected_crop) != _row_key(observed_crop):
+                raise RuntimeError('Print Overlay catalogue partial row mismatch')
+        pending[:] = remaining
+
+    def add_page(page, first):
+        for offset, item in enumerate(page['full']):
+            logical = first + offset
+            if logical < len(images):
+                if _row_key(images[logical]) != item['key']:
+                    raise RuntimeError('Print Overlay catalogue overlap mismatch')
+            elif logical == len(images):
+                images.append(item['image'])
+                source_rects.append(list(item['row'].rect))
+            else:
+                raise RuntimeError('Print Overlay catalogue overlap mismatch')
+        for item in page['partial']:
+            logical = first + item['slot'] - page['full'][0]['slot']
+            if logical < 0:
+                raise RuntimeError('Print Overlay catalogue partial row mismatch')
+            pending.append((logical, item))
+        verify_pending()
+        page['first'] = first
+        pages.append(page)
+
+    try:
+        limit(up)
+        stage = 'catalogue-population'
+        previous = snapshot()
+        add_page(previous, 0)
+        no_movement = 0
+        for _ in range(100):
+            moved = _scroll_catalogue(ui, catalogue, down, list_id=list_id,
+                                     trace=trace, observe=True)
+            if not moved:
+                no_movement += 1
+                if no_movement >= 3:
+                    if pending:
+                        raise RuntimeError('Print Overlay catalogue unresolved partial row')
+                    break
+                continue
+            no_movement = 0
+            current = snapshot()
+            overlaps = [count for count in range(2, min(len(previous['keys']), len(current['keys']))+1)
+                        if previous['keys'][-count:] == current['keys'][:count]]
+            if len(overlaps) != 1:
+                raise RuntimeError('Print Overlay catalogue insufficient overlap')
+            first = previous['first'] + len(previous['keys']) - overlaps[0]
+            add_page(current, first)
+            previous = current
+        else:
+            raise RuntimeError('Print Overlay catalogue traversal limit')
+
+        stage = 'catalogue-rank'
+        selected, judged = ocr_selection.judge_images(images, wanted, executable)
+        detail.update(judged)
+        if selected is None:
+            raise ocr_selection.SelectionError(detail['reason'], detail)
+
+        stage = 'selection-population'
+        target_page = next(page for page in pages
+                           if page['first'] <= selected < page['first'] + len(page['full']))
+        limit(up)
+        no_movement = 0
+        for _ in range(100):
+            current = snapshot()
+            if (current['signature'] == target_page['signature']
+                    and current['keys'] == target_page['keys']):
+                position = selected - target_page['first']
+                checked = snapshot()
+                if (checked['signature'] != current['signature']
+                        or checked['keys'] != current['keys']
+                        or checked['full'][position]['key'] != _row_key(images[selected])):
+                    raise RuntimeError('Print Overlay catalogue viewport population changed')
+                detail['catalogue'] = {'rect': list(catalogue.rect), 'rows': checked['rows'],
+                                       'logical_candidates': len(images),
+                                       'generations': len(pages), 'scrolls': trace}
+                return checked['full'][position]['row'], detail
+            moved = _scroll_catalogue(ui, catalogue, down, list_id=list_id,
+                                     trace=trace, observe=True)
+            no_movement = 0 if moved else no_movement + 1
+            if no_movement >= 3:
+                raise RuntimeError('Print Overlay catalogue target population not found')
+        raise RuntimeError('Print Overlay catalogue traversal limit')
+    except Exception as error:
+        if not isinstance(error, ocr_selection.SelectionError):
+            detail['reason'] = 'capture-failed'
+            detail['capture_errors'].append(ocr_selection._error_detail(error, stage))
+        detail['catalogue'] = {'rect': list(catalogue.rect), 'logical_candidates': len(images),
+                               'generations': len(pages), 'unresolved_partials': len(pending),
+                               'scrolls': trace}
+        detail['partial_captures'] = [
+            {'logical_candidate': logical, 'image_index': len(images)+index,
+             'rect': list(item['row'].rect), 'offset': list(item['offset']),
+             'excluded_bottom_border_pixels': item['excluded_bottom_border_pixels']}
+            for index, (logical, item) in enumerate(pending)]
+        try:
+            _, _, rows = _catalogue_state(ui, catalogue, list_id)
+            detail['catalogue']['rows'] = _row_geometry(rows)
+            last_image = _catalogue_image(catalogue)
+        except Exception as diagnostic_error:
+            detail['diagnostics_error'] = ocr_selection._error_detail(diagnostic_error, 'failure-catalogue')
+        try:
+            ocr_selection.save_failure(detail, images+[item['image'] for _, item in pending],
+                                       executable, evidence_dir, last_image)
+        except Exception as evidence_error:
+            detail['evidence_error'] = type(evidence_error).__name__
+        raise ocr_selection.SelectionError(detail['reason'], detail) from error
+
+
 def _catalogue_row(ui, list_id, index, expected, tesseract_exe, evidence_dir=None):
+    try:
+        return _catalogue_row_impl(ui, list_id, index, expected, tesseract_exe, evidence_dir)
+    except ocr_selection.SelectionError:
+        raise
+    except Exception as error:
+        detail = {'schema_version': 2, 'wanted': expected, 'match': 'fuzzy',
+                  'attempts': 0, 'scores': [], 'reads': [], 'rectangles': [],
+                  'reason': 'capture-failed', 'catalogue': {'ctrl_id': list_id},
+                  'capture_errors': [ocr_selection._error_detail(error, 'catalogue-setup')]}
+        image = None
+        try:
+            catalogues = {c.hwnd: c for c in _visible(ui, list_id)}
+            if len(catalogues) == 1:
+                catalogue, _, rows = _catalogue_state(ui, next(iter(catalogues.values())), list_id)
+                detail['catalogue'].update(rect=list(catalogue.rect), rows=_row_geometry(rows))
+                image = _catalogue_image(catalogue)
+        except Exception as diagnostic_error:
+            detail['diagnostics_error'] = ocr_selection._error_detail(diagnostic_error, 'failure-catalogue')
+        try:
+            ocr_selection.save_failure(detail, [], tesseract_exe, evidence_dir, image)
+        except Exception as evidence_error:
+            detail['evidence_error'] = type(evidence_error).__name__
+        raise ocr_selection.SelectionError('capture-failed', detail) from error
+
+
+def _catalogue_row_impl(ui, list_id, index, expected, tesseract_exe, evidence_dir=None):
     lists = _visible(ui, list_id)
-    if not lists:
-        raise RuntimeError(f"Print Overlay catalogue control {list_id} not found")
+    if len({c.hwnd for c in lists}) != 1:
+        raise RuntimeError('Print Overlay catalogue control not found')
     catalogue = lists[0]
     nested = children(catalogue.hwnd, 5)
     scrolls = [c for c in nested if c.text == "Scroll" and c.visible]
@@ -317,29 +660,59 @@ def _catalogue_row(ui, list_id, index, expected, tesseract_exe, evidence_dir=Non
     if not up or not down:
         raise RuntimeError("Print Overlay catalogue scroll arrows not found")
 
-    # Always return to a known origin.  A no-op click at the limit is safe.
+    trace = []
+    # 한계에서도 무조건 50번 누르지 않는다. 지연 이동을 기다린 후 한계를 확인한다.
+    no_movement = 0
     for _ in range(50):
-        ui.click(up[0], settle=.015)
+        moved = _scroll_catalogue(ui, catalogue, up[0], list_id=list_id, trace=trace, observe=True)
+        no_movement = 0 if moved else no_movement + 1
+        if no_movement >= 3:
+            break
 
-    rows = sorted({c.hwnd: c for c in children(catalogue.hwnd, 5)
-                   if c.text == "ListItem" and c.visible}.values(),
-                  key=lambda c: c.rect[1])
+    catalogue, _, rows = _catalogue_state(ui, catalogue, list_id)
     if not rows:
         raise RuntimeError("Print Overlay catalogue has no visible rows")
+    physical = {(c.hwnd, c.ctrl_id) for c in nested if c.text == 'ListItem'}
+    cl, ct, cr, cb = catalogue.rect
+    if all(cl <= c.rect[0] < c.rect[2] <= cr and ct <= c.rect[1] < c.rect[3] <= cb
+           for c in rows):
+        if _probe_fixed_catalogue(ui, catalogue, list_id, up[0], down[0], physical, trace):
+            return _catalogue_generations(ui, catalogue, list_id, expected, tesseract_exe,
+                                          evidence_dir, up[0], down[0], physical, trace)
     # Bellalun's custom scrollbar does not move exactly one row per arrow
     # click.  For lower catalogue entries, jump to the bottom through the
     # scroll track and identify the intended visible row by OCR.
     if index >= len(rows):
-        l, t, r, b = catalogue.rect
+        # 기존 하단 탐색 트랙 위치를 유지하되 입력마다 실제 이동을 기다린다.
+        no_movement = 0
         for _ in range(12):
-            ui.click((r - 8, b - 25), settle=.08)
-    rows = sorted({c.hwnd: c for c in children(catalogue.hwnd, 5)
-                   if c.text == "ListItem" and c.visible}.values(),
-                  key=lambda c: c.rect[1])
+            moved = _scroll_catalogue(ui, catalogue, down[0], list_id=list_id,
+                                     trace=trace, track=True, observe=True)
+            no_movement = 0 if moved else no_movement + 1
+            if no_movement >= 3:
+                break
+    catalogue, _, rows = _catalogue_state(ui, catalogue, list_id)
+    identities = {(c.hwnd, c.ctrl_id) for c in rows}
     def reveal(row):
-        return _reveal_catalogue_row(ui, catalogue, row, up[0], down[0])
-    row, detail = ocr_selection.select(rows, expected, tesseract_exe,
-                                       evidence_dir=evidence_dir, reveal=reveal)
+        return _reveal_catalogue_row(ui, catalogue, row, up[0], down[0],
+                                     list_id=list_id, trace=trace, identities=identities)
+    def diagnostics():
+        result = {'hwnd': catalogue.hwnd, 'ctrl_id': list_id, 'rect': list(catalogue.rect),
+                  'rows': _row_geometry(rows), 'scrolls': trace}
+        try:
+            current, _, current_rows = _catalogue_state(ui, catalogue, list_id)
+            result.update(rect=list(current.rect), rows=_row_geometry(current_rows))
+        except Exception as error:
+            result['snapshot_error'] = ocr_selection._error_detail(error, 'failure-catalogue')
+        return result
+    try:
+        row, detail = ocr_selection.select(rows, expected, tesseract_exe,
+                                           evidence_dir=evidence_dir, reveal=reveal,
+                                           diagnostics=diagnostics)
+    except ocr_selection.PopulationChanged:
+        physical = {(c.hwnd, c.ctrl_id) for c in nested if c.text == 'ListItem'}
+        return _catalogue_generations(ui, catalogue, list_id, expected, tesseract_exe,
+                                      evidence_dir, up[0], down[0], physical, trace)
     return row, detail
 
 

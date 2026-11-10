@@ -123,3 +123,60 @@ def test_partial_capture_failure_is_reported_as_capture_failure(tmp_path):
         with pytest.raises(selection.SelectionError) as failure:
             selection.select([control(1), control(2)], 'Top', evidence_dir=tmp_path)
     assert failure.value.reason == 'capture-failed'
+
+
+def test_failure_preserves_stage_controlled_error_and_failure_list_image(tmp_path):
+    row = control()
+    row.rect = (0, 35, 90, 70)
+    def reveal(c):
+        raise RuntimeError('Print Overlay catalogue row could not be fully revealed')
+    context = {'rect': [0, 0, 100, 60], 'rows': [{'hwnd': 1, 'ctrl_id': 1,
+               'rect': [0, 35, 90, 70]}]}
+    with mock.patch.object(selection.ImageGrab, 'grab', return_value=Image.new('RGB', (100, 60))), \
+         mock.patch.object(selection, '_environment', return_value={}):
+        with pytest.raises(selection.SelectionError) as failure:
+            selection.select([row], 'Top', reveal=reveal, evidence_dir=tmp_path,
+                             diagnostics=lambda: context)
+    saved = json.loads(next(tmp_path.rglob('selection.json')).read_text(encoding='utf-8'))
+    error = saved['capture_errors'][0]
+    assert error['stage'] == 'reveal'
+    assert error['message'] == 'Print Overlay catalogue row could not be fully revealed'
+    assert saved['catalogue'] == context
+    assert list(tmp_path.rglob('catalogue-raw.png'))
+    assert failure.value.reason == 'capture-failed'
+
+
+def test_untrusted_error_text_is_not_saved(tmp_path):
+    with mock.patch.object(selection.ImageGrab, 'grab', side_effect=RuntimeError(
+            'unexpected token=secret-value; patient=private-person C:/private/home/file')), \
+         mock.patch.object(selection, '_environment', return_value={}):
+        with pytest.raises(selection.SelectionError):
+            selection.select([control()], 'Top', evidence_dir=tmp_path)
+    saved = next(tmp_path.rglob('selection.json')).read_text(encoding='utf-8')
+    assert 'secret-value' not in saved and 'private-person' not in saved
+    error = json.loads(saved)['capture_errors'][0]
+    assert error['stage'] == 'capture'
+    assert len(error['message_sha256']) == 64
+
+
+def test_selection_reveal_failure_records_final_stage(tmp_path):
+    calls = 0
+    def reveal(c):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError('Print Overlay catalogue row changed during scroll')
+        return c
+    with mock.patch.object(selection.ImageGrab, 'grab', return_value=Image.new('RGB', (120, 30))), \
+         mock.patch.object(selection, 'run_ocr', return_value=data('Top')), \
+         mock.patch.object(selection, '_environment', return_value={}):
+        with pytest.raises(selection.SelectionError) as failure:
+            selection.select([control()], 'Top', reveal=reveal, evidence_dir=tmp_path)
+    assert failure.value.detail['capture_errors'][-1]['stage'] == 'selection-reveal'
+
+
+def test_foreground_gate_error_keeps_branch_without_window_title():
+    error = RuntimeError('클릭 전에 Viewer 를 최전면으로 올리지 못했습니다(가린 창: private-title). 클릭이 다른 프로그램으로 들어가므로 중단합니다.')
+    detail = selection._error_detail(error, 'reveal')
+    assert detail['message'].startswith('클릭 전에 Viewer 를 최전면으로 올리지 못했습니다')
+    assert 'private-title' not in detail['message']

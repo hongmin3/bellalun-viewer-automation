@@ -31,6 +31,15 @@ def _ev(ctx, name):
     return str(root / name)
 
 
+def _preview_pane(path):
+    """처리 영상만 읽는다. 파라미터·버튼·시계의 repaint는 제외한다."""
+    with Image.open(path) as image:
+        width, height = image.size
+        box = (int(width * .365), int(height * .055),
+               int(width * .710), int(height * .900))
+        return image.convert("RGB").crop(box)
+
+
 def _preview_delta(before_path, after_path):
     """Compare only the processed preview pane, excluding parameter controls."""
     before = Image.open(before_path).convert("RGB")
@@ -185,7 +194,7 @@ def _last_2d_process(log_text):
         "Noise reduction": int(noise)}}
 
 
-def _poll_completion(result, name, predicate, timeout, poll=.5):
+def _poll_completion(result, name, predicate, timeout, poll=.5, on_timeout=None):
     """Wait up to timeout, but leave immediately when product evidence is complete."""
     started_wall, started = datetime.now(), time.perf_counter()
     deadline = time.monotonic() + float(timeout)
@@ -200,17 +209,69 @@ def _poll_completion(result, name, predicate, timeout, poll=.5):
         except Exception as exc:
             last = repr(exc)
         time.sleep(poll)
+    if on_timeout is not None:
+        try:
+            done, reason, detail = on_timeout()
+            last = detail
+            if done:
+                result.record_timing(name, started_wall, started, reason, detail)
+                return detail
+        except Exception as exc:
+            last = repr(exc)
     result.record_timing(name, started_wall, started, "timeout", last)
     raise RuntimeError(f"{name} timed out after {timeout}s; last={last}")
 
 
-def _preview_2d_complete(log_mark, expected_values):
+def _preview_2d_complete(log_mark, expected_values, ui):
     applied = _last_2d_process(_viewer_log_since(log_mark))
     values_ok = applied.get("values") == expected_values
     name_ok = (vp._parameter_name_key(applied.get("parameter")) ==
                vp._parameter_name_key("TEST_2D_FLOW_M.pim"))
-    detail = {"log": applied, "values_match": values_ok}
-    return name_ok and values_ok, "log completion detected", detail
+    apply = [c for c in ui.by_id(vp.APPLY) if c.visible]
+    cancel = [c for c in ui.by_id(vp.CANCEL) if c.visible]
+    apply_enabled = bool(apply) and all(c.enabled for c in apply)
+    cancel_enabled = bool(cancel) and all(c.enabled for c in cancel)
+    detail = {"log": applied, "values_match": values_ok,
+              "parameter_match": name_ok, "apply_visible": bool(apply),
+              "apply_enabled": apply_enabled, "cancel_enabled": cancel_enabled}
+    return (name_ok and values_ok and apply_enabled and cancel_enabled,
+            "log/control completion detected", detail)
+
+
+def _wait_2d_preview(result, ui, log_mark, expected_values, selected, preview, timeout):
+    """로그·활성 버튼·연속 안정 프레임을 확인하고 최종 캡처를 보존한다.
+
+    원본 프레임이 잠시 안정돼도 렌더가 뒤따를 수 있다. 변화가 없으면 기존
+    timeout까지 관측하되, 끝에도 처리 완료/안정 상태라면 영상 판정으로 넘긴다.
+    비활성/불안정/로그 누락은 준비 timeout이며 영상 무변화와 구분한다.
+    """
+    previous, stable_frames = None, 0
+
+    def probe(allow_unchanged=False):
+        nonlocal previous, stable_frames
+        ready, _, detail = _preview_2d_complete(log_mark, expected_values, ui)
+        vp.capture(preview)
+        pane = _preview_pane(preview)
+        same = (previous is not None and previous.size == pane.size
+                and ImageChops.difference(previous, pane).getbbox() is None)
+        stable_frames = stable_frames + 1 if ready and same else 0
+        previous = pane if ready else None
+        delta = _preview_delta(selected, preview)
+        stable = stable_frames >= 2
+        visible_change = delta["changed_ratio"] > 0
+        detail.update(processing_ready=ready, screen_stable=stable,
+                      stable_frames=stable_frames, delta=delta)
+        done = ready and stable and (visible_change or allow_unchanged)
+        reason = ("log/control/stable image completion detected" if visible_change
+                  else "completed without visible image change")
+        return done, reason, detail
+
+    try:
+        return _poll_completion(result, "XIPL 2D Preview", probe, timeout,
+                                on_timeout=lambda: probe(allow_unchanged=True))
+    finally:
+        if Path(preview).exists():
+            result.attach(preview)
 
 
 def _apply_2d_complete(ctx, ui, log_mark, files_before, expected_values):
@@ -530,20 +591,18 @@ def compatibility_02(ctx, session):
             os.path.join(ctx.cfg["data_dir"], "Image", "ImageAction"))
         ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible][0], settle=1)
         preview_limit = float((ctx.cfg.get("xipl") or {}).get("preview_2d_wait", 20))
-        _poll_completion(
-            r, "XIPL 2D Preview", lambda: _preview_2d_complete(log_mark, changed_state),
-            preview_limit)
         preview = _ev(ctx, "TC_XIPL_compatibility_02_preview.png")
-        vp.capture(preview)
-        r.attach(preview)
-        preview_delta = _preview_delta(selected, preview)
-        apply_visible = bool([c for c in ui.by_id(vp.APPLY) if c.visible])
+        preview_completion = _wait_2d_preview(
+            r, ui, log_mark, changed_state, selected, preview, preview_limit)
+        preview_delta = preview_completion["delta"]
         r.assert_true(7, "원본과 변경 Preview 구분 표시",
-                      preview_delta["changed_ratio"] >= .005 and apply_visible,
-                      expected="처리 pane 변화율 >= 0.005 및 Apply 활성",
-                      actual={"delta": preview_delta, "apply_visible": apply_visible})
+                      preview_delta["changed_ratio"] >= .005
+                      and preview_completion["apply_enabled"]
+                      and preview_completion["cancel_enabled"],
+                      expected="처리 pane 변화율 >= 0.005 및 Apply/Cancel 활성",
+                      actual=preview_completion)
 
-        ui.click([c for c in ui.by_id(vp.APPLY) if c.visible][0], settle=1)
+        ui.click([c for c in ui.by_id(vp.APPLY) if c.visible and c.enabled][0], settle=1)
         apply_limit = float((ctx.cfg.get("xipl") or {}).get("apply_2d_wait", 30))
         _poll_completion(
             r, "XIPL 2D Apply",

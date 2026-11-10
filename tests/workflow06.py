@@ -8,6 +8,7 @@ r"""TC_Basic_WorkFlow_06 — All Images 및 Dose SR 전송.
 from core import dicom_settings as ds
 from core import flows
 from core import send_verify as sv
+from core import usb_evidence
 from core.dicom_settings import ensure_storage_reachable
 from core.result import TCResult, FAIL
 
@@ -96,20 +97,36 @@ def workflow_06(ctx):
         # 보고까지 했다. 사용자 지적으로 사양을 확인해 바로잡았다.
         from tests.workflow02 import _examined_search
         rows = _examined_search(ui, patient_id)
+        study_key = None
+        selection = {"status": "unavailable"}
         if rows:
+            # 기존 카드 클릭 전후의 새 로그만 읽는다. 로그 관측이 없으면
+            # 환자 전체 Study를 이번 전송의 필수 Queue 집합으로 추정하지 않는다.
+            cursor = None
+            try:
+                cursor = usb_evidence.log_cursor(ctx.cfg["data_dir"])
+            except (usb_evidence.ObservationError, KeyError) as exc:
+                selection["error_type"] = type(exc).__name__
             ui.click(rows[0], settle=1.5)
+            if cursor is not None:
+                try:
+                    study_key = usb_evidence.selected_study_key(cursor)
+                    selection = {"status": "confirmed", "study_key": study_key}
+                except usb_evidence.ObservationError as exc:
+                    selection["error_type"] = type(exc).__name__
         r.assert_true(
             1, "Examined 창에서 대상 검사 선택",
             bool(rows),
             expected=f"Examined 목록에서 {patient_id} 검사 카드 선택",
-            actual={"visible_cards": len(rows)},
+            actual={"visible_cards": len(rows), "study_selection": selection},
             note="개정본 Expected 1. **검사를 열지 않는다** — Examined 모드에서 "
                  "전송해야 Dose SR 이 함께 나간다(사양서).")
 
-        identity = sv.db_identity(ctx, patient_id)
+        identity = sv.db_identity(ctx, patient_id, study_key=study_key)
         outcome = sv.send_and_verify(
             ctx, ui, r, patient_id, scope="all", expect_count=None, wait=120,
-            sender=lambda s: flows.send_examined_study(ui, scope=s))
+            sender=lambda s: flows.send_examined_study(ui, scope=s),
+            study_key=study_key)
         if outcome is None:
             return r
         r.assert_true(
@@ -159,7 +176,7 @@ def workflow_06(ctx):
 
         # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
         # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
-        received = sv.received(ctx, patient_id) or []
+        received = sv.received(ctx, patient_id, study_uids=identity["study_uids"])
         rdsr = [o for o in received
                 if str(o.get("SOPClassUID") or "") == sv.SOP_CLASS_RDSR]
         images = [o for o in received

@@ -28,6 +28,7 @@ r"""DICOM Storage SCP 서버(웹) 클라이언트 — Bunny 를 대체한다(202
 """
 
 import io
+import hashlib
 import json
 import os
 import shutil
@@ -35,24 +36,54 @@ import tempfile
 import urllib.parse
 import urllib.request
 import zipfile
+from datetime import datetime, timezone
+from urllib.error import HTTPError
 
 from core import dicomlite
 
 
 class StorageScpError(RuntimeError):
-    pass
+    def __init__(self, message, diagnostics=None):
+        self.diagnostics = diagnostics or {}
+        super().__init__(message + (": " + json.dumps(self.diagnostics, ensure_ascii=False)
+                                   if self.diagnostics else ""))
+
+
+def observation():
+    """응답 본문·주소·환자정보 없이 수신 관측의 근거만 남긴다."""
+    return {"observed_at": datetime.now(timezone.utc).isoformat(),
+            "status": "pending", "requests": [], "downloads": [],
+            "parse_errors": []}
+
+
+def observation_error(exc, diagnostics, stage):
+    if isinstance(exc, StorageScpError):
+        return exc
+    status = ("http_error" if isinstance(exc, (HTTPError, OSError))
+              else "response_error")
+    diagnostics.update(status=status, error={"stage": stage,
+                       "type": type(exc).__name__})
+    if isinstance(exc, HTTPError):
+        diagnostics["error"]["http_status"] = exc.code
+    return StorageScpError("Storage SCP 관측 실패", diagnostics)
 
 
 class StorageServer:
     def __init__(self, base_url, timeout=30):
         self.base = (base_url or "").rstrip("/")
         self.timeout = timeout
+        self.observation = observation()
 
     # --- 원시 요청 -----------------------------------------------------
     def _req(self, path, method="GET"):
         req = urllib.request.Request(self.base + path, method=method)
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            raw = resp.read().decode("utf-8", "replace")
+            blob = resp.read()
+        self.observation["requests"].append({
+            "kind": "json", "bytes": len(blob),
+            "sha256": hashlib.sha256(blob).hexdigest(),
+            "observed_at": datetime.now(timezone.utc).isoformat()})
+        raw = blob.decode("utf-8", "strict")
         return json.loads(raw) if raw.strip() else None
 
     def _bytes(self, path, timeout=None):
@@ -78,7 +109,10 @@ class StorageServer:
 
     # --- 수신 목록 -----------------------------------------------------
     def studies(self):
-        return self._req("/api/studies") or []
+        rows = self._req("/api/studies")
+        if not isinstance(rows, list):
+            raise ValueError("Storage SCP study list 형식 오류")
+        return rows
 
     def signature(self):
         """수신 상태 서명. **폴링에 이것을 쓴다** — 목록 전체를 받지 않아도
@@ -112,19 +146,49 @@ class StorageServer:
                 else [s["study_instance_uid"] for s in self.studies()])
         if not uids:
             return []
-        temp = work_dir or tempfile.mkdtemp(prefix="storagescp_")
+        if work_dir:
+            os.makedirs(work_dir, exist_ok=True)
+        # 이전 work_dir의 파일을 이번 수신으로 세지 않는다.
+        temp = tempfile.mkdtemp(prefix="storagescp_", dir=work_dir)
         made_temp = work_dir is None
         try:
             for uid in uids:
-                blob = self.download(uid)
+                try:
+                    blob = self.download(uid)
+                except Exception as exc:
+                    raise observation_error(exc, self.observation, "download") from None
+                self.observation["downloads"].append({
+                    "sha256": hashlib.sha256(blob).hexdigest(), "bytes": len(blob),
+                    "observed_at": datetime.now(timezone.utc).isoformat()})
                 if not blob[:2] == b"PK":
-                    raise StorageScpError(
-                        f"ZIP 이 아닌 응답: {uid} ({blob[:16]!r})")
+                    self.observation["status"] = "zip_error"
+                    raise StorageScpError("Storage SCP ZIP 응답 형식 오류", self.observation)
                 target = os.path.join(temp, _safe_name(uid))
                 os.makedirs(target, exist_ok=True)
-                with zipfile.ZipFile(io.BytesIO(blob)) as zf:
-                    zf.extractall(target)
-            return dicomlite.scan_dir(temp, tags) if tags else dicomlite.scan_dir(temp)
+                try:
+                    with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+                        self.observation["downloads"][-1]["files"] = len(zf.infolist())
+                        zf.extractall(target)
+                except (zipfile.BadZipFile, RuntimeError, OSError) as exc:
+                    self.observation.update(status="zip_error",
+                        error={"stage": "unzip", "type": type(exc).__name__})
+                    raise StorageScpError("Storage SCP ZIP 압축 해제 오류", self.observation) from None
+            objects = dicomlite.scan_dir(temp, tags) if tags else dicomlite.scan_dir(temp)
+            errors = []
+            for index, obj in enumerate(objects):
+                missing = [key for key in ("PatientID", "StudyInstanceUID",
+                           "SeriesInstanceUID", "SOPInstanceUID")
+                           if not obj.get(key)] if not tags else []
+                if obj.get("_error") or missing:
+                    errors.append({"object_index": index, "type": "DicomIdentityParseError",
+                                   "missing_tags": missing, "reader_error": bool(obj.get("_error"))})
+            if not objects and any(item.get("files") for item in self.observation["downloads"]):
+                errors.append({"type": "NoReadableDicomObjects"})
+            self.observation["objects_parsed"] = len(objects)
+            if errors:
+                self.observation.update(status="parse_error", parse_errors=errors)
+                raise StorageScpError("Storage SCP DICOM 파싱 오류", self.observation)
+            return objects
         finally:
             if made_temp:
                 shutil.rmtree(temp, ignore_errors=True)

@@ -12,6 +12,8 @@ Patient ID / Study·Series·SOP Instance UID 를 DB 원본과 대조하고, SOP 
 TC 함수를 번호별 모듈로 옮기면서, 인프라에 해당하는 이 부분만 core 로 내렸다.
 """
 import time
+import hashlib
+import json
 
 from core import flows, storagescp
 from core import viewer_processing as vp
@@ -25,7 +27,7 @@ from core.result import PASS, FAIL, SKIP
 STORAGE_MODALITY = 2460
 
 
-def received(ctx, patient_id=None):
+def received(ctx, patient_id=None, *, study_uids=None, diagnostics=None):
     """수신 객체를 **DICOM 태그까지 파싱해서** 돌려준다.
 
     2026-08-26 Bunny(로컬 파일 폴더) 대신 원격 Storage SCP 웹 서버를 쓴다.
@@ -42,26 +44,63 @@ def received(ctx, patient_id=None):
 
     비용이 있으므로(스터디마다 ZIP 다운로드) **확정 시점에만 부른다.**
     도중 폴링은 `wait_received_stable` 이 가벼운 목록 조회로 한다.
+
+    DB가 연결된 환자 조회는 현재 DB 원본 Study 집합만 다운로드한다. 명시적
+    `study_uids`로 범위를 전달할 수도 있다. 성공은 list, 정상 0건은 []이며
+    HTTP/응답/ZIP/파싱 오류는 진단이 담긴 StorageScpError로 전달한다.
     """
+    # 성공은 list(정상 0건은 [])다. 관측 실패를 None으로 숨기면 기존 호출부의
+    # `or []`가 이를 수신 0건으로 바꾸므로, 정제된 예외를 TC의 FAIL 경계로 보낸다.
+    evidence = diagnostics if diagnostics is not None else {}
+    evidence.update(storagescp.observation())
+    stage = "server"
     try:
         srv = storagescp.server(ctx)
-        if patient_id:
-            uids = [s["study_instance_uid"] for s in srv.studies()
-                    if (s.get("patient_id") or "") == patient_id]
-            return srv.objects(study_uids=uids) if uids else []
-        return srv.objects()
-    except Exception:
-        return None
+        srv.observation = evidence
+        if study_uids is None and patient_id and hasattr(ctx, "db"):
+            study_uids = db_identity(ctx, patient_id)["study_uids"]
+        wanted = set(study_uids) if study_uids is not None else None
+        stage = "studies"
+        studies = srv.studies()
+        if not isinstance(studies, list) or any(
+                not isinstance(s, dict) or not s.get("study_instance_uid")
+                for s in studies):
+            raise ValueError("invalid study list")
+        evidence["studies_sha256"] = hashlib.sha256(json.dumps(
+            studies, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+        patient_studies = [s for s in studies if not patient_id or
+                           (s.get("patient_id") or "") == patient_id]
+        selected = [s for s in patient_studies if wanted is None or
+                    s["study_instance_uid"] in wanted]
+        evidence.update(studies_before_filter=len(studies),
+                        patient_studies=len(patient_studies),
+                        studies_after_filter=len(selected))
+        stage = "objects"
+        objects = srv.objects(study_uids=[s["study_instance_uid"] for s in selected]) if selected else []
+        filtered = [o for o in objects if
+                    (not patient_id or o.get("PatientID") == patient_id) and
+                    (wanted is None or o.get("StudyInstanceUID") in wanted)]
+        evidence.update(objects_before_filter=len(objects), objects_after_filter=len(filtered))
+        if len(objects) != len(filtered):
+            evidence["status"] = "identity_mismatch"
+            raise storagescp.StorageScpError(
+                "Storage SCP 다운로드 객체의 환자/Study 신원 불일치", evidence)
+        evidence["status"] = ("ok" if objects else "study_mismatch"
+                              if patient_studies and wanted is not None and not selected else "empty")
+        return filtered
+    except Exception as exc:
+        raise storagescp.observation_error(exc, evidence, stage) from None
 
 
-def _patient_instance_count(srv, patient_id):
+def _patient_instance_count(srv, patient_id, study_uids=None):
     """서버 목록에서 그 환자의 인스턴스 수 합계.
 
     **다운로드하지 않는다** — `/api/studies` 한 번이면 되므로 폴링에 쓸 만큼 싸다.
     """
     total = 0
     for study in srv.studies():
-        if (study.get("patient_id") or "") == patient_id:
+        if ((study.get("patient_id") or "") == patient_id
+                and (study_uids is None or study.get("study_instance_uid") in study_uids)):
             total += int(study.get("instance_count") or 0)
     return total
 
@@ -138,7 +177,7 @@ def db_instance_uids(ctx, patient_id):
     return {r["ImageInstanceUID"] for r in rows}
 
 
-def db_identity(ctx, patient_id):
+def db_identity(ctx, patient_id, *, study_key=None):
     """원본 검사의 식별 Tag를 DB에서 읽는다.
 
     개정본 Step 5는 **Patient ID / Study Instance UID / Series Instance UID /
@@ -147,7 +186,15 @@ def db_identity(ctx, patient_id):
 
     반환: {"patient_id": ..., "study_uids": {...}, "series_uids": {...},
            "sop_uids": {...}, "by_type": {InstanceType: {sop_uid, ...}}}
+
+    study_key는 UI 선택이 확인된 경우에만 전달한다. 없으면 기존 환자 전체
+    조회 범위를 유지하며, 이 집합을 한 번의 전송 필수 범위로 추정하지 않는다.
     """
+    params = {"pid": patient_id}
+    study_filter = ""
+    if study_key is not None:
+        params["study"] = int(study_key)
+        study_filter = " AND s.[Key]=@study"
     rows = ctx.db.query(
         "DATA",
         "SELECT i.ImageInstanceUID, i.InstanceType, se.SeriesInstanceUID, "
@@ -155,8 +202,8 @@ def db_identity(ctx, patient_id):
         "JOIN STUDY s ON s.[Key] = i.StudyKey "
         "JOIN PATIENT p ON p.[Key] = s.PatientKey "
         "LEFT JOIN SERIES se ON se.[Key] = i.SeriesKey "
-        "WHERE p.PatientID = @pid AND i.ImageInstanceUID IS NOT NULL",
-        {"pid": patient_id})
+        "WHERE p.PatientID = @pid AND i.ImageInstanceUID IS NOT NULL" + study_filter,
+        params)
     by_type = {}
     for row in rows:
         by_type.setdefault(int(row["InstanceType"]), set()).add(
@@ -171,7 +218,7 @@ def db_identity(ctx, patient_id):
 
 
 def wait_received_stable(ctx, patient_id=None, wait=60, settle_rounds=3,
-                         poll=2.0):
+                         poll=2.0, *, study_uids=None, diagnostics=None):
     """수신 개수가 **더 늘지 않을 때까지** 기다린 뒤 목록을 확정한다.
 
     이전 구현은 UID가 하나라도 보이면 즉시 break 해서, 실제로 여러 건이 도착해도
@@ -187,13 +234,13 @@ def wait_received_stable(ctx, patient_id=None, wait=60, settle_rounds=3,
     **그때 한 번만** 내려받아 파싱한다. 판정 의미는 그대로다 — 건수가 0 인 동안은
     안정으로 세지 않으므로, 아무것도 도착하지 않았는데 조기 확정하지 않는다.
     """
-    srv = None
+    evidence = diagnostics if diagnostics is not None else {}
     try:
         srv = storagescp.server(ctx)
-    except Exception:
-        pass
-    if srv is None:
-        return []
+        if study_uids is None and patient_id and hasattr(ctx, "db"):
+            study_uids = db_identity(ctx, patient_id)["study_uids"]
+    except Exception as exc:
+        raise storagescp.observation_error(exc, evidence, "server") from None
 
     end = time.time() + wait
     last, stable = None, 0
@@ -202,11 +249,12 @@ def wait_received_stable(ctx, patient_id=None, wait=60, settle_rounds=3,
             # 환자를 지정하면 **그 환자의 인스턴스 수**로 본다. 서명은 서버 전체
             # 기준이라, 공유 SCP 에서 다른 PC 가 보내는 동안 계속 바뀌어 안정을
             # 못 찾는다(2026-08-26).
-            key = (_patient_instance_count(srv, patient_id) if patient_id
+            key = (_patient_instance_count(srv, patient_id, study_uids) if patient_id
                    else srv.signature())
-        except Exception:
+        except Exception as exc:
+            evidence.setdefault("poll_errors", []).append({"type": type(exc).__name__})
             key = None
-        settled = (key > 0 if patient_id
+        settled = (key is not None and key > 0 if patient_id
                    else bool(key) and _signature_count(key) > 0)
         if settled and key == last:
             stable += 1
@@ -216,7 +264,7 @@ def wait_received_stable(ctx, patient_id=None, wait=60, settle_rounds=3,
             stable = 0
         last = key
         time.sleep(poll)
-    return received(ctx, patient_id) or []
+    return received(ctx, patient_id, study_uids=study_uids, diagnostics=evidence)
 
 
 def ensure_transfer_syntax(ctx, ui, r):
@@ -324,22 +372,44 @@ SOP_CLASS_DBT = "1.2.840.10008.5.1.4.1.1.13.1.3"  # Breast tomosynthesis Image
 SOP_CLASS_RDSR = "1.2.840.10008.5.1.4.1.1.88.67"  # X-Ray Radiation Dose SR
 
 
-def wait_queue_registered(ctx, before, wait=30, poll=1.0):
-    """이번 전송이 **Queue 에 올라올 때까지** 기다리고 새 Key 를 돌려준다.
+def wait_queue_registered(ctx, before, wait=30, poll=1.0, *,
+                          expected_uids=None, source_uids=None, diagnostics=None,
+                          settle_rounds=3):
+    """이번 전송의 원본 SOP 등록과 신규 Key 집합의 수렴을 기다린다.
 
     Send 를 누른 직후에는 아직 Queue 행이 없을 수 있다. 바로 조회하면 빈 목록이
-    되어 "전송이 등록되지 않았다" 로 오판한다.
+    되어 "전송이 등록되지 않았다" 로 오판한다. 첫 배치만 반환하지 않고
+    expected_uids가 모두 보이며 집합이 settle_rounds회 유지될 때 확정한다.
+    source_uids는 영상행의 상관 범위다. 원본이 없는 Dose SR은 신규 Key로 본다.
     """
     end = time.time() + wait
-    added = []
+    added, last, stable = [], None, 0
+    expected = set(expected_uids or ())
+    source = set(source_uids) if source_uids is not None else None
     while True:
-        added = sorted(queue_keys(ctx) - before)
-        if added or time.time() >= end:
+        rows = ctx.db.query("DATA", "SELECT [Key],State,DataType,InstanceUID "
+                            "FROM DICOM_STORAGE_QUEUE")
+        new_rows = [row for row in rows if int(row["Key"]) not in before]
+        # Dose SR은 원본 INSTANCE에 없으므로 기존 신규 Key 계약을 보존한다.
+        related = [row for row in new_rows if source is None or
+                   row.get("InstanceUID") in source or is_dose_sr_row(row)]
+        added = sorted(int(row["Key"]) for row in related)
+        seen = {row.get("InstanceUID") for row in related}
+        stable = stable + 1 if added and added == last else 0
+        missing = expected - seen
+        if diagnostics is not None:
+            diagnostics.update(queue_observed_at=storagescp.observation()["observed_at"],
+                               queue_rows_observed=len(new_rows), queue_rows_correlated=len(related),
+                               queue_expected_images=len(expected), queue_missing_images=len(missing),
+                               queue_registration_settled=bool(added) and not missing and stable >= settle_rounds)
+        if (added and not missing and stable >= settle_rounds) or time.time() >= end:
             return added
+        last = added
         time.sleep(poll)
 
 
-def wait_queue_settled(ctx, keys, wait=60, poll=1.5):
+def wait_queue_settled(ctx, keys, wait=60, poll=1.5, *, before=None,
+                       source_uids=None, diagnostics=None, settle_rounds=3):
     """Queue 항목이 **전부 Done 이 될 때까지** 기다린 뒤 상태를 확정한다.
 
     수신 객체가 다 도착해도 **Queue 의 `State` 갱신은 조금 늦을 수 있다.**
@@ -351,25 +421,43 @@ def wait_queue_settled(ctx, keys, wait=60, poll=1.5):
     고정 대기를 늘리는 대신 **상태를 보고 기다린다**(운영 지침 1절). 다 끝나면
     즉시 빠져나오므로 정상 회차가 느려지지 않고, 끝내 안 끝나면 그 상태 그대로
     돌려주어 **무엇이 안 끝났는지 판정에 남는다.**
+
+    before를 주면 완료 대기 중에도 후발 Key를 추가한다. 이 경우 전달한 keys
+    목록도 갱신해 호출부의 최종 판정에서 새 행이 빠지지 않게 한다.
     """
     if not keys:
         return {}
     wanted = set(keys)
     end = time.time() + wait
-    states = {}
+    states, last, stable = {}, None, 0
     while True:
-        states = {int(row["Key"]): int(row["State"]) for row in ctx.db.query(
-            "DATA", "SELECT [Key],State FROM DICOM_STORAGE_QUEUE")}
-        if all(states.get(k) == QUEUE_STATE_DONE for k in wanted):
+        rows = ctx.db.query("DATA", "SELECT [Key],State,DataType,InstanceUID "
+                            "FROM DICOM_STORAGE_QUEUE")
+        if before is not None:
+            wanted.update(int(row["Key"]) for row in rows
+                          if int(row["Key"]) not in before and
+                          (source_uids is None or row.get("InstanceUID") in source_uids
+                           or is_dose_sr_row(row)))
+            if isinstance(keys, list):
+                keys[:] = sorted(wanted)
+        states = {int(row["Key"]): int(row["State"]) for row in rows}
+        current = tuple(sorted(wanted))
+        stable = stable + 1 if current == last else 0
+        complete = all(states.get(k) == QUEUE_STATE_DONE for k in wanted)
+        if diagnostics is not None:
+            diagnostics.update(queue_final_count=len(wanted), queue_all_done=complete)
+        if complete and (before is None or stable >= settle_rounds):
             return states
         if time.time() >= end:
             return states
+        last = current
         time.sleep(poll)
 
 
 def send_and_verify(ctx, ui, r, patient_id, scope="selected",
                      expect_count=None, expect_types=None, wait=90,
-                     step_queue=3, step_receive=4, step_tags=5, sender=None):
+                     step_queue=3, step_receive=4, step_tags=5, sender=None,
+                     study_key=None):
     """전송 1회를 수행하고 개정본 Step 3~5를 각각 판정한다.
 
     개정본 `TC_Basic_WorkFlow_04`의 Expected는 세 가지를 따로 요구한다.
@@ -381,16 +469,26 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
 
     `expect_count`가 주어지면 **정확히 그 개수**를 요구한다. 이전 구현은 ">=1건"만
     봐서 Selected와 All의 차이를 검증하지 못했다.
+    UI 선택이 확인된 study_key가 있으면 그 Study의 원본/수신만 대조하고,
+    All Images의 원본 SOP 전체 등록도 요구한다.
     """
     # 초기화를 **끈 경우에도 개수 판정이 정확**하도록, 전송 전 우리 환자의 객체를
     # 기록해 두고 아래에서 **새로 생긴 것만** 센다. 지운 경우에는 이 집합이 비어
     # 있어 아무 영향이 없다(2026-08-27: 공유 SCP 라 전체 삭제를 줄이려고 넣었다).
+    identity = db_identity(ctx, patient_id, study_key=study_key)
+    evidence = {}
     cleared = clear_received(ctx)
     before_uids = set()
-    if cleared is None:
-        before_uids = {o.get("SOPInstanceUID")
-                       for o in (received(ctx, patient_id) or [])
-                       if o.get("SOPInstanceUID")}
+    if cleared is None and expect_count is not None:
+        try:
+            before_uids = {o.get("SOPInstanceUID")
+                           for o in received(ctx, patient_id,
+                               study_uids=identity["study_uids"], diagnostics=evidence)
+                           if o.get("SOPInstanceUID")}
+        except storagescp.StorageScpError as exc:
+            r.add(step_receive, "Storage SCP 전송 전 수신 관측", FAIL,
+                  expected="전송 전 정상 수신 조회", actual=exc.diagnostics)
+            return None
     before_queue = queue_keys(ctx)
     try:
         # `sender` 를 주면 그 경로로 보낸다. **Dose SR 을 보는 TC 는 반드시
@@ -409,43 +507,48 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     # 곧바로 다시 조회하면 4건이었다. 전송이 아직 진행 중인데 서명이 잠깐
     # 멈춘 것을 "안정" 으로 본 것이다. Queue 가 전부 Done 이면 제품이 보낼 것을
     # 다 보낸 것이므로, 그때 수신을 세면 조급하게 끊기지 않는다.
-    new_queue = wait_queue_registered(ctx, before_queue)
-    states = wait_queue_settled(ctx, new_queue, wait=max(30, int(wait)))
-    arrived = wait_received_stable(ctx, patient_id, wait=wait)
-    # 초기화를 껐다면 이전 회차 객체가 섞여 있다. 이번 전송분만 남긴다.
-    # `expect_count`가 없는 WF_06은 같은 검사를 같은 SOP Instance UID로
-    # 재전송한다. 공유 SCP가 기존 파일을 갱신하면 UID 집합은 늘지 않으므로 이를
-    # 무조건 `before_uids`로 빼면 Queue가 모두 Done이어도 수신 0건으로 오판한다
-    # (2026-09-01 라이브 재현). 정확한 신규 개수를 검증하는 WF_04/WF_05만
-    # 전송 전 UID를 제외하고, WF_06은 Queue Done으로 이번 전송을 확인한 뒤 현재
-    # 수신 객체 자체의 태그와 RDSR을 판정한다.
-    objects = ([o for o in arrived
-                if o.get("SOPInstanceUID") not in before_uids]
-               if before_uids and expect_count is not None else arrived)
-
-    identity = db_identity(ctx, patient_id)
-    if expect_count is None:
-        # WF_06의 고정 Patient ID에는 공유 SCP에 과거 실행 Study도 누적된다.
-        # 이번 로컬 DB에 존재하는 Study만 판정해야 과거 영상/RDSR이 현재 전송의
-        # 식별 Tag 비교에 섞이지 않는다. Queue Done은 위에서 별도로 확인한다.
-        objects = [o for o in objects
-                   if o.get("StudyInstanceUID") in identity["study_uids"]]
+    expected_uids = set()
+    # 환자에게 여러 Study가 있을 수 있다. UI 선택이 확인된 Study만 전체 SOP의
+    # 필수 등록 범위로 삼는다. 기존 호출은 신규 Key 수렴과 실제 수신 판정을 유지한다.
+    if scope == "all" and study_key is not None:
+        for kind in ((INSTANCE_2D,) + SENDABLE_3D_TYPES):
+            expected_uids.update(identity["by_type"].get(kind, set()))
+    queue_evidence = {}
+    new_queue = wait_queue_registered(ctx, before_queue, wait=max(30, int(wait)),
+        expected_uids=expected_uids, source_uids=identity["sop_uids"], diagnostics=queue_evidence)
+    states = wait_queue_settled(ctx, new_queue, wait=max(30, int(wait)),
+        before=before_queue, source_uids=identity["sop_uids"], diagnostics=queue_evidence)
 
     # --- Step 3: Queue 등록과 Done 상태 --------------------------------
     added_states = {k: states.get(k) for k in new_queue}
     done = [k for k, v in added_states.items() if v == QUEUE_STATE_DONE]
     r.assert_true(
         step_queue, "DICOM 창 Queue 모드에서 전송 상태 확인",
-        bool(new_queue) and len(done) == len(new_queue),
+        bool(new_queue) and len(done) == len(new_queue)
+        and queue_evidence.get("queue_registration_settled", False),
         expected=f"이번 전송 항목이 Queue에 등록되고 전부 State={QUEUE_STATE_DONE}"
                  "(Done)",
         actual={"scope": sent, "queue_added": new_queue,
-                "states": added_states, "done": done},
+                "states": added_states, "done": done, "observation": queue_evidence},
         note="DATA.DICOM_STORAGE_QUEUE.State로 대조. 개정본 Expected 3.")
+
+    try:
+        arrived = wait_received_stable(ctx, patient_id, wait=wait,
+            study_uids=identity["study_uids"], diagnostics=evidence)
+    except storagescp.StorageScpError as exc:
+        r.add(step_receive, "Storage SCP 수신 관측", FAIL,
+              expected="수신 목록/ZIP/DICOM 정상 관측", actual=exc.diagnostics)
+        return None
+    # 정확한 신규 개수를 요구하는 기존 호출 계약만 전송 전 UID를 제외한다.
+    # 동일 SOP 재전송을 허용한 expect_count=None 경로는 현재 Study만 검증한다.
+    objects = ([o for o in arrived if o.get("SOPInstanceUID") not in before_uids]
+               if before_uids and expect_count is not None else arrived)
+    evidence["objects_after_baseline_filter"] = len(objects)
 
     # --- Step 4: 수신 객체 개수 ----------------------------------------
     detail = {
         "received_objects": len(objects),
+        "observation": evidence,
         "received_patient_ids": sorted({o.get("PatientID") for o in objects}),
         "received_modalities": sorted({o.get("Modality") for o in objects}),
         "received_sop_classes": sorted({o.get("SOPClassUID") for o in objects}),

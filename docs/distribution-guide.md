@@ -4,7 +4,9 @@ BellalunAuto 설치판은 Python·Git·개발 소스 없이 기존 기본기능 
 Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대상 QA PC에 준비한다. 새 Setup은 OCR을 자동 준비하고 승인 Baseline·체크리스트·매뉴얼을 포함한다.
 설치 성공, 프로그램 기동, 제품 시험 성공은 각각 구분하여 기록한다.
 
-최신1.0.4 후보 Setup·설치용 ZIP의 위치·해시와 빌드/CLI 검증은 [1.0.4 검증 기록](reliability-2026-11-10.md)에 있다. 설치판은1.0.4이며 승인된 업데이트·기본27 TC·실시간WU13 TC 각1회를 종료했다. 기본PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3으로 배포 게이트는 거부다. 기존1.0.3 Setup·ZIP과 실제 업데이트/전체 시험 결과는 [OCR 개선 검증](ocr-release-validation.md)에 보존한다. 이전1.0.2 설치 준비는 [과거 검증](setup-preparation-validation.md)을 따르며 이전1.0.1 WU 통과는 해당 EXE에 한정한다.
+현재 설치판은 **1.0.4**이며 **1.0.5 개발후보를 준비 중**이다. OCR 고정 슬롯의 내용 변화에 따른 전체 후보 순회·부분행 회수·목표 복귀 확인, 후발 전송 Queue 수렴·수신 관측 오류 구분·Study별 관측 경계, XIPL 2D의 실제 Apply/Cancel 활성·영상 안정 대기를 구현했다. 소스 단독 진단에서 WF05·XIPL02는 PASS이며, OCR은 실제 목록의 논리 후보 38개·화면 세대 20개를 조사해 Patient ID 선택·복귀 확인을 통과했다. **새 후보 EXE 검증·빌드·설치 수용은 미완료**이며 소스 진단을 최종 배포 승인으로 사용하지 않는다. 실제 근거와 남은 범위는 [1.0.5 복구 검증 기록](failure-recovery-1.0.5.md)을 따른다.
+
+사용자는 개선안 전체 수정, WF03·WF08·WF05·XIPL02 단독 UI 성공 확인과 최종 배포 빌드를 승인했다. 기존1.0.3·1.0.4 Setup·ZIP은 보존한다. 1.0.4의 승인된 업데이트·기본27 TC·실시간WU13 TC 각1회 결과는 기본PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3으로 배포 게이트 거부다. 후보 Setup·ZIP의 위치·해시·빌드/CLI 검증과 후속 조사는 [1.0.4 검증 기록](reliability-2026-11-10.md)을 따른다. 이전1.0.3 업데이트/전체 시험 결과는 [OCR 개선 검증](ocr-release-validation.md), 1.0.2 설치 준비는 [과거 검증](setup-preparation-validation.md)에 보존하며 1.0.1 WU 통과는 해당 EXE에 한정한다.
 
 이 안내서는 설치·설정·실행 방법을 설명한다. 전달받은 패키지의 실제 검증 범위는
 별도 배포 승인 기록의 실행파일 SHA256, 승인받은 범위의 시험 결과와 설치 기록으로 확인한다.

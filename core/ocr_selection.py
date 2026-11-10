@@ -4,6 +4,7 @@ from __future__ import annotations
 from difflib import SequenceMatcher
 from contextvars import ContextVar
 import csv
+import hashlib
 import io
 import json
 import os
@@ -38,6 +39,10 @@ class SelectionError(RuntimeError):
         self.reason, self.detail = reason, detail
         super().__init__(f"OCR 선택 중단({reason}): {detail['wanted']!r}; "
                          f"증거={detail.get('evidence', '저장 위치 없음')}")
+
+
+class PopulationChanged(RuntimeError):
+    """고정 슬롯의 내용 변경: 기존 세대의 캡처를 판독 전에 폐기해야 한다."""
 
 
 def prepare(image, profile):
@@ -89,7 +94,47 @@ def read_image(image, executable=None, profile=PROFILES[0]):
                 'profile': list(profile), 'error': None}
     except Exception as error:  # OCR 실패는 클릭 근거로 사용하지 않는다.
         return {'text': '', 'confidence': 0.0, 'profile': list(profile),
-                'error': type(error).__name__}
+                'error': type(error).__name__, 'error_detail': _error_detail(error, 'ocr')}
+
+
+def _error_detail(error, stage):
+    """내부 고정 진단은 보존하고 외부 오류 원문은 지문으로만 식별한다."""
+    message = str(error)
+    safe_messages = {
+        'OCR 실행 실패', '빈 컨트롤 영역', '판독 중 후보 식별자 변경',
+        '선택 직전 후보 식별자 변경',
+        'Print Overlay catalogue row changed during scroll',
+        'Print Overlay catalogue row could not be fully revealed',
+        'Print Overlay catalogue scroll made no movement',
+        'Print Overlay catalogue scroll geometry did not settle',
+        'Print Overlay catalogue scroll state did not settle',
+        'Print Overlay catalogue origin restore mismatch',
+        'Print Overlay catalogue changed during scroll',
+        'Print Overlay catalogue scroll arrows not found',
+        'Print Overlay catalogue invalid viewport',
+        'Print Overlay catalogue insufficient overlap',
+        'Print Overlay catalogue traversal limit',
+        'Print Overlay catalogue partial row mismatch',
+        'Print Overlay catalogue insufficient partial evidence',
+        'Print Overlay catalogue overlap mismatch',
+        'Print Overlay catalogue unresolved partial row',
+        'Print Overlay catalogue viewport population changed',
+        'Print Overlay catalogue target population not found',
+        'Print Overlay catalogue control not found',
+        'Print Overlay catalogue scroll control not found',
+        'Print Overlay catalogue has no visible rows',
+    }
+    detail = {'stage': stage, 'error': type(error).__name__,
+              'message': message if message in safe_messages else '[untrusted error text omitted]',
+              'message_sha256': hashlib.sha256(message.encode('utf-8', errors='replace')).hexdigest()}
+    foreground = '클릭 전에 Viewer 를 최전면으로 올리지 못했습니다'
+    if message.startswith(foreground):
+        detail['message'] = foreground + '(가린 창: [redacted]).'
+    for name in ('errno', 'winerror'):
+        value = getattr(error, name, None)
+        if isinstance(value, int):
+            detail[name] = value
+    return detail
 
 
 def rank(reads, wanted, match='fuzzy'):
@@ -138,12 +183,14 @@ def _environment(executable):
     return value
 
 
-def save_failure(detail, images, executable, evidence_dir):
+def save_failure(detail, images, executable, evidence_dir, catalogue_image=None):
     root = _evidence_root.get()
     base = (Path(evidence_dir) if evidence_dir else
             (root / 'OCR' if root else Path(tempfile.gettempdir()) / 'BellalunAuto' / 'OCR'))
     base.mkdir(parents=True, exist_ok=True)
     target = Path(tempfile.mkdtemp(prefix='ocr-', dir=base))
+    if catalogue_image is not None:
+        catalogue_image.save(target / 'catalogue-raw.png')
     for index, image in enumerate(images):
         if image is None:
             continue
@@ -157,41 +204,51 @@ def save_failure(detail, images, executable, evidence_dir):
     detail['evidence'] = str(target)
 
 
+def judge_images(images, wanted, executable=None, match='fuzzy'):
+    """이미 수집한 논리 후보도 동일한 최대 4판독과 선택 기준으로 평가한다."""
+    reads = [[] for _ in images]
+    selected, scores, reason, attempts = None, [], 'unreadable', 0
+    for attempts, profile in enumerate(PROFILES, 1):
+        for index, image in enumerate(images):
+            if image is not None:
+                reads[index].append(read_image(image, executable, profile))
+        selected, scores, reason = rank(reads, wanted, match)
+        if selected is not None and all(image is not None for image in images):
+            break
+        selected = None
+    return selected, {'attempts': attempts, 'scores': scores, 'reads': reads, 'reason': reason}
+
+
 def select(controls, wanted, executable=None, *, evidence_dir=None, match='fuzzy',
-           reveal=None):
+           reveal=None, diagnostics=None):
     """유일한 후보만 반환한다. OCR 실패/경합이면 증거를 남기고 예외를 낸다."""
     if match not in {'fuzzy', 'exact', 'contains', 'prefix'}:
         raise ValueError('지원하지 않는 OCR 일치 방식')
     # 같은 HWND가 중복 열거된 것은 별도 후보가 아니다.
     controls = list({control.hwnd: control for control in controls}.values())
-    images, reads, rectangles, capture_errors = [], [], [], []
+    images, rectangles, capture_errors = [], [], []
     for index, control in enumerate(controls):
+        stage = 'reveal' if reveal is not None else 'capture'
         try:
             if reveal is not None:
                 fresh = reveal(control)
                 if (fresh.hwnd, fresh.ctrl_id) != (control.hwnd, control.ctrl_id):
                     raise ValueError('판독 중 후보 식별자 변경')
                 control = controls[index] = fresh
+            stage = 'capture'
             image = ImageGrab.grab(bbox=tuple(control.rect), all_screens=True)
             if image.width < 1 or image.height < 1:
                 raise ValueError('빈 컨트롤 영역')
+        except PopulationChanged:
+            raise
         except Exception as error:
             image = None
-            capture_errors.append({'candidate': index, 'error': type(error).__name__})
+            capture_errors.append({'candidate': index, **_error_detail(error, stage)})
         rectangles.append(list(control.rect))
         images.append(image)
-        reads.append([])
-    selected, scores, reason = None, [], 'unreadable'
-    attempts = 0
-    for attempts, profile in enumerate(PROFILES, 1):
-        for index, image in enumerate(images):
-            if image is not None:
-                reads[index].append(read_image(image, executable, profile))
-        selected, scores, reason = rank(reads, wanted, match)
-        # 불완전 후보 캡처는 다른 항목을 놓친 것이므로 선택하지 않는다.
-        if selected is not None and all(image is not None for image in images):
-            break
-        selected = None
+    selected, judged = judge_images(images, wanted, executable, match)
+    attempts, scores, reads, reason = (judged[key] for key in
+                                      ('attempts', 'scores', 'reads', 'reason'))
     if selected is not None and reveal is not None:
         try:
             fresh = reveal(controls[selected])
@@ -199,16 +256,25 @@ def select(controls, wanted, executable=None, *, evidence_dir=None, match='fuzzy
                 raise ValueError('선택 직전 후보 식별자 변경')
             controls[selected] = fresh
         except Exception as error:
-            capture_errors.append({'candidate': selected, 'error': type(error).__name__})
+            capture_errors.append({'candidate': selected,
+                                   **_error_detail(error, 'selection-reveal')})
             selected, reason = None, 'capture-failed'
-    detail = {'schema_version': 1, 'wanted': wanted, 'match': match,
+    detail = {'schema_version': 2, 'wanted': wanted, 'match': match,
               'attempts': attempts, 'scores': scores, 'reads': reads,
               'rectangles': rectangles, 'reason': reason, 'capture_errors': capture_errors}
     if selected is None:
         if any(image is None for image in images):
             detail['reason'] = reason = 'capture-failed'
+        catalogue_image = None
+        if diagnostics is not None:
+            try:
+                detail['catalogue'] = diagnostics()
+                catalogue_image = ImageGrab.grab(
+                    bbox=tuple(detail['catalogue']['rect']), all_screens=True)
+            except Exception as error:
+                detail['diagnostics_error'] = _error_detail(error, 'failure-catalogue')
         try:
-            save_failure(detail, images, executable, evidence_dir)
+            save_failure(detail, images, executable, evidence_dir, catalogue_image)
         except Exception as error:
             detail['evidence_error'] = type(error).__name__
         raise SelectionError(reason, detail)

@@ -60,7 +60,7 @@ def workflow_05(ctx):
 
         session = vp.open_test_study(ctx)
         ui = session["ui"]
-        identity = sv.db_identity(ctx, patient_id)
+        identity = sv.db_identity(ctx, patient_id, study_key=session["study_key"])
         by_type = identity["by_type"]
         db_3d = {t: len(v) for t, v in sorted(by_type.items())
                  if t in (sv.INSTANCE_RAW, sv.INSTANCE_RECON, sv.INSTANCE_SYN)}
@@ -89,7 +89,8 @@ def workflow_05(ctx):
         for t in sv.SENDABLE_3D_TYPES:
             expected_uids |= by_type.get(t, set())
         outcome = sv.send_and_verify(ctx, ui, r, patient_id, scope="all",
-                                   expect_count=None, wait=120)
+                                   expect_count=None, wait=120,
+                                   study_key=session["study_key"])
         if outcome is None:
             return r
         r.assert_true(
@@ -102,7 +103,8 @@ def workflow_05(ctx):
         # 수신 객체를 InstanceType으로 되짚어 어떤 3D 종류가 왔는지 남긴다.
         # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
         # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
-        received = sv.received(ctx, patient_id) or []
+        received = sv.received(ctx, patient_id,
+                               study_uids=identity["study_uids"])
         received_uids = {o.get("SOPInstanceUID") for o in received
                          if o.get("SOPInstanceUID")}
         uid_to_type = {}
