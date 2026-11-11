@@ -1,6 +1,7 @@
 """Validates: REQ-DIST-007. 제품 UI와 SQL을 실행하지 않는다."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,6 +14,11 @@ from bellalunauto.runtime import Layout
 
 class PreparationTests(unittest.TestCase):
     def setUp(self):
+        # 설치 동작은 run_child로 대체하므로 PC의 실제 권한도 시험 안에서 격리한다.
+        if os.name == 'nt':
+            admin = patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=True)
+            admin.start()
+            self.addCleanup(admin.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -46,6 +52,14 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(child.call_args_list[0].args[0],
                          '"' + str(self.installer) + '" /S /D=' + str(self.exe.parent))
         self.assertEqual(child.call_args_list[-1].args[0][-1], '--version')
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows 관리자 권한 검사')
+    def test_missing_ocr_without_admin_never_launches_installer(self):
+        with patch('ctypes.windll.shell32.IsUserAnAdmin', return_value=False), \
+             patch.object(prep.subprocess, 'run') as child:
+            with self.assertRaisesRegex(ValueError, '관리자 권한'):
+                prep.ensure_ocr(self.resources, '')
+        child.assert_not_called()
 
     def test_working_existing_ocr_is_reused_without_installer(self):
         self.installed()
