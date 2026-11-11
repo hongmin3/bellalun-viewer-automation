@@ -1,5 +1,11 @@
 # 진행 상태
 
+## 2026-11-11 공용 서버 원격 실행 전환 계획
+
+- 사용자 요청으로 EXE 배포 대신 공용 QA 서버에서만 제어하는 원격 실행 전환을 [추후 고도화 계획](docs/plans/server-remote-execution.md)으로 정리하고 [NEXT_WORK.md](NEXT_WORK.md)에 연결했다.
+- 근거는 기존 VHD 원격 관리 웹(5050)의 페이지·Bootstrap 스크립트·상태 API를 GET으로만 확인한 결과와 이 저장소의 커밋·후보 빌드 빈도다. 서버 작업 실행·제품 UI·DB 조작은 하지 않았다.
+- 다음 시작점: 서버 SSH·서버 앱 저장소 위치, Bellalun 설치 테스트 PC, 전용 실행 계정 정책 확보 뒤 SPEC 요구사항 정의.
+
 ## 2026-11-11 자동화 구현 전파교육 자료
 
 - [교육 참고자료](docs/automation-training.md)에 Bellalun·VXvue 구조 비교, MWL 시나리오 호출 흐름, UI·DB·DICOM 판정 방식, 전체 회귀와 장애 분류, 코드 읽기 실습을 정리했다. README에서 연결한다.
