@@ -1,5 +1,7 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
+전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
+
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 

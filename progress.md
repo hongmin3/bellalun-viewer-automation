@@ -1,5 +1,10 @@
 # 진행 상태
 
+## 2026-11-11 자동화 구현 전파교육 자료
+
+- [교육 참고자료](docs/automation-training.md)에 Bellalun·VXvue 구조 비교, MWL 시나리오 호출 흐름, UI·DB·DICOM 판정 방식, 전체 회귀와 장애 분류, 코드 읽기 실습을 정리했다. README에서 연결한다.
+- 소스 기준은 Bellalun 66fa09f와 VXvue f495cf8이다. REA의 기존 컴파일 캐시 검사는 보조 근거이며 최신 설치판 검증과 구분했다. 문서 작성 중 제품 UI·DB·USB 시험은 실행하지 않았다.
+
 ## 2026-11-11 제품 결함 후보 재검증 잔여작업
 
 - 사용자 요청으로 XIPLInstall.reg 배포 누락·Release Note 불일치, 설치 완료 후 Viewer 실행 불가·DB 상태, Export Manager 비정상 종료 1회의 원본 증적 확인과 실제 결함 판정을 [NEXT_WORK.md](NEXT_WORK.md)에 미완료 작업으로 정리했다.

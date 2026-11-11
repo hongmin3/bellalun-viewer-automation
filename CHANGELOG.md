@@ -1,5 +1,9 @@
 # Changelog
 
+## 자동화 구현 전파교육 자료 — 2026-11-11
+
+- `docs/automation-training.md`에 Bellalun·VXvue 구현 방식과 시나리오 실행·판정 흐름을 정리하고 README에 연결했다. 약 30분 교육 순서·발표자 메모·코드 읽기 실습과 REA 조사 한계를 포함한다. 제품 사양과 자동화 실행 동작은 변경하지 않았다.
+
 ## 제품 결함 후보 조사 작업 정리 — 2026-11-11
 
 - XIPLInstall.reg 배포 구성·Release Note 대조, 설치 후 Viewer 실행 불가·DB 상태, USB Export Manager 비정상 종료의 원본 증적 확보와 결함 재검증을 `NEXT_WORK.md`에 미완료 작업으로 추가했다. 과거 기록과 현재 원본 확인·재현 결과를 구분하며, 자동화 동작·제품 사양·과거 시험 결과는 변경하지 않았다.
