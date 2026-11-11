@@ -1,5 +1,9 @@
 # Changelog
 
+## 제품 결함 후보 조사 작업 정리 — 2026-11-11
+
+- XIPLInstall.reg 배포 구성·Release Note 대조, 설치 후 Viewer 실행 불가·DB 상태, USB Export Manager 비정상 종료의 원본 증적 확보와 결함 재검증을 `NEXT_WORK.md`에 미완료 작업으로 추가했다. 과거 기록과 현재 원본 확인·재현 결과를 구분하며, 자동화 동작·제품 사양·과거 시험 결과는 변경하지 않았다.
+
 ## 1.0.11 정식 배포 — 2026-11-11
 
 - REQ-REGRESSION-002: 수용을 마친 커밋 2630d0b를 run113 설치판 전체 회귀 리포트(기본기능 `Result_20261111_052024.json`, WU `Result_WindowsUpdate_20261111_063744.json`)를 게이트 입력으로 다시 빌드해 정식 배포 패키지를 만들었다. build-info의 릴리스 게이트가 `passed`이고 파일명에 `-candidate`와 후보 표식이 없다. 컴파일과 시험(995 passed / 1 skipped / 299 subtests)을 생략하지 않았다.

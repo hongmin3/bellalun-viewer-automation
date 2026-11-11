@@ -1,5 +1,11 @@
 # 진행 상태
 
+## 2026-11-11 제품 결함 후보 재검증 잔여작업
+
+- 사용자 요청으로 XIPLInstall.reg 배포 누락·Release Note 불일치, 설치 완료 후 Viewer 실행 불가·DB 상태, Export Manager 비정상 종료 1회의 원본 증적 확인과 실제 결함 판정을 [NEXT_WORK.md](NEXT_WORK.md)에 미완료 작업으로 정리했다.
+- 현재 확인 범위는 과거 패키지 점검 결과와 조사 문서다. 해당 릴리즈노트·원본 설치 ZIP 및 Export 충돌 이벤트 원본은 이번 로컬 검색에서 찾지 못했다. 자료 부재·원인·현재 재현 여부를 확정하지 않는다.
+- 다음 작업은 당시 PC 또는 보관 자료 확보 → 버전·시각·해시 대조 → 승인된 범위의 실제 재현 → 결함·문서 불일치·미확인 분류다. 이번에는 제품·DB·USB를 조작하지 않았다.
+
 ## 2026-11-11 1.0.11 정식 배포 패키지
 
 - 정식 빌드 `work/official-1.0.11c/`(07:36~07:41, 종료 0, 게이트 통과). 산출물 `release/official/1.0.11/`(Setup·build-info·SHA256SUMS)와 `release/official/BellalunAuto-1.0.11-release.zip`. 둘 다 Git 밖(`release/` 무시)이다.
