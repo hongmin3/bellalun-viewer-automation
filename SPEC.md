@@ -21,6 +21,7 @@
 
 Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증 가능한 PASS/FAIL 근거를 남긴다.
 성공 조건은 체크리스트의 대상·의미를 유지하면서 자동화 한계와 실제 제품 결함을 구분해 보고하는 것이다.
+최종 목표는 실제 제품 결함이 있을 때만 FAIL이 나오고 나머지는 PASS로 끝나는 자동화다. 자동화 원인의 FAIL·MANUAL은 자동화 결함으로 보고 고친다(REQ-VERDICT-003).
 
 ### 한눈에 보기
 
@@ -269,6 +270,37 @@ TEST-VERDICT-001, `tests/test_primary_monitor_guard.py`, `tests/test_result_repo
 `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py`.
 #### 관련 테스트
 TEST-VERDICT-002, `tests/test_human_only_skip.py`, `tests/test_release_gate.py`.
+
+### REQ-VERDICT-003 자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다
+
+#### 하는 일
+이 자동화의 목적은 Bellalun Viewer에 실제 제품 결함이 있을 때만 FAIL이 나오고, 나머지 확인 항목은 모두 PASS로 끝나게 하는 것이다(사용자 결정 2026-11-12, VXvue 자동화와 같은 기준). FAIL이나 MANUAL이 나오면 그 원인이 제품인지 자동화인지 끝까지 가려낸다. 자동화가 원인이면 다시는 같은 이유로 나오지 않게 고친 뒤에 그 자동화 작업을 완료로 본다.
+
+| 결과 | 뜻 | 남아도 되는 경우 |
+|---|---|---|
+| PASS | 기대 결과를 관찰 근거로 확인했다 | 목표 상태 |
+| FAIL | 믿을 수 있는 측정으로 제품이 기대와 다르게 동작함을 확인했다 | 제품 결함으로 확인됐을 때만(등록된 알려진 결함 포함) |
+| SKIP | 사람이 직접 하는 TC(REQ-VERDICT-002)이거나 이번 환경에서 시험 대상이 아님을 확인했다 | 사유가 확정됐을 때만 |
+| MANUAL·BLOCKED | 자동화가 결론을 내지 못했다 | 완료 상태가 아니다 |
+
+#### 순서
+FAIL 또는 MANUAL이 나오면 이 순서로 처리한다.
+
+1. 캡처·OCR 원문·로그·DB 조회값 등 그 판정의 증거를 보존한다.
+2. 원인을 제품 결함, 자동화 결함, 환경·선행조건 문제, 미확정 중 하나로 나눈다. 판단은 저장된 증거를 다시 읽어 같은 결과를 재현한 근거로 한다(예: 저장된 캡처를 제품 없이 다시 판독).
+3. 자동화 결함이면 문제가 드러난 칸 하나가 아니라 같은 원리로 틀릴 수 있는 자리를 함께 고친다.
+4. 그 증거로 재현 테스트를 만들고, 수정 전 코드에서 실패하는지 확인한다.
+5. 남아 있는 과거 증거 전체로 수정 전후 결과를 비교한다. 값이 바뀐 증거가 있으면 그 이유를 따로 설명한다.
+6. 고친 코드로 실제 제품에서 그 TC를 다시 실행해 PASS를 확인한다. 이 실행 결과를 보기 전에는 해결로 보고하지 않는다.
+7. 제품 결함이면 FAIL로 두고 재현 절차·기대·실제·증거를 보고한다. 미확정이면 원인 후보와 다시 확인할 조건을 남긴다.
+
+> **예시** VXvue 2026-11-12 TC02는 회차마다 다른 칸이 판독 불가 MANUAL이었다. 한 칸씩 고치다 같은 원리로 다음 칸이 걸렸고, 근본 원인은 모든 칸에 공통인 OCR 전처리 순서와 라벨 잡음 처리였다.
+
+#### 지킬 것
+- PASS를 만들려고 기대값·허용 오차·OCR 합의 기준을 낮추지 않는다. 첫 행·다른 환자·과거 데이터로 대체하지 않는다.
+- MANUAL을 SKIP 등 다른 이름으로 바꿔 숨기지 않는다. 판정 이름을 바꾸는 것은 고친 것이 아니다.
+- 자동화 원인으로 생긴 FAIL도 고칠 대상이다. 제품 결함으로 보고하지 않는다.
+- 사람이 직접 하는 TC(REQ-VERDICT-002)와 물리 장비가 필요한 항목은 기존 사용자 결정을 따른다.
 
 ### REQ-REPORT-001 체크리스트별 결과 보고
 
@@ -958,6 +990,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | implemented |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
+| REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |

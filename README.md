@@ -1,5 +1,7 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
+전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
+
 의료영상 진단 소프트웨어(디지털 유방촬영 Viewer)의 **QA 체크리스트를 실제 UI로
 자동 수행하고 Pass/Fail을 스스로 판정하는** 테스트 자동화 프레임워크입니다.
 
@@ -375,7 +377,11 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 **세 번째 추측 대신 실패 시점의 화면 랜드마크와 대화상자 문구를 증거로 남기게 했고**
 그것이 팝업을 드러냈습니다.
 
-**패키지에 빠진 파일 — `Support\XIPLInstall.reg`.** `Install.xml` 이
+아래 설치 패키지 누락·설치 후 실행 불가와 별도 기록된 Export Manager 충돌은 과거 조사 기록이다.
+원본 증적·Release Note 대조와 실제 결함 여부를 다시 확인할 작업은 [잔여작업](NEXT_WORK.md)에 정리했다.
+현재 환경에서 재현하거나 원인을 확정한 결과로 읽지 않는다.
+
+**패키지에 빠진 파일 — `Support\XIPLInstall.reg`(과거 점검 기록).** `Install.xml` 이
 `regedit /s "[RunningDirectory]Support\XIPLInstall.reg"` 로 실행하는 파일이 배포
 패키지에 없습니다(참조 18건 중 1건). 사양서 SRS 08-10-10 도 *"XIPL 설치 (기존 버전
 제거 후 새 버전 설치. 설치 후 registry 변경 -XIPLInstall.reg 실행)"* 로 명시합니다.

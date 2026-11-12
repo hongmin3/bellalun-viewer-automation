@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="1b54fc39b320d2c6aa4114dd4efe0ef2a96ea0f75a7d5a600a3f4eda79862d6c">
+<meta name="spec-source-sha256" content="f47434291f09010631fe7330a429fd7f6c8feb5a1b626bde08188f213d46c686">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.3.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.3; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-09</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>29</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>28</b><span>테스트 TEST</span></div><div class="stat st-implemented"><b>30</b><span>implemented</span></div></div>
+<div class="stats"><div class="stat"><b>30</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>28</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>30</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -112,6 +112,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-TRACE-002">REQ-TRACE-002 <span>Windows Update 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-002">REQ-VERDICT-002 <span>사람이 직접 하는 TC는 SKIP</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-VERDICT-003">REQ-VERDICT-003 <span>자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-REPORT-001">REQ-REPORT-001 <span>체크리스트별 결과 보고</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-001">REQ-DIST-001 <span>설치와 실행 경로</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-002">REQ-DIST-002 <span>실행 화면과 프로세스 관리</span></a></li>
@@ -199,6 +200,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a></td><td data-label="이름">자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다</td><td data-label="상태"><span class="badge st-draft">draft</span></td><td data-label="구현"><code>core/result.py</code></td><td data-label="테스트"><code>tests/test_result_reports.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="이름">체크리스트별 결과 보고</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/checklist.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">QA</span> 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결)</th></tr>
@@ -230,7 +232,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <section class="chapter" id="sec-1">
 <h2>1. 목적</h2>
 <p>Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증 가능한 PASS/FAIL 근거를 남긴다.
-성공 조건은 체크리스트의 대상·의미를 유지하면서 자동화 한계와 실제 제품 결함을 구분해 보고하는 것이다.</p>
+성공 조건은 체크리스트의 대상·의미를 유지하면서 자동화 한계와 실제 제품 결함을 구분해 보고하는 것이다.
+최종 목표는 실제 제품 결함이 있을 때만 FAIL이 나오고 나머지는 PASS로 끝나는 자동화다. 자동화 원인의 FAIL·MANUAL은 자동화 결함으로 보고 고친다(<a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>).</p>
 <h3>한눈에 보기</h3>
 <p>사람이 설치된 BellalunAuto의 화면이나 명령으로 체크리스트(기본기능 또는 Windows Update)를 고르면, 자동화가 실행 환경과 관리자 권한을
 확인한 뒤 Bellalun Viewer를 실제 UI로 조작한다. 화면·DB·파일에서 근거를 모아 기대 결과와 대조하고, 체크리스트 문맥에 맞는
@@ -590,9 +593,10 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 </section>
 <section class="card kind-req" id="REQ-VERDICT-002">
 <h3><span class="idtag">REQ-VERDICT-002</span> 사람이 직접 하는 TC는 SKIP</h3>
-<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">2026-11-12 자동화 목적: 제품 결함일 때만 FAIL</span> <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>: 자동화의 목적을 사양에 정했다. 실제 제품 결함일 때만 FAIL, 나머지는 PASS로 끝나야 한다. FAIL·MANUAL이 나오면 저장된 증거로 원인을 제품·자동화·환경·미확정으로 가르고, 자동화 원인이면 같은 원리로 틀릴 수 있는 자리까지 고친 뒤 실제 제품 재실행으로 PASS를 확인한다. MANUAL을 다른 이름으로 바꾸거나 기준을 낮춰 PASS를 만들지 않는다. 사람이 직접 하는 TC의 SKIP(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)은 그대로다(사용자 결정, VXvue 자동화와 같은 기준).</li>
 <li><span class="hist">2026-11-05 (사람이 직접 하는 TC를 SKIP으로) · Changed</span> <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>(신규): 사람이 직접 수행하는 TC(WU_01·12·13, 기본기능 WF_16)를 MANUAL이 아니라 SKIP으로 기록한다(사용자 결정). WU 체크리스트 사본은 Skip 사유도 L열에 적고 Skip 칸을 회색으로 칠한다.</li>
 </ul>
 </details>
@@ -612,6 +616,50 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 </div></section>
 <section class="field"><h4>관련 테스트</h4><div class="field-body">
 <p><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>, <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code>.</p>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-VERDICT-003">
+<h3><span class="idtag">REQ-VERDICT-003</span> 자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다</h3>
+<div class="card-meta"><span class="badge st-draft">draft</span><span class="meta"><b>구현</b> <code>core/result.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_result_reports.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">2026-11-12 자동화 목적: 제품 결함일 때만 FAIL</span> <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>: 자동화의 목적을 사양에 정했다. 실제 제품 결함일 때만 FAIL, 나머지는 PASS로 끝나야 한다. FAIL·MANUAL이 나오면 저장된 증거로 원인을 제품·자동화·환경·미확정으로 가르고, 자동화 원인이면 같은 원리로 틀릴 수 있는 자리까지 고친 뒤 실제 제품 재실행으로 PASS를 확인한다. MANUAL을 다른 이름으로 바꾸거나 기준을 낮춰 PASS를 만들지 않는다. 사람이 직접 하는 TC의 SKIP(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)은 그대로다(사용자 결정, VXvue 자동화와 같은 기준).</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>이 자동화의 목적은 Bellalun Viewer에 실제 제품 결함이 있을 때만 FAIL이 나오고, 나머지 확인 항목은 모두 PASS로 끝나게 하는 것이다(사용자 결정 2026-11-12, VXvue 자동화와 같은 기준). FAIL이나 MANUAL이 나오면 그 원인이 제품인지 자동화인지 끝까지 가려낸다. 자동화가 원인이면 다시는 같은 이유로 나오지 않게 고친 뒤에 그 자동화 작업을 완료로 본다.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>결과</th><th>뜻</th><th>남아도 되는 경우</th></tr></thead>
+<tbody>
+<tr><td>PASS</td><td>기대 결과를 관찰 근거로 확인했다</td><td>목표 상태</td></tr>
+<tr><td>FAIL</td><td>믿을 수 있는 측정으로 제품이 기대와 다르게 동작함을 확인했다</td><td>제품 결함으로 확인됐을 때만(등록된 알려진 결함 포함)</td></tr>
+<tr><td>SKIP</td><td>사람이 직접 하는 TC(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)이거나 이번 환경에서 시험 대상이 아님을 확인했다</td><td>사유가 확정됐을 때만</td></tr>
+<tr><td>MANUAL·BLOCKED</td><td>자동화가 결론을 내지 못했다</td><td>완료 상태가 아니다</td></tr>
+</tbody>
+</table></div>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<p>FAIL 또는 MANUAL이 나오면 이 순서로 처리한다.</p>
+<ol>
+<li>캡처·OCR 원문·로그·DB 조회값 등 그 판정의 증거를 보존한다.</li>
+<li>원인을 제품 결함, 자동화 결함, 환경·선행조건 문제, 미확정 중 하나로 나눈다. 판단은 저장된 증거를 다시 읽어 같은 결과를 재현한 근거로 한다(예: 저장된 캡처를 제품 없이 다시 판독).</li>
+<li>자동화 결함이면 문제가 드러난 칸 하나가 아니라 같은 원리로 틀릴 수 있는 자리를 함께 고친다.</li>
+<li>그 증거로 재현 테스트를 만들고, 수정 전 코드에서 실패하는지 확인한다.</li>
+<li>남아 있는 과거 증거 전체로 수정 전후 결과를 비교한다. 값이 바뀐 증거가 있으면 그 이유를 따로 설명한다.</li>
+<li>고친 코드로 실제 제품에서 그 TC를 다시 실행해 PASS를 확인한다. 이 실행 결과를 보기 전에는 해결로 보고하지 않는다.</li>
+<li>제품 결함이면 FAIL로 두고 재현 절차·기대·실제·증거를 보고한다. 미확정이면 원인 후보와 다시 확인할 조건을 남긴다.</li>
+</ol>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>VXvue 2026-11-12 TC02는 회차마다 다른 칸이 판독 불가 MANUAL이었다. 한 칸씩 고치다 같은 원리로 다음 칸이 걸렸고, 근본 원인은 모든 칸에 공통인 OCR 전처리 순서와 라벨 잡음 처리였다.</p>
+</aside>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>PASS를 만들려고 기대값·허용 오차·OCR 합의 기준을 낮추지 않는다. 첫 행·다른 환자·과거 데이터로 대체하지 않는다.</li>
+<li>MANUAL을 SKIP 등 다른 이름으로 바꿔 숨기지 않는다. 판정 이름을 바꾸는 것은 고친 것이 아니다.</li>
+<li>자동화 원인으로 생긴 FAIL도 고칠 대상이다. 제품 결함으로 보고하지 않는다.</li>
+<li>사람이 직접 하는 TC(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)와 물리 장비가 필요한 항목은 기존 사용자 결정을 따른다.</li>
+</ul>
 </div></section>
 </section>
 <section class="card kind-req" id="REQ-REPORT-001">
@@ -865,8 +913,9 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-DIST-007">
 <h3><span class="idtag">REQ-DIST-007</span> 설치 중 자동화 구성품 준비</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-11 자동화 장애 선해결 기준</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: OCR 설치 단위시험이 실행 PC의 실제 관리자 권한에 의존하던 문제를 고쳤다. 가짜 설치 환경의 관리자 상태를 시험 안에서 격리하고, 비관리자 상태에서는 설치 프로세스를 시작하지 않는지도 검증한다. 제품의 권한 검사와 설치 동작은 유지한다.</li>
 <li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: VXvue Setup을 참고해 설치 후 OCR 자동 준비·승인 자료 SHA-256 검증·신규 PC 설정 연결·완료 요약·실패 종료 코드3을 추가했다. 고정 OCR 설치 파일을 포함해 대상 PC에서는 다운로드하지 않는다. 기존 설정을 보존하고 DB 복원·제품 시험은 실행하지 않는다.</li>
 <li><span class="hist">2026-11-06 (1.0.2 설치 구성품 자동 준비)</span> <a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a>: 소스820개 통과와 새 EXE 준비 명령·실제 업데이트를 확인했다. 설치 파일1,010개 해시 일치·작업381개 보존·자동 준비0이다. 다른PC OCR 누락 설치와 새 EXE 제품 회귀는 미검증이다.</li>
 </ul>
@@ -1688,6 +1737,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="Implementation"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a></td><td data-label="Implementation"><code>core/result.py</code></td><td data-label="Test"><code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-draft">draft</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/checklist.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="Implementation"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a></td><td data-label="Implementation"><code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
