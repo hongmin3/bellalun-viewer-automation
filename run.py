@@ -368,7 +368,7 @@ def shutdown_viewer(reason="회귀 종료"):
     return detail
 
 
-def announce_done(results, elapsed_minutes, paths):
+def announce_done(results, elapsed_minutes, paths, *, label='전체 회귀'):
     """전체 회귀 완료를 터미널에 **눈에 띄게** 알린다.
 
     2026-08-24 사용자 요청. 긴 실행을 켜 두고 다른 일을 하다가 돌아왔을 때
@@ -387,7 +387,7 @@ def announce_done(results, elapsed_minutes, paths):
     bar = "=" * 74
     print()
     print(bar)
-    print(f"  전체 회귀 완료  —  {datetime.now():%Y-%m-%d %H:%M:%S}"
+    print(f"  {label} 완료  —  {datetime.now():%Y-%m-%d %H:%M:%S}"
           f"  ({elapsed_minutes:.1f}분)")
     print(bar)
     print(f"  TC {len(results)}건   : {line}")
@@ -414,7 +414,7 @@ def announce_done(results, elapsed_minutes, paths):
         try:
             from core import automation_health
             automation_health.notify_windows(
-                "Bellalun 전체 회귀 완료",
+                f"Bellalun {label} 완료",
                 f"TC {len(results)}건 · {line} · {elapsed_minutes:.1f}분",
                 "warning" if tc.get(FAIL, 0) else "info")
         except Exception as exc:                       # noqa: BLE001
@@ -656,11 +656,13 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
     preflight = (extra_meta or {}).get("preflight") or {}
     if preflight.get("summary"):
         env.update(preflight["summary"])
-    env["실행 방식"] = "과거 결과 변환" if execution_mode == "historical" else "실시간 제품 시험"
+    env["실행 방식"] = ("과거 결과 변환" if execution_mode == "historical" else
+                         "소스 단독 시험" if execution_mode == "single" else "실시간 제품 시험")
     update_rows, update_meta = _wu_update_evidence(ctx, execution_mode)
     from tests.winupdate import usb_unverified
     usb_flags = [r.tc_id for r in wu_results if usb_unverified(r)]
     env["체인 완료"] = ("해당 없음" if execution_mode == "historical" else
+                         "해당 없음(단독 실행)" if execution_mode == "single" else
                          "완료" if chain_completed else "조기 중단")
     if (extra_meta or {}).get("resumed"):
         reused = ", ".join((extra_meta or {}).get("reused_stages") or []) or "없음"
@@ -719,7 +721,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
         print(f"  {k}: {v}")
     if source_note:
         print(f"  근거: {source_note}")
-    announce_done(wu_results, elapsed_minutes, result_paths)
+    label = ('단독 시험' if execution_mode == 'single' else
+             '과거 결과 변환' if execution_mode == 'historical' else '전체 회귀')
+    announce_done(wu_results, elapsed_minutes, result_paths, label=label)
     return 1 if any(r.verdict == "FAIL" for r in wu_results) else 0
 
 
@@ -799,6 +803,18 @@ def _run_winupdate_from_regression(ctx, path):
     wu_results = winupdate.build_wu_results(lookup)
     return _finish_winupdate(ctx, wu_results, source_note=f"--from-regression {path}",
                              execution_mode="historical", chain_completed=False)
+
+
+def _run_wu09_single(ctx):
+    from tests import winupdate
+    from tests.workflow09 import run as run_export
+    from core import flows
+    lookup = winupdate.lookup_from_results(run_export(ctx))
+    ui, _ = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+    usb = winupdate.run_usb_export_import(ctx, ui)
+    result = winupdate._wu_09(lookup, usb)
+    return _finish_winupdate(ctx, [result], source_note='WU09 소스 단독',
+                             execution_mode='single', chain_completed=False)
 
 
 def _prepare_wu_setting_ui(ctx, ui, usb_outcome):
@@ -1305,6 +1321,11 @@ def _main():
         "--resume", action="store_true",
         help="중단된 실시간 체인을 work/winupdate_checkpoint.json 저장점에서 이어 실행한다. "
              "완료 단계 결과는 재사용하고 남은 단계만 실행한다(REQ-WU-002).")
+    winupdate_parser.add_argument('--prepared', action='store_true',
+                                  help='실행 전 준비 체크리스트를 모두 확인했음을 전달(USB 실제 점검 유지)')
+    usb_parser = sub.add_parser('run-wu09', help='WU09 단독: WF09와 USB Export/Import만 실행')
+    usb_parser.add_argument('--prepared', action='store_true',
+                            help='실행 전 준비 체크리스트를 모두 확인했음을 전달')
     watch_parser = sub.add_parser(
         "update-watch",
         help="OS 빌드·KB가 직전 기록과 달라졌을 때만 run-winupdate를 1회 실행한다(REQ-WU-005).")
@@ -1384,6 +1405,17 @@ def _main():
     if args.cmd == "run-winupdate" and getattr(args, "from_regression", None):
         return _run_winupdate_from_regression(ctx, args.from_regression)
 
+    if args.cmd in {'run-winupdate', 'run-wu09'}:
+        from core.run_preparation import confirm_cli
+        try:
+            if not confirm_cli(args.cmd, prepared=args.prepared):
+                return 2
+        except ValueError as error:
+            print(error)
+            return 2
+        if args.cmd == 'run-wu09' and _wu_preflight(ctx)['blocked']:
+            return 2
+
     results = []
     if args.cmd == "list":
         scope_path = os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json")
@@ -1462,7 +1494,7 @@ def _main():
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
                    "run-xipl-06", "run-xipl-07", "run-sys3d", "run-auto",
                    "run-regression", "portability-check", "probe-preset3d",
-                   "run-winupdate"}
+                   "run-winupdate", "run-wu09"}
     if args.cmd in ui_commands:
         from core.display import normalize
         from core.result import TCResult, PASS, FAIL
@@ -1688,6 +1720,10 @@ def _main():
                 if broken:
                     aborted_precondition = broken[0]
                     break
+        from core.scope_results import regression_skips
+        with open(os.path.join(getattr(ctx, "resource_root", ctx.root),
+                               "automation_scope.json"), encoding="utf-8") as source:
+            results.extend(regression_skips(json.load(source), results))
         if aborted_precondition is None:
             # 환경 복원 결과도 전제다(사슬보다 앞에서 만들어진다).
             if any(x.tc_id == "AUTOMATION_ENVIRONMENT_RESET"
@@ -1731,6 +1767,8 @@ def _main():
         return code
     if args.cmd == "run-winupdate":
         return _run_winupdate_chain(ctx, resume=bool(getattr(args, "resume", False)))
+    if args.cmd == 'run-wu09':
+        return _run_wu09_single(ctx)
     if args.cmd in ("setup-dicom", "run-auto"):
         results.append(setup_all(ctx))
     elif args.cmd == "setup-storage":

@@ -266,7 +266,7 @@ def overlap(previous, current, fuzzy=False):
 
 def walk(ui, pane, on_row=None, expected_count=None,
          notches=DEFAULT_SCROLL_NOTCHES, settle=0.6,
-         max_steps=MAX_SCROLL_STEPS, tesseract_exe=None):
+         max_steps=MAX_SCROLL_STEPS, tesseract_exe=None, start_at_top=True):
     r"""목록을 위에서 아래까지 훑는다.
 
     `on_row(row_control, signature, index)` 를 **새로 등장한 행마다 한 번씩**
@@ -303,6 +303,22 @@ def walk(ui, pane, on_row=None, expected_count=None,
         return {"signatures": [], "screens": [], "steps": 0, "complete": False,
                 "reasons": ["목록 행이 보이지 않는다"],
                 "expected_count": expected_count, "unreadable_rows": 0}
+
+    # 페이지 재진입이 스크롤 위치를 보존하는 경우를 포함한다. 전체 행이 이미
+    # 보이는 경우를 제외하면 위쪽 끝을 먼저 확인한다. HWND는 가상 슬롯이다.
+    if start_at_top and (expected_count is None or len(rows) != expected_count):
+        for _ in range(max_steps):
+            previous = list(sigs)
+            ui.wheel(scroll_point(pane, rows), max(1, int(notches)), settle=settle)
+            rows, sigs, screen_ocr = _screen(pane, tesseract_exe)
+            used_ocr = used_ocr or screen_ocr
+            if sigs and len(sigs) == len(previous) and all(
+                    _rows_match(a, b, used_ocr) for a, b in zip(previous, sigs)):
+                break
+        else:
+            return {"signatures": [], "screens": [], "steps": 0, "complete": False,
+                    "reasons": ["목록 처음으로 이동하는 스크롤 상한에 도달했다"],
+                    "expected_count": expected_count, "unreadable_rows": 0}
 
     unreadable = sum(1 for s in sigs if not s)
     collected = list(sigs)
@@ -807,6 +823,27 @@ def _collect_multi_list(ui, ctrl_ids, expected_count=None, exclude_ids=(),
     }
 
 
+def _print_position_counts(db, name):
+    """선택한 이름의 Overlay 하나에 속하는 Position별 행 수. 모호하면 미확정."""
+    if not isinstance(name, str) or not name.strip():
+        return None
+    try:
+        rows = db.query('CONFIGURATION',
+                        'SELECT o.[Key] AS OverlayKey,i.Position,COUNT(i.FieldID) AS n '
+                        'FROM PRINT_OVERLAY o LEFT JOIN PRINT_OVERLAY_ITEM i '
+                        'ON i.PrintOverlayKey=o.[Key] WHERE o.Name=@name '
+                        'GROUP BY o.[Key],i.Position', {'name': name})
+        if not isinstance(rows, list) or len({r['OverlayKey'] for r in rows}) != 1:
+            return None
+        counts = {0: 0, 1: 0, 2: 0}
+        for row in rows:
+            if row['Position'] is not None:
+                counts[int(row['Position'])] = int(row['n'])
+        return counts
+    except (KeyError, TypeError, ValueError, RuntimeError):
+        return None
+
+
 def _collect_print_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHES,
                            settle=0.6, tesseract_exe=None):
     """`dicom.print_overlay` 전용 — Overlay 이름마다 Position 목록 셋을 훑는다.
@@ -839,6 +876,11 @@ def _collect_print_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHE
         complete = False
     for idx, name_row in enumerate(names):
         ui.click(name_row, settle=settle)
+        name_edits = [c for c in ui.by_id(2490) if c.visible]
+        selected_name = name_edits[0].text if len(name_edits) == 1 else ''
+        counts = _print_position_counts(db, selected_name)
+        from core.print_overlay import PRINT_AREA_POSITION, PRINT_AREA_LIST
+        positions = {PRINT_AREA_LIST[area]: position for area, position in PRINT_AREA_POSITION.items()}
         for ctrl_id in PRINT_OVERLAY_POSITION_LISTS:
             hits = [c for c in ui.by_id(ctrl_id) if c.visible]
             if not hits:
@@ -847,7 +889,8 @@ def _collect_print_overlay(ui, db, exclude_ids=(), notches=DEFAULT_SCROLL_NOTCHE
                     "못했다")
                 complete = False
                 continue
-            result = collect(ui, hits[0], expected_count=0 if expected == 0 else None,
+            count = counts[positions[ctrl_id]] if counts is not None else (0 if expected == 0 else None)
+            result = collect(ui, hits[0], expected_count=count,
                              exclude_ids=exclude_ids, notches=notches,
                              settle=settle, tesseract_exe=tesseract_exe)
             steps_total += result["steps"]

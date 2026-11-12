@@ -12,10 +12,13 @@ def widgets(parent):
 
 
 @pytest.mark.parametrize('agree', [False, True])
-def test_real_confirmation_requires_check_and_closes_without_product(agree, monkeypatch, tk_root):
+@pytest.mark.parametrize('action', ['run-regression', 'run-winupdate'])
+def test_real_confirmation_requires_check_and_closes_without_product(agree, action, monkeypatch, tk_root):
     from bellalunauto.qa_dialogs import confirm_plan
     from bellalunauto import runplan
     monkeypatch.setattr(runplan, 'format_plan', lambda plan: '합성 대상 · DB 변경 · 복구 정책')
+    monkeypatch.setattr('core.usb_media.find_usb_drive', lambda: 'D:\\')
+    plan = {'action': action}
     root = tk_root
     checked = []
 
@@ -25,7 +28,12 @@ def test_real_confirmation_requires_check_and_closes_without_product(agree, monk
         start = next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '동의하고 시작')
         checked.append('disabled' in start.state())
         if agree:
-            next(w for w in controls if isinstance(w, ttk.Checkbutton)).invoke()
+            boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
+            assert len(boxes) == (5 if action == 'run-winupdate' else 3)
+            for box in boxes[:-1]:
+                box.invoke()
+                assert 'disabled' in start.state()
+            boxes[-1].invoke()
             checked.append('disabled' not in start.state())
             start.invoke()
         else:
@@ -38,8 +46,9 @@ def test_real_confirmation_requires_check_and_closes_without_product(agree, monk
             dialog.destroy()
     timer = root.after(2000, timeout)
     try:
-        assert confirm_plan(root, {}) is agree
+        assert confirm_plan(root, plan) is agree
         assert checked == ([True, True] if agree else [True])
+        assert bool(plan.get('preparation_checked')) is agree
         assert not timed_out
     finally:
         root.after_cancel(timer)

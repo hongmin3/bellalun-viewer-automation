@@ -58,7 +58,7 @@ from core import dicom_settings as ds
 from core import flows, image_overlay, screen, setting_changes
 from core import viewer_processing as vp
 from core import send_verify as sv
-from core import uitext
+from core import uitext, usb_evidence
 from core.result import FAIL, MANUAL, PASS, SKIP, TCResult
 from tests.workflow02 import PATIENT_ID, _examined_search
 
@@ -74,18 +74,32 @@ _norm = image_overlay.norm
 
 
 def _study(ctx):
-    row = ctx.db.one(
+    candidates = ctx.db.query(
         "DATA",
-        "SELECT TOP 1 s.[Key],s.StudyInstanceUID,p.PatientID,p.PatientBirthDate "
+        "SELECT s.[Key],s.StudyInstanceUID,p.PatientID,p.PatientBirthDate "
         "FROM STUDY s JOIN PATIENT p ON p.[Key]=s.PatientKey "
         "WHERE p.PatientID=@pid AND EXISTS (SELECT 1 FROM INSTANCE i "
         "WHERE i.StudyKey=s.[Key]) ORDER BY s.[Key] DESC", {"pid": PATIENT_ID})
-    if not row:
-        raise RuntimeError(f"검사를 찾지 못했습니다: {PATIENT_ID}")
-    row["instances"] = ctx.db.query(
-        "DATA",
-        "SELECT [Key],InstanceType,ImageInstanceUID FROM INSTANCE "
-        "WHERE StudyKey=@k ORDER BY [Key]", {"k": row["Key"]})
+    # WF02의 획득 원본과 All Images를 Import한 복사본은 Patient ID가 같다.
+    # run648의 최신 검사에는 2D/Recon만 있어 Dose SR 원본이 없었다. Key나
+    # 파일 존재 여부로 대체하지 않고 명시된 획득 전제로 유일한 원본을 찾는다.
+    required = {sv.INSTANCE_2D, sv.INSTANCE_RAW, sv.INSTANCE_RECON}
+    originals, observed = [], []
+    for candidate in candidates:
+        candidate["instances"] = ctx.db.query(
+            "DATA",
+            "SELECT [Key],InstanceType,ImageInstanceUID FROM INSTANCE "
+            "WHERE StudyKey=@k ORDER BY [Key]", {"k": candidate["Key"]})
+        kinds = {int(item["InstanceType"]) for item in candidate["instances"]}
+        observed.append({"study_key": candidate["Key"], "instance_types": sorted(kinds)})
+        if required <= kinds:
+            originals.append(candidate)
+    if len(originals) != 1:
+        raise RuntimeError(
+            "WF15 전제 미확인: 2D·3D Raw·3D Recon을 가진 WF02 원본 검사가 "
+            f"정확히 하나여야 합니다(적격 {len(originals)}건, 관찰 {observed}). "
+            "WF01/02/03 선행 시험 자료를 확인하십시오.")
+    row = originals[0]
     # **전송 대상만** 기대값으로 삼는다. 사양서 599쪽(SRS 06-30-30 문맥)
     # "3D 영상은 Recon 영상이 전송된다" 이므로 Raw/Syn 은 오지 않는다
     # (`core/send_verify.SENDABLE_3D_TYPES`). DB 의 전체 영상과 대조하면 정상 동작을
@@ -94,6 +108,26 @@ def _study(ctx):
     row["sendable"] = [i for i in row["instances"]
                        if int(i["InstanceType"]) in keep]
     return row
+
+
+def _select_study(ctx, ui, study):
+    """카드 순서 대신 클릭 직후의 제품 로그 Key로 같은 원본을 선택한다."""
+    cards = _examined_search(ui, PATIENT_ID)
+    observed = []
+    for card in cards:
+        cursor = usb_evidence.log_cursor(ctx.cfg["data_dir"])
+        ui.click(card, settle=1.5)
+        key = usb_evidence.selected_study_key(cursor)
+        if key in observed:
+            raise RuntimeError("WF15 전제 미확인: 서로 다른 카드의 Study Key가 중복됩니다.")
+        observed.append(key)
+        if key == int(study["Key"]):
+            return {"visible": len(cards), "study": key,
+                    "observed_study_keys": observed,
+                    "selection_source": "Viewer의 새 Study list item Click 로그"}
+    raise RuntimeError(
+        f"WF15 전제 미확인: 원본 검사 {study['Key']}의 화면 카드를 찾지 못했습니다"
+        f"(관찰 Study Key {observed}). 다른 검사로 대체하지 않습니다.")
 
 
 _panels = image_overlay.panels
@@ -108,15 +142,28 @@ def _overlay_hits(reads, study):
     return image_overlay.hits(reads, study)
 
 
-def _wait_received(ctx):
-    """이 환자의 수신 건수가 멈출 때까지 기다린 뒤 그 환자 객체만 받는다.
+def _wait_received(ctx, study=None):
+    """이 환자의 수신을 기다리며 원본을 지정하면 그 Study만 받는다.
 
     환자를 주지 않으면 공유 Storage SCP의 전체 Study를 내려받는다. 1.0.8 run110에서
     49개 Study(다른 PC가 보낸 것 포함)를 받다가, 다른 장비 객체의 태그 누락으로
     `Storage SCP DICOM 파싱 오류`가 나 Step 4~7을 수행하지 못했다. WF_07과 같은
     방식으로 환자를 지정한다.
     """
-    return sv.wait_received_stable(ctx, PATIENT_ID, wait=90)
+    scope = {"study_uids": {study["StudyInstanceUID"]}} if study is not None else {}
+    return sv.wait_received_stable(ctx, PATIENT_ID, wait=90, **scope)
+
+
+def _queue_rows(ctx, keys, study):
+    # Queue에는 StudyKey 컬럼이 없다. 영상은 원본 SOP로 연결하고, 원본 UID가 없는
+    # Dose SR은 이번 전송의 신규 Key로 관찰한 뒤 수신 DICOM의 Study UID로 검증한다.
+    source_uids = {item["ImageInstanceUID"] for item in study["sendable"]}
+    return [q for q in ctx.db.query(
+        "DATA", "SELECT [Key],State,DataType,InstanceUID,ClassUID "
+                "FROM DICOM_STORAGE_QUEUE WHERE PatientID=@pid "
+                "ORDER BY [Key] DESC", {"pid": PATIENT_ID})
+            if q["Key"] in keys and
+            (q.get("InstanceUID") in source_uids or sv.is_dose_sr_row(q))]
 
 
 def _open_preview(ui, scope="all"):
@@ -244,14 +291,13 @@ def run(ctx):
         sv.clear_received(ctx)
 
         # --- Step 1 -------------------------------------------------------
-        rows = _examined_search(ui, PATIENT_ID)
-        if not rows:
-            raise RuntimeError("Examined 목록이 비어 있습니다")
-        ui.click(rows[0], settle=1.5)
-        r.assert_true(1, "Examined 창에서 대상 검사 선택", bool(rows),
-                      expected={"PatientID": PATIENT_ID},
-                      actual={"visible": len(rows), "study": study["Key"]},
-                      note="Expected 1. 선택한 검사가 Preview 대상으로 지정된다.")
+        selection = _select_study(ctx, ui, study)
+        r.assert_true(1, "Examined 창에서 대상 검사 선택", True,
+                      expected={"PatientID": PATIENT_ID, "StudyKey": study["Key"],
+                                "StudyInstanceUID": study["StudyInstanceUID"]},
+                      actual=selection,
+                      note="Expected 1. WF02 원본 검사와 화면 카드의 새 클릭 로그 "
+                           "Study Key가 일치한 뒤에만 Preview 대상으로 지정한다.")
 
         # --- Step 2 -------------------------------------------------------
         window = _open_preview(ui, scope="all")
@@ -430,16 +476,13 @@ def run(ctx):
             ui.dismiss_dialog(timeout=3)
 
         # --- Step 6~7: Queue 와 수신 --------------------------------------
-        outcome = _wait_received(ctx)
+        outcome = _wait_received(ctx, study)
         new_queue = [k for k in sv.queue_keys(ctx) if k not in known]
 
         # 수신이 안정됐다고 Queue 가 Done 이 된 것은 아니다. State 가 Done 이 될
         # 때까지 따로 기다린다 — 2026-08-20 에 State=3 하나가 남아 FAIL 했다.
         def queue_rows():
-            return [q for q in ctx.db.query(
-                "DATA", "SELECT [Key],State,DataType,InstanceUID,ClassUID "
-                        "FROM DICOM_STORAGE_QUEUE ORDER BY [Key] DESC")
-                    if q["Key"] in new_queue]
+            return _queue_rows(ctx, new_queue, study)
 
         def image_rows():
             # All Images 를 고르면 Dose SR 도 Queue 에 들어간다. 성격이 달라
@@ -461,12 +504,13 @@ def run(ctx):
         while time.time() < end and not (all_done(image_rows())
                                          and all_done(dose_rows())):
             time.sleep(2)
-        identity = sv.db_identity(ctx, PATIENT_ID)
+        identity = sv.db_identity(ctx, PATIENT_ID, study_key=study["Key"])
         # patient_id 를 안 주면 공유 Storage SCP 서버의 전체 목록을 받아
         # 다른 TC(예: Emergency 검사)의 무관한 환자까지 섞인다 — WF_06(sv.received
         # 호출부)은 이미 patient_id 를 주는데 이 파일만 빠져 있었다(2026-09-01 실측:
         # "EM-260831-*" 등 완전히 다른 환자의 RDSR 이 Step 7 판정에 섞여 FAIL).
-        received = sv.received(ctx, PATIENT_ID) or []
+        received = sv.received(
+            ctx, PATIENT_ID, study_uids={study["StudyInstanceUID"]}) or []
 
         r.assert_true(
             5, "전송 대상 영상이 Queue에 등록", bool(new_queue),
@@ -606,10 +650,7 @@ def run(ctx):
         view_hits, view_reads, view_panels = {}, {}, []
         view_opened = False
         try:
-            rows = _examined_search(ui, PATIENT_ID)
-            if not rows:
-                raise RuntimeError(f"Examined 목록이 비어 있습니다: {PATIENT_ID}")
-            ui.click(rows[0], settle=1.2)
+            _select_study(ctx, ui, study)
             # Send 직후라 화면이 아직 정리되는 중일 수 있다. 한 번 보고 없다고
             # 단정하지 않는다 — 2026-08-28 실측: Step 5~7 이 전부 PASS 한 실행에서
             # 이 버튼만 못 찾아 Step 4 가 MANUAL 로 빠졌다.

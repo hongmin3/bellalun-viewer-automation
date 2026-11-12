@@ -386,6 +386,8 @@ class TCResult:
 #  리포트가 사유를 스스로 만들지 않는다(근거 없는 설명을 만들지 않기 위해서다).
 COVERAGE_ORDER = (
     "자동 판정(구현 완료)",
+    "추후 자동화(이번 구현 제외)",
+    "사람 전용(SKIP)",
     "부분 자동 — 남은 항목 있음",
     "미구현 — 구현 가능(다음 작업 후보)",
     "실물 장비·촬영 환경 필요",
@@ -993,7 +995,7 @@ def _render_html(results, meta, siblings=None):
                  "사유는 <code>automation_scope.json</code> 의 각 TC "
                  "<code>coverage</code> 항목에서 그대로 읽는다 — 리포트가 사유를 "
                  "만들어 내지 않는다. <b>타일은 자동화 등급</b>(FULL/PARTIAL/"
-                 "MANUAL)이고, <b>아래 표의 묶음은 미자동화 사유 분류</b>라 기준이 "
+                 "SKIP)이고, <b>아래 표의 묶음은 미자동화 사유 분류</b>라 기준이 "
                  "다르다.</div>")
         cov.append("<div class='dash'>")
         cov.append(f"<div class='tile'><div class='n'>{len(coverage)}</div>"
@@ -1003,10 +1005,14 @@ def _render_html(results, meta, siblings=None):
                  "<div class='k'>FULL — 전 단계 자동 판정</div></div>")
         cov.append(f"<div class='tile'><div class='n MANUAL'>"
                  f"{levels.get('PARTIAL', 0)}</div>"
-                 "<div class='k'>PARTIAL — 일부 수동</div></div>")
+                 "<div class='k'>PARTIAL — 일부 자동 판정</div></div>")
         cov.append(f"<div class='tile'><div class='n SKIP'>"
-                 f"{levels.get('MANUAL', 0)}</div>"
-                 "<div class='k'>MANUAL — 수동 전용</div></div>")
+                 f"{levels.get('SKIP', 0)}</div>"
+                 "<div class='k'>SKIP — 사람 전용</div></div>")
+        if levels.get('MANUAL', 0):
+            cov.append(f"<div class='tile'><div class='n MANUAL'>"
+                       f"{levels['MANUAL']}</div>"
+                       "<div class='k'>MANUAL — 수동 전용(이전 등급)</div></div>")
         cov.append("</div>")
         cov.append("<table class='cov'><colgroup><col style='width:200px'>"
                  "<col style='width:20%'><col style='width:66px'>"

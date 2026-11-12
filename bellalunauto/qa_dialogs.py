@@ -107,6 +107,7 @@ def confirm_plan(root, plan):
     import tkinter as tk
     from tkinter import ttk, scrolledtext
     from .runplan import format_plan
+    from core.run_preparation import preparation_items, preparation_complete, validate_preparation
     dialog = tk.Toplevel(root)
     dialog.title('실행 전 확인 — 데이터 변경 동의')
     dialog.geometry('850x700')
@@ -118,11 +119,31 @@ def confirm_plan(root, plan):
     accepted = [False]
     ttk.Label(dialog, text='UAC 권한 승인은 아래 데이터 변경 동의를 대신하지 않습니다.').pack(pady=4)
     start = ttk.Button(dialog, text='동의하고 시작', state='disabled')
+    checks = {}
+
+    def checked():
+        return [key for key, value in checks.items() if value.get()]
+
+    def refresh():
+        ready = agreed.get() and preparation_complete(plan['action'], checked())
+        start.configure(state='normal' if ready else 'disabled')
+
+    for item in preparation_items(plan['action']):
+        value = tk.BooleanVar(value=False)
+        checks[item['key']] = value
+        ttk.Checkbutton(dialog, text=item['label'], variable=value, command=refresh).pack(anchor='w', padx=12)
     ttk.Checkbutton(dialog, text='위 변경에 동의합니다', variable=agreed,
-                    command=lambda: start.configure(state='normal' if agreed.get() else 'disabled')).pack(pady=6)
+                    command=refresh).pack(pady=6)
 
     def accept():
-        if agreed.get():
+        if agreed.get() and preparation_complete(plan['action'], checked()):
+            try:
+                validate_preparation(plan['action'], checked())
+            except ValueError as error:
+                from tkinter import messagebox
+                messagebox.showerror('준비 확인 필요', str(error), parent=dialog)
+                return
+            plan['preparation_checked'] = checked()
             accepted[0] = True
             dialog.destroy()
     start.configure(command=accept)

@@ -130,13 +130,25 @@ def _run_one(ctx, ui, r, patient_id, kind, anonymous, step_setup, step_done):
         return None
     try:
         path = em.set_path(manager, target)
+        # WU09 persists IMG selection. WF09 parses DICOM patient tags, so both
+        # Normal and Anonymous must explicitly replace every prior format.
+        fmt = em.select_only_format(manager, em.FORMAT_DICOM)
+        format_states = {key: em.is_checked(manager, key) for key in em.ALL_FORMATS}
+        if (fmt.get("selected", {}).get("final") is not True
+                or any(checked is not (key == em.FORMAT_DICOM)
+                       for key, checked in format_states.items())
+                or any(value.get("final") is not False
+                       for value in fmt.get("turned_off", {}).values())):
+            raise em.ExportManagerError(
+                f"DICOM 단독 Export 형식을 확인하지 못했습니다: {format_states}")
         state = em.set_anonymous(manager, enabled=anonymous)
         r.assert_true(
             step_setup, f"Export Manager에서 경로와 {kind} 옵션 선택",
             os.path.normcase(path) == os.path.normcase(target)
             and state.get("final") is anonymous,
             expected={"path": target, "anonymous": anonymous},
-            actual={"path": path, "anonymous": state},
+            actual={"path": path, "anonymous": state, "format": fmt,
+                    "format_states": format_states},
             note=f"경로 Edit({em.PATH_EDIT})과 Anonymous 옵션({em.ANONYMOUS})을 "
                  "실제로 설정하고 되읽어 확인한다. 토글이므로 누르기 전 상태를 "
                  "먼저 본다(운영 지침 11절).")

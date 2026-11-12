@@ -424,11 +424,15 @@ class RunController:
             raise ValueError("시험 시작 전에 변경 범위에 직접 동의해야 합니다.")
         self.record = None
         if action in {"run-regression", "run-winupdate"}:
+            from core.run_preparation import validate_preparation
+            validate_preparation(action, (plan or {}).get('preparation_checked', []))
             from .runs import RunRecord
             self.record = RunRecord.create(self.layout.workspace, action, plan or {}, consent=True)
         self.stop_path = Path(self.layout.workspace) / "work" / f"stop-{uuid.uuid4().hex}.json"
         try:
             arguments = command_arguments(self.layout, action, stop_file=self.stop_path)
+            if action == 'run-winupdate':
+                arguments.append('--prepared')
             if self.record:
                 arguments = ['--run-id', self.record.data['run_id']] + arguments
             self.start_argv(child_command(arguments))
@@ -465,7 +469,12 @@ class RunController:
                         safe_line = scrub(line)
                         output.write(safe_line)
                         output.flush()
-                        self.lines.put(safe_line)
+                        # Tk Text의 줄바꿈 계산은 수십만 자의 한 줄에서 오래 멈춘다.
+                        # 파일에는 원문을 보존하고 화면으로 보내는 길이만 제한한다.
+                        notice = ' … [화면 표시 생략 · 전체 로그는 로그 파일에서 확인]\n'
+                        shown = (safe_line[:4096 - len(notice)] + notice
+                                 if len(safe_line) > 4096 else safe_line)
+                        self.lines.put(shown)
             except OSError:
                 self.lines.put("로그 파일을 기록하지 못했습니다. 작업 폴더 권한과 디스크 공간을 확인하세요.\n")
             finally:

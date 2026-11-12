@@ -8,9 +8,11 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-**1.0.5 후보 Setup·ZIP 빌드와 기본 CLI·전수 해시 검증을 완료했습니다.** 현재 설치판은 **1.0.4**를 유지합니다. 설치 업데이트와 WF03·WF08·WF05·XIPL02 단독 UI는 최신 사용자 요청에 따라 응답을 기다립니다. [산출물 위치·해시·검증 범위](docs/failure-recovery-1.0.5.md)를 참고하세요.
+현재 설치판은 **1.0.11**입니다. 이번 소스 변경은 새 빌드·설치 없이 `BellalunAuto.py` GUI에서 검증합니다. 설치판의 검증 기록과 최신 소스 실행 결과는 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
 
-1.0.5는 OCR 고정 슬롯의 전체 후보 순회·부분행 회수·목표 복귀, 후발 Queue 수렴·수신 관측 오류 구분·Study 경계, XIPL 2D 활성·영상 안정 대기를 보강했습니다. 소스 단독 WF05·XIPL02와 실제 OCR 함수 집중 확인을 통과했습니다. 최종 소스 시험은969 passed / 0 skipped / 297 subtests이며, 새 EXE의 단독 UI 수용은 미수행입니다.
+최신 소스는 WF14의 숨은 목록 행 판독, WF15의 Overlay OCR과 원본 검사 선택, WU09의 실행 전 USB 준비 확인을 보강했습니다. 긴 증거 로그는 파일에 모두 저장하고 화면에는 한 줄의 앞부분만 표시합니다. 사람 전용 TC는 사유를 포함한 SKIP으로 기록하며, 제품 FAIL과 기준값 미확정 결과는 유지합니다.
+
+2026-11-13 소스 GUI 전체 확인은 기본기능 PASS 23 / 기존 제품 FAIL 2 / 기준값 미확정 MANUAL 1 / SKIP 10, WU PASS 10 / SKIP 3입니다. WU는 75.7분 수행 후 GUI 완료와 백업 복원을 확인했습니다. 자동화 등급은 기본기능 FULL 24 / PARTIAL 3 / SKIP 10, WU FULL 10 / SKIP 3입니다. [실행 시간·실패 수정·복원 제한](docs/tc-upgrade-2026-11-12.md)을 함께 확인하세요.
 
 기존1.0.3·1.0.4 배포물과 실행판 보관본을 보존했습니다. 1.0.4 전체 실행은 기본 PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3으로 배포 게이트가 거부됐습니다. 당시 run546 빌드·업데이트·전체 시험과 개선 조사는 [1.0.4 기록](docs/reliability-2026-11-10.md)에 있습니다.
 
@@ -49,6 +51,13 @@ Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목�
 ---
 
 ## 팀원 PC에서 시작하기
+
+현재 소스의 실행 전 확인창은 다른 GUI 작업 종료·자료 백업을 각각 확인하며, Windows Update는
+시험 USB 연결과 `BellalunWU09` 폴더 사용도 확인해야 시작할 수 있습니다. USB 연결은 시작할 때
+자동으로 다시 검사합니다. CLI는 `python run.py run-winupdate` 또는 USB 단독인
+`python run.py run-wu09`에서 준비 목록을 보여 줍니다. 입력 없는 실행은 준비 확인 후
+`--prepared`를 붙입니다. [이번 고도화 범위와 VXvue 검토](docs/tc-upgrade-2026-11-12.md)를 참고하세요.
+이 변경의 설치 패키지는 아직 만들지 않았습니다.
 
 다음은 검증·승인된 내부 패키지를 전달받은 뒤의 절차입니다. 검증한 범위는 [호환성 검증 기록](docs/compatibility-2026-10-18.md)을 봅니다.
 팀원용 `BellalunAuto`는 기존 자동화 엔진을 실행하는 설치 프로그램과 한국어 실행 화면을 제공합니다.

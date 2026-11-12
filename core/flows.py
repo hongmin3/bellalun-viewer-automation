@@ -2965,6 +2965,32 @@ EXAMINED_SEARCH = {
 }
 
 
+def _acknowledge_examined_empty(ui):
+    """Today 검색 0건 안내만 확인한다. 다른 모달 뒤의 화면은 조작하지 않는다."""
+    dialog = ui.dialog()
+    if dialog is None:
+        return
+    text = ui.dialog_text(dialog)
+    if not text:
+        from core import screen
+        l,t,r,b = dialog.rect
+        height = b-t
+        text = screen.ocr((l+10,t+int(height*.32),r-10,t+int(height*.62)),psm=6)
+    import re
+    normalized = re.sub('[^a-z]', '', text.lower())
+    buttons = ui.dialog_buttons(dialog)
+    if (normalized not in {'noresult','noresultok'} or len(buttons) != 1
+            or buttons[0].ctrl_id not in ui.DIALOG_OK_IDS):
+        raise FlowError('Examined 검색 전 알 수 없는 안내창이 있습니다. 자동으로 넘기지 않습니다.')
+    ui.dismiss_dialog(timeout=1)
+    end = time.monotonic()+3
+    while ui.dialog() is not None:
+        if time.monotonic() >= end:
+            raise FlowError('Examined No Result 안내창을 닫지 못했습니다.')
+        time.sleep(.1)
+    print('Examined: No Result 안내를 확인한 뒤 지정 환자를 검색합니다.')
+
+
 def examined_search(ui, patient_id, wait=3):
     """Examined(View) 화면에서 **Patient ID 로 월 범위 검색**하고 카드를 돌려준다.
 
@@ -2986,9 +3012,11 @@ def examined_search(ui, patient_id, wait=3):
             raise FlowError(f"VIEW 메뉴 항목({MAIN_MENU['item_view']})을 찾지 못했습니다.")
         ui.click(view[0], settle=4)
 
+    _acknowledge_examined_empty(ui)
     month = [c for c in ui.by_id(PATIENT["range_month"]) if c.visible]
     if month:
         ui.click(month[0], settle=1)
+    _acknowledge_examined_empty(ui)
     field = [c for c in ui.by_id(EXAMINED_SEARCH["field_combo"]) if c.visible]
     edit = [c for c in ui.by_id(EXAMINED_SEARCH["text"]) if c.visible]
     search = [c for c in ui.by_id(EXAMINED_SEARCH["button"]) if c.visible]
@@ -3011,6 +3039,7 @@ def examined_search(ui, patient_id, wait=3):
     ui.click(option[0], settle=.5)
     ui.set_text(edit[0], patient_id)
     ui.click(search[0], settle=wait)
+    _acknowledge_examined_empty(ui)
     return examined_cards(ui)
 
 

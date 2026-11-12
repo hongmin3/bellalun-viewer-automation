@@ -86,7 +86,7 @@ def panel_kind(reads):
 
     반환: `"3D"` / `"2D"`
     """
-    text = " ".join(reads.values()).lower()
+    text = _recognized_text(reads).lower()
     return "3D" if PANEL_3D_MARKER.search(text.replace(" ", "")) else "2D"
 
 
@@ -122,6 +122,37 @@ def panels(ui, min_size=200):
     return sorted(hits.values(), key=lambda c: c.rect[0])
 
 
+def _text_lines(image):
+    """밝은 글자의 수평 띠를 분리한다. 값이나 기대 문구로 영역을 고르지 않는다."""
+    gray = image.convert('L')
+    # 세로로 이어진 밝은 유방 영상/장식은 글자 줄이 아니다. 해당 열을
+    # 투영에서 제외해야 왼쪽 영상이 오른쪽 텍스트의 모든 줄을 연결하지 않는다.
+    from PIL import ImageDraw
+    projection = gray.point(lambda value: 255 if value >= 180 else 0)
+    draw = ImageDraw.Draw(projection)
+    for x in range(gray.width):
+        count = projection.crop((x,0,x+1,gray.height)).histogram()[255]
+        if count > gray.height * .6:
+            draw.line((x,0,x,gray.height),fill=0)
+    runs, start = [], None
+    for y in range(gray.height + 1):
+        ink = y < gray.height and sum(projection.crop(
+            (0, y, gray.width, y + 1)).histogram()[180:]) >= 3
+        if ink and start is None:
+            start = y
+        elif not ink and start is not None:
+            if 4 <= y - start <= 32:
+                runs.append((max(0, start-4), min(gray.height, y+4)))
+            start = None
+    lines = []
+    for top, bottom in runs[:12]:
+        bounds = projection.crop((0,top,image.width,bottom)).getbbox()
+        if bounds:
+            lines.append(image.crop((max(0,bounds[0]-4),top,
+                                     min(image.width,bounds[2]+4),bottom)))
+    return lines
+
+
 def read_panel(control, path, tesseract_exe, scales=OCR_SCALES):
     """영상 패널을 캡처해 Overlay 문구를 읽는다.
 
@@ -144,7 +175,21 @@ def read_panel(control, path, tesseract_exe, scales=OCR_SCALES):
         for key, text in uitext.read_overlay_text(
                 crop, tesseract_exe, scales=scales).items():
             reads[f"{tag}_{key}"] = text
+        # 긴 환자 ID가 오른쪽 60% 크롭 경계에 걸리는 경우와 작은 글자의
+        # 다중 행 분할 실패를 보완한다. 원래 판독과 기대값은 그대로 유지한다.
+        line_region = image.crop((0, 0, width, int(height*.32))) if tag == 'top' else crop
+        for index, line in enumerate(_text_lines(line_region), 1):
+            line.save(f"{stem}_{tag}_line{index}.png")
+            for key, text in uitext.read_overlay_text(
+                    line, tesseract_exe, scales=scales, psms=(7,),
+                    variants=('auto', 'invert')).items():
+                reads[f"{tag}_line{index}_{key}"] = text
     return reads
+
+
+def _recognized_text(reads):
+    return ' '.join(text for text in reads.values()
+                    if not text.lstrip().lower().startswith('<ocr err'))
 
 
 def hits(reads, study=None, markers=OVERLAY_MARKERS):
@@ -154,8 +199,8 @@ def hits(reads, study=None, markers=OVERLAY_MARKERS):
     `_pid_match` 에는 완전일치인지 접두사 일치인지를 남긴다 — 접두사로만 통과하는
     상태를 정상으로 굳히지 않기 위해서다.
     """
-    joined = norm(" ".join(reads.values()))
-    raw = " ".join(reads.values()).lower()
+    raw = _recognized_text(reads).lower()
+    joined = norm(raw)
     found = {label: bool(rx.search(raw.replace(" ", "")) or rx.search(raw))
              for label, rx in markers.items()}
     if study is None:
@@ -185,7 +230,7 @@ def dose_state(reads):
     찍힌 것**으로 보는 편이 안전하다 — 값이 있는데 `dash` 로 판정하면 사양을
     지킨 제품을 결함으로 만든다.
     """
-    raw = " ".join(reads.values()).lower()
+    raw = _recognized_text(reads).lower()
     squeezed = raw.replace(" ", "")
     out = {}
     for label in DOSE_VALUE_MARKERS:

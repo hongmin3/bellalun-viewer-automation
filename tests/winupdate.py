@@ -283,6 +283,18 @@ def _wu_03(lookup):
     r = TCResult("TC_WindowsUpdate_03", WU_TITLES["TC_WindowsUpdate_03"])
     wf02 = lookup.get("TC_Basic_WorkFlow_02")
     _copy_checks(r, wf02, "TC_Basic_WorkFlow_02", only_steps={6, 7})
+    if wf02 is not None:
+        performed = {c.get('step') for c in wf02['checks']}
+        missing = sorted({6, 7} - performed)
+        if missing:
+            failures = [dict(title=c.get('title'), actual=c.get('actual'))
+                        for c in wf02['checks'] if c.get('status') in (FAIL, BLOCKED)]
+            r.add(0, '[TC_Basic_WorkFlow_02] Tool 검증 단계 미수행', FAIL,
+                  expected='Tool 적용 Step 6·7 결과가 모두 존재',
+                  actual=dict(missing_steps=missing, source_verdict=wf02.get('verdict'),
+                              source_failures=failures),
+                  note='원본 TC 중단으로 빠진 자동화 단계이며 사람 전용 SKIP이 아닙니다.',
+                  stop=False)
     r.wu_basis = (f"TC_Basic_WorkFlow_02 Step 6/7(Tool 적용) — "
                   f"{_basis_line(wf02)}")
     return r

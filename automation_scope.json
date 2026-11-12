@@ -24,10 +24,10 @@
   {
     "tc_id": "TC_Basic_Install_03",
     "title": "Windows 10 신규 설치",
-    "level": "MANUAL",
-    "reason": "Windows 10 신규 설치 환경이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: Windows 10 신규 설치 환경이 필요하다",
     "coverage": {
-      "category": "OS 신규 설치 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "Windows 10 을 새로 설치한 상태에서의 설치·기동 확인이라 현재 PC 에서 재현할 수 없다.",
       "unblock": "Windows 10 신규 설치 시험 PC 확보."
     }
@@ -35,10 +35,10 @@
   {
     "tc_id": "TC_Basic_Install_04",
     "title": "Windows 11 신규 설치",
-    "level": "MANUAL",
-    "reason": "Windows 11 신규 설치 환경이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: Windows 11 신규 설치 환경이 필요하다",
     "coverage": {
-      "category": "OS 신규 설치 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "Windows 11 신규 설치 환경이 필요하다.",
       "unblock": "Windows 11 신규 설치 시험 PC 확보."
     }
@@ -46,10 +46,10 @@
   {
     "tc_id": "TC_Basic_Install_05",
     "title": "Windows 11 IoT Enterprise LTSC 신규 설치",
-    "level": "MANUAL",
-    "reason": "Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다",
     "coverage": {
-      "category": "OS 신규 설치 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "Windows 11 IoT Enterprise LTSC 신규 설치 환경이 필요하다.",
       "unblock": "해당 OS 신규 설치 시험 PC 확보."
     }
@@ -57,10 +57,10 @@
   {
     "tc_id": "TC_Basic_Install_06",
     "title": "신규 설치 후 기본 실행 확인",
-    "level": "MANUAL",
-    "reason": "Detector/Gantry 실제 연결과 VIVIX-M Setup·Bellalun System Setup 실행 확인이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: Detector/Gantry 실제 연결과 VIVIX-M Setup·Bellalun System Setup 실행 확인이 필요하다",
     "coverage": {
-      "category": "실물 장비·촬영 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "Detector/Gantry 실제 연결 확인과 VIVIX-M Setup / Bellalun System Setup 실행이 필요하다. 두 프로그램은 `Program Files` 전수 탐색으로 **이 PC 에 없음**을 확인했다(엔지니어 전용).",
       "unblock": "실물 장비가 연결되고 엔지니어 셋업 프로그램이 설치된 PC."
     }
@@ -69,33 +69,33 @@
     "tc_id": "TC_Basic_Install_07",
     "title": "설치 옵션 및 변경 적용 확인",
     "level": "PARTIAL",
-    "reason": "Theme/Language/Kiosk 설정 저장은 DB로 자동 판정(tests/install.py), 설치 중 옵션 선택은 수동",
+    "reason": "설치 옵션 선택은 추후 무인 자동화한다. 기존 DB/파일 판정부는 유지하고 이번 GUI 전체 회귀에서는 설치·제거를 수행하지 않는다.",
     "coverage": {
-      "category": "파괴적 작업(설치·재부팅·종료)",
-      "gap": "저장된 Theme/Language/Kiosk 값은 DB 로 자동 판정한다. **설치 실행 중의 옵션 선택**은 제품을 재설치하는 파괴적 작업이라 자동화 대상이 아니다.",
-      "unblock": "설치 실행 자체는 수동으로 수행한 뒤 이 자동 판정부를 돌린다."
+      "category": "추후 자동화(이번 구현 제외)",
+      "gap": "설치 옵션 선택과 기존 DB/파일 판정부 연결",
+      "unblock": "제품 제거·재설치를 허용할 시험 PC·시간대·복구 절차를 확정한 뒤 구현한다. 재부팅 필요 여부는 그 시험에서 확인한다."
     }
   },
   {
     "tc_id": "TC_Basic_Install_08",
     "title": "Upgrade 후 기존 데이터 유지 확인",
     "level": "PARTIAL",
-    "reason": "Upgrade 후 데이터 유지를 DB로 자동 판정, Upgrade 실행 자체는 수동",
+    "reason": "Upgrade 실행은 추후 무인 자동화한다. 기존 DB/파일 판정부는 유지하고 이번 GUI 전체 회귀에서는 설치·제거를 수행하지 않는다.",
     "coverage": {
-      "category": "파괴적 작업(설치·재부팅·종료)",
-      "gap": "Upgrade 후 데이터 유지는 DB 로 자동 판정한다. **Upgrade 실행**은 파괴적 작업이다.",
-      "unblock": "Upgrade 를 수동 수행한 뒤 이 자동 판정부를 돌린다."
+      "category": "추후 자동화(이번 구현 제외)",
+      "gap": "Upgrade 실행과 기존 DB/파일 판정부 연결",
+      "unblock": "제품 제거·재설치를 허용할 시험 PC·시간대·복구 절차를 확정한 뒤 구현한다. 재부팅 필요 여부는 그 시험에서 확인한다."
     }
   },
   {
     "tc_id": "TC_Basic_Install_09",
     "title": "Uninstall 및 데이터 유지 확인",
     "level": "PARTIAL",
-    "reason": "Uninstall 후 잔존 데이터를 자동 판정, Uninstall은 파괴적 작업이라 수동",
+    "reason": "Uninstall 실행은 추후 무인 자동화한다. 기존 DB/파일 판정부는 유지하고 이번 GUI 전체 회귀에서는 설치·제거를 수행하지 않는다.",
     "coverage": {
-      "category": "파괴적 작업(설치·재부팅·종료)",
-      "gap": "Uninstall 후 잔존 데이터는 DB/파일로 자동 판정한다. **Uninstall 실행**은 파괴적 작업이다.",
-      "unblock": "Uninstall 을 수동 수행한 뒤 이 자동 판정부를 돌린다."
+      "category": "추후 자동화(이번 구현 제외)",
+      "gap": "Uninstall 실행과 기존 DB/파일 판정부 연결",
+      "unblock": "제품 제거·재설치를 허용할 시험 PC·시간대·복구 절차를 확정한 뒤 구현한다. 재부팅 필요 여부는 그 시험에서 확인한다."
     }
   },
   {
@@ -244,32 +244,32 @@
   {
     "tc_id": "TC_Basic_WorkFlow_14",
     "title": "Setting Export 및 Import",
-    "level": "PARTIAL",
-    "reason": "1~7단계와 Setting 56개 페이지의 현재 보이는 컨트롤 값은 자동 판정한다(tests/workflow14.py, core/setting_transfer.py, core/setting_values.py, run-wf14). Export 산출물 내부 구성과 7개 설정 테이블 변경·Import 복원도 대조한다. 다만 스크롤 아래 목록 행은 같은 가상 ListItem HWND/ID를 재사용해 일부 행만 읽고도 끝으로 오인할 수 있어, 2026-08-25 사용자 지시에 따라 불완전한 스크롤을 제거하고 MANUAL로 남긴다.",
+    "level": "FULL",
+    "reason": "Setting 56페이지·DB·파일과 목록 13페이지의 숨은 행까지 전수 자동 대조한다. 목록은 처음부터 문구·겹침·끝·DB 개수를 증명하고 Print Overlay 부모별 빈 목록을 구분한다. 실물 GUI에서 89행·849항목 복원 대조 PASS. 기존 UPS 미복원은 제품 FAIL로 유지한다.",
     "coverage": {
-      "category": "부분 자동(숨은 목록 행 수동)",
-      "gap": "현재 화면 아래에 숨은 목록 행을 선택했을 때 나타나는 상세값의 Import 전후 동일 여부",
-      "unblock": "스크롤바 위치 또는 첫/마지막 행 문구로 이동을 확인하고 겹치는 행을 제거하면서 끝 행 도달을 증명하는 전용 탐색기 구현 + 전후 DB 무변경 시험"
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
     }
   },
   {
     "tc_id": "TC_Basic_WorkFlow_15",
     "title": "Pre-send Preview 표시 및 전송",
-    "level": "PARTIAL",
-    "reason": "2026-08-20 사용자 지시로 개정본 TC 를 수정했다(이전: Send Preview 위치 적용 — 수신 DICOM 의 어떤 값으로 표시 위치 일치를 판정할지 확정할 수 없어 막혀 있었다. 원본은 Baseline/Checklist_개정본_20260820_WF15수정전.xlsx). Examined 툴바 2196(Pre-send Preview) -> 범위 선택(All Images=502) -> Preview 창에서 영상 패널(203) 개수와 Overlay 를 OCR 로 확인 -> Send(1148) 후 Queue State=Done 과 수신 객체의 식별 Tag 까지 자동 판정(tests/workflow15.py, run-wf15). 2026-08-21 보강: (1) Step 4 를 구현했다 — 같은 검사를 View(2182)로 열어 **같은 패널 컨트롤(203)** 을 같은 방식으로 읽고 항목 관찰 결과를 대조한다(픽셀 비교가 아니다. 두 화면은 창 크기·Layout 이 달라 픽셀이 같을 수 없고 Expected 4 가 요구하는 것은 '동일한 Step 구성과 Overlay' 다). (2) Overlay OCR 전처리를 강화했다 — 검은 배경/흰 글자는 Tesseract 학습 방향과 반대라 W 가 Y 로 읽혔던 것이므로 명암 반전 + 임계값 이진화(150·110) + NEAREST 확대 x psm 6·7 을 모두 시도하고 크롭 원본도 저장한다(core/uitext.read_overlay_text). 2026-08-27 에 Dose SR 과 3D-N 등 3D Recon 패널의 `--` 선량 표시를 마저 자동화했다 — WF_06 이 같은 Demo 환경에서 RDSR 을 정상 수신함을 실측해 'Demo 라서 생성 조건 미충족' 전제가 틀렸음을 확인했고(SendDoseSR=1 이면 Dose SR 미수신을 FAIL 로 판정, 사양서 778쪽 SRS 03-50-250), 저장된 크롭을 다시 OCR 해 3D 패널의 `--k¥p`/`-- mAs` 도 정확히 읽힘을 확인했다(`image_overlay.dose_state`로 값/`--`/미판독을 구분해 사양표 2D=값·3D Recon=`--` 와 대조, `image_overlay.DOSE_SPEC_CITE`). 남은 MANUAL 은 그 밖의 OCR 한계 두 가지뿐이다 — 일부 패널에서 환자 ID 문자열 자체를 읽지 못하는 경우(생년월일은 별도로 대조), Preview/View 패널 수 차이(View 의 3D 종류 전환 버튼 때문에 동시 표시 구성이 다를 수 있어 결함 여부가 사양으로 확인되지 않음, 정보성 관측만 남김)",
+    "level": "FULL",
+    "reason": "원본 검사 선택을 클릭 로그로 확인하고 Preview/View의 Step·Overlay·선량 표시를 줄 단위 OCR로 대조한다. Send·Queue·수신 DICOM/Dose SR의 원본 UID 범위까지 자동 판정한다. 실제 GUI 기본기능 전체에서 16개 확인 PASS. 기대값·OCR 판정 기준은 유지한다.",
     "coverage": {
-      "category": "부분 자동 — 남은 항목 있음",
-      "gap": "Pre-send Preview 표시·Overlay OCR·View 화면 대조·Send·Queue·수신 식별 Tag·**Dose SR**·3D-N 등 `--` 선량 패널의 사양 대조는 전부 자동이다. 남은 것은 일부 패널의 환자 ID OCR 실패와 Preview/View 패널 수 차이(정보성 관측)뿐이다.",
-      "unblock": "환자 ID OCR 전처리를 더 보강하거나 크롭 이미지를 육안으로 재확인. 패널 수 차이는 사양에서 View 화면의 동시 표시 범위가 확인되면 판정에 반영."
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
     }
   },
   {
     "tc_id": "TC_Basic_WorkFlow_16",
     "title": "Kiosk 및 System Launcher",
-    "level": "MANUAL",
-    "reason": "**사용자 지정 수동 TC (2026-08-21).** 제품을 조작하는 자동화 코드를 구현하지 않는다. 회귀에는 체크리스트 누락 방지를 위한 SKIP 판정 한 건만 기록한다(2026-11-05 사용자 결정으로 MANUAL → SKIP). 개정본 Step 이 시스템 재시작(Step 3)과 PC 종료(Step 12)를 요구해 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는 재시작 후 Kiosk 조건에서만 나타난다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않다(Program Files 전수 탐색으로 확인). 따라서 **사용자가 수동으로 동작 확인**한다.",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: **사용자 지정 수동 TC (2026-08-21).** 제품을 조작하는 자동화 코드를 구현하지 않는다. 회귀에는 체크리스트 누락 방지를 위한 SKIP 판정 한 건만 기록한다(2026-11-05 사용자 결정으로 MANUAL → SKIP). 개정본 Step 이 시스템 재시작(Step 3)과 PC 종료(Step 12)를 요구해 자동화 세션이 함께 죽고, Step 4~9 의 System Launcher 는 재시작 후 Kiosk 조건에서만 나타난다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 엔지니어 전용 프로그램이라 이 PC 에 설치되어 있지 않다(Program Files 전수 탐색으로 확인). 따라서 **사용자가 수동으로 동작 확인**한다.",
     "coverage": {
-      "category": "사용자 지정 수동",
+      "category": "사람 전용(SKIP)",
       "gap": "**사용자가 이 TC 전체를 수동 수행으로 지정했다(2026-08-21).** 자동화 코드를 만들지 않고 실행하지도 않는다. 개정본 Step 자체가 시스템 재시작(Step 3)·PC 종료(Step 12)·재시작 후에만 나타나는 System Launcher(Step 4~9)를 요구해 자동화 세션이 함께 죽는다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 이 PC 에 설치되어 있지 않다.",
       "unblock": "사용자가 수동으로 수행한다. 자동화 재시도 대상이 아니다."
     }
@@ -354,10 +354,10 @@
   {
     "tc_id": "TC_Basic_QC_01",
     "title": "ACR Phantom 2D Q.C",
-    "level": "MANUAL",
-    "reason": "실물 ACR Phantom 2D 촬영이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 실물 ACR Phantom 2D 촬영이 필요하다",
     "coverage": {
-      "category": "실물 장비·촬영 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "실물 ACR Phantom 을 실제 X-ray 로 2D 촬영해야 한다.",
       "unblock": "ACR Phantom + 실제 촬영 환경."
     }
@@ -365,10 +365,10 @@
   {
     "tc_id": "TC_Basic_QC_02",
     "title": "ACR Phantom 3D Q.C",
-    "level": "MANUAL",
-    "reason": "실물 ACR Phantom 3D 촬영이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 실물 ACR Phantom 3D 촬영이 필요하다",
     "coverage": {
-      "category": "실물 장비·촬영 환경 필요",
+      "category": "사람 전용(SKIP)",
       "gap": "실물 ACR Phantom 을 실제 X-ray 로 3D 촬영해야 한다.",
       "unblock": "ACR Phantom + 실제 촬영 환경."
     }
@@ -376,10 +376,10 @@
   {
     "tc_id": "TC_Basic_Performance_01",
     "title": "2D 영상 획득시간",
-    "level": "MANUAL",
-    "reason": "실제 2D 촬영 입력 시점과 허용 기준이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 실제 2D 촬영 입력 시점과 허용 기준이 필요하다",
     "coverage": {
-      "category": "판정 기준·문서 정보 미확정",
+      "category": "사람 전용(SKIP)",
       "gap": "**체크리스트 Test Data 자체가 '허용 기준: 추가 사양 확인 필요'** 라고 적고 있어 판정 기준이 없다. 그리고 실제 X-ray 스위치 입력 시점을 측정해야 한다.",
       "unblock": "시험계획서/사양서에서 획득시간 허용 기준을 확정하고 실제 촬영 환경을 확보."
     }
@@ -387,10 +387,10 @@
   {
     "tc_id": "TC_Basic_Performance_02",
     "title": "3D-N 영상 획득시간",
-    "level": "MANUAL",
-    "reason": "실제 3D-N 촬영과 허용 기준이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 실제 3D-N 촬영과 허용 기준이 필요하다",
     "coverage": {
-      "category": "판정 기준·문서 정보 미확정",
+      "category": "사람 전용(SKIP)",
       "gap": "허용 기준 미확정 + 실제 3D-N 촬영 필요(Performance_01 과 같은 사유).",
       "unblock": "허용 기준 확정 + 실제 촬영 환경."
     }
@@ -398,10 +398,10 @@
   {
     "tc_id": "TC_Basic_Performance_03",
     "title": "3D-W 영상 획득시간",
-    "level": "MANUAL",
-    "reason": "실제 3D-W 촬영과 허용 기준이 필요하다",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 실제 3D-W 촬영과 허용 기준이 필요하다",
     "coverage": {
-      "category": "판정 기준·문서 정보 미확정",
+      "category": "사람 전용(SKIP)",
       "gap": "허용 기준 미확정 + 실제 3D-W 촬영 필요(Performance_01 과 같은 사유).",
       "unblock": "허용 기준 확정 + 실제 촬영 환경."
     }
@@ -434,8 +434,8 @@
     "tc_id": "TC_WindowsUpdate_01",
     "title": "패키지 설치 확인",
     "checklist": "windows_update",
-    "level": "MANUAL",
-    "reason": "사용자 지정 수동 TC. OS Update 수행과 패키지 설치 행위 자체는 사람이 한다(TC_Basic_WorkFlow_16과 같은 방식). TC_Basic_Install_01/02 판정과 실측 OS·Build 는 참고 근거로만 첨부한다.",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 사용자 지정 수동 TC. OS Update 수행과 패키지 설치 행위 자체는 사람이 한다(TC_Basic_WorkFlow_16과 같은 방식). TC_Basic_Install_01/02 판정과 실측 OS·Build 는 참고 근거로만 첨부한다.",
     "reuses": [
       {
         "tc_id": "TC_Basic_Install_01",
@@ -447,7 +447,7 @@
       }
     ],
     "coverage": {
-      "category": "사용자 지정 수동",
+      "category": "사람 전용(SKIP)",
       "gap": "OS Update 수행과 패키지 설치는 시험자가 직접 수행한다. 자동화는 참고 근거(Install_01/02 판정, 실측 OS Build)만 남긴다.",
       "unblock": "자동화 대상 아님(사용자 확정)."
     }
@@ -625,8 +625,8 @@
     "tc_id": "TC_WindowsUpdate_09",
     "title": "Study Export",
     "checklist": "windows_update",
-    "level": "PARTIAL",
-    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_09 + USB Export/Import 신규 로직(tests/winupdate.py::run_usb_export_import). CD 경로는 SKIP.",
+    "level": "FULL",
+    "reason": "WF09의 DICOM Export와 실제 USB IMG Export/Import를 자동 판정한다. 실행 전 공통 2항목·USB 2항목 확인과 실제 USB 연결 점검이 필요하다. 완료 문구·건수·DB/파일 식별자·재검색 근거를 대조하며 실제 GUI WU에서 PASS. 사람 전용 CD 경로는 기존 SKIP으로 표시한다.",
     "reuses": [
       {
         "tc_id": "TC_Basic_WorkFlow_09",
@@ -637,9 +637,9 @@
       "tests/winupdate.py::run_usb_export_import"
     ],
     "coverage": {
-      "category": "부분 자동 — 남은 항목 있음",
-      "gap": "CD Export/Import 는 공디스크·버너가 무인 실행에서 보장되지 않아 SKIP 이다(사용자 확정). USB 는 이동식 드라이브가 없으면 SKIP, `--from-regression` 변환 경로에서는 USB 결과가 없어 SKIP 이다.",
-      "unblock": "USB 는 이동식 드라이브를 꽂고 `run-winupdate` 로 직접 실행. CD 는 시험자 수동 확인."
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
     }
   },
   {
@@ -662,8 +662,8 @@
     "tc_id": "TC_WindowsUpdate_11",
     "title": "Setting Import/Export",
     "checklist": "windows_update",
-    "level": "PARTIAL",
-    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_Basic_WorkFlow_14. 이미 확인된 UPS 설정 복원 결함(같은 결함을 확인하는 check 2건)은 WU Expected 가 UPS 를 특정하지 않아 판정에서 제외하고 Issues 시트에 남긴다.",
+    "level": "FULL",
+    "reason": "WF14의 Export 전 기준→설정 변경→Import 후 복원을 재사용하며 숨은 목록 89행·849항목까지 자동 대조한다. 실제 GUI WU에서 PASS. 기존 UPS 제품 결함은 원본 WF14 FAIL과 Issues에 보존하고 승인된 기존 WU 매핑 규칙을 유지한다.",
     "reuses": [
       {
         "tc_id": "TC_Basic_WorkFlow_14",
@@ -683,20 +683,20 @@
       }
     ],
     "coverage": {
-      "category": "부분 자동 — 남은 항목 있음",
-      "gap": "원본 WF_14 의 수동 항목(숨은 목록 행)은 그대로 MANUAL 로 승계된다. 판정 제외 결함(UPS 설정 복원)은 WU 집계에서 빼고 Issues 시트에 기록한다. 원본 WF_14 판정은 바꾸지 않는다.",
-      "unblock": "WF_14 의 남은 수동 항목이 자동화되면 함께 해소된다."
+      "category": "자동 판정(구현 완료)",
+      "gap": "",
+      "unblock": ""
     }
   },
   {
     "tc_id": "TC_WindowsUpdate_12",
     "title": "OS User 계정",
     "checklist": "windows_update",
-    "level": "MANUAL",
-    "reason": "사용자 지정 수동 TC(2026-09-07 사용자 확정). OS User 그룹 계정은 스스로를 승격할 수 없고 UI 자동화는 그 계정의 대화형 세션 안에서만 동작해 완전 자동화가 불가능하다.",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 사용자 지정 수동 TC(2026-09-07 사용자 확정). OS User 그룹 계정은 스스로를 승격할 수 없고 UI 자동화는 그 계정의 대화형 세션 안에서만 동작해 완전 자동화가 불가능하다.",
     "reuses": [],
     "coverage": {
-      "category": "사용자 지정 수동",
+      "category": "사람 전용(SKIP)",
       "gap": "별도 OS User 계정의 대화형 세션에서 로그인·실행해야 한다.",
       "unblock": "자동화 대상 아님(사용자 확정)."
     }
@@ -705,11 +705,11 @@
     "tc_id": "TC_WindowsUpdate_13",
     "title": "KIOSK 설정",
     "checklist": "windows_update",
-    "level": "MANUAL",
-    "reason": "사용자 지정 수동 TC. TC_Basic_WorkFlow_16과 같은 사유(시스템 재기동·KIOSK 전환·Shutdown 등 파괴적 동작)다.",
+    "level": "SKIP",
+    "reason": "사용자 지정 사람 전용 SKIP: 사용자 지정 수동 TC. TC_Basic_WorkFlow_16과 같은 사유(시스템 재기동·KIOSK 전환·Shutdown 등 파괴적 동작)다.",
     "reuses": [],
     "coverage": {
-      "category": "사용자 지정 수동",
+      "category": "사람 전용(SKIP)",
       "gap": "KIOSK 모드 설정/해제와 System Launcher 는 시스템 재기동을 동반하는 파괴적 동작이다.",
       "unblock": "자동화 대상 아님(TC_Basic_WorkFlow_16과 동일 사유)."
     }

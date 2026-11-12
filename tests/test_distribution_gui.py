@@ -22,6 +22,23 @@ def test_command_keeps_absolute_korean_paths_and_only_live_actions(tmp_path):
         gui.command_arguments(layout, "convert-winupdate")
 
 
+def test_large_evidence_line_is_bounded_on_screen_but_kept_in_log(tmp_path):
+    import sys
+    gui = gui_module()
+    controller = gui.RunController(SimpleNamespace(workspace=tmp_path), {})
+    controller.start_argv([sys.executable, '-c',
+                           "print('EVIDENCE:' + 'x'*450000); print('FINISHED')"])
+    controller.process.wait(timeout=10)
+    controller.reader.join(timeout=10)
+    assert not controller.reader.is_alive()
+    lines = controller.drain()
+    assert len(lines[0]) <= 4096
+    assert '전체 로그' in lines[0]
+    assert lines[-1] == 'FINISHED\n'
+    saved = controller.log_path.read_text(encoding='utf-8')
+    assert 'x'*450000 in saved and saved.endswith('FINISHED\n')
+
+
 def test_command_passes_stop_file_as_global_absolute_argument(tmp_path):
     gui = gui_module()
     layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / "config.json")

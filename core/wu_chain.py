@@ -433,7 +433,16 @@ class Checkpoint:
                 json.dump(envelope, stream, ensure_ascii=False, indent=1)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, self.path)
+            for attempt in range(8):
+                try:
+                    os.replace(temporary, self.path)
+                    break
+                except OSError as error:
+                    # GUI/보안 프로그램의 짧은 읽기 핸들이 NTFS 교체를 막을 수 있다.
+                    # 같은 완성 임시 파일만 재시도하며 권한 오류가 지속되면 숨기지 않는다.
+                    if getattr(error, 'winerror', None) not in (5, 32, 33) or attempt == 7:
+                        raise
+                    time.sleep(min(.05 * 2**attempt, .4))
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)

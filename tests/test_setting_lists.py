@@ -270,7 +270,7 @@ class WalkFuzzyIntegrationTest(unittest.TestCase):
             (rows5, ["LCC", "RCC (]", "LMLO i", "RMLO", "IMPLANT ."], True),
         ]
         with mock.patch.object(setting_lists, "_screen", side_effect=screens):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=7)
         self.assertTrue(result["complete"], result["reasons"])
         self.assertEqual(len(result["signatures"]), 7)
@@ -290,7 +290,7 @@ class WalkFuzzyIntegrationTest(unittest.TestCase):
             (rows2, ["ACR Phantom (3D-N)", "MTF (3D-N)"], True),
         ]
         with mock.patch.object(setting_lists, "_screen", side_effect=screens):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=23)
         self.assertFalse(result["complete"])
         self.assertTrue(any("겹치는 행이 없다" in r for r in result["reasons"]))
@@ -307,7 +307,7 @@ class WalkEmptyListTest(unittest.TestCase):
     def test_empty_list_with_expected_zero_is_complete(self):
         with mock.patch.object(setting_lists, "_screen",
                                return_value=([], [], False)):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=0)
         self.assertTrue(result["complete"])
         self.assertEqual(result["reasons"], [])
@@ -316,7 +316,7 @@ class WalkEmptyListTest(unittest.TestCase):
     def test_empty_list_with_unknown_expected_is_still_incomplete(self):
         with mock.patch.object(setting_lists, "_screen",
                                return_value=([], [], False)):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=None)
         self.assertFalse(result["complete"])
         self.assertTrue(any("보이지 않는다" in r for r in result["reasons"]))
@@ -324,7 +324,7 @@ class WalkEmptyListTest(unittest.TestCase):
     def test_empty_list_with_nonzero_expected_is_still_incomplete(self):
         with mock.patch.object(setting_lists, "_screen",
                                return_value=([], [], False)):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=3)
         self.assertFalse(result["complete"])
 
@@ -340,7 +340,7 @@ class WalkOCRShortCircuitTest(unittest.TestCase):
         with mock.patch.object(
                 setting_lists, "_screen",
                 side_effect=[(rows, ["service", "admin"], True)]):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=2)
         self.assertTrue(result["complete"])
         self.assertEqual(result["steps"], 0)
@@ -354,7 +354,7 @@ class WalkOCRShortCircuitTest(unittest.TestCase):
                 setting_lists, "_screen",
                 side_effect=[(rows, ["A", "B"], False),
                             (rows, ["A", "B"], False)]):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=2)
         self.assertTrue(result["complete"])
         self.assertEqual(result["steps"], 1)
@@ -365,7 +365,7 @@ class WalkOCRShortCircuitTest(unittest.TestCase):
                 setting_lists, "_screen",
                 side_effect=[(rows, ["a", "b", "c"], True),
                             (rows, ["a", "b", "c"], True)]):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=0)
         self.assertEqual(result["steps"], 1)
 
@@ -375,7 +375,7 @@ class WalkOCRShortCircuitTest(unittest.TestCase):
                 setting_lists, "_screen",
                 side_effect=[(rows, ["service", ""], True),
                             (rows, ["service", ""], True)]):
-            result = setting_lists.walk(mock.Mock(), mock.Mock(),
+            result = setting_lists.walk(mock.Mock(), mock.Mock(), start_at_top=False,
                                         expected_count=2)
         self.assertFalse(result["complete"])
 
@@ -737,6 +737,7 @@ class CollectPrintOverlayTest(unittest.TestCase):
         c = _FakeControl(rect)
         c.hwnd = hwnd
         c.visible = True
+        c.text = ''
         return c
 
     def test_selects_each_name_row_and_merges_positions(self):

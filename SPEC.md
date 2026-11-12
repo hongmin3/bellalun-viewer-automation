@@ -176,6 +176,10 @@ Station AE를 읽지 못하면 아무 job이나 고르지 않고 실패로 남�
 
 UI 조작은 제품이 그 조작을 받을 수 있는 상태가 된 뒤에 한다.
 
+Examined의 Today 검색이 0건이면 뜨는 `No Result` 안내를 먼저 확인하고 지정 환자를
+월 범위로 검색한다. 다른 안내창 뒤의 콤보·검색 버튼을 누르지 않는다. 안내 문구와
+단일 확인 버튼을 확인할 수 없으면 자동으로 넘기지 않고 중단한다.
+
 - 3D Post Reconstruction의 Preview는 완료 로그가 남고 Apply·Cancel이 다시 활성일 때 끝난 것으로 본다. Apply는 활성인 버튼만 누른다.
 - 3D Apply를 누른 뒤 5초 안에 창이 닫히거나 Post Recon 로그(`Terminate PostReconThread normally closed`, `Do Post Reconstruction`)가 남아야 받아들여진 것으로 본다. 아니면 최대 3번까지 다시 누르고, 끝내 받아들여지지 않으면 TC를 중단한다.
 - 촬영 Step의 영상 Parameter를 읽기 전에, Viewer 로그(`Select Image ... Step ID`)로 그 Step이 선택됐는지 확인한다. 확인이 안 되면 최대 3번 다시 누르고, 그래도 안 되면 다른 영상을 읽지 않고 중단한다.
@@ -190,6 +194,50 @@ UI 조작은 제품이 그 조작을 받을 수 있는 상태가 된 뒤에 한�
 `run.py`, `automation_scope.json`, `core/automation_health.py`, `tests/winupdate.py`.
 #### 관련 테스트
 TEST-REGRESSION-001, `tests/test_automation_health.py`, `tests/test_result_reports.py`.
+
+### REQ-TCUP-001 사람 전용 TC의 명시적 SKIP 기록
+
+사용자가 지정한 Install_03~06, QC_01·02, Performance_01~03과 기존 WF16은
+`automation_scope.json`에서 SKIP으로 분류한다. 기본기능 회귀 보고서에는 실행하지 않은
+이 TC도 사유가 있는 SKIP 결과로 포함한다. WU_01·12·13도 SKIP 등급을 쓴다.
+자동화 가능한 나머지는 자동 판정 대상이며, 미구현 Install_07~09와 기준 미등록
+Install_01을 성공 또는 사람 전용 SKIP으로 바꾸지 않는다. 과거 결과 파일은 보존한다.
+
+### REQ-TCUP-002 WF14와 WU11의 목록 전체 수집
+
+목록은 재사용되는 HWND/Control ID를 행 식별자로 쓰지 않는다. 현재 위치가 중간이나
+끝이어도 목록 처음으로 이동한 뒤, 실제 행 문구·연속 겹침·끝 도달·DB 원천 행 수를
+확인하며 숨은 행과 상세값을 수집한다. DB 0건 근거가 없는 빈 목록·판독 실패·상한 도달·건너뛴 행은
+완주로 인정하지 않는다. WU11은 같은 WF14 결과를 매핑한다. UPS 미복원과 XIPL03의
+기존 제품 관찰은 유지하며 완주 실패를 숨기는 허용 목록을 추가하지 않는다.
+
+Print Overlay의 하위 목록은 선택한 Overlay 이름을 되읽고 그 Overlay의 DB Position별
+행 수와 대조한다. 다른 Overlay에 항목이 있더라도 현재 Overlay의 DB 행 수가 0이면
+빈 목록을 정상적으로 기록한다. DB에 항목이 있는데 화면에서 못 읽으면 완주가 아니다.
+
+### REQ-TCUP-003 WF15 Overlay OCR 보강
+
+패널 원본과 상단·하단 크롭을 증거로 보존하고, 좁은 크롭에서 누락될 수 있는 환자 ID와
+선량 문구를 줄 단위 영역으로 추가 판독한다. 기대 문자열·접두사 길이·선량 규칙은
+바꾸지 않는다. 추가 OCR로도 판독하지 못하면 원문과 크롭 근거로 미확인 사유를 남기고
+등급 재평가를 제안한다. OCR 오류 메시지는 표시된 Overlay로 인정하지 않는다.
+
+WF15의 전제 검사는 WF02가 획득한 2D·3D Raw·3D Recon 영상을 가진 원본 검사다.
+같은 Patient ID의 Import 복사본을 최신 Key라는 이유로 원본으로 고르지 않는다.
+적격 원본이 정확히 하나일 때만 선택하며, 없거나 여럿이면 전제 미확인으로 중단한다.
+화면 카드 선택 직후의 제품 로그 Study Key로 DB에서 고른 검사와 같은지 확인한다.
+영상 Queue는 원본 검사의 Instance UID와 대조한다. Dose SR Queue에는 Study 연결
+컬럼이 없으므로 같은 Patient ID의 이번 전송에서 새로 생긴 Key로 관찰하고,
+최종 수신 DICOM·Dose SR의 Study UID가 원본 검사와 같은지 대조한다.
+
+### REQ-TCUP-004 WU09 실행 전 준비 체크리스트
+
+실행 전 확인창은 다른 GUI 작업 종료·시험 자료 백업과, WU 실행일 때 USB 연결 및
+`BellalunWU09` 폴더 사용 확인을 개별 체크 항목으로 표시한다. 모두 확인하고 데이터
+변경에 동의해야 시작할 수 있다. 자동 점검은 USB 연결을 재확인하며 WU USB 실행에
+USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목록을 표시하고 명시적
+확인 입력을 요구한다. 비대화형은 `--prepared`로 확인 사실을 전달하며 USB 실제 점검은
+생략하지 않는다. 결과 변환(`--from-regression`)에는 확인을 요구하지 않는다.
 
 ### REQ-TRACE-001 사양 근거 추적
 
@@ -376,6 +424,7 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 
 명령 없는 실행은 한국어 화면을 연다. 자동화 선택 항목은 "기본기능 체크리스트 자동화 수행"과 "Windows Update 체크리스트 자동화 수행" 두 개로 표시한다. 선택한 항목의 체크리스트만 수행한다. 준비 점검, PC별 설정,
 진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령(`selfcheck`, `portability-check` 포함)을 유지한다.
+한 줄이 매우 긴 증거 로그는 화면에 앞부분 4,096자 이내로 표시하고 생략 안내를 붙인다. 전체 내용은 로그 파일에 그대로 저장한다. 긴 로그를 그리느라 진행 갱신이나 완료 처리가 멈추면 안 된다.
 화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.
 
@@ -595,6 +644,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 3. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤, 그 단계의 TC를 BLOCKED와 사유로 기록한다.
 4. 다음 단계는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다. 전제 단계(기준 DB 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 체인을 멈춘다.
 5. 단계가 끝날 때마다 `work/winupdate_checkpoint.json`에 결과를 원자적으로 저장한다(임시 파일에 쓴 뒤 바꿔 넣는다).
+   Windows의 접근 거부·공유·잠금 오류(5·32·33)로 교체가 잠시 막히면 최대 8회 시도한다. 재시도 간격은 0.05초부터 두 배씩 늘려 최대 0.4초로 제한한다. 끝내 실패하면 오류를 전달하고 기존 저장점은 보존한다. 다른 파일 오류는 재시도하지 않는다.
 6. `run-winupdate --resume`은 저장점의 완료 단계 결과를 다시 쓰고 남은 단계만 실행한다. 리포트 meta에 `resumed`·`reused_stages`·`stage_trips`를 남긴다.
 #### 설정
 단계별 시간 상한은 `config.json > winupdate.stage_timeouts`로 바꿀 수 있다. 기본값은 `core/wu_chain.py`의 `STAGE_TIMEOUTS`다.
@@ -617,6 +667,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 
 `blocks_verdict`가 참인 SKIP이 남으면 TC 판정은 PASS가 아니라 MANUAL이다. FAIL·BLOCKED가 있으면 그 판정이 우선한다.
 기본기능 TC의 SKIP 규칙(판정을 막지 않음)은 바꾸지 않는다.
+WU_03의 원본 WF02가 Tool 적용 Step 6·7 전에 중단됐으면 수행 실패로 기록한다. 필요한 단계의 결과가 없는 상태를 사람 전용 SKIP으로 표시하지 않는다.
 
 USB 왕복을 확인하지 못했을 때 WU_09 표시 정책(`tests/winupdate.py`의 `USB_UNVERIFIED_POLICY`):
 
@@ -770,6 +821,16 @@ NFR-BOUNDARY-001에 따라 상위 비공개 원본을 auto 저장소로 이동·
 Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서만 수행한다.
 
 ## 11. 테스트 사양
+
+### TEST-TCUP-001 지정 SKIP과 자동화 고도화
+
+- 대상: REQ-TCUP-001~004.
+- `tests/test_scope_skips.py`: 지정 10건의 사유 있는 SKIP 생성, 기존 FAIL 보존, WU 중복 방지.
+- `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py`, `tests/test_print_overlay_empty_lists.py`: 중간 위치·가상 슬롯 재사용·끝/연속/개수 증명과 부모별 빈 목록 대조.
+- `tests/test_overlay_lines.py`, `tests/test_image_overlay.py`, `tests/test_wf15_preconditions.py`: 추가 줄 판독, 밝은 영상 열, 빈 화면·OCR 오류 제외, 원본 검사 선택·UI Study Key·수신 UID 대조 및 기존 선량/ID 규칙.
+- `tests/test_workflow09_format.py`, `tests/test_completion_scope.py`, `tests/test_examined_empty_notice.py`: 이전 IMG 선택을 DICOM으로 교체하고 미확정 형식을 거부하며, 단독 시험의 완료 표시와 자정 이후 0건 안내 처리를 검증.
+- `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py`: 미확인·취소·USB 없음 차단, 기본기능의 USB 불필요, 실제 Tk 전체 체크, CLI/실제 WU 결과 매핑.
+- 최초 승인된 실물 범위는 WF14·WF15·WU09 단독과 WF14 동일 결과의 WU11 매핑이다. 이후 추가 승인된 소스 BellalunAuto GUI의 기본기능·실시간 WU 전체도 수행한다. 단독·중단·전체 완료를 구분하고 GUI 동의·실행 기록·리포트·복원 근거를 함께 남긴다.
 
 아래 테스트 파일은 제품 시나리오와 구분한 안전한 단위 검증 대상이다.
 단위시험과 문서 검사는 실제 제품 시험을 대신하지 않는다. 설치 EXE의 두 전체 실행 결과를 별도로 남긴다.
@@ -977,6 +1038,10 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
+| REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | implemented |
+| REQ-TCUP-002 | `core/setting_lists.py`, `tests/workflow14.py`, `tests/winupdate.py` | TEST-TCUP-001; `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py` | implemented |
+| REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | implemented |
+| REQ-TCUP-004 | `core/run_preparation.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `run.py` | TEST-TCUP-001; `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py` | implemented |
 | REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | implemented |
 | REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
@@ -991,7 +1056,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | implemented |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | implemented |
 | REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |
-| REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py` | implemented |
+| REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | implemented |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | implemented |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | implemented |
@@ -1002,8 +1067,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py` | implemented |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | implemented |
 | REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | implemented |
-| REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py` | implemented |
-| REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py` | implemented |
+| REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | implemented |
+| REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py`, `tests/test_wu_tool_missing.py` | implemented |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | implemented |
 | REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | implemented |
 | REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `tests/workflow14.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py` | implemented |
