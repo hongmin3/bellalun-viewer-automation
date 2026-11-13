@@ -85,3 +85,36 @@ P10의 실제 제품 설치 패키지·검증된 무인 인자·DB ReleaseVersio
 수집했다. 현재 `DATA.SOFTWARE_VERSION.Version`은 `1.0.12.105`이며 4DB의 사용자 테이블에는
 `ReleaseVersion` 이름의 열이 없었다. 이 관찰값은 Release Note 승인 기대값을 대신하지 않는다.
 설치 XML의 하위 구성요소 인자는 최상위 설치 wrapper의 검증된 무인 실행 프로필 증거가 아니다.
+
+## 1.0.13 후보 산출물 — 2026-11-13
+
+소스 `5e76cebde0d837d48969d53878e1f04fea69b9a4`, source_dirty=false로 새 컴파일과
+Setup 생성이 끝났다. 설치판은1.0.11을 유지하며 제품 GUI는 실행하지 않았다.
+
+| 산출물 | SHA256 |
+|---|---|
+| `release/1.0.13/BellalunAuto-1.0.13-candidate-setup.exe` | `f809092d2789ac9443a5db3acfe756c596cec11065a25b5f06f183a3ff15463e` |
+| 컴파일된 `BellalunAuto.exe` | `d59a3738a917c7d474b2edee9e83af04e3e91c3190ea83abd122068b01d3bb48` |
+| `release/BellalunAuto-1.0.13-release.zip` | `e3d97aef889a9a62d332f462b8c44eefdfa98870766625db23ab15838738d79b` |
+
+ZIP CRC·5개 항목·내부 manifest의4개 payload 해시·해제 파일을 대조했고 EXE `--version`과
+`--help`는 종료0이다. 빌드의 compile/tests 생략 표시는 모두false다.
+배포 runtime의 manifest 1,010개 파일도 크기·SHA256과 실제 파일 집합을 대조했다.
+릴리즈 ZIP 자체 시험은17 passed와21 subtests passed다.
+분리 worktree의 선행시험은1406 passed/1 skipped/302 subtests였다. skip은 승인 WU체크리스트의
+상대경로 사본 누락이었다. 승인 manifest의 원본 SHA와 같은 Git 제외 참조 사본을 준비한 뒤
+같은 worktree의 해당 시험파일4개를 다시 실행해 skip 없이 통과했다. 원래 checkout의 전체
+1407 passed/skip0 결과와 구분한다.
+
+분리 wrapper는 입력 manifest와 ZIP용 새 manifest를 바이트 비교해 `unpacked hash mismatch`로
+끝났다. ZIP 도구가 사용 안내와 후보 표식을 포함해 manifest를 다시 만드는 정상 계약을
+private 검증 스크립트가 잘못 적용한 것이다. 원래 실패 기록은 보존하고 기존 후보를
+독립적으로 재검증했다. 실제 파일 변조나 제품/패키지 코드 결함으로 분류하지 않는다.
+원시 기록은 Git 제외 `work/run664-build-result.json`, 재검증은
+`work/run665-candidate-verification.json`에 있다. 설치판 수용 gate는 아직 미통과다.
+
+현재 필요한 답은 NAS 인증 복구, 승인 Baseline과 대응하는 실영상 원본 위치, 이 동일 빌드의
+기본기능·WU 전체 설치판 수용 승인이다. 회귀 자체 과거 합계는 약3시간이며 설치·보존·복원·
+정리·자동 닫기/취소 확인을 포함해4–6시간 이상을 예상한다. NAS 실측 전 시간은 불확실하다.
+마우스·키보드를 점유하고 현재 상태 사전 보존 뒤4DB 복원·설정 변경·USB 왕복·이번 실행
+생성 Image 정리를 수행한다. 새 녹화는 하지 않는다. 승인과 선행조건 확인 전에는 실행하지 않는다.

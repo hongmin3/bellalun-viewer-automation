@@ -1,6 +1,6 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
-1.0.13 소스에 공용 보존·변경 파일 복원·C:/USB별 용량 기준과 WF14/XIPL03 기대값 수정을 반영했습니다. 설치판은 1.0.11이며 실제 SMB·새 설치판 수용은 남아 있습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
+1.0.13 후보 Setup·설치용 ZIP을 준비했습니다. 소스에 공용 보존·변경 파일 복원·C:/USB별 용량 기준과 WF14/XIPL03 기대값 수정을 반영했습니다. 설치판은 1.0.11이며 실제 SMB·새 설치판 수용은 남아 있습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
 
 전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
 
