@@ -2,10 +2,12 @@
 from __future__ import annotations
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
 import threading
+import tempfile
 import time
 import uuid
 
@@ -55,12 +57,48 @@ class Coordinator:
             if path is None:
                 raise BundleError("유효하지 않은 묶음 ID")
             if path.exists():
-                if (path / "package.zip").read_bytes() != package:
+                if check_local(path / "package.zip").read_bytes() != package:
                     raise BundleError("같은 ID의 다른 압축 묶음을 덮어쓰지 않습니다")
+                self._bundle_digest(path, identity, package)
                 return {"bundle_id": identity}
             unpack_bundle(package, path, identity)
             (path / "package.zip").write_bytes(package)
+            self._bundle_digest(path, identity, package, validated=True)
             return {"bundle_id": identity}
+
+    def _bundle_digest(self, directory, identity, package, *, validated=False):
+        sidecar = check_local(directory / "package.sha256")
+        digest = hashlib.sha256(package).hexdigest()
+        if sidecar.exists():
+            if sidecar.read_text(encoding="ascii").strip() != digest:
+                raise RemoteError("저장된 코드 묶음 ZIP 해시가 변경되었습니다")
+            return digest
+        if not validated:
+            # 구형 저장소에는 ZIP digest가 없다. 고정 manifest와 모든 파일을 다시
+            # 검증한 경우에만 새 메타데이터를 만들며 원래 ZIP은 변경하지 않는다.
+            with tempfile.TemporaryDirectory(prefix="bundle-verify-", dir=self.root) as temporary:
+                unpack_bundle(package, Path(temporary) / "checked", identity)
+        fd, temporary = tempfile.mkstemp(prefix=".package-digest-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="ascii") as stream:
+                stream.write(digest)
+                stream.flush()
+                os.fsync(stream.fileno())
+            check_local(sidecar)
+            os.replace(temporary, sidecar)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        return digest
+
+    def bundle_download(self, identity):
+        if not re.fullmatch(r"[0-9a-f]{64}", identity or ""):
+            raise RemoteError("유효하지 않은 묶음 ID")
+        with self.mutex:
+            directory = check_local(self.root / "bundles" / identity)
+            package = check_local(directory / "package.zip").read_bytes()
+            digest = self._bundle_digest(directory, identity, package)
+            return package, digest
 
     def submit(self, pc_id, profile_id, bundle_id, restore_after=False):
         if type(restore_after) is not bool:
@@ -124,10 +162,25 @@ class Coordinator:
                 return record
             if job_id not in self.events:
                 # 재시작 뒤 실제 task 중지를 확인할 수 있는 adapter만 잠금을 풀 수 있다.
-                stopped = self.executor.cancel_existing(record, self.pcs[record["pc_id"]])
-                return self._update(job_id, status="cancelled" if stopped else "uncertain")
+                self.events[job_id] = threading.Event()
+                updated = self._update(job_id, status="cancelling")
+                threading.Thread(target=self._cancel_recovered, args=(record,), daemon=True).start()
+                return updated
             self.events[job_id].set()
             return self._update(job_id, status="cancelling")
+
+    def _cancel_recovered(self, record):
+        job_id = record["id"]
+        try:
+            self._log(job_id, "복구 대상 앱의 정리·복원 완료를 확인하며 중단을 요청합니다.")
+            stopped = self.executor.cancel_existing(record, self.pcs[record["pc_id"]])
+            self._update(job_id, status="cancelled" if stopped else "uncertain")
+        except Exception as exc:
+            self._log(job_id, "복구 중단 확인 실패: " + type(exc).__name__)
+            self._update(job_id, status="uncertain", error_type=type(exc).__name__)
+        finally:
+            with self.mutex:
+                self.events.pop(job_id, None)
 
     def _run(self, job_id, package):
         try:

@@ -55,6 +55,20 @@ if($i.Level -ne 1){throw 'Unknown session format'}
  user=($i.Data.Domain+'\'+$i.Data.User); session_id=$i.Data.SessionId} | ConvertTo-Json -Compress
 '''
 
+SMALL_TRANSFER_LIMIT = 64 * 1024
+DEFAULT_TIMEOUT_SECONDS = 6 * 60 * 60
+DEFAULT_STOP_GRACE_SECONDS = 30 * 60
+BUNDLE_PATH_GUARD = r'''function Assert-PlainBundlePath([string]$path) {
+ $p=[IO.Path]::GetFullPath($path)
+ while($p){
+  if(Test-Path -LiteralPath $p){
+   if((Get-Item -LiteralPath $p -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Bundle reparse path refused'}
+  }
+  $parent=[IO.Directory]::GetParent($p);if(!$parent){break};$p=$parent.FullName
+ }
+}
+'''
+
 
 def ps_literal(value):
     return "'" + str(value).replace("'", "''") + "'"
@@ -161,8 +175,16 @@ class WinRMExecutor:
         argv = profile.get("argv")
         if not isinstance(argv, list) or not argv or not all(isinstance(v, str) and v and "\x00" not in v for v in argv):
             raise RemoteError("관리자가 허용한 고정 argv profile이 필요합니다")
-        if not isinstance(profile.get("timeout_seconds", 7200), int) or not 1 <= profile.get("timeout_seconds", 7200) <= 86400:
+        timeout = profile.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+        if type(timeout) is not int or not 1 <= timeout <= 86400:
             raise RemoteError("profile 제한 시간이 필요합니다")
+        if any(action in argv for action in ("run-regression", "run-winupdate")):
+            worst = profile.get("worst_case_seconds")
+            if type(worst) is not int or worst <= 0 or worst >= timeout:
+                raise RemoteBlocked("제품 실행 profile의 최악 예상 시간보다 timeout을 크게 설정하세요")
+        grace = profile.get("stop_grace_seconds", DEFAULT_STOP_GRACE_SECONDS)
+        if type(grace) is not int or not 1 <= grace <= 7200:
+            raise RemoteBlocked("정리·복원 대기 시간은 1~7200초여야 합니다")
         if self.factory is None:
             try:
                 import winrm
@@ -225,6 +247,8 @@ class WinRMExecutor:
         return str(PureWindowsPath(pc["work_dir"]) / job_id)
 
     def _put(self, session, destination, content):
+        if len(content) > SMALL_TRANSFER_LIMIT:
+            raise RemoteBlocked("WinRM chunk 전송은 64 KiB 이하 제어 파일에만 허용합니다")
         # WinRM encoded command 길이 제한 안에서 고정 크기 chunk로 전송한다.
         q = ps_literal(destination)
         self._ps(session, f"$ErrorActionPreference='Stop'; if(Test-Path -LiteralPath {q}){{throw 'Destination exists'}}; [IO.File]::WriteAllBytes({q},[byte[]]@())")
@@ -234,11 +258,68 @@ class WinRMExecutor:
         expected = hashlib.sha256(content).hexdigest()
         self._ps(session, f"if((Get-FileHash -LiteralPath {q} -Algorithm SHA256).Hash.ToLower() -ne '{expected}'){{throw 'Transfer hash mismatch'}}")
 
+    def ensure_package(self, session, job, pc, package):
+        self._directory(job["id"], pc)
+        identity = job.get("bundle_id", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", identity) or len(package) > MAX_BYTES:
+            raise RemoteBlocked("묶음 ID/크기 제한 불일치")
+        digest = hashlib.sha256(package).hexdigest()
+        cache = str(PureWindowsPath(pc["work_dir"]) / ".bundle-cache" / identity)
+        destination = str(PureWindowsPath(cache) / (digest + ".zip"))
+        state = json.loads(self._ps(session, BUNDLE_PATH_GUARD + f"""
+# BELLALUN_BUNDLE_CACHE_PROBE
+$ErrorActionPreference='Stop';$cache={ps_literal(cache)};$zip={ps_literal(destination)}
+Assert-PlainBundlePath $cache;Assert-PlainBundlePath $zip
+if(Test-Path -LiteralPath $zip){{
+ if((Get-Item -LiteralPath $zip).PSIsContainer -or (Get-Item -LiteralPath $zip).Length -ne {len(package)} -or (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower() -ne '{digest}'){{throw 'Cached ZIP hash mismatch'}}
+ @{{hit=$true}} | ConvertTo-Json -Compress
+}}else{{@{{hit=$false}} | ConvertTo-Json -Compress}}
+"""))
+        if not isinstance(state, dict) or type(state.get("hit")) is not bool:
+            raise RemoteBlocked("묶음 캐시 조회 결과 미확인")
+        if state["hit"]:
+            return destination
+        base = pc.get("bundle_download_base")
+        token_env = pc.get("bundle_token_env")
+        if not base or not token_env:
+            if len(package) > SMALL_TRANSFER_LIMIT:
+                raise RemoteBlocked("대용량 묶음에는 PC 로컬 token 참조와 HTTPS 다운로드 설정이 필요합니다")
+            self._ps(session, BUNDLE_PATH_GUARD + f"$ErrorActionPreference='Stop';Assert-PlainBundlePath {ps_literal(cache)};New-Item -ItemType Directory -Force -Path {ps_literal(cache)} | Out-Null;Assert-PlainBundlePath {ps_literal(cache)}")
+            partial = str(PureWindowsPath(cache) / (digest + "." + job["id"] + ".part"))
+            self._put(session, partial, package)
+            self._ps(session, BUNDLE_PATH_GUARD + f"$ErrorActionPreference='Stop';Assert-PlainBundlePath {ps_literal(partial)};Assert-PlainBundlePath {ps_literal(destination)};[IO.File]::Move({ps_literal(partial)},{ps_literal(destination)})")
+            return destination
+        parsed = urlparse(base)
+        timeout = pc.get("bundle_download_timeout_seconds", 1800)
+        if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                or parsed.query or parsed.fragment or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,127}", token_env)
+                or type(timeout) is not int or not 1 <= timeout <= 7200):
+            raise RemoteBlocked("유효한 HTTPS 묶음 다운로드와 token 환경 참조가 필요합니다")
+        url = base.rstrip("/") + "/bundles/" + identity + "/download"
+        partial = str(PureWindowsPath(cache) / (digest + "." + job["id"] + ".part"))
+        self._ps(session, BUNDLE_PATH_GUARD + f"""
+# BELLALUN_BUNDLE_HTTPS_DOWNLOAD
+$ErrorActionPreference='Stop';$cache={ps_literal(cache)};$zip={ps_literal(destination)};$tmp={ps_literal(partial)}
+Assert-PlainBundlePath $cache;Assert-PlainBundlePath $zip;Assert-PlainBundlePath $tmp
+if((Test-Path -LiteralPath $zip) -or (Test-Path -LiteralPath $tmp)){{throw 'Download destination exists'}}
+New-Item -ItemType Directory -Force -Path $cache | Out-Null;Assert-PlainBundlePath $cache
+$token=[Environment]::GetEnvironmentVariable({ps_literal(token_env)})
+if(!$token){{$token=[Environment]::GetEnvironmentVariable({ps_literal(token_env)},'User')}}
+if(!$token){{$token=[Environment]::GetEnvironmentVariable({ps_literal(token_env)},'Machine')}}
+if(!$token){{throw 'Local download token missing'}}
+try{{Invoke-WebRequest -Uri {ps_literal(url)} -Headers @{{Authorization=('Bearer '+$token)}} -OutFile $tmp -UseBasicParsing -MaximumRedirection 0 -TimeoutSec {timeout} | Out-Null}}finally{{$token=$null}}
+Assert-PlainBundlePath $tmp
+if((Get-Item -LiteralPath $tmp).Length -ne {len(package)} -or (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLower() -ne '{digest}'){{throw 'Downloaded ZIP hash mismatch'}}
+Assert-PlainBundlePath $zip;[IO.File]::Move($tmp,$zip);Assert-PlainBundlePath $zip
+""")
+        return destination
+
     def _arguments(self, job, pc, profile):
         root = self._directory(job["id"], pc)
         replacements = {"{restore_after}": "--restore-after" if job["restore_after"] else "--no-restore-after",
                         "{run_id}": job["id"], "{workspace}": root + "\\workspace",
-                        "{request_file}": root + "\\request.json", "{code}": root + "\\code"}
+                        "{request_file}": root + "\\request.json", "{code}": root + "\\code",
+                        "{stop_file}": root + "\\stop.request"}
         result = []
         for argument in profile["argv"]:
             for key, value in replacements.items():
@@ -246,6 +327,15 @@ class WinRMExecutor:
             if "{" in argument or "}" in argument:
                 raise RemoteError("허용하지 않은 profile 치환 변수")
             result.append(argument)
+        if any(action in result for action in ("run-regression", "run-winupdate")):
+            action_index = next(i for i, value in enumerate(result)
+                                if value in ("run-regression", "run-winupdate"))
+            if "--stop-file" not in result:
+                result[action_index:action_index] = ["--stop-file", root + "\\stop.request"]
+            elif (result.index("--stop-file") + 1 >= len(result)
+                  or result[result.index("--stop-file") + 1] != root + "\\stop.request"
+                  or result.index("--stop-file") >= action_index):
+                raise RemoteBlocked("stop-file은 이번 job 내부 경로만 허용합니다")
         return result
 
     def task_script(self, job_id, pc, profile):
@@ -255,7 +345,7 @@ class WinRMExecutor:
         return f"""$ErrorActionPreference='Stop'
 $principal=New-ScheduledTaskPrincipal -UserId {ps_literal(user)} -LogonType Interactive -RunLevel Highest
 $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument {ps_literal(action_argument)} -WorkingDirectory {ps_literal(root + chr(92) + 'code')}
-$settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds {profile.get('timeout_seconds',7200)}) -MultipleInstances IgnoreNew
+$settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds {profile.get('timeout_seconds',DEFAULT_TIMEOUT_SECONDS) + profile.get('stop_grace_seconds',DEFAULT_STOP_GRACE_SECONDS) + 60}) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName 'BellalunRemote-{job_id}' -Action $action -Principal $principal -Settings $settings | Out-Null
 Start-ScheduledTask -TaskName 'BellalunRemote-{job_id}'
 """
@@ -293,13 +383,42 @@ if($p){{
  & taskkill.exe /PID $identity.pid /T /F | Out-Null
 }}
 $left=Get-Process -Id $identity.pid -ErrorAction SilentlyContinue
-$task=Get-ScheduledTask -TaskName 'BellalunRemote-{job['id']}'
+$task=Get-ScheduledTask -TaskName 'BellalunRemote-{job['id']}' -ErrorAction SilentlyContinue
 @{{stopped=(!$left -and $task.State -ne 'Running')}} | ConvertTo-Json -Compress
 """
         return json.loads(self._ps(session, script)).get("stopped") is True
 
     def cancel_existing(self, job, pc):
-        stopped = self._stop(self._session(pc), job, pc)
+        session = self._session(pc)
+        root = self._directory(job["id"], pc)
+        self._request_stop(session, root)
+        grace = pc.get("recovery_stop_grace_seconds", DEFAULT_STOP_GRACE_SECONDS)
+        if type(grace) is not int or not 1 <= grace <= 7200:
+            raise RemoteError("복구 중단 대기 시간 설정 오류")
+        deadline = time.monotonic() + grace
+        stopped = False
+        while time.monotonic() < deadline:
+            receipt = self._poll(session, root).get("receipt")
+            if receipt and receipt.get("job_id") == job["id"] and receipt.get("finished") is True:
+                run_id = receipt.get("engine_run_id")
+                if not isinstance(run_id, str) or not re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-f0-9]{8}", run_id):
+                    break
+                path = str(PureWindowsPath(root) / "workspace" / "Runs" / run_id / "run.json")
+                record = json.loads(self._ps(session, BUNDLE_PATH_GUARD + f"Assert-PlainBundlePath {ps_literal(path)};Get-Content -Raw -LiteralPath {ps_literal(path)}"))
+                valid = (record.get("run_id") == run_id and record.get("exit_code") == receipt.get("exit_code")
+                         and ((record.get("status") == "stopped" and record.get("exit_code") == 130)
+                              or (record.get("status") == "completed" and record.get("exit_code") in (0, 1))))
+                if valid:
+                    restoration_path = str(PureWindowsPath(root) / "workspace" / "preservation" / run_id / "restoration.json")
+                    restoration = json.loads(self._ps(session, BUNDLE_PATH_GUARD + f"Assert-PlainBundlePath {ps_literal(restoration_path)};if(Test-Path -LiteralPath {ps_literal(restoration_path)}){{Get-Content -Raw -LiteralPath {ps_literal(restoration_path)}}}else{{'null'}}"))
+                    expected = "verified" if job.get("restore_after") is True else "preserved"
+                    if isinstance(restoration, dict) and restoration.get("run_id") == run_id and restoration.get("status") == expected:
+                        stopped = self._stop(session, job, pc)
+                break
+            time.sleep(self.poll_seconds)
+        if not stopped:
+            self._stop(session, job, pc)  # 최후 수단. 정리 완료가 미확인이므로 여전히 False.
+            return False
         if stopped and self.lease_root:
             path = self.lease_root / (job["id"] + ".json")
             if path.exists():
@@ -326,6 +445,13 @@ $task=Get-ScheduledTask -TaskName 'BellalunRemote-{job['id']}'
 Assert-PlainResultPath $root
 foreach($dir in @('Reports','Evidence','Runs')){{ $p=$root+'\\workspace\\'+$dir;if(Test-Path -LiteralPath $p){{Assert-PlainResultPath $p; Get-ChildItem -LiteralPath $p -Force -Recurse | ForEach-Object {{Assert-PlainResultPath $_.FullName; if(!$_.PSIsContainer){{$files+=$_}}}} }} }}
 foreach($name in @('receipt.json','stdout.log','stderr.log')){{if(Test-Path -LiteralPath ($root+'\\'+$name)){{$files+=Get-Item -LiteralPath ($root+'\\'+$name)}}}}
+foreach($r in @($files | Where-Object {{$_.Name -eq 'run.json' -and $_.Directory.Parent.Name -eq 'Runs'}})){{
+ $rid=$r.Directory.Name
+ if($rid -match '^[0-9]{{8}}-[0-9]{{6}}-[a-f0-9]{{8}}$'){{
+  $p=$root+'\\workspace\\preservation\\'+$rid+'\\restoration.json';Assert-PlainResultPath $p
+  if(Test-Path -LiteralPath $p){{$files+=Get-Item -LiteralPath $p}}
+ }}
+}}
 $files | ForEach-Object {{if($_.Attributes -band [IO.FileAttributes]::ReparsePoint){{throw 'Link result refused'}};@{{path=$_.FullName.Substring($root.Length+1).Replace('\\','/');size=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower()}}}} | ConvertTo-Json -Compress
 """
         records = json.loads(self._ps(session, script))
@@ -347,6 +473,112 @@ $files | ForEach-Object {{if($_.Attributes -band [IO.FileAttributes]::ReparsePoi
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(content)
 
+    def _poll(self, session, root):
+        script = BUNDLE_PATH_GUARD + f"""
+# BELLALUN_EXECUTION_POLL
+$ErrorActionPreference='Stop';$root={ps_literal(root)};$receipt=$null;$progress=$null;$tail=@()
+Assert-PlainBundlePath $root
+foreach($kind in @('receipt','progress')){{
+ $p=if($kind -eq 'receipt'){{$root+'\\receipt.json'}}else{{$root+'\\workspace\\work\\qa_progress.json'}}
+ Assert-PlainBundlePath $p
+ if(Test-Path -LiteralPath $p){{
+  if((Get-Item -LiteralPath $p).Length -gt 16384){{throw 'Polling JSON too large'}}
+  $v=Get-Content -Raw -LiteralPath $p | ConvertFrom-Json
+  if($kind -eq 'receipt'){{$receipt=$v}}else{{$progress=$v}}
+ }}
+}}
+$log=$root+'\\stdout.log';Assert-PlainBundlePath $log
+if(Test-Path -LiteralPath $log){{$tail=@(Get-Content -LiteralPath $log -Tail 5 | ForEach-Object {{$line=[string]$_;if($line.Length -gt 500){{$line=$line.Substring(0,500)}};$line}})}}
+@{{receipt=$receipt;progress=$progress;tail=$tail}} | ConvertTo-Json -Depth 6 -Compress
+"""
+        raw = self._ps(session, script)
+        if len(raw.encode("utf-8")) > 65536:
+            raise RemoteError("진행 조회 응답 크기 초과")
+        state = json.loads(raw)
+        if (not isinstance(state, dict) or not isinstance(state.get("tail"), list)
+                or len(state["tail"]) > 5 or not all(isinstance(line, str) and len(line) <= 500 for line in state["tail"])
+                or (state.get("receipt") is not None and not isinstance(state["receipt"], dict))
+                or (state.get("progress") is not None and not isinstance(state["progress"], dict))):
+            raise RemoteError("진행 조회 형식 미확인")
+        return state
+
+    def _emit_progress(self, state, seen, log, pc):
+        progress = state.get("progress") or {}
+        run_id, tc = progress.get("run_id"), progress.get("current_tc")
+        index, total = progress.get("index"), progress.get("total")
+        if (isinstance(run_id, str) and re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-f0-9]{8}", run_id)
+                and isinstance(tc, str) and type(index) is int and type(total) is int
+                and 0 <= index <= total <= 20000):
+            key = (run_id, tc[:120], index, total)
+            if seen.get("progress") != key:
+                log(f"진행 {run_id} · {tc[:120]} · {index}/{total}")
+                seen["progress"] = key
+        tail = state.get("tail") or []
+        previous = seen.get("tail", [])
+        overlap = 0
+        for size in range(min(len(previous), len(tail)), 0, -1):
+            if previous[-size:] == tail[:size]:
+                overlap = size
+                break
+        for line in tail[overlap:]:
+            for name in (pc.get("password_env"), pc.get("bundle_token_env")):
+                secret = self.environ.get(name, "") if name else ""
+                if secret:
+                    line = line.replace(secret, "[비밀값 제거]")
+            if re.search(r"(?i)(password|passwd|access[_-]?token|api[_-]?key)\s*[:=]", line):
+                line = "[인증값이 포함될 수 있는 원격 로그 생략]"
+            log(line.replace("\r", " ").replace("\n", " ")[:500])
+        seen["tail"] = tail
+
+    def _request_stop(self, session, root):
+        self._ps(session, BUNDLE_PATH_GUARD + f"$ErrorActionPreference='Stop';$p={ps_literal(root + chr(92) + 'stop.request')};Assert-PlainBundlePath $p;[IO.File]::WriteAllText($p,'cooperative-stop')")
+
+    def _finish_receipt(self, session, job, pc, profile, output, receipt, *, cancelling=False):
+        root = self._directory(job["id"], pc)
+        self._collect(session, root, output)
+        outcome = self.verify_completion(job, profile, receipt, output, root + "\\workspace")
+        run_id = receipt.get("engine_run_id")
+        cleanup_verified = False
+        if isinstance(run_id, str) and re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-f0-9]{8}", run_id):
+            restoration_path = check_local(output / "workspace" / "preservation" / run_id / "restoration.json")
+            if restoration_path.is_file():
+                restoration = json.loads(restoration_path.read_text(encoding="utf-8-sig"))
+                expected = "verified" if job.get("restore_after") is True else "preserved"
+                cleanup_verified = restoration.get("run_id") == run_id and restoration.get("status") == expected
+        outcome["cleanup_verified"] = cleanup_verified
+        if (cancelling and receipt.get("job_id") == job["id"] and receipt.get("finished") is True
+                and receipt.get("exit_code") == 130):
+            if isinstance(run_id, str) and re.fullmatch(r"[0-9]{8}-[0-9]{6}-[a-f0-9]{8}", run_id):
+                path = check_local(output / "workspace" / "Runs" / run_id / "run.json")
+                record = json.loads(path.read_text(encoding="utf-8-sig"))
+                if (record.get("run_id") == run_id and record.get("status") == "stopped"
+                        and record.get("exit_code") == 130 and cleanup_verified):
+                    outcome.update(status="cancelled", stopped_verified=True, cleanup_verified=True)
+        if not cleanup_verified:
+            outcome.update(engine_status=outcome["status"], status="uncertain",
+                           process_stopped_verified=outcome.get("stopped_verified", False),
+                           stopped_verified=False, cleanup_verified=False)
+        derive_views(output, root + "\\workspace")
+        self._ps(session, f"Unregister-ScheduledTask -TaskName 'BellalunRemote-{job['id']}' -Confirm:$false")
+        return outcome
+
+    def _cancel_running(self, session, job, pc, profile, output, log, seen):
+        root = self._directory(job["id"], pc)
+        log("앱에 중단을 요청하고 보존·복원 정리 완료를 기다립니다.")
+        self._request_stop(session, root)
+        deadline = time.monotonic() + profile.get("stop_grace_seconds", DEFAULT_STOP_GRACE_SECONDS)
+        while time.monotonic() < deadline:
+            state = self._poll(session, root)
+            self._emit_progress(state, seen, log, pc)
+            receipt = state.get("receipt")
+            if receipt and receipt.get("job_id") == job["id"] and receipt.get("finished") is True:
+                return self._finish_receipt(session, job, pc, profile, output, receipt, cancelling=True)
+            time.sleep(self.poll_seconds)
+        log("정리 대기 시간 초과: 식별된 자식만 최후 수단으로 중지하며 복구 확인 전 잠금을 유지합니다.")
+        stopped = self._stop(session, job, pc)
+        return {"status": "uncertain", "stopped_verified": False, "process_stopped_verified": stopped,
+                "cleanup_verified": False, "forced_stop": True}
+
     def execute(self, job, pc, profile, package, output, cancel, log):
         marker = {"task_requested": False}
         lease = None
@@ -361,7 +593,9 @@ $files | ForEach-Object {{if($_.Attributes -band [IO.FileAttributes]::ReparsePoi
             if not marker["task_requested"]:
                 self.release_interlock(job, pc, lease)
                 raise RemoteBlocked("사용자 세션 작업 시작 전 준비 실패") from exc
-            raise
+            # 시작 뒤의 수집/lease 오류도 예외 클래스가 준비 차단과 같을 수 있다.
+            # coordinator가 이를 미시작으로 처리해 PC 잠금을 풀지 못하게 한다.
+            raise RemoteError("작업 시작 뒤 정리·복원 확인 실패; PC 잠금을 유지합니다") from exc
 
     def _execute(self, job, pc, profile, package, output, cancel, log, marker):
         self.validate(pc, profile)
@@ -372,9 +606,9 @@ $files | ForEach-Object {{if($_.Attributes -band [IO.FileAttributes]::ReparsePoi
             return {"status": "cancelled", "stopped_verified": True}
         root = self._directory(job["id"], pc)
         self._ps(session, f"$ErrorActionPreference='Stop';if(Test-Path -LiteralPath {ps_literal(root)}){{throw 'Job directory exists'}};New-Item -ItemType Directory -Path {ps_literal(root)} | Out-Null;New-Item -ItemType Directory -Path {ps_literal(root + chr(92) + 'workspace')} | Out-Null")
-        self._put(session, root + "\\package.zip", package)
+        package_path = self.ensure_package(session, job, pc, package)
         # ZIP 경로 집합은 업로드 때 검증됐고 원격 전송은 ZIP 전체 SHA-256으로 대조했다.
-        self._ps(session, f"$ErrorActionPreference='Stop';Expand-Archive -LiteralPath {ps_literal(root + chr(92) + 'package.zip')} -DestinationPath {ps_literal(root + chr(92) + 'expanded')};Move-Item -LiteralPath {ps_literal(root + chr(92) + 'expanded' + chr(92) + 'payload')} -Destination {ps_literal(root + chr(92) + 'code')}")
+        self._ps(session, BUNDLE_PATH_GUARD + f"$ErrorActionPreference='Stop';Assert-PlainBundlePath {ps_literal(package_path)};if((Get-FileHash -LiteralPath {ps_literal(package_path)} -Algorithm SHA256).Hash.ToLower() -ne '{hashlib.sha256(package).hexdigest()}'){{throw 'Cached ZIP changed'}};Expand-Archive -LiteralPath {ps_literal(package_path)} -DestinationPath {ps_literal(root + chr(92) + 'expanded')};Move-Item -LiteralPath {ps_literal(root + chr(92) + 'expanded' + chr(92) + 'payload')} -Destination {ps_literal(root + chr(92) + 'code')}")
         self._put(session, root + "\\request.json", json.dumps(job).encode())
         self._put(session, root + "\\runner.ps1", self._wrapper(job, pc, profile))
         self._guard(session, pc)
@@ -382,17 +616,14 @@ $files | ForEach-Object {{if($_.Attributes -band [IO.FileAttributes]::ReparsePoi
         marker["task_requested"] = True  # Start 요청 뒤 통신 단절은 미실행으로 추정하지 않는다.
         self._ps(session, self.task_script(job["id"], pc, profile))
         log("사용자 세션 예약 작업 시작; 코드 묶음 " + job["bundle_id"])
-        deadline = time.monotonic() + profile.get("timeout_seconds", 7200)
+        deadline = time.monotonic() + profile.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
+        seen = {}
         while True:
             if cancel.is_set() or time.monotonic() >= deadline:
-                stopped = self._stop(session, job, pc)
-                return {"status": "cancelled" if stopped else "uncertain", "stopped_verified": stopped}
-            query = f"if(Test-Path -LiteralPath {ps_literal(root + chr(92) + 'receipt.json')}){{Get-Content -Raw -LiteralPath {ps_literal(root + chr(92) + 'receipt.json')}}}else{{'null'}}"
-            receipt = json.loads(self._ps(session, query))
+                return self._cancel_running(session, job, pc, profile, output, log, seen)
+            state = self._poll(session, root)
+            self._emit_progress(state, seen, log, pc)
+            receipt = state.get("receipt")
             if receipt:
-                self._collect(session, root, output)
-                outcome = self.verify_completion(job, profile, receipt, output, root + "\\workspace")
-                derive_views(output, root + "\\workspace")
-                self._ps(session, f"Unregister-ScheduledTask -TaskName 'BellalunRemote-{job['id']}' -Confirm:$false")
-                return outcome
+                return self._finish_receipt(session, job, pc, profile, output, receipt)
             cancel.wait(self.poll_seconds)

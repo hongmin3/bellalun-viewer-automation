@@ -223,6 +223,10 @@ def test_winrm_full_transfer_task_receipt_and_results(tmp_path):
             calls.append(script)
             if script == SESSION_PROBE:
                 return Response(b'{"logged_in":true,"unlocked":true,"user":"machine\\\\qa"}')
+            if "BELLALUN_BUNDLE_CACHE_PROBE" in script:
+                return Response(b'{"hit":false}')
+            if "BELLALUN_EXECUTION_POLL" in script:
+                return Response(json.dumps({"receipt": json.loads(content), "progress": None, "tail": []}).encode())
             if "$files=@()" in script:
                 return Response(json.dumps([{"path": "receipt.json", "size": len(content),
                                              "sha256": hashlib.sha256(content).hexdigest()}]).encode())
@@ -239,11 +243,11 @@ def test_winrm_full_transfer_task_receipt_and_results(tmp_path):
     pc = {"enabled": True, "endpoint": "https://fixture.invalid:5986/wsman", "user": "qa",
           "password_env": "QA_PASS", "work_dir": "C:\\BellalunRemote", "allow_uncoordinated_vhd_snapshot": True}
     profile = {"argv": ["{code}\\BellalunAuto.exe", "--workspace", "{workspace}",
-                        "run-regression", "{restore_after}"], "timeout_seconds": 30}
+                        "run-regression", "{restore_after}"], "timeout_seconds": 30, "worst_case_seconds": 20}
     with mock.patch.object(runner, "_vhd_guard"):
         result = runner.execute({"id": "job1", "bundle_id": "0" * 64, "restore_after": True},
                                 pc, profile, b"zip bytes", tmp_path, threading.Event(), lambda line: None)
-    assert result["status"] == "abnormal"  # receipt만으로 정상 완주를 주장할 수 없다.
+    assert result["status"] == "uncertain"  # receipt만으로 정리 완료나 잠금 해제를 주장할 수 없다.
     assert (tmp_path / "receipt.json").read_bytes() == content
     assert credentials[0]["auth"] == ("qa", "test-secret")
     assert credentials[0]["server_cert_validation"] == "validate"
@@ -440,3 +444,323 @@ def test_vhd_jobs_missing_or_active_blocks(tmp_path):
     with mock.patch("remote.winrm_executor.urlopen", return_value=io.BytesIO(raw)):
         with pytest.raises(RemoteError):
             runner._vhd_guard({"vhd_jobs_url": "http://localhost/jobs", "vhd_target": "fixture-pc"})
+
+
+class TransferSession:
+    """호출마다 지연이 있는 WinRM을 call budget으로 모델링한다(실제 대기 없음)."""
+    def __init__(self, hit=False, reject=None):
+        self.calls = []
+        self.hit = hit
+        self.reject = reject
+        self.estimated_delay_seconds = 0
+    def run_ps(self, script):
+        self.calls.append(script)
+        self.estimated_delay_seconds += .2
+        class Response:
+            status_code = 0
+            std_err = b""
+            std_out = b""
+        result = Response()
+        if "BELLALUN_BUNDLE_CACHE_PROBE" in script:
+            result.std_out = json.dumps({"hit": self.hit}).encode()
+        if self.reject and self.reject in script:
+            result.status_code = 1
+        return result
+
+
+def test_large_bundle_download_has_constant_winrm_call_budget_and_no_secret_values():
+    runner = WinRMExecutor(environ={"DOWNLOAD_TOKEN": "must-not-appear-in-script"})
+    session = TransferSession()
+    package = b"x" * (100 * 1024 * 1024)
+    pc = {"work_dir": r"C:\BellalunRemote", "bundle_download_base": "https://qa.example.invalid",
+          "bundle_token_env": "DOWNLOAD_TOKEN"}
+    path = runner.ensure_package(session, {"id": "job1", "bundle_id": "a" * 64}, pc, package)
+    assert path.endswith(hashlib.sha256(package).hexdigest() + ".zip")
+    assert len(session.calls) <= 3
+    assert session.estimated_delay_seconds <= .6
+    scripts = "\n".join(session.calls)
+    assert scripts.count("Invoke-WebRequest") == 1
+    assert "GetEnvironmentVariable" in scripts
+    assert "DOWNLOAD_TOKEN" in scripts
+    assert "must-not-appear-in-script" not in scripts
+    assert "MaximumRedirection 0" in scripts
+    assert "SkipCertificateCheck" not in scripts
+    assert "ServerCertificateValidationCallback" not in scripts
+    assert all(len(base64.b64encode(script.encode("utf-16-le"))) + 100 < 8191 for script in session.calls)
+
+
+def test_bundle_cache_hit_never_retransfers_even_without_download_config():
+    runner = WinRMExecutor()
+    session = TransferSession(hit=True)
+    runner.ensure_package(session, {"id": "job1", "bundle_id": "a" * 64},
+                          {"work_dir": r"C:\BellalunRemote"}, b"x" * (100 * 1024 * 1024))
+    assert len(session.calls) == 1
+    assert "Invoke-WebRequest" not in session.calls[0]
+    assert "FromBase64String" not in session.calls[0]
+    assert "Get-FileHash" in session.calls[0]
+    assert "ReparsePoint" in session.calls[0]
+
+
+def test_large_bundle_missing_https_config_is_blocked_after_probe_only():
+    runner = WinRMExecutor()
+    session = TransferSession()
+    with pytest.raises(RemoteError):
+        runner.ensure_package(session, {"id": "job1", "bundle_id": "a" * 64},
+                              {"work_dir": r"C:\BellalunRemote"}, b"x" * (1024 * 1024))
+    assert len(session.calls) == 1
+    with pytest.raises(RemoteError):
+        runner._put(session, r"C:\bounded.txt", b"x" * (1024 * 1024))
+    assert len(session.calls) == 1
+
+
+@pytest.mark.parametrize("failure", ["BELLALUN_BUNDLE_CACHE_PROBE", "BELLALUN_BUNDLE_HTTPS_DOWNLOAD"])
+def test_cache_reparse_corruption_and_fresh_download_failure_never_fall_back(failure):
+    runner = WinRMExecutor()
+    session = TransferSession(reject=failure)
+    pc = {"work_dir": r"C:\BellalunRemote", "bundle_download_base": "https://qa.example.invalid",
+          "bundle_token_env": "DOWNLOAD_TOKEN"}
+    with pytest.raises(RemoteError):
+        runner.ensure_package(session, {"id": "job1", "bundle_id": "a" * 64}, pc, b"x" * (1024 * 1024))
+    assert len(session.calls) <= 2
+
+
+def test_authenticated_binary_bundle_download_returns_original_bytes_and_hash(tmp_path):
+    manager = coordinator(tmp_path)
+    data, identity = bundle(tmp_path)
+    manager.add_bundle(data, identity)
+    server = make_server(manager, "binary-fixture-token", "127.0.0.1", 0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_port}/bundles/{identity}/download"
+    try:
+        with pytest.raises(HTTPError) as failure:
+            urlopen(url)
+        assert failure.value.code == 401
+        with urlopen(Request(url, headers={"Authorization": "Bearer binary-fixture-token"})) as response:
+            received = response.read()
+            assert response.headers["Content-Type"] == "application/zip"
+            assert response.headers["X-Content-SHA256"] == hashlib.sha256(data).hexdigest()
+        assert received == data
+        unpack_bundle(received, tmp_path / "binary-unpacked", identity)
+        (manager.root / "bundles" / identity / "package.zip").write_bytes(b"corrupt")
+        with pytest.raises(HTTPError):
+            urlopen(Request(url, headers={"Authorization": "Bearer binary-fixture-token"}))
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_live_poll_is_one_bounded_call_and_deduplicates_progress_tail():
+    runner = WinRMExecutor()
+    class PollSession(TransferSession):
+        def run_ps(self, script):
+            super().run_ps(script)
+            class Response:
+                status_code = 0
+                std_err = b""
+                std_out = json.dumps({"receipt": None, "progress": {"run_id": "20261113-120000-aabbccdd",
+                    "current_tc": "TC_fixture", "index": 2, "total": 13}, "tail": ["first", "second"]}).encode()
+            return Response()
+    session = PollSession()
+    state = runner._poll(session, r"C:\BellalunRemote\job1")
+    assert len(session.calls) == 1
+    script = session.calls[0]
+    assert "receipt.json" in script and "qa_progress.json" in script and "stdout.log" in script
+    assert "-Tail 5" in script and "Substring" in script
+    logs, seen = [], {}
+    runner._emit_progress(state, seen, logs.append, {})
+    runner._emit_progress(state, seen, logs.append, {})
+    assert len(logs) == 3
+    assert "TC_fixture" in logs[0] and "2/13" in logs[0]
+    state["tail"] = ["second", "third"]
+    runner._emit_progress(state, seen, logs.append, {})
+    assert logs[-1] == "third"
+    assert logs.count("second") == 1
+
+
+def test_operational_profile_timeout_requires_worst_case_margin():
+    runner = WinRMExecutor(session_factory=lambda *a, **k: None, environ={"QA_PASS": "secret"})
+    pc = {"enabled": True, "endpoint": "https://fixture.invalid:5986/wsman", "user": "qa",
+          "password_env": "QA_PASS", "work_dir": r"C:\BellalunRemote"}
+    base = {"argv": ["engine.exe", "run-regression", "{restore_after}"], "worst_case_seconds": 18000}
+    runner.validate(pc, base)
+    from remote.winrm_executor import DEFAULT_TIMEOUT_SECONDS, DEFAULT_STOP_GRACE_SECONDS
+    assert DEFAULT_TIMEOUT_SECONDS == 21600
+    assert str(DEFAULT_TIMEOUT_SECONDS + DEFAULT_STOP_GRACE_SECONDS + 60) in runner.task_script("job1", pc, base)
+    with pytest.raises(RemoteError):
+        runner.validate(pc, {**base, "timeout_seconds": 18000})
+    with pytest.raises(RemoteError):
+        runner.validate(pc, {"argv": base["argv"]})
+    args = runner._arguments({"id": "job1", "restore_after": False}, pc, base)
+    assert "--stop-file" in args
+    assert args[args.index("--stop-file") + 1] == r"C:\BellalunRemote\job1\stop.request"
+
+
+def test_cooperative_cancel_requests_stop_before_forced_kill_and_waits_for_receipt(tmp_path):
+    runner = WinRMExecutor(poll_seconds=0)
+    session = TransferSession()
+    receipt = engine_output(tmp_path)
+    receipt["exit_code"] = 130
+    record_path = tmp_path / "workspace" / "Runs" / receipt["engine_run_id"] / "run.json"
+    record = json.loads(record_path.read_text())
+    record.update(status="stopped", exit_code=130)
+    record_path.write_text(json.dumps(record))
+    preservation = tmp_path / "workspace" / "preservation" / receipt["engine_run_id"]
+    preservation.mkdir(parents=True)
+    (preservation / "restoration.json").write_text(json.dumps({"run_id": receipt["engine_run_id"], "status": "verified"}))
+    job = {"id": "job1", "restore_after": True}
+    pc = {"work_dir": r"C:\BellalunRemote"}
+    with mock.patch.object(runner, "_poll", return_value={"receipt": receipt, "progress": None, "tail": []}), \
+         mock.patch.object(runner, "_collect"), mock.patch.object(runner, "_stop") as forced:
+        result = runner._cancel_running(session, job, pc, {"argv": ["engine", "run-regression"],
+                                         "stop_grace_seconds": 5}, tmp_path, lambda line: None, {})
+    assert result["status"] == "cancelled"
+    assert result["stopped_verified"]
+    assert not forced.called
+    assert "stop.request" in session.calls[0]
+
+
+def test_stopped_supervisor_without_restoration_result_is_uncertain(tmp_path):
+    runner = WinRMExecutor(poll_seconds=0)
+    receipt = engine_output(tmp_path)
+    receipt["exit_code"] = 130
+    path = tmp_path / "workspace" / "Runs" / receipt["engine_run_id"] / "run.json"
+    record = json.loads(path.read_text())
+    record.update(status="stopped", exit_code=130)
+    path.write_text(json.dumps(record))
+    with mock.patch.object(runner, "_collect"):
+        outcome = runner._finish_receipt(TransferSession(), {"id": "job1", "restore_after": True},
+                                         {"work_dir": r"C:\BellalunRemote"}, {"argv": ["engine", "run-regression"]},
+                                         tmp_path, receipt, cancelling=True)
+    assert outcome["status"] == "uncertain"
+    assert not outcome["stopped_verified"]
+    assert outcome["process_stopped_verified"] is True
+
+
+def test_uncertain_force_stop_after_grace_keeps_lock_status(tmp_path):
+    runner = WinRMExecutor(poll_seconds=0)
+    with mock.patch.object(runner, "_request_stop"), \
+         mock.patch.object(runner, "_poll", return_value={"receipt": None, "progress": None, "tail": []}), \
+         mock.patch.object(runner, "_stop", return_value=False) as forced, \
+         mock.patch("remote.winrm_executor.time.monotonic", side_effect=[0, 2]):
+        result = runner._cancel_running(TransferSession(), {"id": "job1"}, {"work_dir": r"C:\BellalunRemote"},
+                                        {"stop_grace_seconds": 1}, tmp_path, lambda line: None, {})
+    assert forced.called
+    assert result["status"] == "uncertain"
+
+
+@pytest.mark.parametrize("code,supervisor", [(0, "completed"), (1, "completed"),
+                                             (2, "abnormal"), (3, "abnormal"), (130, "stopped")])
+@pytest.mark.parametrize("restore_after,restoration_status", [(True, None), (True, "error"),
+                                                             (False, None), (False, "error")])
+def test_every_started_exit_without_verified_cleanup_keeps_lock_uncertain(
+        tmp_path, code, supervisor, restore_after, restoration_status):
+    runner = WinRMExecutor()
+    receipt = engine_output(tmp_path, code=code, status=supervisor)
+    if restoration_status is not None:
+        path = tmp_path / "workspace" / "preservation" / receipt["engine_run_id"] / "restoration.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"run_id": receipt["engine_run_id"], "status": restoration_status}))
+    with mock.patch.object(runner, "_collect"):
+        result = runner._finish_receipt(TransferSession(), {"id": "job1", "restore_after": restore_after},
+                                        {"work_dir": r"C:\BellalunRemote"}, {"argv": ["engine", "run-regression"]},
+                                        tmp_path, receipt, cancelling=False)
+    assert result["status"] == "uncertain"
+    assert result["stopped_verified"] is False
+    assert result["process_stopped_verified"] is True
+    assert result["cleanup_verified"] is False
+
+
+def test_restore_failure_holds_shared_lease_and_coordinator_pc_lock(tmp_path):
+    class FailureExecutor(WinRMExecutor):
+        def validate(self, pc, profile):
+            pass
+        def acquire_interlock(self, job, pc):
+            return {"lease_id": "fixture-lease"}
+        def _execute(self, job, pc, profile, package, output, cancel, log, marker):
+            marker["task_requested"] = True
+            receipt = engine_output(output, code=3, status="abnormal")
+            receipt["job_id"] = job["id"]
+            return self._finish_receipt(TransferSession(), job, pc, profile, output, receipt)
+        def _collect(self, session, root, output):
+            pass
+    runner = FailureExecutor()
+    manager = Coordinator(tmp_path / "server", {"pc": {"work_dir": r"C:\BellalunRemote"}},
+                          {"qa": {"argv": ["engine", "run-regression"]}}, runner)
+    package, identity = bundle(tmp_path)
+    manager.add_bundle(package, identity)
+    with mock.patch.object(runner, "release_interlock") as release:
+        job = manager.submit("pc", "qa", identity, restore_after=True)
+        record = wait_state(manager, job["id"], {"uncertain", "abnormal"})
+        assert record["status"] == "uncertain"
+        assert not release.called
+        with pytest.raises(RemoteError):
+            manager.submit("pc", "qa", identity, restore_after=False)
+
+
+@pytest.mark.parametrize("route", ["download", "duplicate_upload"])
+def test_legacy_bundle_without_zip_digest_is_verified_and_migrated_atomically(tmp_path, route):
+    manager = coordinator(tmp_path)
+    package, identity = bundle(tmp_path)
+    manager.add_bundle(package, identity)
+    directory = manager.root / "bundles" / identity
+    (directory / "package.sha256").unlink()
+    if route == "download":
+        received, digest = manager.bundle_download(identity)
+        assert received == package
+        assert digest == hashlib.sha256(package).hexdigest()
+    else:
+        manager.add_bundle(package, identity)
+    assert (directory / "package.sha256").read_text() == hashlib.sha256(package).hexdigest()
+    assert (directory / "package.zip").read_bytes() == package
+
+
+@pytest.mark.parametrize("route", ["download", "duplicate_upload"])
+def test_legacy_corrupt_bundle_is_not_blessed_with_digest(tmp_path, route):
+    manager = coordinator(tmp_path)
+    package, identity = bundle(tmp_path)
+    manager.add_bundle(package, identity)
+    directory = manager.root / "bundles" / identity
+    (directory / "package.sha256").unlink()
+    (directory / "package.zip").write_bytes(b"corrupt")
+    with pytest.raises((BundleError, RemoteError)):
+        if route == "download":
+            manager.bundle_download(identity)
+        else:
+            manager.add_bundle(b"corrupt", identity)
+    assert not (directory / "package.sha256").exists()
+
+
+@pytest.mark.parametrize("prefix", [["BellalunAuto.exe"], ["python.exe", "-m", "bellalunauto.app"],
+                                    ["python.exe", "launcher.py"]])
+def test_stop_file_is_an_application_option_after_python_launcher(tmp_path, prefix):
+    runner = WinRMExecutor()
+    profile = {"argv": prefix + ["--workspace", "{workspace}", "run-regression", "{restore_after}"]}
+    result = runner._arguments({"id": "job1", "restore_after": False}, {"work_dir": r"C:\BellalunRemote"}, profile)
+    assert result[:len(prefix)] == prefix
+    assert result[result.index("run-regression") - 2:result.index("run-regression")] == ["--stop-file", r"C:\BellalunRemote\job1\stop.request"]
+
+
+@pytest.mark.parametrize("exception_kind", ["bundle", "blocked"])
+def test_errors_after_task_start_are_never_misreported_as_preflight_block(tmp_path, exception_kind):
+    from remote.coordinator import RemoteBlocked
+    class StartedError(WinRMExecutor):
+        def validate(self, pc, profile):
+            pass
+        def acquire_interlock(self, job, pc):
+            return {"lease_id": "fixture-lease"}
+        def _execute(self, job, pc, profile, package, output, cancel, log, marker):
+            marker["task_requested"] = True
+            if exception_kind == "bundle":
+                raise BundleError("result path rejected")
+            raise RemoteBlocked("post-start authority response unavailable")
+    runner = StartedError()
+    manager = coordinator(tmp_path, runner)
+    package, identity = bundle(tmp_path)
+    manager.add_bundle(package, identity)
+    with mock.patch.object(runner, "release_interlock") as release:
+        job = manager.submit("pc", "qa", identity, restore_after=True)
+        record = wait_state(manager, job["id"], {"uncertain", "blocked"})
+        assert record["status"] == "uncertain"
+        assert not release.called
+        with pytest.raises(RemoteError):
+            manager.submit("pc", "qa", identity)

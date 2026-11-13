@@ -72,7 +72,7 @@ def test_hash_change_blocks_launch_and_success_records_postcheck_before_finalize
     assert result['status'] == 'completed'
     assert result['returncode'] == 0
     assert order == ['verify', 'finalize']
-    assert json.loads((tmp_path / 'execution.json').read_text()) == result
+    assert json.loads((tmp_path / 'execution.json').read_text(encoding='utf-8')) == result
     with pytest.raises(lifecycle.LifecycleError):
         lifecycle.apply_plan(plan, approved=True, backup_receipt=receipt,
                              record_path=tmp_path / 'execution.json')
@@ -172,7 +172,7 @@ def test_cli_plan_and_explicit_apply_use_same_pinned_stub(tmp_path, capsys):
     receipt_file.write_text(json.dumps(receipt), encoding='utf-8')
     plan_file = tmp_path / 'plan.json'
     assert cli.main(['plan', '--profile', str(profile_file), '--output', str(plan_file)]) == 0
-    assert json.loads(plan_file.read_text())['package']['sha256'] == digest(payload)
+    assert json.loads(plan_file.read_text(encoding='utf-8'))['package']['sha256'] == digest(payload)
     arguments = ['apply', '--plan', str(plan_file), '--backup-receipt', str(receipt_file),
                  '--record', str(tmp_path / 'execution.json')]
     assert cli.main(arguments) == 1

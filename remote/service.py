@@ -48,6 +48,19 @@ def make_server(manager, token, host="127.0.0.1", port=0):
                 self._reply(401, {"error": "인증 실패"})
                 return
             try:
+                download = re.fullmatch(r"/bundles/([0-9a-f]{64})/download", self.path)
+                if not post and download:
+                    package, digest = manager.bundle_download(download[1])
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/zip")
+                    self.send_header("Content-Length", str(len(package)))
+                    self.send_header("X-Content-SHA256", digest)
+                    self.send_header("X-Bundle-Id", download[1])
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.end_headers()
+                    self.wfile.write(package)
+                    return
                 data = {}
                 if post:
                     length = int(self.headers.get("Content-Length", "0"))

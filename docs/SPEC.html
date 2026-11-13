@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="97a254f7e2fbc8659ad0e3c584dddafed31ee342a63584cec0a4c325883b5210">
+<meta name="spec-source-sha256" content="07ec3e8680442554cee7a465aa9e903b2c2ec12a7c59032883ae15670e7b1c9b">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1497,13 +1497,15 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-002">
 <h3><span class="idtag">REQ-FOLLOWUP-002</span> 준비·설치·효율·원격 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>tools/scope_summary.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>: 준비 결과·해결 안내 통합, 승인 Release Note 추출과 실제 설치 구성 관찰, 검증 프로필 기반 제품 수명주기 CLI, 원인 증거·UI 비용 계측, 범위 문서 생성과 원격 실행 기반을 추가했다. 실제 제품 설치·제거·서버 배포와 Windows 원격 실행 수용은 미수행이다.</li>
+<li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>: 원격 묶음의 해시 캐시·인증 HTTPS 다운로드, 진행 상태와 최근 로그 전달, 기본 6시간 제한과 예상 시간 검사를 보강했다. 시작 후 복원 미확인 종료는 잠금을 유지한다. 기존 묶음의 검증 정보 갱신과 Python 실행 인자 호환을 확인했다.</li>
 </ul>
 </details>
 <p>기존 diagnostics의 원인/해결 안내를 동의 화면에 통합하고 설정 미입력과 연결 실패를 구분한다. 승인된 Release Note가 없을 때도 실제 설치 구성을 기록하되 판정은 미확인으로 유지한다. 제품 설치/Upgrade/Uninstall은 검증된 패키지/인자와 백업·복구 계획 및 사람의 실행 승인에 연결한다. 환경 입력이 없으면 차단하며 추측한 무인 인자를 실행하지 않는다.</p>
 <p>공용 탐색과 기동 시간을 기록해 측정된 병목을 개선한다. 등급 문서는 자동화 범위 원본과 대조한다. 원격 실행은 고정 코드/런타임 지문·PC별 잠금·로그인한 대화형 세션·결과 회수·취소·실행 신원 검증을 제공하며 서버 계정/접속 정책이 미설정이면 차단한다. 제품 FAIL 판정은 완화하지 않는다.</p>
+<p>같은 실행 묶음은 해시를 확인한 PC 사본을 재사용한다. 대용량 묶음은 인증된 HTTPS로 전송하며 필요한 설정이 없으면 차단한다. 실행 중 진행 상태와 최근 로그를 전달한다. 기본 실행 제한은 6시간이고, 최장 예상 시간을 설정하면 제한까지 충분한 여유가 있는지 검사한다. 시작 후 정리·복원 완료를 확인하지 못하면 PC와 공용 잠금을 유지한다.</p>
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-003">
 <h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기</h3>
