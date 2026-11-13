@@ -18,10 +18,9 @@ TC_WindowsUpdate_09 의 USB Import, TC_WindowsUpdate_10 은 대응하는 기존 
 
 WU 판정은 **WU Expected Result** 기준이다. 재사용한 원본 TC 의 verdict 를
 그대로 승계하지 않는다 — 원본 TC 의 개별 Check 를 그대로 복사해 오되, WU
-Expected 가 요구하지 않는 항목에서 난 FAIL 중 **사용자가 이미 확인한 2건만**
-`KNOWN_DEFECT_EXCLUDE` 에 등록해 WU 집계에서 뺀다(대신 Issues 시트에 반드시
-남는다). 다른 FAIL 은 전부 그대로 WU 판정에 반영된다 — 임의로 더 빼지
-않는다.
+과거 기대값 오류의 제외 목록은 사양 재검토 후 비웠다. 현재 원본의 FAIL은 모두
+WU 판정에 반영한다. 과거 원시 결과는 바꾸지 않으며 사양 재평가를 새 회귀 완료로
+취급하지 않는다.
 """
 
 import os
@@ -47,46 +46,10 @@ WU_TITLES = {
     "TC_WindowsUpdate_13": "KIOSK 설정",
 }
 
-# (기존 TC ID, title) -> 이 WU 판정에서 빼는 이유. WU Expected 가 요구하지
-# 않는데 원본에서 FAIL 나는 **이미 확인된** 제품 결함만 등록한다. Step 번호가
-# 아니라 title 로 키를 잡는다 — 같은 결함을 여러 판독 방식(값 단위/화면 전체
-# 스캔 등)으로 중복 확인하는 check 가 여러 개 있을 수 있어서다(실측:
-# `Setting > Device > UPS 설정이 Export 시점 값으로 복원`과 `Setting 화면
-# 컨트롤 값 항목 단위 복원(보강 근거)` 둘 다 같은 UPS 결함으로 FAIL 한다).
-KNOWN_DEFECT_EXCLUDE = {
-    ("TC_Basic_WorkFlow_14",
-     "Setting > Device > UPS 설정이 Export 시점 값으로 복원"): {
-        "wu_tc": "TC_WindowsUpdate_11",
-        "kind": "기존 알려진 제품 결함",
-        "detail": "Setting Export/Import 시 UPS 설정(Setting > Device > UPS)이 "
-                  "복원되지 않는다.",
-        "impact": "WU_11 Expected는 '1시점의 Setting이 반영된다'만 요구하고 "
-                  "UPS를 특정하지 않아 WU 판정에서는 제외한다(원본 WF_14는 "
-                  "FAIL 그대로 유지 — 기본기능 판정은 안 바꾼다).",
-        "basis": "tests/workflow14.py Step 7. NEXT_WORK.md 3-A / B.22.",
-    },
-    ("TC_Basic_WorkFlow_14",
-     "Setting 화면 컨트롤 값 항목 단위 복원(보강 근거)"): {
-        "wu_tc": "TC_WindowsUpdate_11",
-        "kind": "기존 알려진 제품 결함",
-        "detail": "위와 같은 UPS 결함을 화면 전체 컨트롤 값 스캔으로 다시 "
-                  "확인하는 보강 check — 달라진 항목이 device.ups 하나뿐일 "
-                  "때만 같은 결함으로 본다.",
-        "impact": "WU_11 판정에서는 제외한다(원본 WF_14는 FAIL 유지).",
-        "basis": "tests/workflow14.py Step 7 보강 근거. NEXT_WORK.md 3-A.",
-    },
-    ("TC_XIPL_compatibility_03",
-     "Apply 후 TEST_3D 이름과 Recon/Syn 10개 값 유지"): {
-        "wu_tc": "TC_WindowsUpdate_05",
-        "kind": "기존 알려진 제품 결함",
-        "detail": "3D Post Reconstruction Apply 후 재진입하면 선택했던 "
-                  "파라미터가 기본값으로 되돌아간다(유지되지 않는다).",
-        "impact": "WU_05 Expected는 'Image에 적용된다'만 요구하고 재진입 시 "
-                  "유지 여부는 요구하지 않아 WU 판정에서는 제외한다(원본 "
-                  "XIPL_03은 FAIL 그대로 유지).",
-        "basis": "tests/xipl_flows.py compatibility_03 Step 9. NEXT_WORK.md 3절 #2.",
-    },
-}
+# SRS 01-10-60 / 03-50-230 재검토: UPS 복원과 우측 변경값 유지는
+# 제품 결함이 아니라 과거 기대값 오류였다. 새 회귀에서 실패를 제외하지 않는다.
+# 원시 리포트는 보존하며 별도 사양 재평가가 설치판 gate를 대체하지 않는다.
+KNOWN_DEFECT_EXCLUDE = {}
 
 
 # 사람이 직접 수행하는 TC(사용자 지정 수동). 2026-11-05 사용자 결정으로 MANUAL 이 아니라
@@ -185,6 +148,9 @@ def _copy_checks(wu_result, view, basis_label, only_steps=None, exclude_keys=Non
     checks = view["checks"]
 
     def _is_cascading_abort(check):
+        if not any(c.get('status') == 'FAIL' and (tc_id, c.get('title')) in exclude_keys
+                   for c in checks):
+            return False
         if not abort_keyword or check.get("status") != "FAIL":
             return False
         if (tc_id, check.get("title")) in exclude_keys:
@@ -315,10 +281,8 @@ def _wu_05(lookup):
     r = TCResult("TC_WindowsUpdate_05", WU_TITLES["TC_WindowsUpdate_05"])
     xipl03, xipl07 = (lookup.get("TC_XIPL_compatibility_03"),
                       lookup.get("TC_XIPL_compatibility_07"))
-    _copy_checks(r, xipl03, "TC_XIPL_compatibility_03",
-                exclude_keys=KNOWN_DEFECT_EXCLUDE, abort_keyword="TEST_3D")
+    _copy_checks(r, xipl03, "TC_XIPL_compatibility_03")
     _copy_checks(r, xipl07, "TC_XIPL_compatibility_07")
-    _attach_known_issues(r, xipl03, KNOWN_DEFECT_EXCLUDE)
     r.wu_basis = _basis_line(xipl03, xipl07)
     return r
 
@@ -464,9 +428,7 @@ def _wu_10(live_result):
 def _wu_11(lookup):
     r = TCResult("TC_WindowsUpdate_11", WU_TITLES["TC_WindowsUpdate_11"])
     wf14 = lookup.get("TC_Basic_WorkFlow_14")
-    _copy_checks(r, wf14, "TC_Basic_WorkFlow_14", exclude_keys=KNOWN_DEFECT_EXCLUDE,
-                abort_keyword="UPS")
-    _attach_known_issues(r, wf14, KNOWN_DEFECT_EXCLUDE)
+    _copy_checks(r, wf14, "TC_Basic_WorkFlow_14")
     r.wu_basis = _basis_line(wf14)
     return r
 

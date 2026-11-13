@@ -102,13 +102,13 @@ class InstalledGateTests(unittest.TestCase):
                 self.assertFalse(self.evaluate()["passed"])
                 self.data["meta"][field] = old
 
-    def test_new_failure_and_blocked_are_rejected_but_registered_defect_stays_fail(self):
+    def test_old_wrong_expectation_does_not_bypass_new_failure_gate(self):
         row = self.data["results"][0]
         row["verdict"] = "FAIL"
         row["checks"][0]["status"] = "FAIL"
         self.assertFalse(self.evaluate()["passed"])
         row["checks"][0]["title"] = "Setting > Device > UPS 설정이 Export 시점 값으로 복원"
-        self.assertTrue(self.evaluate()["passed"])
+        self.assertFalse(self.evaluate()["passed"])
         row["verdict"] = "BLOCKED"
         self.assertFalse(self.evaluate()["passed"])
 

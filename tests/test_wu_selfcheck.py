@@ -81,11 +81,13 @@ class MappingCheckTests(unittest.TestCase):
 
     def test_known_defect_mismatch_is_detected(self):
         scope = copy.deepcopy(self.scope)
-        _row(scope, "TC_WindowsUpdate_05")["known_defect_exclude"] = []
+        _row(scope, "TC_WindowsUpdate_05")["known_defect_exclude"] = [
+            {'tc_id': 'TC_XIPL_compatibility_03', 'title': 'synthetic unregistered failure'}]
         problems = self.check(scope=scope)
         self.assertTrue(any("known_defect_exclude" in p for p in problems), problems)
-        source = self.source.replace('"wu_tc": "TC_WindowsUpdate_05"',
-                                     '"wu_tc": "TC_WindowsUpdate_04"')
+        source = self.source.replace('KNOWN_DEFECT_EXCLUDE = {}',
+            'KNOWN_DEFECT_EXCLUDE = {("TC_XIPL_compatibility_03", "synthetic failure"): '
+            '{"wu_tc": "TC_WindowsUpdate_04"}}')
         self.assertNotEqual(source, self.source)
         self.assertTrue(self.check(source=source))
 

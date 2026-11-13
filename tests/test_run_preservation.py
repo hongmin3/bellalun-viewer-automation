@@ -90,7 +90,7 @@ def test_copy_failure_durable_journal_and_no_execution_permission(tmp_path):
     with mock.patch("core.run_preservation.shutil.copy2", side_effect=OSError("copy failed")):
         with pytest.raises(PreservationError):
             run.prepare()
-    journal = json.loads((run.run_dir / "journal.json").read_text())
+    journal = json.loads((run.run_dir / "journal.json").read_text(encoding="utf-8"))
     assert journal["state"] == "error"
     assert (source / "original").read_bytes() == b"before"
     with pytest.raises(RecoveryRequired):

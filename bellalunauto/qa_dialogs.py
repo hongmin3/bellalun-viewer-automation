@@ -111,15 +111,15 @@ def confirm_plan(root, plan, *, layout=None, open_config=None):
     dialog = tk.Toplevel(root)
     dialog.title('실행 전 확인 — 데이터 변경 동의')
     dialog.geometry('1000x900' if layout is not None else '850x740')
-    # 매번 사용자가 새로 선택한다. 이전 동의나 저장된 계획은 승인으로 재사용하지 않는다.
-    plan['restore_after'] = False
+    # 매번 복원을 기본 선택한다. 이전 선택·동의는 승인으로 재사용하지 않는다.
+    plan['restore_after'] = True
     view = scrolledtext.ScrolledText(dialog, wrap='word', height=10, font=('맑은 고딕', 10))
     view.pack(fill='both', expand=True, padx=12, pady=12)
     view.insert('end', format_plan(plan))
     view.configure(state='disabled')
     if layout is not None:
         _diagnostics_panel(dialog, layout, open_config or (lambda: None), height=5)
-    restore = tk.BooleanVar(value=False)
+    restore = tk.BooleanVar(value=True)
     agreed = tk.BooleanVar(value=False)
     accepted = [False]
     ttk.Label(dialog, text='UAC 권한 승인은 아래 데이터 변경 동의를 대신하지 않습니다.').pack(pady=4)
@@ -139,8 +139,11 @@ def confirm_plan(root, plan, *, layout=None, open_config=None):
         ttk.Checkbutton(dialog, text=item['label'], variable=value, command=refresh).pack(anchor='w', padx=12)
     ttk.Checkbutton(dialog, text='시험 종료 후 DB·변경 대상 파일을 실행 전 상태로 복원 (이번 실행만)',
                     variable=restore).pack(anchor='w', padx=12, pady=6)
-    ttk.Label(dialog, text='선택 시 시험 전 사본과 해시를 보관하고 시험·보고서 저장 후 복원합니다. '
-                          '미선택 시 사본을 보관하고 기존 종료 정책을 따릅니다.',
+    ttk.Label(dialog, text='복원은 매 실행 기본 선택이며 이번 실행에서 해제할 수 있습니다. '
+                          '공유 사본 검증·파일과 DB 원상복원·서비스 복구·정상 완주를 확인한 뒤 '
+                          '이번 실행에서 생성되어 격리된 Image 파일만 자동 삭제합니다. '
+                          '원상복원을 해제하면 DB의 영상 참조를 보존하기 위해 생성 이미지 자동 삭제도 하지 않습니다. '
+                          '시험 전 사본·공유 보존 자료·기존 백업은 유지합니다.',
               wraplength=940).pack(anchor='w', padx=12)
     ttk.Checkbutton(dialog, text='위 변경에 동의합니다', variable=agreed,
                     command=refresh).pack(pady=6)
@@ -208,7 +211,8 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14):
             tree.selection_set(failures[0])
             select()
         else:
-            explanation.set('준비 점검 완료. 시험 시작 시 기존 환경 gate가 다시 적용됩니다.')
+            explanation.set('기본 설치·연결 점검을 통과했습니다. 보존 저장소 연결·용량 예산은 시험 준비에서 별도로 확인합니다. '
+                            '시험 시작 시 환경 gate가 다시 적용됩니다.')
 
     def resolve():
         row = selected()

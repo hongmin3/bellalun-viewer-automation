@@ -35,12 +35,11 @@ class OutcomeSummaryTests(unittest.TestCase):
         self.assertEqual(row["reason"], "DB 값이 바뀌지 않았다.")
         self.assertFalse(row["known_defect"])
 
-    def test_registered_known_defect_is_labelled_and_headline_says_no_new_failure(self):
+    def test_old_wrong_ups_expectation_is_not_labelled_a_product_defect(self):
         title = "Setting > Device > UPS 설정이 Export 시점 값으로 복원"
         summary = outcome_summary([tc("TC_Basic_WorkFlow_14", (7, title, FAIL, "복원", "None", "UPS 미복원"))])
-        self.assertTrue(summary["rows"][0]["known_defect"])
-        self.assertIn("알려진 제품 결함", summary["headline"])
-        self.assertEqual(summary["level"], "warn")
+        self.assertFalse(summary["rows"][0]["known_defect"])
+        self.assertEqual(summary["level"], "bad")
 
     def test_manual_and_skip_need_person_and_keep_their_recorded_reason(self):
         summary = outcome_summary([tc("TC_M", (1, "사람 확인", MANUAL, "-", "-", "기준 자료가 없다")),
@@ -57,7 +56,7 @@ class OutcomeSummaryTests(unittest.TestCase):
                                       (9, "새로 깨진 항목", FAIL, "A", "B", "새 원인이다."))])
         row = summary["rows"][0]
         self.assertFalse(row["known_defect"])
-        self.assertEqual((row["step"], row["check"], row["reason"]), ("9", "새로 깨진 항목", "새 원인이다."))
+        self.assertEqual((row["step"], row["check"], row["reason"]), ("7", known, "UPS 미복원"))
         self.assertEqual(summary["level"], "bad")
 
     def test_no_results_is_not_success(self):

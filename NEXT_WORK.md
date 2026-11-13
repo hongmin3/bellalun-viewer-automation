@@ -1,5 +1,21 @@
 # 다음 작업
 
+## 2026-11-13 현재 판단 정정
+
+1.0.13 공용 보존과 WF14/XIPL03 수정은 [최신 검증](docs/practical-preservation-validation.md),
+현재 실행 상태는 progress.md를 따른다. 실제 NAS는 재부팅 후 인증 오류로 미검증이며 설치판은1.0.11이다.
+아래 과거 이력의 UPS/XIPL03 제품 결함 분류는 철회한다. WF14 UPS는 Import 제외이고,
+XIPL03 우측은 XTP 기본값이다. [별도 사양 재평가](docs/spec-reevaluation-2026-11-13.md)는
+원시 결과를 바꾸거나 새 회귀·릴리스 gate를 대신하지 않는다. XIPL03 전체 실물 PASS는 아직 아니다.
+새 빌드·NAS 연결·실영상 확보·사용자 승인 뒤 기본/WU 전체 수용을 수행한다.
+
+
+## 현재 진행 — 1.0.13 공용 보존과 용량 정책
+
+사용자가 공용 백업·변경 파일 복원을 선택했다. 공용 저장소와 로컬 journal, 차이 복원·중단 재개, C:/USB별 용량 기준과 설정 화면을 구현하고 통합 검증한다. 설계는 [공용 보존과 용량 기준](docs/superpowers/specs/2026-11-13-practical-preservation-design.md)을 따른다. 1.0.12의 전체 로컬 사본 예산을 새 정책의 필요량으로 재사용하지 않는다.
+
+화면 녹화·영상 편집·업로드는 이번 검증의 사양·실행 계획·수용 조건에서 제외한다. 새 후보는 ZIP 해제 → Setup 설치 → 설치된 Auto GUI → 승인 범위 회귀·복원·보고서와 자동 닫기/취소 순서로 검증한다.
+
 현재 기준은 2026-11-13이다. P1~P14와 GUI 완료 60초 자동 닫기를 구현하고 1.0.12 후보를 빌드했다. 전체 로컬 시험 1257개와 302 subtests가 통과했다. 설치판은 1.0.11이며 새 후보의 실물 수용은 남아 있다. [현재 검증](docs/followup-validation.md)과 `progress.md`를 먼저 읽는다. 이전 소스 GUI WU의 PASS 10 / SKIP 3을 새 후보의 결과로 재사용하지 않는다.
 
 ## 현재 남은 실물 확인
@@ -8,8 +24,8 @@
 2. Install_01은 승인 Release Note의 대상 버전 파일 15개를 추출했다. 실제 config는 변경하지 않았다. DB 버전 기준은 원문에 없어 미확정이며 실제 설치 패키지도 확보해야 한다.
 3. Install_07~09는 프로필 검증·prepare/apply/resume·DB/파일 확인과 복원 경계를 구현했다. 검증된 패키지·무인 인자·시험 PC·시간대·복구 범위를 확정하고 실행 승인을 받은 뒤 실제 설치·제거를 수행한다. 일반적인 재부팅 필요 여부도 실물 확인 대상이다.
 4. 원격 실행 서버 배포, Windows 대상 PC·계정·WinRM·대화형 세션, 기존 VHD와 공유할 잠금 권한을 준비한다. 현재 엔진의 강제 중지는 복원을 끝내지 못할 수 있다. 복원 확인 기록이 없으면 잠금을 유지하고 복구 도구로 확인한다.
-5. 1.0.12 후보 설치와 기본기능/WU·선택 복원·완료 자동 닫기의 실제 수용을 수행한다. 이전 제품 UPS·XIPL03 FAIL과 과거 QC/Dose SR 복원 미확인은 유지한다.
-6. 발표 초안 v0.3·영상은 별도 사내 자료함에서 관리한다. 최신 고도화 내용 반영과 완성 PPT 제작은 별도 작업이며, 촬영 당시 수치를 새 후보의 실측으로 바꾸지 않는다.
+5. 1.0.12 후보 설치와 기본기능/WU·선택 복원·완료 자동 닫기의 실제 수용을 수행한다. 과거 UPS·XIPL03 원시 FAIL은 보존하되 제품 결함 분류는 위 사양 재평가로 정정한다. QC/Dose SR 복원 미확인은 유지한다.
+6. 기존 발표자료는 별도 사내 자료함의 역사 자료로 유지한다. 새 검증을 위한 녹화·편집·업로드는 요구하지 않는다.
 
 ## #129 후속과 공용 서버 전환의 구현 상태
 
@@ -59,7 +75,7 @@ Install_01·07~09의 기반 구현과 준비 진단 통합은 후속 소스에 �
 
 1. Python·Git이 없는 별도 PC 또는 VM, 실제 Windows 11 LTSC, Windows 10, 다른 관리자 계정 UAC에서 같은 패키지를 검증한다.
    WU_09 USB 왕복은 2026-10-21 다른 USB로 후보11 재확인을 마쳤다(PASS).
-2. 제품 결함 두 건(WF14 UPS 미복원, XIPL03 Step 9 값 복귀)은 제품 수정 후 재확인한다. 판정은 완화하지 않는다.
+2. WF14 UPS와 XIPL03은 사양에 맞게 기대값을 고쳤다. 원시 FAIL은 보존하고 신규 설치판에서 실제 재시험한다.
 3. Install_01 승인 Release Note, Install_02 OS Build 기준 자료를 받으면 자동 판정으로 올린다(5절 ①②).
 4. (2026-11-12 등록) WU 저장점 교체 실패 시 재시도. 1.0.11 설치판 GUI WU 실행에서 마지막 `TC_WindowsUpdate_10`이
    끝난 뒤 `core/wu_chain.py` `Checkpoint.save()`의 `os.replace`가 `[WinError 5] 액세스가 거부되었습니다`로 한 번 실패해
@@ -774,19 +790,21 @@ run-sys3d/run-ui 대기 전환·WF_13 문서 정정이 전체 회귀 경로에�
 | # | 문제 | 우선순위 |
 |---|---|---|
 | ~~1~~ | ~~`TC_XIPL_compatibility_05` Fiber 콤보에 합격 기준(4.0) 미만 항목이 없어 불합격 경계 검증이 MANUAL로 남는다~~ — **2026-09-01 해결**(2절 XIPL_05 행 참고). 콤보 항목이 없던 게 아니라 뷰포트 클리핑으로 못 읽은 것이었다 | 완료 |
-| 2 | `TC_XIPL_compatibility_03` Step 9 — 제품 결함. 완화하지 않는다 | 제품 수정 대기 |
+| 2 | `TC_XIPL_compatibility_03` 기대값 오류 정정. 우측 기본값과 실제 img/Overlay 적용값·재시작 검증 | 신규 설치판 실물 확인 |
 | 3 | 3D Preset 목록·추가·삭제 컨트롤 ID 미실측 → "새 Preset 이 Default 를 물려받는가" 미판정 | P1 |
 | 4 | `flows.demo_acquire_step(settle=14)` 고정 대기 — **2026-08-31 라이브 재검증 완료(2-C절).** 회귀에 남아 있던 두 콜사이트(`tests/workflow07.py` WF_07 Step 4, `tests/xipl_flows.py::compatibility_04` XIPL_04)를 `core/viewer_processing.wait_new_group` 상태 기반 대기로 바꿨고, 실제 UI 실행에서 **판정 동일(WF_07 PASS 11/11, XIPL_04 전 Step PASS) + WF_07 Step 4 −10.2초 / XIPL_04 Step 6 −45.6초**를 실측했다. 전환 과정에서 드러난 `_add_view_position_by_alias` 재시도 누락은 `open_view_position_dialog` 공용화로 고쳤다. `run-sys3d`(`tests/system_compat.py:207`, 명시적 settle=20)와 `run-ui`/`run-auto`(`tests/ui_flows.py:206`)는 회귀 밖 별도 명령이라 후순위(P2)로 남긴다 | 완료(P2 잔여) |
 | 5 | 중단 정책 때문에 `XIPL_03` Step 10 의 "GPU 없음 SKIP" 기록이 사라진다 | P2(맞바꾼 것) |
 | 6 | 추적성 미연결 13건 — `Install_01` 외 12건은 전부 미구현 | P2 |
-| 7 | **UPS 설정이 Setting Export/Import 범위 밖이다** — 아래 3-A | 제품 수정 대기 |
+| 7 | UPS는 Import 제외(SRS01-10-60). 변경값 유지 검증과 별도 사양 재평가 | 신규 설치판 실물 확인 |
 | 8 | **Setting 페이지 순회 중 Viewer 가 종료되는 경우가 있다**(간헐) — 아래 3-B | 조사 계속 |
 | 9 | **`WF_14` 진입이 간헐적으로 실패한다**(`my_settings` ID 193 미발견) — 아래 3-C. **연속 3회 재실행(2026-08-31)으로도 이 증상 자체는 재현되지 않았다** — 대신 다른 결함 2건이 나왔다(아래 2-D절) | P0 |
 | 10 | ~~`WF_10`의 `HC` → `Mammography (Rt)` 비기본 Procedure 매핑 변경이 미검증~~ — **2026-08-31 완료.** `run-wf10` PASS 11/11(`Reports/Result_20260831_094332.json`) — HC 저장, `Mammography (Rt)` 매핑, MWL Hospital Code Mapping 태그 `(0032,1064)`, MWL 처방 등록·조회, `STUDY.ProcedureKey` 반영, Examine Step 등록·촬영 준비까지 전부 확인됐다. **선행 조건 정정**: `setup-storage`만으로는 부족하다 — MWL이 없으면 Step 3의 Hospital Code Mapping 콤보(2453)가 비활성이라 열리지 않고 FAIL 한다(`Result_20260831_093609.json`). `setup-dicom`(MWL+Storage+Print)으로 바꾸자 PASS 했다. `README.md`에 반영 | 완료 |
 | 11 | ~~`cold_start` 주 모니터 이탈 중단 로직이 미검증~~ — **2026-08-31 검증 완료 및 결함 수정**(2-E절). 밖: 안전 중단 + 창 위치 유지, 안: 정상 로그인, 기동 경로도 정상. 검증 중 **재사용 경로(`force_restart=False`, 기본값)가 검사를 건너뛰던 것**을 찾아 고쳤다 | 완료 |
 | 12 | ~~작업 PC 물리 접근 문제(08-30~31)~~ — **2026-08-31에 다른 PC로 옮겨 해소.** 새 PC에서는 화면 잠금·로그인 실패가 재현되지 않았고 `portability-check`와 `cold_start` 로그인이 정상이었다(2-C절). 이전 PC로 돌아가면 3-D가 다시 유효하다 | 해소(환경 이전) |
 
-### 3-A. UPS 설정이 Export/Import 로 복원되지 않는다 (제품 결함, 사용자 확인 완료)
+### 3-A. UPS 과거 제품 결함 분류 정정
+
+2026-11-13: SRS01-10-60 Import 표(물리486쪽)의 UPS 제외로 기대값을 정정했다. 아래는 당시 관찰 이력이며 현재 제품 결함 판단은 아니다.
 
 `Setting > Device > UPS` 값은 저장은 되지만 `.vms` 20개 항목·DB 3종·`ExternalInput.xml`·
 레지스트리 어디에도 실리지 않는다(전수 확인). 사양서 60절은 Export 대상을 "Study 정보를

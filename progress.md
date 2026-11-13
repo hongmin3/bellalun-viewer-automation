@@ -1,5 +1,41 @@
 # 진행 상태
-## 2026-11-13 P1~P14 후속 개선 구현·로컬 검증
+## 2026-11-13 재부팅 후 1.0.13 소스 검증과 실물 선행조건
+
+미커밋 WIP를 보존해 공용 사전/시험 후 보존·차이 복원·생성 Image 한정 정리·정리 재개를 통합했다.
+독립 검토의 중요 지적(복원 verified 뒤 서비스/완료 증명/정리/최종 보고서 실패가 pending에서 빠짐)을
+실패 시험으로 재현해 제품 시작 전 durable 마무리 대기로 막았다. 미시작 확인의 잠금 해제도 검증했다.
+기존 사용자 AGENTS.md 수정은 보존하고 커밋에서 제외한다.
+
+백엔드와 TC 독립 검토의 중요 지적을 실패 시험으로 확인해 수정했고 최종 재검토의 추가
+Critical/Important는 없다. 실제 NAS/제품 UI 수용 통과를 뜻하지 않는다.
+
+최신 소스 전체 시험: `python -X utf8=0 -m pytest tests -q`, 실제 Inno 경로 지정,
+1407 passed +302 subtests passed, skip0, 136.33초. 로그는 work/run664-release-source-tests.log다.
+코드 정적4종·추적성·WU 매핑·범위 문서 검사 실패0, 완료 정리85문서/삭제0/실패0,
+readiness·workspace gate 실패0을 확인했다. workspace는 앱 시험을 실행하지 않아 위 pytest를 별도로 수행했다.
+미확정 외부 입력·기존 문서/생성 캐시 경고는 남긴다. 신규 후보 빌드·설치는 이 결과와 별도다.
+
+WF14는 UPS Import 제외·변경값 유지로 수정했고 과거 원시 보고서 SHA를 유지한 별도 사양 재평가만
+PASS로 기록했다. XIPL03은 우측 기본값과 img/Overlay 적용값 분리, 최신 Study 사본 선택,
+Apply timeout 증거 저장과 재시작 대조를 추가했다. 실제 제품 재시험 전이므로 XIPL03 전체 PASS가 아니다.
+잘못된 제품 결함 제외 목록은 비웠다. [사양 재평가](docs/spec-reevaluation-2026-11-13.md)를 따른다.
+
+과거 1,938개/152.51GiB inventory 모델: 로컬 방식 C513.55/USB15.11GiB → 공유 방식
+C21.60/USB0.79/NAS상한324.27GiB. 현재 빈 Image는 사용자 삭제 결과다. 개선 성과와 분리한다.
+실제 NAS 합성 probe는 재부팅 후 WinError1326 인증 오류로 전용 폴더 생성 전에 막혔다.
+기존 공유 연결·설정·자격증명은 바꾸지 않았다. 실제 SMB 통합 통과가 아니다.
+
+현재 DATA는 PATIENT/STUDY 각1, SERIES/INSTANCE/INSTANCE_GROUP/FRAME0, QC_STUDY1이다.
+승인 Baseline에는 DB4개만 있고 전체 Image/manifest가 없다. 일부29영상으로 전체 복구를 주장하지 않는다.
+현재 상태 보존·Baseline 적용·실영상 확보/대조와 신규 설치판 전체 수용은 남아 있다.
+
+설치판1.0.11은 유지했다. 새 패키지는 ZIP해제→Setup설치→설치된Auto GUI→기본/WU전체→복원/결과/
+Image정리→60초자동닫기와 모든취소조건으로 검증한다. 녹화·편집·업로드는 하지 않는다.
+NAS 재연결·실영상 준비 후 새 EXE/해시·시간·입력점유·DB/설정/USB변경에 대한 답변을 기다린다.
+P10 제품 설치패키지/검증된 argv·DB ReleaseVersion, P14 Windows 대상/계정·WinRM·공유 VHD 잠금은
+외부 입력과 실물 수용이 남아 있다. [검증 범위](docs/practical-preservation-validation.md)를 따른다.
+
+## 직전 1.0.12 P1~P14 구현·로컬 검증 기록
 
 사용자가 #132 보고서 전체와 GUI 자동 닫기를 승인했다. 실행마다 원상복원 여부를 선택한다. 이전 설치판 1.0.11과 녹화·과거 결과는 보존했다.
 

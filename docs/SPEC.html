@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="07ec3e8680442554cee7a465aa9e903b2c2ec12a7c59032883ae15670e7b1c9b">
+<meta name="spec-source-sha256" content="acda74b76ad40f3e50d4a1a310f36250203b8e97020096b251105c434476faf7">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,8 +92,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.3.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.3; Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-09</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>37</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>29</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>37</b><span>implemented</span></div></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.13 후보 개발 중; 설치판 1.0.11, Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-13</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="stats"><div class="stat"><b>39</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>31</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>39</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -141,6 +141,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001 <span>실행 보존·자원·결과 안정화</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002 <span>준비·설치·효율·원격 실행</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003 <span>회귀 완료 후 60초 자동 닫기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004 <span>공용 보존과 볼륨별 용량 기준</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-TCUP-005">REQ-TCUP-005 <span>Import 제외 항목과 Post Reconstruction 적용값 구분</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
 <li class="toc-2"><a href="#sec-7">7. 데이터 사양</a></li>
@@ -177,6 +179,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-OCR-001">TEST-OCR-001 <span>OCR 판독·선택·환경 기록</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-OCR-002">TEST-OCR-002 <span>준비 점검의 OCR 안내</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-008">TEST-DIST-008 <span>설치용 ZIP 무결성</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004 <span>공용 보존과 마무리 경계</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-TCUP-005">TEST-TCUP-005 <span>사양에 맞는 Import와 Post Reconstruction</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -207,6 +211,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-TCUP-002">REQ-TCUP-002</a></td><td data-label="이름">WF14와 WU11의 목록 전체 수집</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/setting_lists.py</code>, <code>tests/workflow14.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_setting_list_rewind.py</code>, <code>tests/test_setting_lists.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TCUP-003">REQ-TCUP-003</a></td><td data-label="이름">WF15 Overlay OCR 보강</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/image_overlay.py</code>, <code>tests/workflow15.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_overlay_lines.py</code>, <code>tests/test_image_overlay.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a></td><td data-label="이름">WU09 실행 전 준비 체크리스트</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/run_preparation.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_run_preparation.py</code>, <code>tests/test_qa_dialogs.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a></td><td data-label="이름">Import 제외 항목과 Post Reconstruction 적용값 구분</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">TRACE</span> 사양 근거 추적</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="이름">사양 근거 추적</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="이름">Windows Update 추적성과 정적 자체검사</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td></tr>
@@ -235,6 +240,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="이름">실행 보존·자원·결과 안정화</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="테스트"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="이름">준비·설치·효율·원격 실행</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>tools/scope_summary.py</code></td><td data-label="테스트"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="이름">회귀 완료 후 60초 자동 닫기</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="테스트"><code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="이름">공용 보존과 볼륨별 용량 기준</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/run_preservation.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -296,6 +302,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li>근거가 없는 PASS, 미확정 Release Note/OS 기준값의 추정, WU_09 완료의 미검증 승격.</li>
 <li>승인된 시험 흐름 밖의 DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.</li>
 <li>회귀 밖 독립 설치 패키지 점검을 기본 회귀에 임의 편입하는 작업.</li>
+<li>화면 녹화·영상 편집·영상 업로드. 검증 증거는 결과 보고서·로그·필요한 정지 스크린샷으로 남기며 녹화물을 실행·수용 조건으로 요구하지 않는다.</li>
 </ul>
 <section class="card kind-req" id="REQ-OCR-001">
 <h3><span class="idtag">REQ-OCR-001</span> PC 간 OCR 판독과 선택 증거</h3>
@@ -534,8 +541,8 @@ Install_01을 성공 또는 사람 전용 SKIP으로 바꾸지 않는다. 과거
 <p>목록은 재사용되는 HWND/Control ID를 행 식별자로 쓰지 않는다. 현재 위치가 중간이나
 끝이어도 목록 처음으로 이동한 뒤, 실제 행 문구·연속 겹침·끝 도달·DB 원천 행 수를
 확인하며 숨은 행과 상세값을 수집한다. DB 0건 근거가 없는 빈 목록·판독 실패·상한 도달·건너뛴 행은
-완주로 인정하지 않는다. WU11은 같은 WF14 결과를 매핑한다. UPS 미복원과 XIPL03의
-기존 제품 관찰은 유지하며 완주 실패를 숨기는 허용 목록을 추가하지 않는다.</p>
+완주로 인정하지 않는다. WU11은 같은 WF14 결과를 매핑한다. 과거 원시 FAIL은 보존하며
+UPS는 SRS 01-10-60 Import 제외에 따라 변경값 유지를 검증한다. 전체 Device를 제외하지 않는다.</p>
 <p>Print Overlay의 하위 목록은 선택한 Overlay 이름을 되읽고 그 Overlay의 DB Position별
 행 수와 대조한다. 다른 Overlay에 항목이 있더라도 현재 Overlay의 DB 행 수가 0이면
 빈 목록을 정상적으로 기록한다. DB에 항목이 있는데 화면에서 못 읽으면 완주가 아니다.</p>
@@ -1210,8 +1217,9 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-REGRESSION-002">
 <h3><span class="idtag">REQ-REGRESSION-002</span> 변경 영향에 따른 검증과 UI 회귀 승인</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>AGENTS.md</code>, <code>docs/testing-guide.md</code>, <code>tools/run_installed_suites.py</code>, <code>tools/installed_release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_installed_suites.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 14</summary>
+<details class="history"><summary>변경 이력 15</summary>
 <ul>
+<li><span class="hist">1.0.13 후보 개발 중 — 공용 보존과 용량 기준</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 수용 흐름을 ZIP 해제·Setup 설치·설치판 GUI 실행으로 명확히 하고 화면 녹화·편집·업로드를 검증 조건에서 제외한다.</li>
 <li><span class="hist">1.0.11 정식 배포 — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 수용을 마친 커밋 2630d0b를 run113 설치판 전체 회귀 리포트(기본기능 <code>Result_20261111_052024.json</code>, WU <code>Result_WindowsUpdate_20261111_063744.json</code>)를 게이트 입력으로 다시 빌드해 정식 배포 패키지를 만들었다. build-info의 릴리스 게이트가 <code>passed</code>이고 파일명에 <code>-candidate</code>와 후보 표식이 없다. 컴파일과 시험(995 passed / 1 skipped / 299 subtests)을 생략하지 않았다.</li>
 <li><span class="hist">1.0.11 후보(1.0.10 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.11 후보(2630d0b)를 생략 없이 빌드해 1.0.10 위에 설치하고 수용을 마쳤다(run113). XIPL03 단독은 알려진 결함 Step 9만 FAIL로 게이트를 통과했다. 기본기능 전체 회귀(97.0분)는 PASS 23 / FAIL 2 / MANUAL 1 / SKIP 1이고, FAIL은 알려진 제품 결함(WF14 UPS, XIPL03 Step 9)뿐이다. WU 전체(77.1분)는 PASS 10 / SKIP 3(사람 전용)이다. 두 리포트를 함께 본 릴리스 게이트가 통과했다. 설치 후보 파일은 정식 배포로 바꾸지 않았고 후보 표시를 유지한다.</li>
 <li><span class="hist">1.0.11 후보(1.0.10 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 1.0.10 후보(6a71f33)의 XIPL03 단독은 3D Preview 대기가 120초 뒤 timeout 됐다(Step 1 중단, 게이트 거부). Preview 스레드는 스스로 끝나지 않았다. 1.0.10에서 넣은 &quot;Preview 스레드 종료 로그까지 기다림&quot;은 잘못된 가정이었다.</li>
@@ -1516,6 +1524,39 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 </ul>
 </details>
 <p>기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 GUI에 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다. 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼을 누르면 그 회차의 자동 닫기를 취소한다. 키보드 버튼 실행도 취소하며 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.</p>
+</section>
+<section class="card kind-req" id="REQ-FOLLOWUP-004">
+<h3><span class="idtag">REQ-FOLLOWUP-004</span> 공용 보존과 볼륨별 용량 기준</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.13 후보 개발 중 — 공용 보존과 용량 기준</span> <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 공용 사전/시험 후 보존·최대 단일 파일 차이 복원, 저장소 신원·중단 복구, 실행 생성 Image 한정 정리와 정리 재개를 구현했다. 서비스·원본 완료 증명·최종 저장 실패도 durable pending으로 남겨 다음 실행과 자동 닫기를 막는다. 실제 SMB는 재부팅 후 인증 오류로 미검증이며 새 설치판 수용은 남아 있다.</li>
+</ul>
+</details>
+<p>PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검증해 보존한다. 로컬 journal은 공유 연결이 끊겨도 미완료 실행을 발견해야 한다. 공유 사본을 검증한 뒤 변경 파일만 순차 복원하며 변경 없는 파일은 다시 복사하지 않는다. 이전 사본과 archive를 덮어쓰거나 자동 삭제하지 않는다. 기존 로컬 기록도 복구할 수 있어야 한다.</p>
+<p>제품 볼륨·USB의 여유와 시험 생성량을 구분하고, 공용 저장소 및 최대 단일 파일 복원 임시량·DB staging을 각각 계산한다. 기본 여유는 제품 볼륨 2GiB, USB 256MiB이며 USB 생성량은 별도 512MiB다. 조회 실패와 실제 부족은 차단한다. 설정값은 조정할 수 있으나 검증해야 할 자료 범위를 줄여 용량을 맞추지 않는다.</p>
+<p>회귀 완료 후 파일·DB 복원과 서비스 복구, 공용 사본 검증이 성공하면 이번 실행의 Image 격리 경로에 남은 생성 이미지를 로컬에서 정리한다. 기존 시험 전 이미지와 공용 사전/시험 후 사본은 지우지 않는다. 복원하지 않았거나 중단·복원 실패·공유 사본 미확인인 실행은 삭제하지 않고 사유를 기록한다. 정리 실패는 완료 자동 닫기를 시작하지 않고 재개 조건을 남긴다.</p>
+<p>공유 보존·복원·전체 회귀의 마무리 대기를 제품 시작 전에 내구성 있게 기록한다.
+복원 verified만으로 서비스·원본 완료 증명·정리·최종 보고서 미완료를 terminal로 취급하지 않는다.
+마무리 대기가 남으면 다음 실행을 차단하고, 원본 완료 증명 없는 정리 재개는 거부한다.</p>
+</section>
+<section class="card kind-req" id="REQ-TCUP-005">
+<h3><span class="idtag">REQ-TCUP-005</span> Import 제외 항목과 Post Reconstruction 적용값 구분</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.13 후보 개발 중 — 공용 보존과 용량 기준</span> <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: WF14의 UPS Import 제외·변경값 유지와 XIPL03의 XTP 기본값/실제 img·Overlay 적용값을 구분했다. Apply timeout 증거 보존·최신 Study 사본·재시작 대조를 보강하고, 과거 기대값 오류를 제품 결함으로 제외하던 WU/릴리스 목록을 비웠다. 원시 결과를 수정하거나 XIPL03 전체 PASS로 바꾸지 않는다.</li>
+</ul>
+</details>
+<p>WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
+별도로 검증한다. 나머지 Device 설정은 계속 대조한다(SRS 01-10-60 물리486쪽).</p>
+<p>XIPL03은 우측 조정툴의 선택 XTP 기본값과 영상에 실제 적용된 값을 구분한다.
+우측 10개 값이 변경값을 유지해야 한다는 기대를 쓰지 않는다. Apply 후 DB·결과 파일과
+<code>.img</code>의 Recon/Syn 10개 저장값, 선택 파일명·Overlay 증거를 판정 중단 전에 보존한다.
+재진입 기본값과 실제 저장값을 각각 대조한다(SRS 03-50-230 물리765–768쪽).
+No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하지 않는다.
+원시 결과를 수정하지 않으며 과거 WF14 재평가는 별도 기록으로 두고 실제 회귀 gate를 대체하지 않는다.
+재시작 후 영상 재개방 검증 전에는 XIPL03 전체 실물 수용 완료로 보고하지 않는다.</p>
 </section>
 </section>
 <section class="chapter" id="sec-6">
@@ -1861,6 +1902,30 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <li>기대: 입력 SHA-256·버전·후보 표식을 확인하고 ZIP CRC·모든 내부 해시가 일치한다. 변조·누락·추가 파일·기존 출력 덮어쓰기를 거부한다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-FOLLOWUP-004">
+<h3><span class="idtag">TEST-FOLLOWUP-004</span> 공용 보존과 마무리 경계</h3>
+<ul>
+<li>대상: <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>.</li>
+<li>자동 절차: <code>tests/test_shared_preservation.py</code>, <code>tests/test_image_cleanup.py</code>,
+<code>tests/test_execution_session.py</code>, <code>tests/test_recover_preservation_cli.py</code>,
+<code>tests/test_resource_budget.py</code>, <code>tests/test_preservation_settings.py</code>.</li>
+<li>기대: 원본·사전/시험 후 사본 보존, 저장소 단절·불일치 차단, 순차 복원·정리 재개,
+완료 증명/서비스/최종 저장 실패의 durable pending, 볼륨별 최대 단일 파일 예산이 맞는다.</li>
+<li>실제 SMB의 합성 파일·긴 UNC 시험과 설치판 사용자 흐름은 별도로 확인한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-TCUP-005">
+<h3><span class="idtag">TEST-TCUP-005</span> 사양에 맞는 Import와 Post Reconstruction</h3>
+<ul>
+<li>대상: <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>.</li>
+<li>자동 절차: <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>,
+<code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code>.</li>
+<li>기대: UPS 한 항목만 분리하고 변경값 유지, XTP 기본값과 파일/Overlay 적용값 분리,
+최신 영상 선택과 Apply timeout 증거 수집, 과거 기대값 오류로 새 gate 통과 금지.</li>
+<li>설치판에서 Recon/Syn 각각의 Overlay·모든 결과 img·Viewer 재시작을 검증하기 전에는
+XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 않는다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -1870,6 +1935,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="Test"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="Implementation"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>tools/scope_summary.py</code></td><td data-label="Test"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="Implementation"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="Test"><code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="Implementation"><code>core/run_preservation.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a></td><td data-label="Implementation"><code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-001">REQ-TCUP-001</a></td><td data-label="Implementation"><code>automation_scope.json</code>, <code>core/scope_results.py</code>, <code>core/result.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_scope_skips.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-002">REQ-TCUP-002</a></td><td data-label="Implementation"><code>core/setting_lists.py</code>, <code>tests/workflow14.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_setting_list_rewind.py</code>, <code>tests/test_setting_lists.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-003">REQ-TCUP-003</a></td><td data-label="Implementation"><code>core/image_overlay.py</code>, <code>tests/workflow15.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_overlay_lines.py</code>, <code>tests/test_image_overlay.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>

@@ -136,7 +136,6 @@ def completed_report(reports_dir, command, since):
         return health.latest_full_regression(str(reports_dir), since=since)
     if command != 'run-winupdate':
         return None
-    expected = {f'TC_WindowsUpdate_{i:02}' for i in range(1, 14)}
     candidates = sorted(Path(reports_dir).glob('Result_WindowsUpdate_*.json'),
                         key=lambda path: path.stat().st_mtime, reverse=True)
     for path in candidates:
@@ -146,12 +145,9 @@ def completed_report(reports_dir, command, since):
             data = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
             continue
-        meta = data.get('meta') or {}
-        if meta.get('execution_mode') != 'live' or meta.get('chain_completed') is not True:
+        if not health.completed_report_data(data, command):
             continue
         rows = data.get('results', [])
-        if not expected <= {row.get('tc_id') for row in rows}:
-            continue
         verdicts = {}
         for row in rows:
             verdict = row.get('verdict', 'UNKNOWN')
@@ -318,7 +314,7 @@ def _print_diagnostics(layout):
     if problems:
         print(f'결론: 시작 전에 해결할 문제 {len(problems)}개 — 아래 [FAIL] 행의 해결 방법을 따르세요.')
     else:
-        print('결론: 시험을 시작할 수 있습니다.')
+        print('결론: 기본 설치·연결 점검을 통과했습니다. 보존 저장소 연결·용량 예산은 시험 준비에서 별도로 확인합니다.')
     for row in rows:
         tag = 'WARN' if row.get('warning') else '안내' if row.get('notice') else ('PASS' if row['ok'] else 'FAIL')
         print(f"[{tag}] {row['name']}: {row['detail']}")

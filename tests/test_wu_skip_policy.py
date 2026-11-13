@@ -127,9 +127,9 @@ class RegressionConversionParityTests(unittest.TestCase):
     def test_live_and_converted_results_get_same_verdict(self):
         live = self.wu05(self.XIPL03_LIVE)
         converted = self.wu05(self.XIPL03_LIVE + self.PADDED)
-        self.assertEqual(live.verdict, PASS)
+        self.assertEqual(live.verdict, FAIL)
         self.assertEqual(converted.verdict, live.verdict)
-        self.assertTrue(converted.wu_known_issues)
+        self.assertFalse(getattr(converted, 'wu_known_issues', []))
 
     def test_padding_after_a_real_failure_still_fails(self):
         other = {"step": 2, "title": "다른 결함", "status": "FAIL", "actual": "x"}

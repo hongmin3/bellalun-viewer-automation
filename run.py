@@ -940,7 +940,8 @@ def _wu_chain_stages():
     from tests.workflow09 import run as run_export
     from tests.workflow14 import run as run_setting_transfer
     from tests.xipl_flows import (_prepare, compatibility_02, compatibility_03,
-                                  compatibility_04, compatibility_06, compatibility_07)
+                                  compatibility_04, compatibility_06, compatibility_07,
+                                  run_xipl_sequence)
     from core.result import TCResult
 
     def _run_xipl_subset(ctx):
@@ -957,9 +958,7 @@ def _wu_chain_stages():
             r6.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
             out.extend([compatibility_04(ctx), r6, compatibility_07(ctx)])
             return out
-        return [compatibility_02(ctx, session), compatibility_03(ctx, session),
-                compatibility_04(ctx), compatibility_06(ctx, session),
-                compatibility_07(ctx)]
+        return run_xipl_sequence(ctx, session, (2, 3, 4, 6, 7))
 
     return [
         (_wu_reset_stage, "AUTOMATION_ENVIRONMENT_RESET", "WU 체인 전 기준 상태 복원"),
@@ -1535,9 +1534,10 @@ def _execute_preserved(ctx, args):
         ctx.preservation_choice = choice
     started = time.time()
     code = 3
+    preservation_session = None
     try:
         from core.performance import collect_performance
-        with collect_performance() as recorder, execution_session(ctx, args.cmd):
+        with collect_performance() as recorder, execution_session(ctx, args.cmd) as preservation_session:
             ctx.performance_recorder = recorder
             try:
                 code = _dispatch(ctx, args)
@@ -1554,57 +1554,185 @@ def _execute_preserved(ctx, args):
                 except OSError:
                     _write_emergency_results(ctx, getattr(ctx, 'partial_results', []), ctx.execution_error)
                 code = 3
+    except (OSError, ValueError, RuntimeError) as error:
+        # 서비스 복구 실패도 위 finally의 보고서 철회와 같은 종료3으로 연결한다.
+        # KeyboardInterrupt/SystemExit는 삼키지 않으며 durable pending이 다음 실행을 막는다.
+        ctx.execution_incomplete = True
+        ctx.execution_error = {'type': type(error).__name__, 'phase': 'execution-session'}
+        code = 3
     finally:
         # 복원 후의 최종 결과를 모든 리포트 형식에 연결한다. 이전 회차는 수정하지 않는다.
-        if hasattr(ctx, 'restoration'):
-            from core.wu_chain import result_from_dict
-            for path in Path(ctx.reports_root).glob('Result_*.json'):
-                if path.stat().st_mtime < started:
-                    continue
+        try:
+            if hasattr(ctx, 'restoration'):
+                from core.wu_chain import result_from_dict
+                reports = []
+                reports_saved = True
+                for path in Path(ctx.reports_root).glob('Result_*.json'):
+                    if path.stat().st_mtime < int(started):
+                        continue
+                    data = json.loads(path.read_text(encoding='utf-8'))
+                    if not isinstance(data, dict) or not isinstance(data.get('meta'), dict):
+                        raise ValueError('최종 실행 보고서 형식을 확인하지 못했습니다.')
+                    if (data.get('meta') or {}).get('run_id') != ctx.run_id:
+                        continue
+                    data['meta']['restoration'] = ctx.restoration
+                    data['meta']['performance'] = recorder.snapshot()
+                    if ctx.restoration.get('status') not in {'verified', 'preserved'}:
+                        data['meta']['chain_completed'] = False
+                    restored_rows = [result_from_dict(r) for r in data['results']]
+                    for result, original in zip(restored_rows, data['results']):
+                        result.reused_from_checkpoint = original.get('reused_from_checkpoint', False)
+                        redirected = []
+                        for evidence in result.evidence:
+                            target = evidence
+                            if isinstance(evidence, str):
+                                for name, source in getattr(ctx, 'preservation_roots', {}).items():
+                                    try:
+                                        relative = Path(evidence).relative_to(source)
+                                    except ValueError:
+                                        continue
+                                    from core.run_preservation import preserved_path, _check_path, _hash
+                                    candidate = preserved_path(ctx.restoration, name, relative)
+                                    if candidate is not None:
+                                        import shutil
+                                        saved = _check_path(Path(ctx.root) / 'Evidence' / 'preserved' /
+                                                            ctx.run_id / name / relative)
+                                        saved.parent.mkdir(parents=True, exist_ok=True)
+                                        if not saved.exists():
+                                            with candidate.open('rb') as source_file, saved.open('xb') as output:
+                                                shutil.copyfileobj(source_file, output, 1024 * 1024)
+                                        if _hash(saved) != _hash(candidate):
+                                            raise OSError('보관 증거 사본 해시가 일치하지 않습니다.')
+                                        target = str(saved)
+                            redirected.append(target)
+                        result.evidence = redirected
+                    try:
+                        write_reports(restored_rows, ctx.reports_root,
+                                      path.stem[len('Result_'):], meta=data['meta'])
+                    except OSError as error:
+                        reports_saved = False
+                        _write_emergency_results(ctx, restored_rows, {'type': type(error).__name__,
+                                                  'phase': 'restoration-report'})
+                        code = 3
+                    reports.append((path, restored_rows, data['meta']))
+                code = _finish_generated_image_cleanup(ctx, args, preservation_session, code,
+                                                       started, reports, reports_saved)
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError) as error:
+            code = _failed_preservation_finalization(ctx, preservation_session, error)
+    return code
+
+
+def _failed_preservation_finalization(ctx, session, error):
+    """증거 저장이 끊기면 정리하지 않고 완료 표식을 철회한다."""
+    from pathlib import Path
+    from core.run_preservation import _write_json
+    ctx.execution_incomplete = True
+    ctx.restoration.setdefault('image_cleanup', {'status': 'skipped',
+        'reason': 'final_evidence_or_report_failed', 'error_type': type(error).__name__})
+    for path in Path(ctx.reports_root).glob('Result_*.json'):
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            if (data.get('meta') or {}).get('run_id') != ctx.run_id:
+                continue
+            data['meta'].update(chain_completed=False, restoration=ctx.restoration)
+            _write_json(path, data)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            pass
+    try:
+        if session is not None:
+            _write_json(session.run_dir / 'restoration.json', ctx.restoration)
+        _write_emergency_results(ctx, getattr(ctx, 'partial_results', []),
+                                 {'type': type(error).__name__, 'phase': 'final-preservation'})
+    except OSError:
+        print('증거/최종 기록 저장 실패 — 완료로 처리하지 않습니다.', file=sys.stderr)
+    return 3
+
+
+def _finish_generated_image_cleanup(ctx, args, session, code, started, reports, reports_saved):
+    """최종 증거·보고서 저장 뒤에만 정리를 요청하고 같은 최종 상태를 재기록한다."""
+    from pathlib import Path
+    from bellalunauto.app import completed_report
+    from core.dbreset import APP_SERVICES
+    from core.run_preservation import _write_json
+    services = ctx.restoration.get('services')
+    services_verified = isinstance(services, dict) and all(
+        services.get(name) == 'RUNNING' for name in APP_SERVICES)
+    primary_meta = {}
+    primary_data = None
+    try:
+        primary = completed_report(ctx.reports_root, args.cmd, int(started)) if reports_saved else None
+        if primary:
+            primary_data = json.loads(Path(primary['path']).read_text(encoding='utf-8'))
+            primary_meta = primary_data.get('meta') or {}
+    except (OSError, ValueError, RuntimeError):
+        reports_saved = False
+        code = 3
+    normal = (code in (0, 1) and reports_saved and bool(reports)
+              and primary_meta.get('run_id') == ctx.run_id
+              and primary_meta.get('chain_completed') is True
+              and ctx.restoration.get('status') == 'verified'
+              and not getattr(ctx, 'execution_incomplete', False))
+    options = ctx.cfg.get('preservation') or {}
+    proof_failed = False
+    if normal and session is not None and options.get('cleanup_generated_images_after', True) is True:
+        try:
+            locator = session.pin_cleanup_completion(primary_data, args.cmd)
+            ctx.restoration['normal_completion_before_cleanup'] = locator
+            _write_json(session.run_dir / 'restoration.json', ctx.restoration)
+            for path, rows, meta in reports:
+                meta['restoration'] = ctx.restoration
+                write_reports(rows, ctx.reports_root, path.stem[len('Result_'):], meta=meta)
+        except (OSError, ValueError, RuntimeError):
+            proof_failed = True
+            reports_saved = False
+            code = 3
+    if options.get('cleanup_generated_images_after', True) is not True:
+        cleanup = {'status': 'skipped', 'reason': 'disabled_by_config'}
+    elif proof_failed:
+        cleanup = {'status': 'skipped', 'reason': 'completion_proof_not_saved'}
+    elif session is None:
+        cleanup = {'status': 'skipped', 'reason': 'no_preservation_session'}
+    else:
+        try:
+            cleanup = session.cleanup_generated_images(normal_completion=normal,
+                                                        services_verified=services_verified)
+        except (OSError, ValueError, RuntimeError) as error:
+            cleanup = {'status': 'cleanup_required', 'reason': 'cleanup_api_error',
+                       'error_type': type(error).__name__}
+    ctx.restoration['image_cleanup'] = cleanup
+    if cleanup.get('status') == 'cleanup_required':
+        ctx.restoration['restoration_status'] = ctx.restoration.get('restoration_status',
+                                                                  ctx.restoration.get('status'))
+        ctx.restoration['status'] = 'cleanup_required'
+        ctx.execution_incomplete = True
+        code = 3
+    if not reports_saved:
+        ctx.execution_incomplete = True
+    try:
+        if session is not None:
+            _write_json(session.run_dir / 'restoration.json', ctx.restoration)
+        for path, rows, meta in reports:
+            meta['restoration'] = ctx.restoration
+            if code not in (0, 1) or getattr(ctx, 'execution_incomplete', False):
+                meta['chain_completed'] = False
+            write_reports(rows, ctx.reports_root, path.stem[len('Result_'):], meta=meta)
+    except OSError as error:
+        ctx.execution_incomplete = True
+        code = 3
+        # 형식별 재생성이 실패해도 JSON 완료 표식은 가능한 한 즉시 철회한다.
+        for path, _, meta in reports:
+            meta['chain_completed'] = False
+            try:
                 data = json.loads(path.read_text(encoding='utf-8'))
-                if (data.get('meta') or {}).get('run_id') != ctx.run_id:
-                    continue
-                data['meta']['restoration'] = ctx.restoration
-                data['meta']['performance'] = recorder.snapshot()
-                if ctx.restoration.get('status') not in {'verified', 'preserved'}:
-                    data['meta']['chain_completed'] = False
-                restored_rows = [result_from_dict(r) for r in data['results']]
-                for result, original in zip(restored_rows, data['results']):
-                    result.reused_from_checkpoint = original.get('reused_from_checkpoint', False)
-                    redirected = []
-                    for evidence in result.evidence:
-                        target = evidence
-                        if isinstance(evidence, str):
-                            for name, source in getattr(ctx, 'preservation_roots', {}).items():
-                                archived = ctx.restoration.get('roots', {}).get(name, {}).get('archive')
-                                if not archived:
-                                    continue
-                                try:
-                                    relative = Path(evidence).relative_to(source)
-                                except ValueError:
-                                    continue
-                                candidate = Path(archived) / relative
-                                if candidate.is_file():
-                                    from core.run_preservation import _check_path, _hash
-                                    import shutil
-                                    saved = _check_path(Path(ctx.root) / 'Evidence' / 'preserved' /
-                                                        ctx.run_id / name / relative)
-                                    saved.parent.mkdir(parents=True, exist_ok=True)
-                                    if not saved.exists():
-                                        with candidate.open('rb') as source_file, saved.open('xb') as output:
-                                            shutil.copyfileobj(source_file, output, 1024 * 1024)
-                                    if _hash(saved) != _hash(candidate):
-                                        raise OSError('보관 증거 사본 해시가 일치하지 않습니다.')
-                                    target = str(saved)
-                        redirected.append(target)
-                    result.evidence = redirected
-                try:
-                    write_reports(restored_rows, ctx.reports_root,
-                                  path.stem[len('Result_'):], meta=data['meta'])
-                except OSError as error:
-                    _write_emergency_results(ctx, restored_rows, {'type': type(error).__name__,
-                                              'phase': 'restoration-report'})
-                    code = 3
+                data['meta'] = meta
+                _write_json(path, data)
+            except (OSError, ValueError):
+                pass
+        _write_emergency_results(ctx, [row for _, rows, _ in reports for row in rows],
+                                 {'type': type(error).__name__, 'phase': 'cleanup-report'})
+    if (normal and code in (0, 1) and not getattr(ctx, 'execution_incomplete', False)
+            and session is not None and hasattr(session, 'finish_execution_finalization')):
+        session.finish_execution_finalization()
     return code
 
 

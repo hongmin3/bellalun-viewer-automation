@@ -126,11 +126,15 @@
     "stop_tc_on_fail": true
   },
   "preservation": {
-    "_comment": "실행마다 원상복원 여부를 선택합니다. 값은 바이트 단위의 보수적 운영 예산이며 제품 공식 경고 기준이 아닙니다. 백업·DB staging·복원 보관량은 실제 원본 크기에서 별도 합산합니다. 자료를 자동 삭제하지 않습니다.",
-    "headroom_bytes": 12884901888,
+    "_comment": "실행마다 원상복원 여부를 선택합니다. storage_dir에는 PC별 공용 보존 폴더를 지정하며 빈 값은 기존 로컬 보존입니다. 값은 바이트 단위 운영 예산이며 제품 공식 경고 기준이 아닙니다. 공용 사전/시험후 사본·최대 단일 파일 복원 임시량·DB staging을 별도 합산합니다. 증거 예산은 정지 스크린샷용이며 화면 녹화하지 않습니다. cleanup_generated_images_after는 공용 보존 검증·복원·서비스 복구·정상 회귀 완료 후 이번 실행 Image 격리의 생성 파일만 정리합니다. 미복원 선택은 DB가 참조할 수 있는 이미지를 유지합니다. 기존 이미지와 공용 사본은 자동 삭제하지 않습니다.",
+    "storage_dir": "",
+    "cleanup_generated_images_after": true,
+    "headroom_bytes": 2147483648,
+    "usb_headroom_bytes": 268435456,
+    "usb_generation_bytes": 536870912,
     "generation_bytes_per_root": 3221225472,
-    "report_generation_bytes": 1073741824,
-    "evidence_generation_bytes": 3221225472
+    "report_generation_bytes": 268435456,
+    "evidence_generation_bytes": 536870912
   },
   "knowledge_sync": {
     "_comment": "../지식 폴더를 검증 자료 관리 서버 최신 판으로 맞춘다(run.py sync-knowledge, REQ-KNOW-001). hosts에 받는 PC 이름(COMPUTERNAME)을 적어야 돈다. 지식 폴더를 서버로 올리는 담당자 PC는 적지 않는다. ssh_*가 비면 링크 없는 QA 지침·Skill 지침은 받지 않고 로컬 판을 둔다.",

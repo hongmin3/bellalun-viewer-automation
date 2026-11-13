@@ -9,7 +9,7 @@ import shutil
 import uuid
 
 from core.run_preservation import RunPreservation, roots_from_config
-from core.resource_budget import plan_resources, GIB
+from core.resource_budget import plan_resources, GIB, MIB
 
 
 def _sha(path):
@@ -145,26 +145,40 @@ def execution_session(ctx, action):
         roots = roots_from_config(ctx.cfg, usb_drive=usb)
     adapter = DatabasePreservation(ctx)
     options = ctx.cfg.get('preservation') or {}
-    # 12 GiB는 보수적 운영 여유 제안이며 제품 사양 상수라고 취급하지 않는다.
-    headroom = options.get('headroom_bytes', 12 * GIB)
+    storage_dir = options.get('storage_dir')
+    if storage_dir is not None and not isinstance(storage_dir, str):
+        raise ValueError('보존 저장소 경로는 문자열이어야 합니다.')
+    storage_dir = (storage_dir.strip() or None) if storage_dir else None
+    headroom = options.get('headroom_bytes', 2 * GIB)
     reserve = options.get('generation_bytes_per_root', 3 * GIB)
     memory = real_memory() or {}
     db_bytes = adapter.estimate_bytes()
     reserves = {path: reserve for path in roots.values()}
+    headrooms = {}
+    if 'usb' in roots:
+        reserves[roots['usb']] = options.get('usb_generation_bytes', 512 * MIB)
+        headrooms[roots['usb']] = options.get('usb_headroom_bytes', 256 * MIB)
     # SQL이 쓰는 원본 staging과 복원 staging은 작업 폴더와 다른 볼륨일 수 있다.
-    reserves[Path(ctx.cfg['data_dir']) / 'Backup' / 'Baseline'] = db_bytes * (2 if choice else 1)
-    reserves[Path(ctx.root)] = (options.get('report_generation_bytes', GIB)
-                                + options.get('evidence_generation_bytes', 3 * GIB))
-    budget = plan_resources(roots, Path(ctx.root) / 'preservation',
+    # 공용 모드는 시험후 DB 보관도 수행한다. 각 SQL staging은 자동 삭제하지 않는다.
+    reserves[Path(ctx.cfg['data_dir']) / 'Backup' / 'Baseline'] = db_bytes * (
+        (3 if choice else 2) if storage_dir else (2 if choice else 1))
+    reserves[Path(ctx.root)] = (options.get('report_generation_bytes', 256 * MIB)
+                                + options.get('evidence_generation_bytes', 512 * MIB))
+    budget = plan_resources(roots, Path(storage_dir) if storage_dir else Path(ctx.root) / 'preservation',
                             reserves, headroom,
                             memory_available_bytes=memory.get('avail'),
-                            db_backup_bytes=db_bytes, restore_after=choice)
+                            db_backup_bytes=db_bytes, restore_after=choice,
+                            incremental_restore=bool(storage_dir), root_headroom_bytes=headrooms)
     ctx.resource_budget = budget
     if budget['blocked']:
         raise ValueError('보존/시험 예상량을 위한 디스크·USB·메모리가 부족하거나 조회되지 않았습니다.')
     if RunPreservation.pending(ctx.root):
         raise ValueError('미완료 보존 기록을 복구한 뒤 새 시험을 시작하세요.')
-    session = RunPreservation(ctx.root, run_id, roots, restore_after=choice, db_adapter=adapter)
+    session = RunPreservation(ctx.root, run_id, roots, restore_after=choice, db_adapter=adapter,
+                              storage_dir=storage_dir,
+                              require_finalization=(bool(storage_dir) and choice
+                                  and action in {'run-regression', 'run-winupdate'}
+                                  and options.get('cleanup_generated_images_after', True) is True))
     generation = restoration_generation(ctx.root)
     from core.source_identity import execution_fingerprint
     ctx.execution_fingerprint = execution_fingerprint(

@@ -4,9 +4,9 @@
 
 | 항목 | 값 |
 |---|---|
-| Document Version | 1.3.0 |
-| Project Version | BellalunAuto 1.0.3; Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-09 |
+| Document Version | 1.4.0 |
+| Project Version | BellalunAuto 1.0.13 후보 개발 중; 설치판 1.0.11, Viewer 제품 릴리스 변경 없음 |
+| Last Updated | 2026-11-13 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -51,6 +51,7 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 - 근거가 없는 PASS, 미확정 Release Note/OS 기준값의 추정, WU_09 완료의 미검증 승격.
 - 승인된 시험 흐름 밖의 DB 복원·설정 변경 및 비공개 원본의 공개 저장소 편입.
 - 회귀 밖 독립 설치 패키지 점검을 기본 회귀에 임의 편입하는 작업.
+- 화면 녹화·영상 편집·영상 업로드. 검증 증거는 결과 보고서·로그·필요한 정지 스크린샷으로 남기며 녹화물을 실행·수용 조건으로 요구하지 않는다.
 
 ### REQ-OCR-001 PC 간 OCR 판독과 선택 증거
 
@@ -208,8 +209,8 @@ Install_01을 성공 또는 사람 전용 SKIP으로 바꾸지 않는다. 과거
 목록은 재사용되는 HWND/Control ID를 행 식별자로 쓰지 않는다. 현재 위치가 중간이나
 끝이어도 목록 처음으로 이동한 뒤, 실제 행 문구·연속 겹침·끝 도달·DB 원천 행 수를
 확인하며 숨은 행과 상세값을 수집한다. DB 0건 근거가 없는 빈 목록·판독 실패·상한 도달·건너뛴 행은
-완주로 인정하지 않는다. WU11은 같은 WF14 결과를 매핑한다. UPS 미복원과 XIPL03의
-기존 제품 관찰은 유지하며 완주 실패를 숨기는 허용 목록을 추가하지 않는다.
+완주로 인정하지 않는다. WU11은 같은 WF14 결과를 매핑한다. 과거 원시 FAIL은 보존하며
+UPS는 SRS 01-10-60 Import 제외에 따라 변경값 유지를 검증한다. 전체 Device를 제외하지 않는다.
 
 Print Overlay의 하위 목록은 선택한 Overlay 이름을 되읽고 그 Overlay의 DB Position별
 행 수와 대조한다. 다른 Overlay에 항목이 있더라도 현재 Overlay의 DB 행 수가 0이면
@@ -798,6 +799,31 @@ TEST-KNOW-001
 ### REQ-FOLLOWUP-003 회귀 완료 후 60초 자동 닫기
 
 기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 GUI에 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다. 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼을 누르면 그 회차의 자동 닫기를 취소한다. 키보드 버튼 실행도 취소하며 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.
+
+### REQ-FOLLOWUP-004 공용 보존과 볼륨별 용량 기준
+
+PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검증해 보존한다. 로컬 journal은 공유 연결이 끊겨도 미완료 실행을 발견해야 한다. 공유 사본을 검증한 뒤 변경 파일만 순차 복원하며 변경 없는 파일은 다시 복사하지 않는다. 이전 사본과 archive를 덮어쓰거나 자동 삭제하지 않는다. 기존 로컬 기록도 복구할 수 있어야 한다.
+
+제품 볼륨·USB의 여유와 시험 생성량을 구분하고, 공용 저장소 및 최대 단일 파일 복원 임시량·DB staging을 각각 계산한다. 기본 여유는 제품 볼륨 2GiB, USB 256MiB이며 USB 생성량은 별도 512MiB다. 조회 실패와 실제 부족은 차단한다. 설정값은 조정할 수 있으나 검증해야 할 자료 범위를 줄여 용량을 맞추지 않는다.
+
+회귀 완료 후 파일·DB 복원과 서비스 복구, 공용 사본 검증이 성공하면 이번 실행의 Image 격리 경로에 남은 생성 이미지를 로컬에서 정리한다. 기존 시험 전 이미지와 공용 사전/시험 후 사본은 지우지 않는다. 복원하지 않았거나 중단·복원 실패·공유 사본 미확인인 실행은 삭제하지 않고 사유를 기록한다. 정리 실패는 완료 자동 닫기를 시작하지 않고 재개 조건을 남긴다.
+
+공유 보존·복원·전체 회귀의 마무리 대기를 제품 시작 전에 내구성 있게 기록한다.
+복원 verified만으로 서비스·원본 완료 증명·정리·최종 보고서 미완료를 terminal로 취급하지 않는다.
+마무리 대기가 남으면 다음 실행을 차단하고, 원본 완료 증명 없는 정리 재개는 거부한다.
+### REQ-TCUP-005 Import 제외 항목과 Post Reconstruction 적용값 구분
+
+WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
+별도로 검증한다. 나머지 Device 설정은 계속 대조한다(SRS 01-10-60 물리486쪽).
+
+XIPL03은 우측 조정툴의 선택 XTP 기본값과 영상에 실제 적용된 값을 구분한다.
+우측 10개 값이 변경값을 유지해야 한다는 기대를 쓰지 않는다. Apply 후 DB·결과 파일과
+`.img`의 Recon/Syn 10개 저장값, 선택 파일명·Overlay 증거를 판정 중단 전에 보존한다.
+재진입 기본값과 실제 저장값을 각각 대조한다(SRS 03-50-230 물리765–768쪽).
+No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하지 않는다.
+원시 결과를 수정하지 않으며 과거 WF14 재평가는 별도 기록으로 두고 실제 회귀 gate를 대체하지 않는다.
+재시작 후 영상 재개방 검증 전에는 XIPL03 전체 실물 수용 완료로 보고하지 않는다.
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1051,6 +1077,26 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_release_zip.py`와 실제 빌드 산출물의 ZIP 생성·읽기 검사를 수행한다.
 - 기대: 입력 SHA-256·버전·후보 표식을 확인하고 ZIP CRC·모든 내부 해시가 일치한다. 변조·누락·추가 파일·기존 출력 덮어쓰기를 거부한다.
 
+### TEST-FOLLOWUP-004 공용 보존과 마무리 경계
+
+- 대상: REQ-FOLLOWUP-004.
+- 자동 절차: `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`,
+  `tests/test_execution_session.py`, `tests/test_recover_preservation_cli.py`,
+  `tests/test_resource_budget.py`, `tests/test_preservation_settings.py`.
+- 기대: 원본·사전/시험 후 사본 보존, 저장소 단절·불일치 차단, 순차 복원·정리 재개,
+  완료 증명/서비스/최종 저장 실패의 durable pending, 볼륨별 최대 단일 파일 예산이 맞는다.
+- 실제 SMB의 합성 파일·긴 UNC 시험과 설치판 사용자 흐름은 별도로 확인한다.
+
+### TEST-TCUP-005 사양에 맞는 Import와 Post Reconstruction
+
+- 대상: REQ-TCUP-005.
+- 자동 절차: `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`,
+  `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py`.
+- 기대: UPS 한 항목만 분리하고 변경값 유지, XTP 기본값과 파일/Overlay 적용값 분리,
+  최신 영상 선택과 Apply timeout 증거 수집, 과거 기대값 오류로 새 gate 통과 금지.
+- 설치판에서 Recon/Syn 각각의 Overlay·모든 결과 img·Viewer 재시작을 검증하기 전에는
+  XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 않는다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -1058,6 +1104,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py` | implemented |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | implemented |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/gui.py` | `tests/test_auto_close.py`, `tests/test_qa_runs.py` | implemented |
+| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | implemented |
+| REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | implemented |
 | REQ-TCUP-002 | `core/setting_lists.py`, `tests/workflow14.py`, `tests/winupdate.py` | TEST-TCUP-001; `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py` | implemented |
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | implemented |

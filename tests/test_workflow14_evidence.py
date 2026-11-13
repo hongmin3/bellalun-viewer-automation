@@ -10,6 +10,25 @@ from tests import workflow14
 
 
 class Workflow14EvidenceTests(unittest.TestCase):
+    def test_import_excludes_only_ups_model_and_preserves_other_device_checks(self):
+        value = lambda text: {'kind': 'combo', 'value': text}
+        before = {'pages': {'device.ups': {'2536@0,0': value('None')},
+                            'device.detector': {'2200@0,0': value('original')}}}
+        after = {'pages': {'device.ups': {'2536@0,0': value('EATON El')},
+                           'device.detector': {'2200@0,0': value('changed')}}}
+        compared = workflow14._compare_import_values(before, after)
+        self.assertEqual([(c['page'], c['post']) for c in compared['changed']],
+                         [('device.detector', 'changed')])
+        self.assertEqual(before['pages']['device.ups']['2536@0,0']['value'], 'None')
+        self.assertEqual(compared['import_excluded'], ['device.ups:2536@0,0'])
+
+    def test_import_must_keep_changed_ups_instead_of_restoring_export_value(self):
+        for current, expected in [('EATON El', 'PASS'), ('None', 'FAIL')]:
+            result = TCResult('TC_Basic_WorkFlow_14', 'synthetic WF14')
+            valid = workflow14._record_ups_import(result, 'None', 'EATON El', current)
+            self.assertEqual(result.checks[0].status, expected)
+            self.assertEqual(valid, expected == 'PASS')
+
     def test_complete_snapshot_and_diff_artifacts_survive_stop_on_fail(self):
         check = getattr(workflow14, '_assert_config_identical', None)
         self.assertIsNotNone(check, 'WF14 must save DB evidence before asserting equality')

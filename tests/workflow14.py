@@ -79,10 +79,10 @@ Step 7 의 판정은 설정 테이블 **전수 대조**인데, **바꾸지 않�
     값을 바꾸고 Update                          설정 섹션 38개 중 0개 변화
     값을 바꾸고 Viewer 재기동                   **값이 남는다** (= 저장은 된다)
 
-즉 **저장은 되는데 Export 산출물에는 들어가지 않는다** → Import 로 복원될 방법이
-없다. 사양서 60절이 Export 대상을 "Study 정보를 제외한 모든 설정 정보" 로
-정의하는 것과 어긋난다. Step 7 마지막에 판정으로 남기고 **완화하지 않는다**
-(`TC_XIPL_compatibility_03` Step 9 와 같은 취급).
+사양서 SRS 01-10-60의 Import 표(261030 물리486쪽)는 Device의 View Position과
+UPS를 제외한다. 따라서 UPS가 Import 직전 변경값을 유지하는지 별도로 검증한다.
+Export의 포괄 문장(485쪽)만 적용한 과거 제품 결함 분류는 기대값 오류였다.
+나머지 Device 항목은 계속 비교하며 과거 원시 결과는 수정하지 않는다.
 
 같은 페이지의 `2537~2541`(Model / Serial No. / Battery Charged / Power State /
 Remaining run time)은 **설정이 아니라 실시간 장치 상태**라 비교에서 뺀다
@@ -496,7 +496,7 @@ def run(ctx):
             ui, _restart = flows.cold_start(ctx.cfg, ctx.db,
                                             force_restart=True)
             flows.ensure_patient_screen(ui)
-        vc = setting_values.compare(before_vals, after_vals)
+        vc = _compare_import_values(before_vals, after_vals)
         r.assert_true(
             7, "Setting 전 페이지 순회 중 Viewer 가 종료되지 않음", swept_ok,
             expected="56개 페이지를 두 회차 도는 동안 Viewer 유지",
@@ -597,6 +597,7 @@ def run(ctx):
                                 vc["only_after"][:10]),
                     "판독불가(라디오 픽셀)": len(vc["unreadable"]),
                     "장치 상태라 제외": vc["volatile_skipped"],
+                    "Import 사양상 별도 검증": vc["import_excluded"],
                     "배치 흔들림 흡수": vc["jitter_matched"],
                     "진입불가 페이지": list(vc["missing_pages"])},
             note="컨트롤 ID 로 이동해 Edit·콤보는 WM_GETTEXT, 라디오/체크박스는 "
@@ -621,25 +622,11 @@ def run(ctx):
         # 마지막에 둔다 — 앞의 판정을 가리지 않기 위해서다.
         ups_now = setting_changes.read_ups(ui)
         setting_changes.close_setting(ui)
-        ups_restored = (str(ups_baseline).strip().lower()
-                        == str(ups_now).strip().lower())
-        r.add(
-            7, "Setting > Device > UPS 설정이 Export 시점 값으로 복원",
-            PASS if ups_restored else FAIL, ups_baseline, ups_now,
-            note="**제품 결함으로 관찰됨(2026-08-25).** 사양서 60절은 Export "
-                 "대상을 'Study 정보를 제외한 모든 설정 정보' 로 정의하는데, UPS "
-                 "설정은 Export 산출물 어디에도 들어가지 않는다 — .vms 안의 20개 "
-                 "항목(CONFIGURATION/ACCOUNT/PROCEDURE 백업, ExternalInput.xml, "
-                 "PARAMETER*, RECON_PARAMETER, Version.txt)에 UPS 관련이 0건이고, "
-                 "설정을 바꿔 Update 해도 설정 테이블 38개 중 어느 것도 바뀌지 "
-                 "않는다. 그런데 재기동 후에는 값이 남으므로 **저장은 되는 "
-                 "설정**이다. 따라서 Import 로 되돌아올 방법이 없다. "
-                 "완화하지 않고 계속 보고한다.",
-            stop=False)
-        if not screen_restored or not ups_restored:
+        ups_unchanged = _record_ups_import(r, ups_baseline, ups_saved, ups_now)
+        if not screen_restored or not ups_unchanged:
             raise StepFailed(
-                "Step 7 FAIL — 화면 설정값 또는 UPS 설정이 Export 시점 값으로 "
-                "복원되지 않았습니다.")
+                "Step 7 FAIL — Import 대상 복원 또는 제외된 UPS 변경값 유지가 "
+                "사양과 다릅니다.")
 
     except Exception as exc:                           # noqa: BLE001
         # `r.abort` 를 쓴다. `r.add(..., FAIL)` 은 `stop_on_fail` 때문에 예외
@@ -699,6 +686,35 @@ def run(ctx):
                                + (" Import 로 이미 복원된 상태였다."
                                   if imported else ""))
     return r
+
+
+def _compare_import_values(before, after):
+    """UPS 모델만 Import 복원 비교에서 분리한다. 나머지 Device도 계속 검증한다."""
+    excluded = set()
+    def without_ups(value):
+        pages = dict(value['pages'])
+        page = pages.get('device.ups')
+        if page is not None:
+            excluded.update('device.ups:' + key for key in page
+                            if key.split('@', 1)[0] == '2536')
+            pages['device.ups'] = {key: item for key, item in page.items()
+                                   if key.split('@', 1)[0] != '2536'}
+        return dict(value, pages=pages)
+    compared = setting_values.compare(without_ups(before), without_ups(after))
+    compared['import_excluded'] = sorted(excluded)
+    return compared
+
+
+def _record_ups_import(result, baseline, changed, current):
+    normal = lambda value: str(value).strip().casefold()
+    unchanged = (bool(changed) and normal(changed) != normal(baseline)
+                 and normal(current) == normal(changed))
+    result.add(7, 'Import 대상에서 제외된 UPS 설정이 Import 직전 변경값 유지',
+               PASS if unchanged else FAIL, expected=changed, actual=current,
+               note='SRS 01-10-60 Import 표(261030 물리486쪽): Device의 View Position, '
+                    'UPS 제외. Export 시점으로의 복원을 요구하지 않는다. 원래 값은 '
+                    'TC finally에서 별도로 원복한다.', stop=False)
+    return unchanged
 
 
 def _assert_config_identical(result, before, after, evidence, changed_table_count):

@@ -96,13 +96,28 @@ def _report_time(data, path):
     return os.path.getmtime(path)
 
 
-def _is_full_regression(data):
-    meta = data.get("meta") or {}
+def completed_report_data(data, command):
+    """메모리의 보고서가 해당 전체 실행을 완료했는지 같은 기준으로 판정한다."""
+    if not isinstance(data, dict) or command not in {'run-regression', 'run-winupdate'}:
+        return False
+    raw_meta = data.get('meta')
+    meta = {} if raw_meta is None else raw_meta
+    rows = data.get('results', [])
+    if (not isinstance(meta, dict) or not isinstance(rows, list)
+            or any(not isinstance(row, dict) or not isinstance(row.get('tc_id'), str) for row in rows)):
+        return False
     if (meta.get("presentation_only") or meta.get("report_role") == "presentation"
             or meta.get("chain_completed") is False):
         return False
-    ids = {row.get("tc_id") for row in data.get("results", [])}
-    return FULL_REGRESSION_MARKERS <= ids
+    ids = {row['tc_id'] for row in rows}
+    if command == 'run-regression':
+        return FULL_REGRESSION_MARKERS <= ids
+    return (meta.get('execution_mode') == 'live' and meta.get('chain_completed') is True
+            and {f'TC_WindowsUpdate_{i:02}' for i in range(1, 14)} <= ids)
+
+
+def _is_full_regression(data):
+    return completed_report_data(data, 'run-regression')
 
 
 def latest_full_regression(reports_dir, since=None):
@@ -120,10 +135,10 @@ def latest_full_regression(reports_dir, since=None):
                 data = json.load(stream)
         except (OSError, ValueError):
             continue
+        if not _is_full_regression(data):
+            continue
         stamp = _report_time(data, path)
         if since is not None and stamp < since:
-            continue
-        if not _is_full_regression(data):
             continue
         results = data.get("results", [])
         verdicts = {}

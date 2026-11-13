@@ -295,7 +295,9 @@ class DistributionAppTests(unittest.TestCase):
             code = app._print_diagnostics(None)
         text = out.getvalue()
         self.assertEqual(code, 0, text)
-        self.assertIn('시험을 시작할 수 있습니다', text.splitlines()[1])
+        self.assertIn('기본 설치·연결 점검을 통과했습니다', text.splitlines()[1])
+        self.assertIn('보존 저장소 연결·용량 예산은 시험 준비에서 별도', text.splitlines()[1])
+        self.assertNotIn('시험을 시작할 수 있습니다', text)
         self.assertIn('[안내] 관리자 권한', text)
 
     def test_summary_counts_problems_first(self):

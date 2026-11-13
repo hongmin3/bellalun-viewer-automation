@@ -11,6 +11,77 @@ def widgets(parent):
         yield from widgets(widget)
 
 
+def test_settings_selects_storage_and_saves_only_nested_field(monkeypatch, tk_root, tmp_path):
+    import json
+    from types import SimpleNamespace
+    from tkinter import filedialog, messagebox
+    from bellalunauto import gui
+    layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / 'synthetic.json')
+    original = {'preservation': {'future_policy': {'keep': 1}},
+                'viewer': {'login': {'id': 'synthetic', 'password': ' synthetic-secret '}},
+                'unknown': ['keep']}
+    chosen = str(tmp_path / 'offline-storage')
+    original_exists = gui.Path.exists
+    def guarded_exists(path):
+        assert str(path) != chosen, '설정 폼에서 보존 저장소에 연결하면 안 됩니다.'
+        return original_exists(path)
+    monkeypatch.setattr(gui.Path, 'exists', guarded_exists)
+    monkeypatch.setattr(filedialog, 'askdirectory', lambda **kwargs: chosen)
+    monkeypatch.setattr(messagebox, 'askyesno', lambda *args, **kwargs: True)
+    observed, failures = [], []
+
+    def interact():
+        dialog = tk_root.winfo_children()[0]
+        try:
+            controls = list(widgets(dialog))
+            label = next(w for w in controls if isinstance(w, ttk.Label)
+                         and '보존 저장소' in w.cget('text'))
+            row = label.grid_info()['row']
+            siblings = label.master.winfo_children()
+            entry = next(w for w in siblings if isinstance(w, ttk.Entry)
+                         and w.grid_info()['row'] == row)
+            assert entry.get() == ''
+            next(w for w in siblings if isinstance(w, ttk.Button)
+                 and w.grid_info()['row'] == row).invoke()
+            observed.append(entry.get())
+            next(w for w in controls if isinstance(w, ttk.Button)
+                 and w.cget('text') == '설정 저장').invoke()
+        except Exception as error:
+            failures.append(error)
+            dialog.destroy()
+
+    tk_root.after(20, interact)
+    timeout = tk_root.after(2000, lambda: [w.destroy() for w in tk_root.winfo_children()])
+    try:
+        updated = gui._settings_dialog(tk_root, layout, original)
+        assert not failures, str(failures)
+        assert observed == [chosen]
+        saved = json.loads(layout.config_path.read_text(encoding='utf-8'))
+        assert saved == updated
+        assert saved['preservation'] == {'future_policy': {'keep': 1}, 'storage_dir': chosen}
+        assert saved['viewer']['login'] == original['viewer']['login']
+        assert saved['unknown'] == ['keep']
+        assert original['preservation'] == {'future_policy': {'keep': 1}}
+    finally:
+        tk_root.after_cancel(timeout)
+
+
+def test_basic_diagnostics_panel_explains_separate_preservation_budget(monkeypatch, tk_root, tmp_path):
+    from types import SimpleNamespace
+    from bellalunauto import app, qa_dialogs
+    monkeypatch.setattr(app, 'diagnostics', lambda layout: [
+        {'name': '합성 기본 연결', 'ok': True, 'detail': '확인', 'fix': ''},
+    ])
+    panel = qa_dialogs._diagnostics_panel(tk_root, SimpleNamespace(workspace=tmp_path), lambda: None)
+    try:
+        text = ' '.join(str(w.cget('text')) for w in widgets(panel) if isinstance(w, ttk.Label))
+        assert '기본 설치·연결 점검을 통과' in text
+        assert '보존' in text and '용량' in text and '별도' in text
+        assert '시험을 시작할 수 있습니다' not in text
+    finally:
+        panel.destroy()
+
+
 @pytest.mark.parametrize('agree', [False, True])
 @pytest.mark.parametrize('action', ['run-regression', 'run-winupdate'])
 def test_real_confirmation_requires_check_and_closes_without_product(agree, action, monkeypatch, tk_root):
@@ -104,9 +175,9 @@ def test_consent_shows_diagnostics_and_records_each_run_restoration(restore, mon
         settings.invoke()
         boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
         restoration = next(w for w in boxes if '실행 전 상태로 복원' in w.cget('text'))
-        assert 'selected' not in restoration.state(), '이전 실행 선택을 다음 실행에 재사용하면 안 됩니다.'
+        assert 'selected' in restoration.state(), '매 실행 복원을 기본 선택하고 이전 선택은 재사용하지 않습니다.'
         for box in boxes:
-            if box is not restoration or restore:
+            if box is not restoration or not restore:
                 box.invoke()
         next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '동의하고 시작').invoke()
     tk_root.after(20, interact)
@@ -118,6 +189,131 @@ def test_consent_shows_diagnostics_and_records_each_run_restoration(restore, mon
         assert opened == [True]
     finally:
         tk_root.after_cancel(timeout)
+
+
+@pytest.fixture
+def headless_confirmation(monkeypatch):
+    """Tk 렌더링만 대체한다. 확인·해제·동의·취소의 앱 콜백은 그대로 실행한다."""
+    from tkinter import scrolledtext
+    controls = []
+
+    class Variable:
+        def __init__(self, value=False):
+            self.value = value
+
+        def get(self):
+            return self.value
+
+        def set(self, value):
+            self.value = value
+
+    class Control:
+        def __init__(self, parent, **options):
+            self.options = options
+            self.closed = False
+            controls.append(self)
+
+        def configure(self, **options):
+            self.options.update(options)
+
+        def invoke(self):
+            if self.options.get('state') == 'disabled':
+                return
+            variable = self.options.get('variable')
+            if variable is not None:
+                variable.set(not variable.get())
+            if self.options.get('command'):
+                self.options['command']()
+
+        def destroy(self):
+            self.closed = True
+
+        def pack(self, **kwargs):
+            pass
+
+        def title(self, value):
+            pass
+
+        def geometry(self, value):
+            pass
+
+        def insert(self, index, value):
+            self.options['content'] = value
+
+        def transient(self, root):
+            pass
+
+        def grab_set(self):
+            pass
+
+    monkeypatch.setattr(tk, 'BooleanVar', Variable)
+    monkeypatch.setattr(tk, 'Toplevel', Control)
+    for kind in ('Label', 'Button', 'Checkbutton'):
+        monkeypatch.setattr(ttk, kind, Control)
+    monkeypatch.setattr(scrolledtext, 'ScrolledText', Control)
+    return controls
+
+
+@pytest.mark.parametrize('choice', ['default', 'disable', 'cancel'])
+def test_confirmation_defaults_restoration_and_honours_choice_without_gui(
+        choice, headless_confirmation, monkeypatch):
+    from types import SimpleNamespace
+    from bellalunauto import qa_dialogs, runplan
+    plan = {'action': 'run-regression', 'restore_after': False}
+    formatted = []
+    monkeypatch.setattr(runplan, 'format_plan', lambda value: formatted.append(value.copy()) or '합성 계획')
+    controls = headless_confirmation
+
+    def interact(dialog):
+        restoration = next(w for w in controls if '실행 전 상태로 복원' in w.options.get('text', ''))
+        assert restoration.options['variable'].get() is True
+        texts = ' '.join(w.options.get('text', '') for w in controls)
+        assert '공유 사본 검증' in texts and '정상 완주' in texts
+        assert '서비스' in texts and '격리' in texts and 'Image' in texts
+        assert '해제' in texts and 'DB' in texts and '자동 삭제' in texts
+        if choice == 'cancel':
+            next(w for w in controls if w.options.get('text') == '취소').invoke()
+            return
+        for control in controls:
+            if 'variable' in control.options and (control is not restoration or choice == 'disable'):
+                control.invoke()
+        start = next(w for w in controls if w.options.get('text') == '동의하고 시작')
+        assert start.options['state'] == 'normal'
+        start.invoke()
+        assert dialog.closed
+
+    accepted = qa_dialogs.confirm_plan(SimpleNamespace(wait_window=interact), plan)
+    assert accepted is (choice != 'cancel')
+    assert formatted[0]['restore_after'] is True
+    if choice == 'cancel':
+        assert 'preparation_checked' not in plan
+    else:
+        assert plan['restore_after'] is (choice == 'default')
+
+
+def test_reopened_confirmation_resets_disabled_choice_to_restore(headless_confirmation, monkeypatch):
+    from types import SimpleNamespace
+    from bellalunauto import qa_dialogs, runplan
+    monkeypatch.setattr(runplan, 'format_plan', lambda value: '합성 계획')
+    plan = {'action': 'run-regression'}
+    controls = headless_confirmation
+    observed = []
+
+    def interact(dialog):
+        current = controls[controls.index(dialog):]
+        restoration = next(w for w in current if '실행 전 상태로 복원' in w.options.get('text', ''))
+        observed.append(restoration.options['variable'].get())
+        for control in current:
+            if 'variable' in control.options and (control is not restoration or len(observed) == 1):
+                control.invoke()
+        next(w for w in current if w.options.get('text') == '동의하고 시작').invoke()
+
+    root = SimpleNamespace(wait_window=interact)
+    assert qa_dialogs.confirm_plan(root, plan)
+    assert plan['restore_after'] is False
+    assert qa_dialogs.confirm_plan(root, plan)
+    assert plan['restore_after'] is True
+    assert observed == [True, True]
 
 
 @pytest.mark.parametrize('label,keyboard', [

@@ -118,6 +118,7 @@ class RunRecord:
             return
         self.refresh_progress()
         reports = []
+        report_stamps = {}
         for path in sorted((self.workspace / 'Reports').glob('*')):
             if not path.is_file() or path.suffix.lower() not in {'.json', '.html', '.txt', '.csv', '.xlsx'}:
                 continue
@@ -130,14 +131,29 @@ class RunRecord:
             if is_wu != (self.data['action'] == 'run-winupdate'):
                 continue
             reports.append(str(path))
+            report_stamps[str(path)] = stat.st_mtime_ns
         from .app import completed_report
         # 엔진은 전체 시험을 마쳐도 FAIL TC가 있으면 1을 반환한다.
         primary = completed_report(self.workspace / 'Reports', self.data['action'], int(self.data['started_epoch']))
         complete = bool(primary and str(Path(primary['path'])) in reports)
         if primary:
             report_meta = (_read(primary['path']).get('meta') or {})
-            self.data['restoration'] = report_meta.get('restoration')
-            self.data['execution_fingerprint'] = report_meta.get('execution_fingerprint')
+            if report_meta.get('run_id') not in (None, self.data['run_id']):
+                complete = False
+        # 정리 실패로 chain_completed=False가 된 보고서도 복원 사유는 보존한다.
+        # 이 경로는 완료 판정을 바꾸지 않고 현재 실행의 메타데이터만 읽는다.
+        for report in sorted(reports, key=lambda path: report_stamps[path], reverse=True):
+            if Path(report).suffix.lower() != '.json':
+                continue
+            report_meta = (_read(report).get('meta') or {})
+            if not isinstance(report_meta, dict) or report_meta.get('run_id') != self.data['run_id']:
+                continue
+            if 'restoration' in report_meta:
+                self.data['restoration'] = report_meta['restoration']
+                self.data['restoration_report'] = report
+            if 'execution_fingerprint' in report_meta:
+                self.data['execution_fingerprint'] = report_meta['execution_fingerprint']
+            break
         status = ('uac_cancelled' if code == 1223 else 'stopped' if self.data['stop_requested'] or code == 130
                   else 'completed' if code in (0, 1) and complete else 'abnormal')
         self.data.update(status=status, exit_code=code, ended=_now(), reports=reports,

@@ -7,6 +7,7 @@ import unittest
 from datetime import datetime
 
 from core import automation_health as health
+import pytest
 
 
 def _report(path, generated, ids):
@@ -68,6 +69,45 @@ class AutomationHealthTests(unittest.TestCase):
             self.assertEqual(
                 [new], health.find_crash_dumps("VIEWER", since=start,
                                                dump_dir=folder))
+
+
+@pytest.mark.parametrize('flag', [{'presentation_only': True}, {'report_role': 'presentation'}])
+def test_completed_wu_rejects_presentation_copy_at_actual_app_entry(tmp_path, flag):
+    from bellalunauto.app import completed_report
+    data = {'meta': {'execution_mode': 'live', 'chain_completed': True, **flag},
+            'results': [{'tc_id': f'TC_WindowsUpdate_{i:02}', 'verdict': 'PASS'} for i in range(1, 14)]}
+    (tmp_path / 'Result_WindowsUpdate_fixture.json').write_text(json.dumps(data), encoding='utf-8')
+    assert completed_report(tmp_path, 'run-winupdate', 0) is None
+
+
+@pytest.mark.parametrize('data', [None, [], {'meta': 'invalid'}, {'results': None},
+    {'results': [None]}, {'results': [{'tc_id': []}]}])
+def test_completed_report_data_rejects_malformed_reports(data):
+    assert health.completed_report_data(data, 'run-regression') is False
+    assert health.completed_report_data(data, 'run-winupdate') is False
+
+
+def test_completed_report_data_preserves_legacy_basic_and_live_wu_scope():
+    basic = {'results': [{'tc_id': tc} for tc in health.FULL_REGRESSION_MARKERS]}
+    assert health.completed_report_data(basic, 'run-regression') is True
+    assert health.completed_report_data(basic, 'run-wu09') is False
+    wu = {'meta': {'execution_mode': 'live', 'chain_completed': True},
+          'results': [{'tc_id': f'TC_WindowsUpdate_{i:02}'} for i in range(1, 14)]}
+    assert health.completed_report_data(wu, 'run-winupdate') is True
+    wu['meta']['chain_completed'] = False
+    assert health.completed_report_data(wu, 'run-winupdate') is False
+
+
+@pytest.mark.parametrize('meta', [[], '', False])
+def test_completed_report_rejects_malformed_metadata_with_full_markers(meta):
+    data = {'meta': meta, 'results': [{'tc_id': tc} for tc in health.FULL_REGRESSION_MARKERS]}
+    assert health.completed_report_data(data, 'run-regression') is False
+
+
+def test_basic_report_scanner_ignores_malformed_json_shape(tmp_path):
+    from bellalunauto.app import completed_report
+    (tmp_path / 'Result_fixture.json').write_text('[]', encoding='utf-8')
+    assert completed_report(tmp_path, 'run-regression', 0) is None
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageStat, ImageOps
 
 from core.result import FAIL, MANUAL, PASS, SKIP, TCResult
 from core.ui import ViewerUi, children
@@ -88,21 +88,18 @@ def _file_digest(path):
             "sha256": digest.hexdigest()}
 
 
-def _result_state(ctx, study_key):
+def _result_state(ctx, study_key, group_key=None):
     """DB identity and bytes for the Recon/Synthetic outputs of one study."""
     rows = ctx.db.query(
-        "DATA", "SELECT [Key],InstanceType,ImageInstanceUID,ContentDate,ContentTime "
+        "DATA", "SELECT [Key],InstanceType,GroupKey,ImageInstanceUID,ContentDate,ContentTime "
         "FROM INSTANCE WHERE StudyKey=@study AND InstanceType IN (2,3) "
-        "ORDER BY InstanceType,[Key]", {"study": study_key})
-    roots = sorted(Path(ctx.cfg["data_dir"]).joinpath("Image").glob(
-        f"Study{study_key}_*"))
+        + ("AND GroupKey=@group " if group_key is not None else "")
+        + "ORDER BY InstanceType,[Key]", {"study": study_key, **({'group': group_key} if group_key is not None else {})})
     files = {}
     for row in rows:
-        for root in roots:
-            candidate = root / f"Image{row['Key']}.img"
-            if candidate.exists():
-                files[str(candidate)] = _file_digest(candidate)
-                break
+        candidate = imginfo.instance_image_path(ctx.cfg['data_dir'], study_key, row['Key'])
+        if candidate:
+            files[str(candidate)] = _file_digest(candidate)
     return {"instances": rows, "files": files}
 
 
@@ -735,6 +732,129 @@ def compatibility_02(ctx, session):
     return r
 
 
+def _post_recon_file_evidence(state):
+    """각 실제 결과 파일의 적용값을 읽되 하나가 손상돼도 다른 파일 증거를 수집한다."""
+    mapping = {
+        'Recon.Background Masking': 'PostBackgroundMasking',
+        'Recon.Contrast': 'PostContrast', 'Recon.Sharpness': 'PostDetailEnhancement',
+        'Recon.Brightness': 'PostBrightness', 'Recon.Tone type': 'PostToneType',
+        'Syn.Background Masking': 'S2DBackgroundMasking', 'Syn.Contrast': 'S2DContrast',
+        'Syn.Sharpness': 'S2DDetailEnhancement', 'Syn.Brightness': 'S2DBrightness',
+        'Syn.Tone type': 'S2DToneType',
+    }
+    evidence = {}
+    for path in state['files']:
+        try:
+            raw = imginfo.recon_param(path)
+            fields = {key.casefold(): value for key, value in raw.items()}
+            values = {}
+            for label, attribute in mapping.items():
+                value = fields[attribute.casefold()]
+                if label.endswith('Background Masking'):
+                    if value not in {'0', '1'}:
+                        raise ValueError('Background Masking 저장값은 0/1이어야 합니다')
+                    value = 'Use' if value == '1' else 'Not use'
+                else:
+                    value = int(value)
+                values[label] = value
+            evidence[path] = {'parameter': raw.get('XtpName'), 'values': values, 'raw': raw}
+        except (OSError, ValueError, KeyError, imginfo.ImgInfoError, ET.ParseError) as error:
+            evidence[path] = {'error': type(error).__name__}
+    return evidence
+
+
+def _parse_post_recon_overlay(text):
+    values = {}
+    for label, pattern in {
+        'Background Masking': r'Background\s+Masking\s*:\s*([XO01])\b',
+        'Contrast': r'Contrast\s*:\s*(\d+)\b',
+        'Sharpness': r'Sharpness\s*:\s*(\d+)\b',
+        'Brightness': r'Brightness\s*:\s*(\d+)\b',
+        'Tone type': r'Tone\s*Type\s*:\s*(\d+)\b',
+    }.items():
+        hits = re.findall(pattern, text, re.I)
+        if len(hits) != 1:
+            return None
+        value = hits[0]
+        values[label] = ('Not use' if value.upper() in {'X', '0'} else 'Use') if label == 'Background Masking' else int(value)
+    return values
+
+
+def _read_post_recon_overlay(path):
+    import pytesseract
+    if os.path.isfile(vp.TESSERACT_EXE):
+        pytesseract.pytesseract.tesseract_cmd = vp.TESSERACT_EXE
+    with Image.open(path) as image:
+        # 확인한 Post Reconstruction 창의 좌측 원본 pane 상단 Overlay만 읽는다.
+        crop = image.crop((0, 0, int(image.width * .37), int(image.height * .25)))
+        crop = ImageOps.invert(ImageOps.grayscale(crop))
+        crop = crop.resize((crop.width * 3, crop.height * 3), Image.Resampling.LANCZOS)
+        text = pytesseract.image_to_string(crop, lang='eng', config='--psm 6')
+    return {'values': _parse_post_recon_overlay(text), 'ocr': text, 'image': str(path)}
+
+
+def _collect_post_recon_overlays(ctx, ui, phase):
+    evidence = {}
+    windows = [window for window in ui.windows()
+               if window.visible and window.text.strip().casefold() == 'post reconstruction']
+    if len(windows) != 1:
+        return {'error': {'reason': 'processing_popup_not_unique'}}
+    popup = windows[0]
+    for label in ('Recon', 'Syn'):
+        path = _ev(ctx, f'TC_XIPL_compatibility_03_{phase}_{label}_overlay.png')
+        try:
+            candidates = [c for c in ui.by_id(flows.VIEW_INSTANCE_TYPE[label.lower()], window=popup) if c.visible]
+            if not candidates:
+                raise RuntimeError(f'{label} 영상 선택 버튼이 없습니다')
+            # 같은 ID의 좌/우 pane 버튼 중 좌측 원본 영상을 선택한다.
+            selected = min(candidates, key=lambda c: c.rect[0])
+            other_label = 'syn' if label == 'Recon' else 'recon'
+            other = [c for c in ui.by_id(flows.VIEW_INSTANCE_TYPE[other_label], window=popup) if c.visible]
+            if not other:
+                raise RuntimeError('영상 종류 선택 확인용 반대 버튼이 없습니다')
+            ui.click(selected, settle=1)
+            if vp._pink_count(selected) <= vp._pink_count(min(other, key=lambda c: c.rect[0])):
+                raise RuntimeError(f'{label} 영상 종류 선택을 확인하지 못했습니다')
+            screen.grab(popup.rect, path=path)
+            evidence[label] = _read_post_recon_overlay(path)
+        except (OSError, RuntimeError, ValueError) as error:
+            evidence[label] = {'error': type(error).__name__, 'image': path if Path(path).exists() else None}
+    return evidence
+
+
+def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
+                               state, saved, phase, overlays=None):
+    """우측 기본값 대조와 파일 적용값 대조를 분리하고 첫 FAIL로 증거를 잃지 않는다."""
+    result.add(9, f'{phase}: 선택 XTP 이름과 우측 기본값 표시',
+        PASS if _parameter_display_matches(name, shown) and reopened == defaults else FAIL,
+        expected={'parameter': name, 'defaults': defaults},
+        actual={'parameter': shown, 'controls': reopened},
+        note='SRS 03-50-230 물리765–768쪽: 우측은 XTP 기본값, 실제 적용값은 영상 Overlay와 img.',
+        stop=False)
+    complete = (bool(saved) and len(saved) == len(state['instances'])
+        and {int(row['InstanceType']) for row in state['instances']} == {2, 3}
+        and all(item.get('parameter') == name and item.get('values') == changed
+                for item in saved.values()))
+    result.add(9, f'{phase}: Recon/Syn 실제 img 파일에 선택 XTP와 10개 적용값 저장',
+        PASS if complete else FAIL,
+        expected={'parameter': name, 'applied': changed, 'all_result_files': len(state['instances'])},
+        actual={'files': saved, 'instances': state['instances']},
+        note='오른쪽 조정툴 값을 적용값으로 사용하지 않는다. 파일 누락·읽기 실패와 No GPUS는 SKIP 사유가 아니다.',
+        stop=False)
+    overlays = overlays or {}
+    expected_overlay = {label: {key.split('.', 1)[1]: value for key, value in changed.items()
+                                if key.startswith(label + '.')} for label in ('Recon', 'Syn')}
+    for item in overlays.values():
+        if item.get('image'):
+            result.attach(item['image'])
+    result.add(9, f'{phase}: Recon/Syn 영상 Overlay 10개 실제 적용값',
+        PASS if all(overlays.get(label, {}).get('values') == expected_overlay[label]
+                    for label in ('Recon', 'Syn')) else FAIL,
+        expected=expected_overlay, actual=overlays,
+        note='좌측 원본 영상의 Recon/Syn 각각을 선택해 Overlay를 읽는다. 우측 조정툴은 이 판정의 근거가 아니다.',
+        stop=False)
+
+
 def compatibility_03(ctx, session):
     r = TCResult("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction")
     ui = session["ui"]
@@ -783,7 +903,10 @@ def compatibility_03(ctx, session):
                       actual=changed_fields)
 
         log_mark = _viewer_log_mark(ctx)
-        result_before = _result_state(ctx, session["study_key"])
+        group_key = raw_target.get('GroupKey')
+        if group_key is None:
+            raise RuntimeError('선택한 3D-N Raw의 GroupKey를 확인하지 못했습니다.')
+        result_before = _result_state(ctx, session["study_key"], group_key)
         ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible][0], settle=1)
         xipl_cfg = ctx.cfg.get("xipl") or {}
         # The legacy preview_3d_wait was only a blind settle delay.  Repeated
@@ -804,14 +927,27 @@ def compatibility_03(ctx, session):
                       expected="처리 pane 변화율 >= 0.005 및 Apply 활성",
                       actual={"delta": preview_delta, "apply_visible": apply_visible})
 
-        accepted = _click_3d_apply_confirmed(ctx, ui)
-        apply_log_mark, apply_click_time = accepted["mark"], accepted["clicked"]
-        apply_limit = float(xipl_cfg.get("apply_3d_timeout", post_recon_limit))
-        _poll_completion(
-            r, "XIPL 3D Apply",
-            lambda: _post_recon_complete(apply_log_mark, ui, True,
-                                         not_before=apply_click_time),
-            apply_limit)
+        apply_error = None
+        previous_incomplete = getattr(ctx, 'execution_incomplete', False)
+        previous_block = getattr(ctx, 'execution_block', None)
+        # Apply 직전부터 완료 신호를 확인할 때까지 후속 입력을 잠근다.
+        # 처리 중인 파일 읽기/증거 쓰기까지 실패해도 차단 기록이 먼저 존재한다.
+        ctx.execution_incomplete = True
+        ctx.execution_block = {'tc_id': r.tc_id, 'causes': [{
+            'kind': 'processing_completion_unconfirmed', 'detail': 'Apply completion not confirmed'}]}
+        apply_log_mark, apply_click_time = _viewer_log_mark(ctx), datetime.now()
+        try:
+            accepted = _click_3d_apply_confirmed(ctx, ui)
+            apply_log_mark, apply_click_time = accepted["mark"], accepted["clicked"]
+            apply_limit = float(xipl_cfg.get("apply_3d_timeout", post_recon_limit))
+            _poll_completion(
+                r, "XIPL 3D Apply",
+                lambda: _post_recon_complete(apply_log_mark, ui, True,
+                                             not_before=apply_click_time),
+                apply_limit)
+        except RuntimeError as error:
+            # timeout은 저장 실패의 직접 증거가 아니다. 실제 DB/파일을 먼저 수집한다.
+            apply_error = str(error)
         # Filter by each line's own timestamp, not just byte offset: a live
         # run on 2026-08-14 showed the Preview action's own thread-exit line
         # ("Terminate PostReconThread normally closed") land in the log only
@@ -820,9 +956,19 @@ def compatibility_03(ctx, session):
         # for a real Post Recon cycle, which the same run's Preview stage
         # took ~9.7s to reach even via progress bar, and ~12s via thread-exit).
         log_text = _log_lines_from(_viewer_log_since(apply_log_mark), apply_click_time)
-        result_after = _result_state(ctx, session["study_key"])
         apply_closed = not [c for c in ui.by_id(vp.APPLY) if c.visible]
         thread_done = "Terminate PostReconThread normally closed" in log_text
+        if apply_closed and thread_done and not apply_error:
+            ctx.execution_incomplete = previous_incomplete
+            ctx.execution_block = previous_block
+        result_after = _result_state(ctx, session["study_key"], group_key)
+        saved = _post_recon_file_evidence(result_after)
+        applied_path = _ev(ctx, 'TC_XIPL_compatibility_03_applied.json')
+        Path(applied_path).write_text(json.dumps({'before': result_before, 'after': result_after,
+            'saved_parameters': saved, 'expected_applied': changed_state,
+            'apply_error': apply_error}, ensure_ascii=False,
+            indent=2, default=str), encoding='utf-8')
+        r.attach(applied_path)
         recon_error = re.findall(
             r"Failed to initialize Recon\.\s*Error:\s*([^\]\r\n]+)", log_text, re.I)
         # Confirmed on 2026-08-14 (Viewer log 09:18:08-09:18:43): Apply does
@@ -831,77 +977,85 @@ def compatibility_03(ctx, session):
         # only logs its own Do Post Reconstruction/progress/thread-exit
         # cycle. So parameter_seen is recorded for visibility only; it is
         # not a pass/fail condition here. Step 9's reopen-and-compare is the
-        # authoritative check that TEST_3D_FLOW.xtp and its 10 values survived
-        # Apply.
+        # 파일 적용값과 우측 XTP 기본값은 아래에서 서로 다른 기준으로 대조한다.
         parameter_seen = bool(re.search(
             r"Initialize Reconstruction\.[^\r\n]*TEST_3D_FLOW\.xtp",
             log_text, re.I))
         gpu_unavailable = bool(recon_error) and all(
             re.sub(r"[^a-z]", "", error.lower()) in {"nogpu", "nogpus"}
             for error in recon_error)
-        unexpected_error = recon_error if not gpu_unavailable else []
-        r.assert_true(8, "Apply 요청 처리 완료",
-                      apply_closed and thread_done and not unexpected_error,
-                      expected=("Apply 창 닫힘 + Apply 자체의 신규 Post Recon 완료 로그; "
-                                "GPU 미탑재 환경의 No GPUS만 허용"),
+        r.add(8, "Apply 요청 처리 완료",
+                      PASS if apply_closed and thread_done and not apply_error else FAIL,
+                      expected="Apply 창 닫힘 + Apply 자체의 신규 Post Recon 완료 로그",
                       actual={"window_closed": apply_closed,
                               "thread_done": thread_done,
                               "parameter_seen": parameter_seen,
                               "gpu_unavailable": gpu_unavailable,
+                              "apply_error": apply_error,
                               "errors": recon_error},
                       note=("Apply는 Preview와 달리 Initialize Reconstruction 로그를 다시 "
                             "남기지 않는다(2026-08-14 실측). 선택 파라미터 유지 여부는 "
-                            "Step 9 재진입 비교가 판정한다. GPU가 없으면 실제 Reconstruction "
-                            "산출물은 별도 SKIP으로 기록한다."))
+                            "Step 9의 실제 파일 저장값과 Overlay 증거로 대조한다. 오류 문구만으로 "
+                            "GPU 유무·제품 지원·산출물 SKIP을 확정하지 않는다."), stop=False)
+        if apply_error or not apply_closed or not thread_done:
+            ctx.execution_incomplete = True
+            ctx.execution_block = {'tc_id': r.tc_id, 'causes': [{
+                'kind': 'processing_completion_unconfirmed', 'evidence': applied_path,
+                'detail': apply_error or 'Apply window/log completion unconfirmed'}]}
+            r.abort(9, 'Apply 완료 미확인으로 전체 후속 UI 중단',
+                    RuntimeError(apply_error or 'Apply window/log completion unconfirmed'),
+                    note='처리 중인 Viewer에 다음 TC 입력을 보내지 않는다. DB/파일 증거는 보존하고 실행 복원 경계로 나간다.')
+            return r
 
         db_changed = result_before["instances"] != result_after["instances"]
         files_changed = result_before["files"] != result_after["files"]
         valid_types = {int(row["InstanceType"]) for row in result_after["instances"]}
 
-        # Apply must persist the selected file and every changed value when
-        # the tool is opened again.  This assertion is independent of GPU
-        # availability and therefore also runs on GPU-less test machines.
+        # 먼저 모든 파일 증거를 수집했다. 재진입한 우측 값은 기본값으로 대조한다.
         vp.open_post_reconstruction(ui)
         reopened_name = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible][0].text
         reopened_state = _read_state_retry(vp.read_3d_parameter_state, ui)
         reopen_shot = _ev(ctx, "TC_XIPL_compatibility_03_reopen.png")
         vp.capture(reopen_shot)
         r.attach(reopen_shot)
-        retained = (_parameter_display_matches(name, reopened_name)
-                    and reopened_state == changed_state)
-        reopen_expected = {"parameter": name, "values": changed_state}
-        reopen_actual = {"displayed_parameter": reopened_name,
-                         "values": reopened_state, "retained": retained}
-        r.assert_true(
-            9, "Apply 후 TEST_3D 이름과 Recon/Syn 10개 값 유지", retained,
-            expected=reopen_expected, actual=reopen_actual,
-            note=("Apply 후 Post Reconstruction에 재진입하여 UI 표시값을 다시 읽어 비교. "
-                  "기본값 복원은 GPU 유무와 관계없이 FAIL"))
+        overlays = _collect_post_recon_overlays(ctx, ui, 'after_apply')
+        _record_post_recon_applied(r, baseline_state, reopened_state, changed_state,
+                                   name, reopened_name, result_after, saved, 'after_apply', overlays)
         vp.cancel_window(ui)
 
         output_actual = {"before": result_before, "after": result_after,
                          "db_changed": db_changed,
                          "files_changed": files_changed,
                          "errors": recon_error}
-        # Apply's own log never repeats "Failed to initialize Recon: No GPUS"
-        # (it doesn't reinitialize at all -- see Step 8 note), so whether the
-        # machine actually has no GPU can only be read from the Preview
-        # attempt, which does perform and log a real initialize/error cycle.
-        preview_gpu_unavailable = bool(preview_completion.get("gpu_unavailable"))
-        if preview_gpu_unavailable:
-            r.skip(10, "Recon/Synthetic 결과 영상 생성",
-                   "GPU 미탑재 환경에서 Viewer가 'No GPUS'를 반환하여 산출물 검증 제외")
-        else:
-            r.assert_true(10, "해당 검사에 Recon/Synthetic 결과 영상 생성",
-                          valid_types == {2, 3} and (db_changed or files_changed)
-                          and not recon_error,
+        r.add(10, "해당 검사에 Recon/Synthetic 결과 영상 생성",
+                          PASS if valid_types == {2, 3} and (db_changed or files_changed) else FAIL,
                           expected="InstanceType 2/3 결과의 DB 또는 파일 해시/시간 변화",
-                          actual=output_actual)
+                          actual=output_actual, stop=False)
         verify = _ev(ctx, "TC_XIPL_compatibility_03_result.png")
         vp.capture_viewer_window(ui, verify)
         r.attach(verify)
-    except Exception as exc:
+        # 실제 Viewer 재시작과 같은 검사 재개방 뒤에도 저장값을 확인한다.
+        restarted = vp.open_test_study(ctx)
+        ui = restarted['ui']
+        if restarted['study_key'] != session['study_key']:
+            raise RuntimeError('재시작 후 다른 검사가 선택되어 적용값 검증을 중단합니다.')
+        session.update(restarted)
+        vp.select_3d_raw(ui, session['step_3d'])
+        vp.open_post_reconstruction(ui)
+        restart_name = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible][0].text
+        restart_controls = _read_state_retry(vp.read_3d_parameter_state, ui)
+        restart_state = _result_state(ctx, session['study_key'], group_key)
+        restart_saved = _post_recon_file_evidence(restart_state)
+        restart_shot = _ev(ctx, 'TC_XIPL_compatibility_03_restart.png')
+        vp.capture(restart_shot)
+        r.attach(restart_shot)
+        overlays = _collect_post_recon_overlays(ctx, ui, 'after_restart')
+        _record_post_recon_applied(r, baseline_state, restart_controls, changed_state,
+                                   name, restart_name, restart_state, restart_saved, 'after_restart', overlays)
         vp.cancel_window(ui)
+    except Exception as exc:
+        if not getattr(ctx, 'execution_block', None):
+            vp.cancel_window(ui)
         r.abort(1, "3D Post Reconstruction 자동 수행", exc)
     return r
 
@@ -2850,6 +3004,20 @@ def _safe_screen_context(ui):
         return f"실패 시점 화면 수집 실패: {exc}"
 
 
+def run_xipl_sequence(ctx, session, numbers):
+    """같은 Viewer를 공유하는 TC가 실행 차단 후에도 입력을 계속하지 않게 한다."""
+    functions = {1: compatibility_01, 2: compatibility_02, 3: compatibility_03,
+                 4: compatibility_04, 5: compatibility_05, 6: compatibility_06,
+                 7: compatibility_07}
+    rows = []
+    for number in numbers:
+        if getattr(ctx, 'execution_block', None):
+            break
+        fn = functions[number]
+        rows.append(fn(ctx, session) if number in {1, 2, 3, 6} else fn(ctx))
+    return rows
+
+
 def run_xipl(ctx):
     try:
         session = _prepare(ctx)
@@ -2870,7 +3038,4 @@ def run_xipl(ctx):
         out.extend([compatibility_04(ctx), compatibility_05(ctx), r6,
                     compatibility_07(ctx)])
         return out
-    return [compatibility_01(ctx, session), compatibility_02(ctx, session),
-            compatibility_03(ctx, session), compatibility_04(ctx),
-            compatibility_05(ctx), compatibility_06(ctx, session),
-            compatibility_07(ctx)]
+    return run_xipl_sequence(ctx, session, (1, 2, 3, 4, 5, 6, 7))

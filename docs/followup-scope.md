@@ -2,7 +2,7 @@
 
 이 문서는 `automation_scope.json`에서 자동 생성합니다. 등급은 구현 범위이며 실행 PASS 수치가 아닙니다. 준비 항목(SUPPORT)은 체크리스트 TC 수에서 제외합니다.
 
-원본 내용 SHA-256: `ed0ce5d8ee4cc7c350de2f10dd9460357dfc9c39e7844a89a13cdfd569053d7c`
+원본 내용 SHA-256: `e82bb256bae0f08077e5aaba1a2ec0c0c13b488d6a43958f76fca7b6753427e3`
 
 갱신: `python tools/scope_summary.py`
 
@@ -41,12 +41,12 @@
 | TC_Basic_WorkFlow_11 | Image Reject 및 Restore | 기본기능 / FULL | 자동 판정(구현 완료) | 6단계 전부 자동(tests/workflow11.py, run-wf11). Examined에서 검사를 View(2182)로 열고 Procedure 패널 썸네일에서 대상을 선택한 뒤 1168(Reject Image) -> 사유 팝업(701~707)에서 문구를 OCR로 읽어 선택 -> 썸네일의 되돌리기 화살표(별도 컨트롤이 아니라 rect에서 계산) -> Restore 확인 팝업 좌 Yes(501). 판정은 tests/dataflow.py의 workflow_11_mid_evaluate/workflow_11_evaluate를 재사용해 pre/mid/post DB 스냅샷을 대조하고(그 모듈은 그전까지 run.py에 연결돼 있지 않아 한 번도 실행된 적이 없었다), 고른 사유가 INSTANCE_GROUP.RejectType/RejectReason에 그대로 기록되는지 값으로 확인한다(REJECT_REASON.Type 대응: Artifacts=1 ... Others=0). 2026-08-20 실측 PASS 11 / FAIL 0 | — |
 | TC_Basic_WorkFlow_12 | Study Reject 및 Restore | 기본기능 / FULL | 자동 판정(구현 완료) | 5단계 전부 자동(tests/workflow12.py, run-wf12). Examined에서 검사를 선택하고 2186(Reject Study) -> 사유 팝업(701~707, Image Reject와 같은 팝업) -> 데이터 소스를 Rejected(1187)로 바꿔 Reject 목록 확인 -> 같은 2186이 'Restore Study'로 토글되어 원복 -> All로 돌려 재조회. 판정은 tests/dataflow.py의 workflow_12_mid_evaluate/workflow_12_evaluate를 재사용하고, STUDY.StudyStatus 3->5 와 RejectType/RejectReason(REJECT_REASON.Type 대응)을 값으로 대조한다. 2026-08-20 실측 PASS 11 / FAIL 0. 개정본 Precondition/Test Data를 사용자 지시로 수정했다 — 원문의 DATA_FLOW_LOCAL_01은 이 환경에서 영상이 0건이고 Expected 5가 영상 표시를 요구하므로 촬영 완료·Close된 검사로 바꿨다(TC ID는 유지) | — |
 | TC_Basic_WorkFlow_13 | 계정 추가·수정 및 로그인 | 기본기능 / FULL | 자동 판정(구현 완료) | 6단계 전부 자동. Setting > System > Account에서 계정 추가(New Account 모달 2288~2292, Group은 콤보 항목을 OCR로 읽어 선택) / 권한 그룹 설정 / 계정 정보 수정을 ACCOUNT 테이블로 대조하고, 시험 계정으로 재로그인한 뒤 **사양서 552~554쪽 계정 그룹별 사용 가능 메뉴 표(SRS 01-30-20)의 56개 항목 전부**를 실측 가시성과 대조한다(tests/workflow13.py, run-wf13). 2026-08-20 실측 56/56 일치 — User는 Software Info./Account/CS/Image Tool/Hospital Code만 보이고 나머지 49개는 아예 표시되지 않는다(사양의 O/X가 비활성이 아니라 미표시임을 확정). ACCOUNT.Group 매핑 Service=3/Admin=2/User=1도 실측. 로그인 계정을 바꾸므로 finally에서 원래 계정으로 cold_start 복구한 뒤 시험 계정을 지운다 | — |
-| TC_Basic_WorkFlow_14 | Setting Export 및 Import | 기본기능 / FULL | 자동 판정(구현 완료) | Setting 56페이지·DB·파일과 목록 13페이지의 숨은 행까지 전수 자동 대조한다. 목록은 처음부터 문구·겹침·끝·DB 개수를 증명하고 Print Overlay 부모별 빈 목록을 구분한다. 실물 GUI에서 89행·849항목 복원 대조 PASS. 기존 UPS 미복원은 제품 FAIL로 유지한다. | — |
+| TC_Basic_WorkFlow_14 | Setting Export 및 Import | 기본기능 / FULL | 자동 판정(구현 완료) | Setting 56페이지·DB·파일과 목록 13페이지의 숨은 행까지 전수 대조한다. UPS 모델만 Import 복원 비교에서 분리하고 Import 직전 변경값 유지를 검증한다(SRS 01-10-60). 과거 원시 FAIL과 사양 재평가는 별도 보존하며 신규 설치판 회귀는 미수행이다. | — |
 | TC_Basic_WorkFlow_15 | Pre-send Preview 표시 및 전송 | 기본기능 / FULL | 자동 판정(구현 완료) | 원본 검사 선택을 클릭 로그로 확인하고 Preview/View의 Step·Overlay·선량 표시를 줄 단위 OCR로 대조한다. Send·Queue·수신 DICOM/Dose SR의 원본 UID 범위까지 자동 판정한다. 실제 GUI 기본기능 전체에서 16개 확인 PASS. 기대값·OCR 판정 기준은 유지한다. | — |
 | TC_Basic_WorkFlow_16 | Kiosk 및 System Launcher | 기본기능 / SKIP | 사람 전용(SKIP) | **사용자가 이 TC 전체를 수동 수행으로 지정했다(2026-08-21).** 자동화 코드를 만들지 않고 실행하지도 않는다. 개정본 Step 자체가 시스템 재시작(Step 3)·PC 종료(Step 12)·재시작 후에만 나타나는 System Launcher(Step 4~9)를 요구해 자동화 세션이 함께 죽는다. Step 5/6 의 VIVIX-M Setup / Bellalun System Setup 은 이 PC 에 설치되어 있지 않다. | 사용자가 수동으로 수행한다. 자동화 재시도 대상이 아니다. |
 | TC_XIPL_compatibility_01 | Viewer와 XIPL 표시값 비교 | 기본기능 / FULL | 자동 판정(구현 완료) | XIPL 비최대화 초기 표시 상태에서 동일 영상의 Histogram·W1/W2를 창 상대 OCR로 비교하고 적용 PIM 표시를 WPF UI Automation으로 검증(run-xipl-01) | — |
 | TC_XIPL_compatibility_02 | 2D Image Processing | 기본기능 / FULL | 자동 판정(구현 완료) | Default Parameter 4종 확인, 파라미터 추가 후 Refresh 목록 갱신, 5개 항목 변경·Preview·Apply와 재진입 값·Viewer 처리 로그 교차 검증(run-xipl-02) | — |
-| TC_XIPL_compatibility_03 | 3D Post Reconstruction | 기본기능 / FULL | 자동 판정(구현 완료) | 전 단계 자동이다. Step 9 는 **제품 결함을 잡아낸 FAIL** 이고 그것이 정상 결과다(Apply 후 재진입 시 3D Post Reconstruction 값이 기본값으로 복귀). Step 10 은 GPU 미탑재 환경에서 SKIP 된다. | Step 10 은 GPU 가 탑재된 PC 에서 확인. Step 9 는 제품 수정 후 재확인. |
+| TC_XIPL_compatibility_03 | 3D Post Reconstruction | 기본기능 / FULL | 자동 판정(실물 수용 전) | 새 기대값·img 저장값·재시작 경로의 단위시험은 있으나 실제 Recon/Syn 결과·Overlay 및 재시작 수용은 미수행. 과거 증거만으로 전체 PASS 불가. | 신규 빌드·실영상 선행조건·승인 후 기본기능/WU 전체 회귀. |
 | TC_XIPL_compatibility_04 | Preset별 2D Default Parameter 적용 | 기본기능 / FULL | 자동 판정(구현 완료) | Default Parameter 변경, Preset 2개 신규 추가와 XIPL 파라미터 자동 매핑 확인, 파라미터 파일 변경, 두 Preset 촬영 후 각 영상에 지정 파라미터가 기본 선택되어 표시되는지까지 자동 검증(run-xipl-04). 시험 Preset과 잔여 빈 검사를 UI로 자동 정리해 반복 실행 가능 | — |
 | TC_XIPL_compatibility_05 | Q.C Default Image Process Parameter | 기본기능 / FULL | 자동 판정(구현 완료) | Q.C Setting/Setting(3D)의 Default Image Process Parameter 목록 확인, 항목 변경 저장(QC_COMMON 대조), ACR Phantom 2D/3D-N Demo 촬영과 적용 로그·임계값 판정까지 자동 검증(run-xipl-05). 시험 파라미터는 제품 기본값 복사로 자동 생성 | — |
 | TC_XIPL_compatibility_06 | XIPL Parameter 저장 후 Viewer 적용 | 기본기능 / FULL | 자동 판정(구현 완료) | XIPL Studio에서 세부설정 변경·저장 후 Viewer Image Processing 재선택·Apply와 재진입 표시값·Viewer 처리 로그를 교차 검증(run-xipl-06) | — |
@@ -64,12 +64,12 @@
 | TC_WindowsUpdate_02 | MWL 조회 | WU / FULL | 자동 판정(구현 완료) | 재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다. | - |
 | TC_WindowsUpdate_03 | 영상 조작 | WU / FULL | 자동 판정(구현 완료) | WF_02 Step 6/7 결과만 WU 판정에 반영한다(같은 증거를 WU_02와 중복 귀속하지 않는다). | - |
 | TC_WindowsUpdate_04 | Image Processing(2D) | WU / FULL | 자동 판정(구현 완료) | 재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다. | - |
-| TC_WindowsUpdate_05 | Image Processing(3D) | WU / FULL | 자동 판정(구현 완료) | 판정 제외 결함 1건(XIPL_03 재진입 시 파라미터 유지)은 WU 집계에서 빼고 Issues 시트에 기록한다. 원본 XIPL_03 판정은 바꾸지 않는다. | - |
+| TC_WindowsUpdate_05 | Image Processing(3D) | WU / FULL | 자동 판정(실물 수용 전) | 수정한 기대값과 공용 보존 경로의 설치판 전체 회귀 필요. | 실영상·NAS 인증·신규 설치판 UI 승인 후 검증. |
 | TC_WindowsUpdate_06 | DICOM 전송(2D) | WU / FULL | 자동 판정(구현 완료) | 재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다. | - |
 | TC_WindowsUpdate_07 | DICOM 전송(3D) | WU / FULL | 자동 판정(구현 완료) | 재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다. | - |
 | TC_WindowsUpdate_08 | DICOM Print | WU / FULL | 자동 판정(구현 완료) | 재사용 TC 의 개별 Check 를 그대로 WU 판정에 반영한다. | - |
 | TC_WindowsUpdate_09 | Study Export | WU / FULL | 자동 판정(구현 완료) | WF09의 DICOM Export와 실제 USB IMG Export/Import를 자동 판정한다. 실행 전 공통 2항목·USB 2항목 확인과 실제 USB 연결 점검이 필요하다. 완료 문구·건수·DB/파일 식별자·재검색 근거를 대조하며 실제 GUI WU에서 PASS. 사람 전용 CD 경로는 기존 SKIP으로 표시한다. | — |
 | TC_WindowsUpdate_10 | Setting 화면 표시 | WU / FULL | 자동 판정(구현 완료) | `run-winupdate` 전용 체인에서만 수행한다. `--from-regression` 변환 경로에는 결과가 없어 SKIP 이다. | `run-winupdate` 로 직접 실행. |
-| TC_WindowsUpdate_11 | Setting Import/Export | WU / FULL | 자동 판정(구현 완료) | WF14의 Export 전 기준→설정 변경→Import 후 복원을 재사용하며 숨은 목록 89행·849항목까지 자동 대조한다. 실제 GUI WU에서 PASS. 기존 UPS 제품 결함은 원본 WF14 FAIL과 Issues에 보존하고 승인된 기존 WU 매핑 규칙을 유지한다. | — |
+| TC_WindowsUpdate_11 | Setting Import/Export | WU / FULL | 자동 판정(실물 수용 전) | 수정한 기대값과 공용 보존 경로의 설치판 전체 회귀 필요. | 실영상·NAS 인증·신규 설치판 UI 승인 후 검증. |
 | TC_WindowsUpdate_12 | OS User 계정 | WU / SKIP | 사람 전용(SKIP) | 별도 OS User 계정의 대화형 세션에서 로그인·실행해야 한다. | 자동화 대상 아님(사용자 확정). |
 | TC_WindowsUpdate_13 | KIOSK 설정 | WU / SKIP | 사람 전용(SKIP) | KIOSK 모드 설정/해제와 System Launcher 는 시스템 재기동을 동반하는 파괴적 동작이다. | 자동화 대상 아님(TC_Basic_WorkFlow_16과 동일 사유). |

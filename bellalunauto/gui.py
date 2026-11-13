@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import queue
 import re
 import shutil
@@ -39,6 +39,7 @@ FIELDS = (
     ("시험 자료", "winupdate_checklist_xlsx", "Windows Update 체크리스트", "file"),
     ("시험 자료", "baseline_dir", "승인 Baseline 폴더", "dir"),
     ("시험 자료", "knowledge_dir", "사양 / 매뉴얼 폴더", "dir"),
+    ("보존 / 복원", "preservation.storage_dir", "보존 저장소 경로 (선택)", "storage_dir"),
 )
 _ACTIONS = {"run-regression", "run-winupdate", "selfcheck", "portability-check"}
 
@@ -103,6 +104,10 @@ def merge_form_config(config: dict, values: dict[str, str]) -> dict:
     for key, raw in values.items():
         if key not in field_types:
             raise ValueError("지원하지 않는 설정 항목입니다.")
+        if field_types[key] == "storage_dir":
+            if "preservation" in config and not isinstance(config["preservation"], dict):
+                raise ValueError("보존 설정 형식을 확인하세요. 기존 값은 변경하지 않았습니다.")
+            _validate_storage_directory(raw)
         value: Any = raw if field_types[key] == "password" else raw.strip()
         if field_types[key] == "port" and value:
             try:
@@ -125,12 +130,29 @@ def merge_form_config(config: dict, values: dict[str, str]) -> dict:
     return merged
 
 
+def _validate_storage_directory(value) -> None:
+    """폼에서는 형식만 확인한다. 연결·쓰기·용량 확인은 실행 준비가 맡는다."""
+    if not isinstance(value, str):
+        raise ValueError("보존 저장소 경로: 문자열 또는 빈 값이 필요합니다.")
+    value = value.strip()
+    if value and (any(ord(char) < 32 for char in value) or not PureWindowsPath(value).is_absolute()):
+        raise ValueError("보존 저장소 경로: 절대 폴더 경로나 UNC 공유 경로를 입력하세요.")
+
+
 def validate_config(config: dict) -> list[str]:
     """제품 시험 시작 전 필수 설정만 확인한다. 실제 연결 점검은 CLI gate가 한다."""
     errors = []
     fields = form_fields(config)
-    for _, key, label, _ in fields:
+    for _, key, label, kind in fields:
         value = _get(config, key)
+        if kind == "storage_dir":
+            try:
+                if "preservation" in config and not isinstance(config["preservation"], dict):
+                    raise ValueError("보존 설정 형식을 확인하세요.")
+                _validate_storage_directory(value)
+            except ValueError as error:
+                errors.append(str(error))
+            continue
         if value is None or not str(value).strip() or "REPLACE_ME" in str(value) or "SERVER_IP" in str(value):
             errors.append(f"{label}: 값을 입력하세요.")
     try:
@@ -544,7 +566,7 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
     fields = form_fields(config)
 
     def browse(key, kind):
-        selected = (filedialog.askdirectory(parent=dialog) if kind == "dir"
+        selected = (filedialog.askdirectory(parent=dialog) if kind in {"dir", "storage_dir"}
                     else filedialog.askopenfilename(parent=dialog))
         if selected:
             variables[key].set(selected)
@@ -552,7 +574,9 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
     def refresh_status():
         for _, key, _, kind in fields:
             value = variables[key].get()
-            if kind in {"file", "dir"}:
+            if kind == "storage_dir":
+                status[key].set("준비 시 확인" if value.strip() else "로컬 보존")
+            elif kind in {"file", "dir"}:
                 status[key].set("확인됨" if value and Path(value).exists() else "미확인")
             else:
                 status[key].set("입력됨" if value else "미입력")
@@ -565,12 +589,17 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
         tab = tabs[tab_name]
         row = len([entry for entry in variables if next(item[0] for item in fields if item[1] == entry) == tab_name])
         ttk.Label(tab, text=label).grid(row=row, column=0, sticky="w", padx=4, pady=8)
-        variables[key] = tk.StringVar(value=str(_get(config, key) or ""))
+        value = _get(config, key) or ""
+        variables[key] = tk.StringVar(value="" if kind == "storage_dir" and not isinstance(value, str) else str(value))
         ttk.Entry(tab, textvariable=variables[key], show="●" if kind == "password" else "").grid(row=row, column=1, sticky="ew", padx=4, pady=8)
-        if kind in {"file", "dir"}:
+        if kind in {"file", "dir", "storage_dir"}:
             ttk.Button(tab, text="찾기", command=lambda k=key, t=kind: browse(k, t)).grid(row=row, column=2, padx=4)
         status[key] = tk.StringVar()
         ttk.Label(tab, textvariable=status[key], width=9).grid(row=row, column=3, padx=4)
+
+    ttk.Label(tabs["보존 / 복원"], text="비우면 기존 로컬 보존을 사용합니다. 입력하면 공용 보존과 차이 복원을 사용합니다.\n"
+              "저장 시 연결하지 않으며 시험 준비에서 연결·용량을 별도로 확인합니다.",
+              wraplength=700).grid(row=1, column=0, columnspan=4, sticky="w", padx=4, pady=12)
 
     def detect():
         try:

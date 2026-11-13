@@ -224,3 +224,46 @@ def test_invalid_live_progress_is_read_failure_without_overwriting_run(tmp_path)
     with pytest.raises(ValueError, match='진행'):
         record.refresh_progress()
     assert record.path.read_bytes() == original
+
+
+def test_cleanup_failure_metadata_is_retained_without_marking_run_complete(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    reports = tmp_path / 'Reports'
+    reports.mkdir()
+    restoration = {'status': 'cleanup_required', 'image_cleanup': {'status': 'error'}}
+    (reports / 'Result_partial.json').write_text(json.dumps({
+        'meta': {'run_id': record.data['run_id'], 'chain_completed': False,
+                 'restoration': restoration, 'execution_fingerprint': 'same-run-proof'},
+        'results': complete_rows([])}), encoding='utf-8')
+    record.finish(3)
+    assert record.data['status'] == 'abnormal'
+    assert record.data.get('restoration') == restoration
+    assert record.data.get('execution_fingerprint') == 'same-run-proof'
+
+
+def test_failure_metadata_never_comes_from_another_run(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    reports = tmp_path / 'Reports'
+    reports.mkdir()
+    (reports / 'Result_foreign.json').write_text(json.dumps({
+        'meta': {'run_id': 'another-run', 'chain_completed': False,
+                 'restoration': {'status': 'verified'}, 'execution_fingerprint': 'foreign'},
+        'results': complete_rows([])}), encoding='utf-8')
+    record.finish(3)
+    assert record.data['status'] == 'abnormal'
+    assert record.data.get('restoration') is None
+    assert record.data.get('execution_fingerprint') != 'foreign'
+
+
+def test_fresh_complete_report_from_other_run_cannot_complete_current_run(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    reports = tmp_path / 'Reports'
+    reports.mkdir()
+    (reports / 'Result_foreign.json').write_text(json.dumps({
+        'meta': {'run_id': 'another-run', 'chain_completed': True},
+        'results': complete_rows([])}), encoding='utf-8')
+    record.finish(0)
+    assert record.data['status'] == 'abnormal'

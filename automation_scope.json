@@ -245,7 +245,7 @@
     "tc_id": "TC_Basic_WorkFlow_14",
     "title": "Setting Export 및 Import",
     "level": "FULL",
-    "reason": "Setting 56페이지·DB·파일과 목록 13페이지의 숨은 행까지 전수 자동 대조한다. 목록은 처음부터 문구·겹침·끝·DB 개수를 증명하고 Print Overlay 부모별 빈 목록을 구분한다. 실물 GUI에서 89행·849항목 복원 대조 PASS. 기존 UPS 미복원은 제품 FAIL로 유지한다.",
+    "reason": "Setting 56페이지·DB·파일과 목록 13페이지의 숨은 행까지 전수 대조한다. UPS 모델만 Import 복원 비교에서 분리하고 Import 직전 변경값 유지를 검증한다(SRS 01-10-60). 과거 원시 FAIL과 사양 재평가는 별도 보존하며 신규 설치판 회귀는 미수행이다.",
     "coverage": {
       "category": "자동 판정(구현 완료)",
       "gap": "",
@@ -300,11 +300,11 @@
     "tc_id": "TC_XIPL_compatibility_03",
     "title": "3D Post Reconstruction",
     "level": "FULL",
-    "reason": "Post Reconstruction 팝업의 영상 타입·Default Parameter 확인, 파라미터 갱신, Recon/Syn 10개 값 변경·Preview·Apply 검증(run-xipl-03). Apply 후 기본값 복귀는 GPU 무관 FAIL이며 정확히 No GPUS일 때 결과 생성만 SKIP",
+    "reason": "Recon/Syn 10개 값 변경·Preview·Apply 뒤 DB·실제 img 적용값을 우측 XTP 기본값과 분리해 대조하고 Viewer 재시작 후 재확인한다. 파일·Overlay 캡처 증거를 먼저 보존하며 No GPUS만으로 SKIP하지 않는다.",
     "coverage": {
-      "category": "자동 판정(구현 완료)",
-      "gap": "전 단계 자동이다. Step 9 는 **제품 결함을 잡아낸 FAIL** 이고 그것이 정상 결과다(Apply 후 재진입 시 3D Post Reconstruction 값이 기본값으로 복귀). Step 10 은 GPU 미탑재 환경에서 SKIP 된다.",
-      "unblock": "Step 10 은 GPU 가 탑재된 PC 에서 확인. Step 9 는 제품 수정 후 재확인."
+      "category": "자동 판정(실물 수용 전)",
+      "gap": "새 기대값·img 저장값·재시작 경로의 단위시험은 있으나 실제 Recon/Syn 결과·Overlay 및 재시작 수용은 미수행. 과거 증거만으로 전체 PASS 불가.",
+      "unblock": "신규 빌드·실영상 선행조건·승인 후 기본기능/WU 전체 회귀."
     }
   },
   {
@@ -535,7 +535,7 @@
     "title": "Image Processing(3D)",
     "checklist": "windows_update",
     "level": "FULL",
-    "reason": "기본기능/XIPL 결과를 재사용해 WU Expected Result 기준으로 재판정한다(tests/winupdate.py). TC_XIPL_compatibility_03/07. XIPL_03 의 이미 확인된 결함 1건(재진입 시 3D 파라미터 유지)은 WU Expected 가 요구하지 않아 판정에서 제외하고 Issues 시트에 남긴다.",
+    "reason": "기본기능/XIPL 결과를 재사용하여 WU Expected Result로 재판정한다. UPS·XIPL03의 과거 기대값 오류를 제품 결함으로 제외하지 않는다. 신규 설치판 WU 전체는 미수행이다.",
     "reuses": [
       {
         "tc_id": "TC_XIPL_compatibility_03",
@@ -546,17 +546,10 @@
         "role": "판정"
       }
     ],
-    "known_defect_exclude": [
-      {
-        "tc_id": "TC_XIPL_compatibility_03",
-        "title": "Apply 후 TEST_3D 이름과 Recon/Syn 10개 값 유지",
-        "kind": "기존 알려진 제품 결함"
-      }
-    ],
     "coverage": {
-      "category": "자동 판정(구현 완료)",
-      "gap": "판정 제외 결함 1건(XIPL_03 재진입 시 파라미터 유지)은 WU 집계에서 빼고 Issues 시트에 기록한다. 원본 XIPL_03 판정은 바꾸지 않는다.",
-      "unblock": "-"
+      "category": "자동 판정(실물 수용 전)",
+      "gap": "수정한 기대값과 공용 보존 경로의 설치판 전체 회귀 필요.",
+      "unblock": "실영상·NAS 인증·신규 설치판 UI 승인 후 검증."
     }
   },
   {
@@ -663,29 +656,17 @@
     "title": "Setting Import/Export",
     "checklist": "windows_update",
     "level": "FULL",
-    "reason": "WF14의 Export 전 기준→설정 변경→Import 후 복원을 재사용하며 숨은 목록 89행·849항목까지 자동 대조한다. 실제 GUI WU에서 PASS. 기존 UPS 제품 결함은 원본 WF14 FAIL과 Issues에 보존하고 승인된 기존 WU 매핑 규칙을 유지한다.",
+    "reason": "기본기능/XIPL 결과를 재사용하여 WU Expected Result로 재판정한다. UPS·XIPL03의 과거 기대값 오류를 제품 결함으로 제외하지 않는다. 신규 설치판 WU 전체는 미수행이다.",
     "reuses": [
       {
         "tc_id": "TC_Basic_WorkFlow_14",
         "role": "판정"
       }
     ],
-    "known_defect_exclude": [
-      {
-        "tc_id": "TC_Basic_WorkFlow_14",
-        "title": "Setting > Device > UPS 설정이 Export 시점 값으로 복원",
-        "kind": "기존 알려진 제품 결함"
-      },
-      {
-        "tc_id": "TC_Basic_WorkFlow_14",
-        "title": "Setting 화면 컨트롤 값 항목 단위 복원(보강 근거)",
-        "kind": "기존 알려진 제품 결함"
-      }
-    ],
     "coverage": {
-      "category": "자동 판정(구현 완료)",
-      "gap": "",
-      "unblock": ""
+      "category": "자동 판정(실물 수용 전)",
+      "gap": "수정한 기대값과 공용 보존 경로의 설치판 전체 회귀 필요.",
+      "unblock": "실영상·NAS 인증·신규 설치판 UI 승인 후 검증."
     }
   },
   {

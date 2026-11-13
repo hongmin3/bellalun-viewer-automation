@@ -135,7 +135,7 @@ class EvaluateTests(unittest.TestCase):
         self.assertTrue(any("전체 회귀가 아닙니다" in r for r in result["reasons"]))
 
     def test_known_defect_with_stepfailed_and_padding_is_tolerated_and_reported(self):
-        result = self._run(basic=basic_report([wf14_known_defect()]))
+        result = self._run(basic=basic_report([wf14_known_defect()]), known_defects={KNOWN})
         self.assertTrue(result["passed"], result["reasons"])
         details = {c["name"]: c["detail"] for c in result["checks"]}
         self.assertIn(KNOWN[1], details["허용된 알려진 결함"])
@@ -172,7 +172,7 @@ class EvaluateTests(unittest.TestCase):
         basic = basic_report([wf14_known_defect()])
         basic["results"][-1]["checks"][1]["actual"] = "None"
         basic["results"][0]["checks"][0]["note"] = "값 {value} 확인"
-        self.assertTrue(self._run(basic=basic)["passed"])
+        self.assertTrue(self._run(basic=basic, known_defects={KNOWN})["passed"])
         result = self._run(basic=basic, language=True)
         self.assertFalse(result["passed"])
         problems = [r for r in result["reasons"] if "문장 점검" in r][0]
