@@ -78,7 +78,7 @@ SNAPSHOT_QUERIES = {
     "predefined_text_item": ("CONFIGURATION", "SELECT * FROM PREDEFINED_TEXT_ITEM"),
     "new_patient_input_field": ("CONFIGURATION", "SELECT * FROM NEW_PATIENT_INPUT_FIELD"),
     "status_bar_item": ("CONFIGURATION", "SELECT * FROM STATUS_BAR_ITEM"),
-    "qc_schedule": ("CONFIGURATION", "SELECT * FROM QC_SCHEDULE ORDER BY [Key]"),
+    "qc_schedule": ("CONFIGURATION", "SELECT * FROM QC_SCHEDULE ORDER BY QCType,ScheduleType"),
 
     # --- 계정 / 프로시저 ---
     "account": ("ACCOUNT", "SELECT [Key],System,[Group],ID,Name FROM ACCOUNT ORDER BY [Key]"),

@@ -1,6 +1,6 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
-1.0.13 후보 Setup·설치용 ZIP을 준비했습니다. 소스에 공용 보존·변경 파일 복원·C:/USB별 용량 기준과 WF14/XIPL03 기대값 수정을 반영했습니다. 설치판은 1.0.11이며 실제 SMB·새 설치판 수용은 남아 있습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
+설치판은 1.0.13이며 현재 소스는 1.0.14 후보입니다. 실제 DB 사전 보존에서 발견한 QC 일정 조회 오류를 수정했습니다. 기본기능·WU 전체 수용은 아직 완료하지 않았습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
 
 전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
 
@@ -10,9 +10,9 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-현재 설치판은 **1.0.11**입니다. 최신 후속 개선(P1~P14와 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 새 EXE의 실제 수용 검증은 구분합니다. 마지막 전체 소스 GUI 확인은 이전 TC 고도화 기준이며, 이번 후속 소스의 새 EXE 수용은 별도 확인합니다. 설치판의 검증 기록과 최신 소스 실행 결과는 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
+현재 설치판은 **1.0.13 후보**입니다. 최신 후속 개선(P1~P14와 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 새 EXE의 실제 수용 검증은 구분합니다. 마지막 전체 소스 GUI 확인은 이전 TC 고도화 기준이며, 이번 후속 소스의 새 EXE 수용은 별도 확인합니다. 설치판의 검증 기록과 최신 소스 실행 결과는 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
 
-1.0.12 후보 Setup을 빌드하고 실제 EXE의 버전·도움말과 체크섬을 확인했습니다. 기본기능·WU 실물 수용 입력이 없어 후보로 표시하며, 설치판은 갱신하지 않았습니다. [로컬 검증과 후보 정보](docs/followup-validation.md), [원격 실행 설정과 제한](remote/README.md)을 확인하세요.
+이전 1.0.12 후보는 빌드·CLI만 검증했으며, 이후 1.0.13 후보를 설치했습니다. 기본기능·WU 실물 수용을 통과하기 전까지 후보로 표시합니다. [이전 로컬 검증과 후보 정보](docs/followup-validation.md), [원격 실행 설정과 제한](remote/README.md)을 확인하세요.
 
 최신 소스는 WF14의 숨은 목록 행 판독, WF15의 Overlay OCR과 원본 검사 선택, WU09의 실행 전 USB 준비 확인을 보강했습니다. 긴 증거 로그는 파일에 모두 저장하고 화면에는 한 줄의 앞부분만 표시합니다. 사람 전용 TC는 사유를 포함한 SKIP으로 기록하며, 제품 FAIL과 기준값 미확정 결과는 유지합니다.
 
@@ -83,7 +83,7 @@ BellalunAuto.exe run-winupdate
 
 설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
 사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
-배포 파일은 `release/<버전>/`에 정리합니다. 현재 설치판의 후보 Setup은 `release/1.0.4/BellalunAuto-1.0.4-candidate-setup.exe`이며 배포 게이트는 거부 상태입니다. 1.0.5 산출물은 아직 없습니다.
+배포 파일은 `release/<버전>/`에 정리합니다. 현재 설치판의 후보 Setup은 `release/1.0.13/BellalunAuto-1.0.13-candidate-setup.exe`입니다. 전체 수용을 통과하기 전까지 정식 릴리스로 표시하지 않습니다.
 배포용 실행 패키지는 Setup만 생성하며 포터블 ZIP은 만들지 않습니다.
 아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 

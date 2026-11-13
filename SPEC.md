@@ -1082,7 +1082,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 대상: REQ-FOLLOWUP-004.
 - 자동 절차: `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`,
   `tests/test_execution_session.py`, `tests/test_recover_preservation_cli.py`,
-  `tests/test_resource_budget.py`, `tests/test_preservation_settings.py`.
+  `tests/test_resource_budget.py`, `tests/test_preservation_settings.py`,
+  `tests/test_preservation_db_schema.py`.
 - 기대: 원본·사전/시험 후 사본 보존, 저장소 단절·불일치 차단, 순차 복원·정리 재개,
   완료 증명/서비스/최종 저장 실패의 durable pending, 볼륨별 최대 단일 파일 예산이 맞는다.
 - 실제 SMB의 합성 파일·긴 UNC 시험과 설치판 사용자 흐름은 별도로 확인한다.

@@ -4,7 +4,7 @@ BellalunAuto 설치판은 Python·Git·개발 소스 없이 기존 기본기능 
 Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대상 QA PC에 준비한다. 새 Setup은 OCR을 자동 준비하고 승인 Baseline·체크리스트·매뉴얼을 포함한다.
 설치 성공, 프로그램 기동, 제품 시험 성공은 각각 구분하여 기록한다.
 
-**현재 설치판은1.0.11이며1.0.13 후보 Setup·설치용 ZIP을 준비했다.** 공용 보존·차이 복원과 판정 수정의 실제 SMB/설치판 수용은 남아 있다. [최신 검증 범위](practical-preservation-validation.md)와 progress.md를 따른다. 아래1.0.3~1.0.5 기록은 역사 자료이며 현재 설치 상태를 뜻하지 않는다.
+**현재 설치판은1.0.13 후보이며 소스는1.0.14 후보다.** 1.0.13 Setup·자동 준비·설치 파일 해시와 GUI 실행을 확인했지만 실제 DB 사전 보존 조회가 막혀 전체 회귀는 시작하지 않았다. 수정 후보와 남은 수용은 [최신 검증 범위](practical-preservation-validation.md)와 progress.md를 따른다. 아래1.0.3~1.0.5 기록은 역사 자료이며 현재 설치 상태를 뜻하지 않는다.
 
 기존1.0.3·1.0.4 Setup·ZIP과 각 실행판 보관본은 해시 일치를 확인했다. 1.0.4의 승인된 업데이트·기본27 TC·실시간WU13 TC 각1회는 기본PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3으로 게이트 거부다. [1.0.4 기록](reliability-2026-11-10.md), 이전1.0.3 [OCR 검증](ocr-release-validation.md), 1.0.2 [설치 준비](setup-preparation-validation.md)는 당시 범위의 근거다.
 
