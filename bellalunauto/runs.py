@@ -11,6 +11,8 @@ import tempfile
 import time
 import uuid
 
+from core.atomic_metadata import replace_metadata
+
 
 def _now():
     return datetime.now().astimezone().isoformat(timespec='seconds')
@@ -31,7 +33,7 @@ def _write(path, data):
         with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as stream:
             json.dump(data, stream, ensure_ascii=False, indent=2)
             stream.write('\n')
-        os.replace(temporary, path)
+        replace_metadata(temporary, path)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)

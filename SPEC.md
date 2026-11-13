@@ -820,6 +820,10 @@ PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검
 이때 원래 중단/비정상 판정을 유지하고 생성 이미지는 보존한다. 정상완주·이미지 정리·완료 자동 닫기로 승격하지 않는다.
 복원 중 파일 접근 오류에는 errno·winerror와 첫 미완료 작업의 상대 위치·단계를 기록한다.
 절대경로와 예외 문구를 진단 필드에 복제하지 않으며 오류 판정·보존 정책은 유지한다.
+오류 경로가 이 실행의 journal·manifest 경로와 정확히 일치하면 고정된 역할 이름도 기록한다.
+Windows에서 읽기 핸들과 메타데이터 교체가 겹쳐 오류5·32·33이 발생하면 작성한 같은 임시 파일을
+같은 대상에 재시도한다. 재시도 예산은2초, 간격은0.05초다. 다른 오류나 예산 초과는 원래 오류로
+중단하며 이전 파일을 유지한다. 데이터 파일 격리·DB 복원에 이 재시도를 확장하지 않는다.
 ### REQ-TCUP-005 Import 제외 항목과 Post Reconstruction 적용값 구분
 
 WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
@@ -1117,7 +1121,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py` | implemented |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | implemented |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/gui.py` | `tests/test_auto_close.py`, `tests/test_qa_runs.py` | implemented |
-| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | implemented |
+| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | implemented |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | implemented |
 | REQ-TCUP-002 | `core/setting_lists.py`, `tests/workflow14.py`, `tests/winupdate.py` | TEST-TCUP-001; `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py` | implemented |

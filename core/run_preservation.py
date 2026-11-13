@@ -15,6 +15,8 @@ import re
 import shutil
 import stat
 
+from core.atomic_metadata import replace_metadata
+
 
 class PreservationError(RuntimeError):
     pass
@@ -104,7 +106,7 @@ def _write_json(path, value):
         json.dump(value, output, ensure_ascii=False, indent=2)
         output.flush()
         os.fsync(output.fileno())
-    os.replace(temp, path)
+    replace_metadata(temp, path)
 
 
 def _copy_tree(source, destination, expected):

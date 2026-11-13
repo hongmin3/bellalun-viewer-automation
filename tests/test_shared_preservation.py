@@ -383,3 +383,19 @@ def test_shared_diagnostic_failure_cannot_replace_original_error(tmp_path, monke
     saved = json.loads((run.run_dir / "journal.json").read_text(encoding="utf-8"))
     assert saved["state"] == "error" and saved["result"] == result
     assert RunPreservation.pending(run.workspace) == [run.run_id]
+
+
+@pytest.mark.parametrize('target,role', [('journal.json','journal'),
+    ('manifest.json','manifest'),('archive_manifest.json','archive_manifest'),('other/journal.json',None)])
+def test_restore_error_classifies_only_exact_metadata_paths(tmp_path, target, role):
+    from core.preservation_storage import _restore_error_detail
+    source, share, run = shared_run(tmp_path)
+    error = PermissionError(13, 'private exception')
+    error.winerror = 5
+    error.filename = str(run.run_dir / 'unreported.tmp')
+    error.filename2 = str(run.run_dir / target)
+    run.journal = {}
+    detail = _restore_error_detail(run, error)
+    assert detail.get('resource_role') == role
+    serialized = json.dumps(detail)
+    assert str(run.run_dir) not in serialized and 'private exception' not in serialized

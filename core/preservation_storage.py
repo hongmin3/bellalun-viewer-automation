@@ -326,6 +326,15 @@ def _restore_error_detail(run, error):
             value = getattr(error, key, None)
             if isinstance(value, int) and not isinstance(value, bool):
                 detail[key] = value
+        known = {os.path.normcase(os.path.abspath(str(run.run_dir / name))): role
+                 for name, role in [('journal.json', 'journal'), ('manifest.json', 'manifest'),
+                                    ('archive_manifest.json', 'archive_manifest')]}
+        for value in (error.filename, getattr(error, 'filename2', None)):
+            if isinstance(value, (str, bytes, os.PathLike)):
+                role = known.get(os.path.normcase(os.path.abspath(os.fsdecode(value))))
+                if role:
+                    detail['resource_role'] = role
+                    break
     operations = run.journal.get("delta_operations", [])
     if not isinstance(operations, list):
         return detail

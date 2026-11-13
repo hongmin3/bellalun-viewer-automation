@@ -240,3 +240,56 @@ interrupted_recovery 별도 영수증, 이미지 정리는skipped/interrupted_ru
 기존 미확정·문장 길이·보관본/캐시·앱 시험 미설정 경고는 유지하며 위 pytest를 별도 실행했다.
 비정상 GUI가 계속 열린 증거를 수집한 뒤23:36에 다음 설치 준비를 위해 직접 닫았다.
 이를 자동 닫기 성공으로 세지 않는다. 다음은 깨끗한1.0.16 후보 빌드·설치와 기본/WU 전체 재검증이다.
+
+수정은 `769c5e31d709a436224882d39174d136ee3d1337`로 커밋·push했다.
+23:43 KST에 같은 깨끗한 소스의1.0.16 후보 빌드를 OS 분리 프로세스로 시작했다.
+상태는 상위 `work/regression_state.135.377.json`의 run672,
+시작2026-11-13T23:43:08.957699+09:00, 결과는 Git 제외 `work/run672-build-result.json`을 따른다.
+새 후보 설치·실물 회귀 성공은 아직 확인하지 않았다. 현재 설치판은1.0.15다.
+
+
+## run673 — 1.0.16 설치·부분 실행과 메타데이터 경합 수정
+
+1.0.16 빌드run672는00:09 KST에 완료됐다. clean769c5e3,시험/컴파일 생략false,
+빌드 내 전체1578 passed+302subtests/skip0,155.64초다. run673 독립 ZIP/해제/전체runtime1010개
+집합·크기·SHA 및 버전/도움말0을 확인한 뒤 같은 납품 Setup으로1.0.15→1.0.16 업데이트했다.
+Setup·자동 준비0, 재부팅 없음, 기존 작업1718개 변경/누락0, 설정 바이트 보존이다.
+EXE SHA는 `f80f3db387b37b07bb29ab8c40e9940ada81efe79a4356558498919c89e9502a`,
+Setup은 `bdec19ed8fffb8cc4329574c53a1c36f171463823c642462a91d10e28900952c`,
+ZIP은 `150dd5f75b17ac6961e4b2363209ee999c885017533868677d45070c69f987ae`다.
+
+00:18 GUI 기본 원상복원=True로 `20261114-001810-a68bf838`을 시작했다.
+사전 보존·설치 전제·DICOM 설정 뒤 WF01에서 입력 가림을 감지해 즉시 후속 시험을 차단했다.
+부분 결과 PASS3/MANUAL1/FAIL1/SKIP10이며 전체36건 수행이 아니다. 복원 WinError5로
+abnormal/exit3, 이미지 정리0, GUI 유지가 확인됐다. 원시10개파일·1,040,774bytes를 해시 대조해
+보존했으며 보고서 SHA는 `6dc2d7fe26e72947737f85aabdd11dc25431f9855b1f3856d86000ebaa09f347`다.
+
+가림 root66564의 실제 화면·UIA Title/DismissButton을 확인해 BellalunAuto 자체 비정상 종료
+알림임을 확인했다. 그 알림만 UIA로 해제해 해당 창 높이0·본문 없음·지점 적중 해제를 확인했다.
+다른 프로젝트 창·OS 알림 설정은 바꾸지 않았다. 향후 실행 전에도 우리 알림만 식별해 정리한다.
+
+복원 오류는 errno13/winerror5, 첫 미완료 mkdir/xipl/VAW였다. 이것만으로 실제 실패 syscall의
+대상을 확정하지 않는다. 합성 파일에서 일반 읽기·공유삭제 읽기 핸들 모두 os.replace 대상 교체를
+Win5로 막았고 읽기가 끝나면 성공하는 것을 두 환경에서 독립 재현했다. 공유삭제 설정만의 수정은
+불충분했다. 소스1.0.17은 journal·실행 기록 metadata 교체만 같은 temp/dest로2초/.05초 재시도한다.
+오류5/32/33 이외·영구 오류는 기존 실패와 원본을 유지한다. 데이터 격리·DB에는 retry를 넣지 않았다.
+정확한 journal/manifest 경로 일치 시 역할 enum도 기록해 다음 오류의 대상을 구분한다.
+
+이번 실제 복원은 기존 CLI --apply로 재개해 종료0, 파일·4DB verified,서비스 RUNNING,
+pendingFalse를 확인했다. 원래 abnormal/3과 생성 파일 보존·정리skipped를 유지한다.
+GUI의 비정상 유지 증거를 수집한 뒤00:38에 다음 설치 준비를 위해 수동 종료했다.
+현재 설치판은1.0.16, 수정 소스는1.0.17이다. 기본/WU 전체 및 모든 취소 조건은 미완료다.
+
+서버14문서 판 bellalun-ee80037fedfea0557f8dc2c5의 auto 지침·Release Note 검색13건과
+설치TC 헤더/Step/Expected를 확인했다. 별도 Release Note는 이 목록에 없고 과거 영향평가값은
+현재 기준으로 승격하지 않았다. 설치 제품 폴더의 관련 문서 검색도 일치0이다. 읽기 전용 DB 조회로
+DATA.SOFTWARE_VERSION.Version의 실제1.0.12.105를 확인했으며 ReleaseVersion이라는 컬럼이나
+DB 수준 확장속성은 이 검색 범위에서 없었다. 승인된 현재 모듈별 기준값은 여전히 미등록이다.
+
+metadata writer 수정의 실제 Windows 읽기 핸들·영구 오류 시험과 독립 검토를 마쳤으며
+추가 Critical/Important 지적은 없다. 최종 전체 소스 시험은 실제 Inno 경로 지정의
+`python -X utf8=0 -m pytest tests -q`, 1597 passed+302 subtests passed/skip0,188.03초다.
+정적4종·추적성·WU 자체검사·문서 동기화 실패0, 완료 정리91문서/삭제0/실패0,
+readiness·workspace failed0/gateFailures0/checkerError=false다. 이전 버전의 현재 상태 문구도
+배포·보존 안내에서 당시 기록으로 구분했다. 기존 미확정·문장 길이·보관본/캐시 경고는 유지한다.
+새1.0.17 EXE의 설치·전체 기본/WU 수용 결과를 소스 시험으로 대체하지 않는다.
