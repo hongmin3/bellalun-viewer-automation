@@ -333,6 +333,17 @@ def _post_recon_preview_ready(log_mark, ui):
     return done and apply_enabled and cancel_enabled, reason, detail
 
 
+def _post_recon_save_complete(log_mark, ui, study_key, not_before):
+    """Require a fresh product Save for this study, with no outstanding modal."""
+    log_text = _log_lines_from(_viewer_log_since(log_mark), not_before)
+    closures = re.findall(r'\[Closing Study\((\d+)\) with (save|not save)\]', log_text)
+    matching = closures == [(str(study_key), 'save')]
+    modal = bool(ui.dialog())
+    detail = {'study_key': study_key, 'closures': closures,
+              'save_confirmed': matching, 'modal_present': modal}
+    return matching and not modal, 'fresh study Save and modal absence confirmed', detail
+
+
 _APPLY_ACCEPTED_LOG = re.compile(
     r"Terminate PostReconThread normally closed|Do Post Reconstruction")
 
@@ -795,21 +806,40 @@ def _read_post_recon_overlay(path):
 
 def _collect_post_recon_overlays(ctx, ui, phase):
     evidence = {}
-    windows = [window for window in ui.windows()
-               if window.visible and window.text.strip().casefold() == 'post reconstruction']
+    # Skinned title bars need not expose their painted caption through WM_GETTEXT.
+    # Identify the unique processing root by its own visible structural controls.
+    windows, inspected, scoped_controls = [], [], {}
+    for window in ui.windows():
+        if not window.visible:
+            continue
+        left, top, right, bottom = window.rect
+        anchors = {}
+        for control_id in (vp.PARAM_COMBO, 2043, 2123, 2124):
+            anchors[control_id] = [c for c in ui.by_id(control_id, window=window)
+                if c.visible and left <= c.rect[0] < c.rect[2] <= right
+                and top <= c.rect[1] < c.rect[3] <= bottom]
+        inspected.append({'hwnd': window.hwnd, 'text': window.text,
+                          'rect': window.rect,
+                          'anchors': {key: len(value) for key, value in anchors.items()}})
+        if (len(anchors[vp.PARAM_COMBO]) == len(anchors[2043]) == 1
+                and anchors[2123] and anchors[2124]
+                and len({c.hwnd for c in anchors[vp.PARAM_COMBO] + anchors[2043]}) == 2):
+            windows.append(window)
+            scoped_controls[window.hwnd] = anchors
     if len(windows) != 1:
-        return {'error': {'reason': 'processing_popup_not_unique'}}
+        return {'error': {'reason': 'processing_popup_not_unique', 'windows': inspected}}
     popup = windows[0]
+    anchors = scoped_controls[popup.hwnd]
     for label in ('Recon', 'Syn'):
         path = _ev(ctx, f'TC_XIPL_compatibility_03_{phase}_{label}_overlay.png')
         try:
-            candidates = [c for c in ui.by_id(flows.VIEW_INSTANCE_TYPE[label.lower()], window=popup) if c.visible]
+            candidates = anchors[flows.VIEW_INSTANCE_TYPE[label.lower()]]
             if not candidates:
                 raise RuntimeError(f'{label} 영상 선택 버튼이 없습니다')
             # 같은 ID의 좌/우 pane 버튼 중 좌측 원본 영상을 선택한다.
             selected = min(candidates, key=lambda c: c.rect[0])
             other_label = 'syn' if label == 'Recon' else 'recon'
-            other = [c for c in ui.by_id(flows.VIEW_INSTANCE_TYPE[other_label], window=popup) if c.visible]
+            other = anchors[flows.VIEW_INSTANCE_TYPE[other_label]]
             if not other:
                 raise RuntimeError('영상 종류 선택 확인용 반대 버튼이 없습니다')
             ui.click(selected, settle=1)
@@ -823,7 +853,7 @@ def _collect_post_recon_overlays(ctx, ui, phase):
 
 
 def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
-                               state, saved, phase, overlays=None):
+                               state, saved, phase, overlays=None, verify_saved=True):
     """우측 기본값 대조와 파일 적용값 대조를 분리하고 첫 FAIL로 증거를 잃지 않는다."""
     result.add(9, f'{phase}: 선택 XTP 이름과 우측 기본값 표시',
         PASS if _parameter_display_matches(name, shown) and reopened == defaults else FAIL,
@@ -835,12 +865,13 @@ def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
         and {int(row['InstanceType']) for row in state['instances']} == {2, 3}
         and all(item.get('parameter') == name and item.get('values') == changed
                 for item in saved.values()))
-    result.add(9, f'{phase}: Recon/Syn 실제 img 파일에 선택 XTP와 10개 적용값 저장',
-        PASS if complete else FAIL,
-        expected={'parameter': name, 'applied': changed, 'all_result_files': len(state['instances'])},
-        actual={'files': saved, 'instances': state['instances']},
-        note='오른쪽 조정툴 값을 적용값으로 사용하지 않는다. 파일 누락·읽기 실패와 No GPUS는 SKIP 사유가 아니다.',
-        stop=False)
+    if verify_saved:
+        result.add(9, f'{phase}: Recon/Syn 실제 img 파일에 선택 XTP와 10개 적용값 저장',
+            PASS if complete else FAIL,
+            expected={'parameter': name, 'applied': changed, 'all_result_files': len(state['instances'])},
+            actual={'files': saved, 'instances': state['instances']},
+            note='정상 검사 저장·재시작 후 실제 파일을 읽는다. 오른쪽 조정툴 값을 적용값으로 사용하지 않는다. 파일 누락·읽기 실패와 No GPUS는 SKIP 사유가 아니다.',
+            stop=False)
     overlays = overlays or {}
     expected_overlay = {label: {key.split('.', 1)[1]: value for key, value in changed.items()
                                 if key.startswith(label + '.')} for label in ('Recon', 'Syn')}
@@ -1007,10 +1038,6 @@ def compatibility_03(ctx, session):
                     note='처리 중인 Viewer에 다음 TC 입력을 보내지 않는다. DB/파일 증거는 보존하고 실행 복원 경계로 나간다.')
             return r
 
-        db_changed = result_before["instances"] != result_after["instances"]
-        files_changed = result_before["files"] != result_after["files"]
-        valid_types = {int(row["InstanceType"]) for row in result_after["instances"]}
-
         # 먼저 모든 파일 증거를 수집했다. 재진입한 우측 값은 기본값으로 대조한다.
         vp.open_post_reconstruction(ui)
         reopened_name = [c for c in ui.by_id(vp.PARAM_COMBO) if c.visible][0].text
@@ -1020,20 +1047,33 @@ def compatibility_03(ctx, session):
         r.attach(reopen_shot)
         overlays = _collect_post_recon_overlays(ctx, ui, 'after_apply')
         _record_post_recon_applied(r, baseline_state, reopened_state, changed_state,
-                                   name, reopened_name, result_after, saved, 'after_apply', overlays)
+                                   name, reopened_name, result_after, saved, 'after_apply', overlays,
+                                   verify_saved=False)
         vp.cancel_window(ui)
 
-        output_actual = {"before": result_before, "after": result_after,
-                         "db_changed": db_changed,
-                         "files_changed": files_changed,
-                         "errors": recon_error}
-        r.add(10, "해당 검사에 Recon/Synthetic 결과 영상 생성",
-                          PASS if valid_types == {2, 3} and (db_changed or files_changed) else FAIL,
-                          expected="InstanceType 2/3 결과의 DB 또는 파일 해시/시간 변화",
-                          actual=output_actual, stop=False)
         verify = _ev(ctx, "TC_XIPL_compatibility_03_result.png")
         vp.capture_viewer_window(ui, verify)
         r.attach(verify)
+        # cold_start can recover a failed Close with taskkill. Establish the
+        # product Save boundary ourselves before allowing any restart recovery.
+        ctx.execution_incomplete = True
+        ctx.execution_block = {'tc_id': r.tc_id, 'causes': [{
+            'kind': 'study_save_unconfirmed', 'evidence': applied_path,
+            'detail': 'Post Reconstruction study Save not confirmed'}]}
+        try:
+            save_mark = _viewer_log_mark(ctx)
+            save_clicked = datetime.now()
+            flows.close_examine(ui, option='suspend', save_changes=True)
+            _poll_completion(r, 'XIPL 3D Save',
+                lambda: _post_recon_save_complete(save_mark, ui,
+                    session['study_key'], save_clicked), 15)
+        except Exception as error:
+            ctx.execution_block['causes'][0]['detail'] = str(error)
+            r.abort(9, '정상 저장 미확인으로 재시작과 후속 UI 중단', error,
+                    note='현재 검사와 일치하는 신규 with save 로그와 모달 부재가 필요하다. 강제 종료로 저장 성공을 추정하지 않는다.')
+            return r
+        ctx.execution_incomplete = previous_incomplete
+        ctx.execution_block = previous_block
         # 실제 Viewer 재시작과 같은 검사 재개방 뒤에도 저장값을 확인한다.
         restarted = vp.open_test_study(ctx)
         ui = restarted['ui']
@@ -1046,6 +1086,17 @@ def compatibility_03(ctx, session):
         restart_controls = _read_state_retry(vp.read_3d_parameter_state, ui)
         restart_state = _result_state(ctx, session['study_key'], group_key)
         restart_saved = _post_recon_file_evidence(restart_state)
+        # Apply updates the open study in memory. The verified normal Save above
+        # precedes restart; only now is persisted file state testable.
+        db_changed = result_before['instances'] != restart_state['instances']
+        files_changed = result_before['files'] != restart_state['files']
+        valid_types = {int(row['InstanceType']) for row in restart_state['instances']}
+        r.add(10, "해당 검사에 Recon/Synthetic 결과 영상 생성",
+              PASS if valid_types == {2, 3} and (db_changed or files_changed) else FAIL,
+              expected="정상 저장·재시작 후 InstanceType 2/3 결과의 DB 또는 파일 해시/시간 변화",
+              actual={'before': result_before, 'after_apply': result_after,
+                      'after': restart_state, 'db_changed': db_changed,
+                      'files_changed': files_changed, 'errors': recon_error}, stop=False)
         restart_shot = _ev(ctx, 'TC_XIPL_compatibility_03_restart.png')
         vp.capture(restart_shot)
         r.attach(restart_shot)

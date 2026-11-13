@@ -184,6 +184,7 @@ Examined의 Today 검색이 0건이면 뜨는 `No Result` 안내를 먼저 확�
 - 3D Post Reconstruction의 Preview는 완료 로그가 남고 Apply·Cancel이 다시 활성일 때 끝난 것으로 본다. Apply는 활성인 버튼만 누른다.
 - 3D Apply를 누른 뒤 5초 안에 창이 닫히거나 Post Recon 로그(`Terminate PostReconThread normally closed`, `Do Post Reconstruction`)가 남아야 받아들여진 것으로 본다. 아니면 최대 3번까지 다시 누르고, 끝내 받아들여지지 않으면 TC를 중단한다.
 - 촬영 Step의 영상 Parameter를 읽기 전에, Viewer 로그(`Select Image ... Step ID`)로 그 Step이 선택됐는지 확인한다. 확인이 안 되면 최대 3번 다시 누르고, 그래도 안 되면 다른 영상을 읽지 않고 중단한다.
+- XIPL Save As는 Studio로 이어지는 소유 창 관계와 파일명·저장 버튼이 유일한 대화상자만 사용한다. 파일명 칸에 직접 값을 전달하고 실제 표시값을 재조회한 뒤 저장한다. 입력 실패나 후보 중복이면 저장하지 않는다.
 
 > **예시** 1.0.8 설치판 XIPL03은 Apply가 비활성일 때 눌러 클릭이 무시됐고 120초 뒤 timeout 됐다. XIPL04는 A 영상 썸네일 클릭이 무시된 채 B 영상의 Parameter를 읽어 FAIL이 됐다. 제품 로그상 두 영상의 Parameter는 각각 맞게 적용돼 있었다.
 #### 기대 결과
@@ -822,6 +823,9 @@ XIPL03은 우측 조정툴의 선택 XTP 기본값과 영상에 실제 적용된
 우측 10개 값이 변경값을 유지해야 한다는 기대를 쓰지 않는다. Apply 후 DB·결과 파일과
 `.img`의 Recon/Syn 10개 저장값, 선택 파일명·Overlay 증거를 판정 중단 전에 보존한다.
 재진입 기본값과 실제 저장값을 각각 대조한다(SRS 03-50-230 물리765–768쪽).
+Apply 직후의 파일은 관찰 증거로 보존한다. 저장값과 파일 변경 판정은 제품의 정상 저장·재시작 후 수행하며,
+저장 전 디스크 값으로 Apply 실패를 판정하지 않는다. 재진입 팝업은 제목 문자열 대신 고유 컨트롤과 창 내부 위치로 확인한다.
+재시작 전 해당 검사의 신규 정상 저장 로그와 모달 부재를 확인한다. 확인 실패는 후속 UI 실행을 차단하며 강제 종료로 저장 성공을 추정하지 않는다.
 No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하지 않는다.
 원시 결과를 수정하지 않으며 과거 WF14 재평가는 별도 기록으로 두고 실제 회귀 gate를 대체하지 않는다.
 재시작 후 영상 재개방 검증 전에는 XIPL03 전체 실물 수용 완료로 보고하지 않는다.
@@ -1118,7 +1122,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
-| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py` | implemented |
+| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py`, `tests/test_xipl_save_dialog.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | implemented |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | implemented |

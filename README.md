@@ -1,6 +1,6 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
-설치판과 현재 소스는 1.0.14 후보입니다. 실제 DB 사전 보존에서 발견한 QC 일정 조회 오류를 수정했습니다. 기본기능·WU 전체 수용은 아직 완료하지 않았습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
+현재 소스는 1.0.15 후보이며 설치판은 1.0.14입니다. 기본 전체 실행에서 발견한 XIPL 저장 시점·파일명 입력 오류를 수정하고 새 후보를 준비합니다. 기본기능·WU 전체 수용은 아직 완료하지 않았습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
 
 전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
 

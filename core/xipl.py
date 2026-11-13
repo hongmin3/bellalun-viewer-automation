@@ -440,6 +440,32 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
             raise RuntimeError("XIPL Parameter Editor Save 버튼을 찾지 못했습니다.")
         time.sleep(wait)
 
+    def _owns_dialog(self, hwnd):
+        """별도 PID helper도 실제 owner chain이 Studio에 닿아야 한다."""
+        studio_pid = self.ui.pid
+        if not studio_pid:
+            return False
+        user32 = ctypes.windll.user32
+        seen = set()
+        while hwnd and hwnd not in seen:
+            seen.add(hwnd)
+            pid = ctypes.wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value == studio_pid:
+                return True
+            hwnd = user32.GetWindow(hwnd, 4)  # GW_OWNER
+        return False
+
+    def _set_save_filename(self, edit, target):
+        # 표준 파일명 Edit에 직접 전달한다. 가려진 창에 물리 입력을 보내지 않는다.
+        accepted = ctypes.windll.user32.SendMessageW(
+            edit.hwnd, 0x000C, 0, ctypes.c_wchar_p(target))
+        entered = (self.ui.get_text(edit) or '').strip()
+        if not accepted or entered.casefold() != target.casefold():
+            raise RuntimeError(
+                'XIPL Save As 파일명이 입력 후 일치하지 않습니다'
+                f'(기대={target!r}, 실제={entered!r}). 저장하지 않습니다.')
+
     def save_as(self, path, wait=2, settle=2.5, dialog_timeout=12):
         """Click Save As and type a new file name in the resulting dialog."""
         # A just-committed set_pim_field() edit (SetValue + blur click) leaves
@@ -476,7 +502,7 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
                 class_name = ctypes.create_unicode_buffer(256)
                 user32.GetClassNameW(hwnd, class_name, 256)
                 if (user32.IsWindowVisible(hwnd)
-                        and class_name.value == "#32770"):
+                        and class_name.value == "#32770" and self._owns_dialog(hwnd)):
                     nodes = list({c.hwnd: c for c in children(hwnd, 6)}.values())
                     # XIPL helper의 실측 Save As는 파일명 Edit=1001이다.
                     # Windows 버전에 따라 1152 또는 1148로 노출되는 형태도 받는다.
@@ -486,7 +512,9 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
                                   and c.visible]
                     save_buttons = [c for c in nodes
                                     if c.ctrl_id == 1 and c.cls == "Button"
-                                    and c.visible]
+                                    and c.visible
+                                    and c.text.replace('&', '').split('(', 1)[0].strip().casefold()
+                                    in {'save', '저장'}]
                     preferred = [c for c in file_edits
                                  if c.ctrl_id in (1001, 1152)
                                  and c.cls == "Edit"]
@@ -500,16 +528,8 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
             return candidates
 
         deadline = time.time() + dialog_timeout
-        same_pid, dialog, seen = None, None, 0
+        dialog, seen = None, 0
         while True:
-            # 같은 PID 안에 뜨는 형태를 먼저 본다(예전 경로).
-            edits = [c for c in self.ui.controls(max_depth=6)
-                     if c.ctrl_id == 1148 and c.cls == "Edit"]
-            opens = [c for c in self.ui.controls(max_depth=6)
-                     if c.ctrl_id == 1 and c.cls == "Button"]
-            if edits and opens:
-                same_pid = (edits[0], opens[0])
-                break
             found = _collect_dialogs()
             seen = len(found)
             if seen == 1:
@@ -522,42 +542,16 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
                     "키보드 포커스를 추정해 저장하지 않습니다.")
             time.sleep(.3)
 
-        if same_pid is not None:
-            edit, open_button = same_pid
-            self.ui.type_text(edit, os.path.abspath(path))
-            self.ui.click_button(open_button.hwnd)
-        else:
-            dialog_hwnd, edit, save_button = dialog
-            filename = os.path.basename(path)
-            user32.SetForegroundWindow(dialog_hwnd)
-            x, y = edit.center
-            user32.SetCursorPos(x, y)
-            user32.mouse_event(0x0002, 0, 0, 0, 0)
-            user32.mouse_event(0x0004, 0, 0, 0, 0)
-            time.sleep(.15)
-            # 보조 프로세스 창이므로 ViewerUi의 XIPL PID 전면 가드를 거치지
-            # 않고, 방금 직접 포커스한 파일명 Edit에만 물리 키를 보낸다.
-            user32.keybd_event(0x11, 0, 0, 0)       # Ctrl down
-            user32.keybd_event(0x41, 0, 0, 0)       # A down
-            user32.keybd_event(0x41, 0, 0x0002, 0)
-            user32.keybd_event(0x11, 0, 0x0002, 0)
-            user32.keybd_event(0x2E, 0, 0, 0)       # Delete
-            user32.keybd_event(0x2E, 0, 0x0002, 0)
-            for char in filename:
-                self.ui._unicode_char(char)
-                time.sleep(.02)
+        dialog_hwnd, edit, save_button = dialog
+        if not self._owns_dialog(dialog_hwnd):
+            raise RuntimeError('XIPL Save As 대화상자 소유 관계가 변경되었습니다.')
+        self._set_save_filename(edit, os.path.abspath(path))
+        user32.SendMessageW(save_button.hwnd, 0x00F5, 0, 0)
+        close_end = time.time() + max(wait, 3)
+        while time.time() < close_end and user32.IsWindow(dialog_hwnd):
             time.sleep(.2)
-            entered = (self.ui.get_text(edit) or "").strip()
-            if entered.lower() != filename.lower():
-                raise RuntimeError(
-                    "XIPL Save As 파일명이 입력 후 일치하지 않습니다"
-                    f"(기대={filename!r}, 실제={entered!r}). 저장하지 않습니다.")
-            user32.SendMessageW(save_button.hwnd, 0x00F5, 0, 0)
-            close_end = time.time() + max(wait, 3)
-            while time.time() < close_end and user32.IsWindow(dialog_hwnd):
-                time.sleep(.2)
-            if user32.IsWindow(dialog_hwnd):
-                raise RuntimeError("XIPL Save As 저장 버튼 후 대화상자가 닫히지 않았습니다.")
+        if user32.IsWindow(dialog_hwnd):
+            raise RuntimeError("XIPL Save As 저장 버튼 후 대화상자가 닫히지 않았습니다.")
         time.sleep(wait)
 
     def close_process_if_open(self):
