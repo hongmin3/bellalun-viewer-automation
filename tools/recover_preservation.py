@@ -10,6 +10,57 @@ if __name__ == '__main__':
 from core.run_preservation import RunPreservation, PreservationError
 
 
+def _finish_interrupted_recovery(args, result, adapter, services):
+    """검증된 중단 복구만 마무리한다. 실행 판정과 생성 이미지는 유지한다."""
+    from core.run_preservation import _check_path, _write_json, _hash, snapshot
+    from core.dbreset import APP_SERVICES
+    if result.get('status') != 'finalization_required':
+        return result
+    session = RunPreservation.load(args.workspace, args.run_id, db_adapter=adapter)
+    receipt = _check_path(args.workspace / 'Runs' / args.run_id / 'run.json')
+    if not receipt.is_file():
+        return result
+    record = json.loads(receipt.read_text(encoding='utf-8'))
+    if (record.get('run_id') != args.run_id or record.get('status') not in {'stopped', 'abnormal'}
+            or record.get('action') not in {'run-regression', 'run-winupdate'}
+            or record.get('exit_code') in (None, 0)
+            or (record.get('plan') or {}).get('restore_after') is not True
+            or session.journal.get('state') != 'verified'
+            or session.journal.get('result', {}).get('status') != 'verified'
+            or not session.restore_after
+            or session.journal.get('normal_completion_before_cleanup')
+            or _check_path(session.run_dir / 'cleanup-completion.json').exists()
+            or _check_path(session.run_dir / 'image-cleanup-pending.json').exists()):
+        return result
+    if not isinstance(services, dict) or any(services.get(name) != 'RUNNING' for name in APP_SERVICES):
+        raise ValueError('중단 복구의 서비스 RUNNING을 확인하지 못했습니다.')
+    if not session._verify_backups():
+        raise ValueError('중단 복구의 보존 사본 검증 실패')
+    for name, path in session.roots.items():
+        if snapshot(path) != session.manifest['roots'][name]:
+            raise ValueError('중단 복구 후 원본 파일이 다시 변경되었습니다.')
+    db = session.manifest.get('db')
+    if db and (adapter is None or not adapter.verify_restored(session.data_dir / 'database', db['metadata'])):
+        raise ValueError('중단 복구 후 DB 대조 실패')
+    restored = dict(session.journal['result'], services=services,
+                    image_cleanup={'status': 'skipped', 'reason': 'interrupted_run', 'deleted_files': 0})
+    proof = _check_path(session.run_dir / 'interrupted-recovery.json')
+    _write_json(proof, {'run_id': args.run_id, 'action': record['action'],
+                       'normal_completion': False, 'original_status': record['status'],
+                       'restoration': restored})
+    _write_json(session.run_dir / 'restoration.json', restored)
+    # GUI/감독 프로세스가 바꾼 원래 판정을 오래된 사본으로 덮어쓰지 않는다.
+    current = json.loads(receipt.read_text(encoding='utf-8'))
+    for key in ('run_id', 'status', 'exit_code', 'action'):
+        if current.get(key) != record.get(key):
+            raise ValueError('복구 영수증 저장 전 원래 실행 상태가 변경되었습니다.')
+    current.update(restoration=restored, interrupted_recovery={'receipt': str(proof), 'sha256': _hash(proof)})
+    _write_json(receipt, current)
+    session._save('verified', result=restored)
+    session.finish_execution_finalization()
+    return restored
+
+
 def _resume_image_cleanup(args):
     from core.automation_health import completed_report_data
     from core.run_preservation import _check_path, _hash, _write_json
@@ -101,11 +152,13 @@ def main(argv=None):
             ctx = Context(str(args.config))
             with RunLock():
                 stop_product(ctx)
+                adapter = DatabasePreservation(ctx)
                 try:
                     result = RunPreservation.recover(args.workspace, args.run_id,
-                                                    db_adapter=DatabasePreservation(ctx))
+                                                    db_adapter=adapter)
                 finally:
-                    start_services()
+                    services = start_services()
+                result = _finish_interrupted_recovery(args, result, adapter, services)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result.get('status') in {'verified', 'preserved', 'unstarted_acknowledged'} else 1
     except (OSError, ValueError, PreservationError, RuntimeError) as error:

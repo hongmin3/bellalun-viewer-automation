@@ -811,6 +811,8 @@ PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검
 공유 보존·복원·전체 회귀의 마무리 대기를 제품 시작 전에 내구성 있게 기록한다.
 복원 verified만으로 서비스·원본 완료 증명·정리·최종 보고서 미완료를 terminal로 취급하지 않는다.
 마무리 대기가 남으면 다음 실행을 차단하고, 원본 완료 증명 없는 정리 재개는 거부한다.
+중단 실행은 공유 사본·복원 파일·DB·서비스를 다시 확인하고 별도 복구 영수증을 저장한 뒤 마무리 대기를 해제할 수 있다.
+이때 원래 중단/비정상 판정을 유지하고 생성 이미지는 보존한다. 정상완주·이미지 정리·완료 자동 닫기로 승격하지 않는다.
 ### REQ-TCUP-005 Import 제외 항목과 Post Reconstruction 적용값 구분
 
 WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
@@ -1083,7 +1085,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 자동 절차: `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`,
   `tests/test_execution_session.py`, `tests/test_recover_preservation_cli.py`,
   `tests/test_resource_budget.py`, `tests/test_preservation_settings.py`,
-  `tests/test_preservation_db_schema.py`.
+  `tests/test_preservation_db_schema.py`, `tests/test_interrupted_recovery_finalization.py`.
 - 기대: 원본·사전/시험 후 사본 보존, 저장소 단절·불일치 차단, 순차 복원·정리 재개,
   완료 증명/서비스/최종 저장 실패의 durable pending, 볼륨별 최대 단일 파일 예산이 맞는다.
 - 실제 SMB의 합성 파일·긴 UNC 시험과 설치판 사용자 흐름은 별도로 확인한다.
