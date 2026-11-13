@@ -157,7 +157,7 @@ def test_existing_diagnostics_dialog_renders_warning_and_opens_selected_evidence
 
     monkeypatch.setattr(tk, 'Toplevel', Widget)
     monkeypatch.setattr(tk, 'StringVar', lambda **kwargs: SimpleNamespace(set=lambda value: None))
-    for name in ('Treeview', 'Label', 'Button'):
+    for name in ('Frame', 'Treeview', 'Label', 'Button'):
         monkeypatch.setattr(ttk, name, Widget)
     # Feed the real diagnostic producer's rows into the existing GUI flow.
     with patch('core.ocr_runtime.subprocess.run', return_value=

@@ -97,6 +97,10 @@ def _report_time(data, path):
 
 
 def _is_full_regression(data):
+    meta = data.get("meta") or {}
+    if (meta.get("presentation_only") or meta.get("report_role") == "presentation"
+            or meta.get("chain_completed") is False):
+        return False
     ids = {row.get("tc_id") for row in data.get("results", [])}
     return FULL_REGRESSION_MARKERS <= ids
 

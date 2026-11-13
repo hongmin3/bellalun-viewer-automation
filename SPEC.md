@@ -555,7 +555,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 #### 순서
 1. 대상: Viewer 실행 파일과 버전, SQL 인스턴스·서비스, 복원할 DB 4개, Baseline 판(배포 자료 판과 `.bak` 파일 날짜·해시 앞부분).
 2. 바뀌는 것: DB 복원, SQL 서비스 시작 유형·시작, Bellalun Service 중지·시작과 Viewer 관련 프로세스 종료, 해상도 강제 설정, XIPL `TEST_*` 파라미터 재생성, DICOM 서버 등록, WU의 USB `BellalunWU09` 폴더.
-3. 복구 정책: TC가 바꾼 Viewer 설정은 TC 끝에 되돌리고 결과에 남긴다. DB는 다음 실행 시작 때 Baseline으로 다시 복원한다. DICOM 서버 등록·해상도는 되돌리지 않는다.
+3. 복구 정책: TC가 바꾼 Viewer 설정은 TC 끝에 되돌리고 결과에 남긴다. 이번 실행의 원상복원을 선택하면 검증된 사전 DB·파일 사본으로 복원한다. 선택하지 않으면 시험 후 상태를 유지하고 다음 실행 시작 때 Baseline을 복원한다. DICOM 서버 등록·해상도와 SQL 서비스 시작 유형은 사전 상태로 되돌리지 않는다.
 4. 사람이 "위 변경에 동의합니다"를 직접 체크해야 시작 버튼이 켜진다. 동의 시각·Windows 사용자·확인한 내용은 실행 기록(REQ-QA-002)에 남는다.
 #### 지킬 것
 - UAC 승인을 데이터 변경 동의로 보지 않는다. 화면 동의 없이 화면에서 시험을 시작하지 않는다.
@@ -566,7 +566,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 #### 하는 일
 화면에서 시작한 실행마다 실행 번호(`run_id`, 예: `20261105-140000-a1b2`)를 만들고 `작업\Runs\<run_id>\run.json`에 계획·동의·상태·보고서를 묶는다.
 #### 순서
-1. 진행 중: 현재 TC, 완료 개수/전체, 경과 시간, 중단 요청 여부를 보인다. 기본기능은 진행 상태 파일, WU는 저장점의 완료 단계로 센다.
+1. 진행 중: 현재 TC, 완료 개수/전체, 경과 시간, 중단 요청 여부를 보인다. 기본기능과 WU는 이번 실행 번호의 경량 진행 기록을 우선 사용하며, GUI가 큰 저장점 파일을 반복해서 읽지 않는다.
 2. 끝나면 상태(완료·중단·비정상 종료·UAC 취소)와 이번 실행이 만든 보고서를 연결하고, 리포트 결론(REQ-REPORT-001)과 다음 행동을 보인다.
 3. 다음 행동 예: 새 실패면 "TC 상세와 증거를 열어 수동 검토", 차단이면 "준비 점검 후 재실행", 수동 확인이면 "사람 확인 후 검토 기록".
 #### 지킬 것
@@ -781,6 +781,21 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 
 TEST-KNOW-001
 
+### REQ-FOLLOWUP-001 실행 보존·자원·결과 안정화
+
+기본기능/WU의 공통 실행에서 실행마다 원상복원 여부를 선택한다. 선택과 무관하게 변경 가능 자료의 보존 범위·사전 사본·해시를 검증하며 부족한 저장 공간·메모리·미완료 복구는 실행 전에 안내한다. 원상복원을 선택하면 DB와 파일을 시험 전 상태로 복원하고 검증 범위를 기록한다. 기존 과거 복원 미확인은 해소됐다고 표시하지 않는다.
+
+저장점/진행 기록 실패 시 이미 수행한 결과를 부분 리포트로 남기며 정상 완주 게이트를 통과시키지 않는다. GUI가 사라져도 감독 프로세스가 최종 실행 기록을 마무리한다. 리포트에 실행 번호·소스/제품/자동화 신원·자료 지문과 복원 상태를 연결한다. 지문이 다른 저장점 재개와 표시 사본의 정식 결과 채택을 거부한다.
+
+### REQ-FOLLOWUP-002 준비·설치·효율·원격 실행
+
+기존 diagnostics의 원인/해결 안내를 동의 화면에 통합하고 설정 미입력과 연결 실패를 구분한다. 승인된 Release Note가 없을 때도 실제 설치 구성을 기록하되 판정은 미확인으로 유지한다. 제품 설치/Upgrade/Uninstall은 검증된 패키지/인자와 백업·복구 계획 및 사람의 실행 승인에 연결한다. 환경 입력이 없으면 차단하며 추측한 무인 인자를 실행하지 않는다.
+
+공용 탐색과 기동 시간을 기록해 측정된 병목을 개선한다. 등급 문서는 자동화 범위 원본과 대조한다. 원격 실행은 고정 코드/런타임 지문·PC별 잠금·로그인한 대화형 세션·결과 회수·취소·실행 신원 검증을 제공하며 서버 계정/접속 정책이 미설정이면 차단한다. 제품 FAIL 판정은 완화하지 않는다.
+
+### REQ-FOLLOWUP-003 회귀 완료 후 60초 자동 닫기
+
+기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 GUI에 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다. 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼을 누르면 그 회차의 자동 닫기를 취소한다. 키보드 버튼 실행도 취소하며 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1038,6 +1053,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
+| REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py` | implemented |
+| REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | implemented |
+| REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/gui.py` | `tests/test_auto_close.py`, `tests/test_qa_runs.py` | implemented |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | implemented |
 | REQ-TCUP-002 | `core/setting_lists.py`, `tests/workflow14.py`, `tests/winupdate.py` | TEST-TCUP-001; `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py` | implemented |
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | implemented |

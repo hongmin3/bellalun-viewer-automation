@@ -56,7 +56,7 @@ class RunRecord:
         existing = {str(p): [p.stat().st_mtime_ns, p.stat().st_size]
                     for p in (Path(workspace) / 'Reports').glob('*') if p.is_file()}
         initial_states = {name: _fingerprint(Path(workspace) / 'work' / name)
-                          for name in ('regression_state.json', 'winupdate_checkpoint.json')}
+                          for name in ('regression_state.json',)}
         record = cls(workspace, path, {
             'schema': 1, 'run_id': run_id, 'action': action, 'started': _now(),
             'started_epoch': stamp, 'plan': plan,
@@ -72,37 +72,50 @@ class RunRecord:
         _write(self.path, self.data)
 
     def request_stop(self):
+        self.reload()
+        if self.data['status'] != 'running':
+            return
         self.data['stop_requested'] = True
         self.save()
 
+    def reload(self):
+        """감독 프로세스가 쓴 최종 상태를 오래된 GUI 사본보다 우선한다."""
+        current = _read(self.path)
+        if current.get('run_id') != self.data['run_id']:
+            raise ValueError('실행 기록을 다시 읽지 못했습니다. 원본 run.json을 확인하세요.')
+        self.data = current
+        return self.data
+
     def refresh_progress(self):
+        self.reload()
+        if self.data['status'] != 'running':
+            return self.data.get('progress', {})
         elapsed = max(0, int(time.time() - self.data['started_epoch']))
         progress = dict(self.data.get('progress', {}), elapsed_seconds=elapsed)
-        name = 'winupdate_checkpoint.json' if self.data['action'] == 'run-winupdate' else 'regression_state.json'
+        name = 'regression_state.json'
         path = self.workspace / 'work' / name
-        # NTFS의 파일 시각과 time.time()의 세부 정밀도가 달라도 새 기록을 놓치지 않는다.
-        # 같은 초에 남은 이전 실행은 시작 전 내용 해시로 배제한다.
-        if (path.is_file() and path.stat().st_mtime >= int(self.data['started_epoch'])
-                and _fingerprint(path) != self.data.get('initial_states', {}).get(name)):
-            state = _read(path)
-            if name.startswith('winupdate'):
-                payload = state.get('payload', {})
-                stages = payload.get('order', [])
-                progress.update(completed=len(stages), total=None,
-                                current_tc='최근 완료: ' + (str(stages[-1]) if stages else '준비 중'))
-            else:
-                progress.update(current_tc=state.get('current_tc', '준비 중'),
-                                completed=max(0, int(state.get('index', 1)) - 1), total=state.get('total'))
         live = _read(self.workspace / 'work' / 'qa_progress.json')
         if live.get('run_id') == self.data['run_id']:
-            progress.update(current_tc=live.get('current_tc'), total=live.get('total'))
-            if self.data['action'] != 'run-winupdate':
-                progress['completed'] = max(0, live.get('index', 1) - 1)
+            if type(live.get('index')) is not int:
+                raise ValueError('진행 기록의 순번을 읽지 못했습니다.')
+            progress.update(current_tc=live.get('current_tc'), total=live.get('total'),
+                            completed=max(0, live.get('index', 1) - 1))
+        # 구형 기본기능 엔진만 작은 상태 파일로 보완한다. WU 저장점은 읽지 않는다.
+        # NTFS의 파일 시각과 time.time()의 세부 정밀도가 달라도 새 기록을 놓치지 않는다.
+        # 같은 초에 남은 이전 실행은 시작 전 내용 해시로 배제한다.
+        elif (self.data['action'] == 'run-regression' and path.is_file()
+                and path.stat().st_mtime >= int(self.data['started_epoch'])
+                and _fingerprint(path) != self.data.get('initial_states', {}).get(name)):
+            state = _read(path)
+            progress.update(current_tc=state.get('current_tc', '준비 중'),
+                            completed=max(0, int(state.get('index', 1)) - 1), total=state.get('total'))
         self.data['progress'] = progress
-        self.save()
         return progress
 
     def finish(self, code):
+        self.reload()
+        if self.data['status'] != 'running':
+            return
         self.refresh_progress()
         reports = []
         for path in sorted((self.workspace / 'Reports').glob('*')):
@@ -121,6 +134,10 @@ class RunRecord:
         # 엔진은 전체 시험을 마쳐도 FAIL TC가 있으면 1을 반환한다.
         primary = completed_report(self.workspace / 'Reports', self.data['action'], int(self.data['started_epoch']))
         complete = bool(primary and str(Path(primary['path'])) in reports)
+        if primary:
+            report_meta = (_read(primary['path']).get('meta') or {})
+            self.data['restoration'] = report_meta.get('restoration')
+            self.data['execution_fingerprint'] = report_meta.get('execution_fingerprint')
         status = ('uac_cancelled' if code == 1223 else 'stopped' if self.data['stop_requested'] or code == 130
                   else 'completed' if code in (0, 1) and complete else 'abnormal')
         self.data.update(status=status, exit_code=code, ended=_now(), reports=reports,
@@ -155,6 +172,7 @@ class RunRecord:
         return [row['tc_id'] for row in self.result_rows() if row.get('verdict') != 'PASS']
 
     def save_review(self, reviewer, entries, *, complete=False):
+        self.reload()
         allowed = {'확인 완료', '결함 등록', '재시험 필요'}
         if any(not isinstance(entry, dict) or entry.get('result') not in allowed for entry in entries.values()):
             raise ValueError('검토 결과를 선택하세요.')

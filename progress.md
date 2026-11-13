@@ -1,4 +1,16 @@
 # 진행 상태
+## 2026-11-13 P1~P14 후속 개선 구현·로컬 검증
+
+사용자가 #132 보고서 전체와 GUI 자동 닫기를 승인했다. 실행마다 원상복원 여부를 선택한다. 이전 설치판 1.0.11과 녹화·과거 결과는 보존했다.
+
+- 구현: 사전 파일/DB 사본과 해시 검증, 선택 복원과 journal 기반 재개 신원, 볼륨별 자원 예산, 저장 실패 부분/비상 결과, 감독 최종 실행 기록, 준비 점검 통합, 60초 GUI 자동 닫기와 버튼 취소.
+- 추가 구현: Release Note 버전별 기준 추출과 Install01 실제 구성 수집, 검증 프로필 기반 설치 수명주기 CLI, 명시 로그 원인 증거, UI 비용 계측·Setting 닫기 공통화, 자동 범위 문서, 원격 인증 API·대화형 Windows 실행/취소/회수 기반.
+- 독립 검토의 중요 지적: 복원 세대 별도 파일 제거(journal 자체 사용), 서비스 RUNNING 검사, DB staging 용량 합산, 단독 USB 보존 연결, 기본기능 비상 결과, 원격 비정상 종료 구분과 보관 증거 회수 경로를 보완한다.
+- 최종 전체 단위시험: 1214 passed / 2 skipped / 302 subtests passed, 127.51초. 시험 전후 소스 해시 변경 0. 중간 구현 중 확인한 실패는 해결했고, 원격 상위 junction 거부는 실제 Windows PowerShell에서 재현 후 수정했다. 로그: work/followup-unit-release.log.
+- 실제 Viewer UI/DB 복원·제품 설치/제거·서버 배포·Windows 원격 수용은 이번 구현 중 실행하지 않았다. 실제 설치 패키지·검증된 무인 argv와 원격 PC/계정 및 VHD 공용 잠금 연동이 실물 단계의 선행조건이다.
+- 읽기 확인: 지정한 Release Note의 1.0.12.105 기준 파일 15개를 설치 경로에 연결했다. DB 버전 기준은 원문에 없어 미확정이다. 실제 config는 바꾸지 않고 work의 별도 JSON으로 남겼다.
+
+현재 사용법은 [실행 보존 안내](docs/followup-reliability.md), 범위는 [자동 생성 현황](docs/followup-scope.md), 원격 운영 조건은 [원격 안내](remote/README.md)를 따른다. 이전 제품 FAIL과 QC/Dose SR의 과거 복원 미확인은 유지한다.
 
 ## 2026-11-13 TC 고도화와 실제 BellalunAuto GUI 전체 확인 완료
 

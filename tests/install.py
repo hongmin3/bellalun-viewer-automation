@@ -10,6 +10,7 @@ TC_Basic_Install_09  Uninstall 후 잔존 확인 (검증부만)     [완전 자�
 
 import os
 import json
+from pathlib import Path
 
 from core import net, sysinfo
 from core.result import TCResult, PASS, FAIL, MANUAL
@@ -43,18 +44,21 @@ def vcredist_entries(programs, min_major=14):
     return sorted(found)
 
 
-def install_01(ctx):
+def install_01(ctx, *, stop_on_fail=None):
     r = TCResult("TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인")
+    if stop_on_fail is not None:
+        r.stop_on_fail = stop_on_fail
     rn = ctx.cfg["release_note"]
 
     source = str(rn.get("_source") or "")
     serialized = json.dumps(rn, ensure_ascii=False)
     baseline_pending = ("교체 필요" in source or "REPLACE_ME" in serialized
+                        or (rn.get('_approval') or {}).get('status') == 'pending'
                         or not rn.get("programs") or not rn.get("files")
-                        or not rn.get("db_software_version"))
+                        )
     if baseline_pending:
         installed = sysinfo.installed_programs()
-        actual_programs = {}
+        actual_programs = dict(installed) if not rn.get('programs') else {}
         for name in rn.get("programs", {}):
             actual = installed.get(name)
             if actual is None:
@@ -62,9 +66,13 @@ def install_01(ctx):
                               if name.lower() in key.lower()]
                 actual = installed[candidates[0]] if candidates else "설치되지 않음"
             actual_programs[name] = actual
+        observed_files = rn.get('files') or {
+            str(p.relative_to(ctx.cfg['install_dir'])): None
+            for p in Path(ctx.cfg['install_dir']).rglob('*')
+            if p.is_file() and not p.is_symlink() and p.suffix.lower() in {'.exe', '.dll'}}
         actual_files = {
             rel: sysinfo.file_version(os.path.join(ctx.cfg["install_dir"], rel))
-            for rel in rn.get("files", {})}
+            for rel in observed_files}
         db_version = ctx.db.scalar("DATA", "SELECT Version FROM SOFTWARE_VERSION")
         r.manual(
             1, "승인된 Release Note 기준값 필요",
@@ -95,16 +103,69 @@ def install_01(ctx):
     # Step 3. Programs and Features에 표시되지 않는 구성 파일 버전
     for rel, expected in rn["files"].items():
         path = os.path.join(ctx.cfg["install_dir"], rel)
-        actual = sysinfo.file_version(path)
+        if rn.get('_file_version_kind') == 'product':
+            from core.release_note_baseline import product_version
+            actual = product_version(path)
+        else:
+            actual = sysinfo.file_version(path)
         r.assert_equal(3, f"[설치 경로] {rel} 버전", expected,
                        actual if actual is not None else "파일 없음",
                        note=path)
 
     # Step 3-b. DB에 기록된 소프트웨어 버전
     db_ver = ctx.db.scalar("DATA", "SELECT Version FROM SOFTWARE_VERSION")
-    r.assert_equal(3, "[DATA.SOFTWARE_VERSION] 버전", rn["db_software_version"], db_ver)
+    if rn.get('db_software_version'):
+        r.assert_equal(3, "[DATA.SOFTWARE_VERSION] 버전", rn["db_software_version"], db_ver)
+    else:
+        r.manual(3, "[DATA.SOFTWARE_VERSION] 승인 기준값 필요",
+                 "Release Note에 없는 DB 버전을 Viewer 버전으로 추정하지 않습니다.",
+                 expected="승인된 DATA.SOFTWARE_VERSION 기준값", actual=db_ver)
+
+    for name, detail in (rn.get('_unresolved_files') or {}).items():
+        r.manual(3, f"[설치 경로] {name} 위치 확인 필요",
+                 "같은 이름 후보가 여럿이거나 파일 위치가 확인되지 않았습니다.",
+                 expected=detail.get('expected'), actual=detail.get('status'))
 
     return r
+
+
+def evaluate_lifecycle(ctx, record, pre=None, post=None):
+    """제품 실행기의 verify_after callback에서 기존 TC 판정기를 연결한다.
+
+    실행 실패·재부팅 대기는 제품 결함으로 판정하지 않는다. snapshot은 호출자가
+    실제 설치 전후에 수집해야 하며 이 함수가 DB 변경·설치기를 대신 실행하지 않는다.
+    """
+    action = record.get('action')
+    tc_ids = {'install': 'TC_Basic_Install_07', 'upgrade': 'TC_Basic_Install_08',
+              'uninstall': 'TC_Basic_Install_09'}
+    if action not in tc_ids:
+        raise ValueError('확인할 수 없는 제품 수명주기 동작입니다')
+    blocked = TCResult(tc_ids[action], '제품 수명주기 후속 검증')
+    if record.get('status') not in {'process_completed', 'completed'}:
+        blocked.blocked(0, '설치 수명주기 완료 확인',
+                        '설치 프로세스가 완료되지 않았습니다. 재부팅/실행 기록을 확인하십시오.',
+                        expected='프로세스 완료 후 후속 검증', actual=record.get('status'))
+        return blocked
+    if action in {'install', 'upgrade'} and (pre is None or post is None):
+        blocked.blocked(0, '설치 전후 snapshot 필요',
+                        '실제 설치 전후 자료가 없어 기존 TC 판정기를 실행하지 않습니다.',
+                        expected='설치 전후 snapshot', actual='미제공')
+        return blocked
+    if action == 'install':
+        return install_07_evaluate(ctx, pre, post, stop_on_fail=False)
+    if action == 'upgrade':
+        return install_08_evaluate(ctx, pre, post, stop_on_fail=False)
+    return install_09_verify(ctx, stop_on_fail=False)
+
+
+def lifecycle_verifier(ctx, pre=None, post=None):
+    """core.product_lifecycle.verify_after(record) 계약의 adapter를 만든다."""
+    def verify(record):
+        result = evaluate_lifecycle(ctx, record, pre, post)
+        return {'status': 'verified' if result.verdict in {PASS, FAIL} else 'verification_required',
+                'product_verdict': result.verdict,
+                'results': [result.as_dict()]}
+    return verify
 
 
 # --------------------------------------------------------------------------
@@ -200,13 +261,15 @@ def install_02(ctx):
 
 
 # --------------------------------------------------------------------------
-def install_07_evaluate(ctx, pre, post):
+def install_07_evaluate(ctx, pre, post, *, stop_on_fail=None):
     """설치 옵션(Theme/Language/Kiosk) 적용 및 Viewer 재시작 후 유지 확인.
 
     pre  : 설정 변경 직후 스냅샷
     post : Viewer 재시작 후 스냅샷
     """
     r = TCResult("TC_Basic_Install_07", "설치 옵션 및 변경 적용 확인 (Theme/Language/Kiosk)")
+    if stop_on_fail is not None:
+        r.stop_on_fail = stop_on_fail
     opt = ctx.cfg["install_option"]
 
     def sc(snap):
@@ -232,18 +295,20 @@ def install_07_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def install_08_evaluate(ctx, pre, post):
+def install_08_evaluate(ctx, pre, post, *, stop_on_fail=None):
     """Upgrade 전/후 기존 데이터 유지 확인."""
     from core import snapshot
 
     r = TCResult("TC_Basic_Install_08", "Upgrade 후 기존 데이터 유지 확인")
+    if stop_on_fail is not None:
+        r.stop_on_fail = stop_on_fail
 
     def rows(snap, sec):
         v = snap["_sections"].get(sec)
         return v if isinstance(v, list) else []
 
     # Step 2. 모듈 버전
-    sub = install_01(ctx)
+    sub = install_01(ctx, stop_on_fail=stop_on_fail)
     for c in sub.checks:
         if c.step in (2, 3):
             r.add(2, c.title, c.status, c.expected, c.actual, c.note)
@@ -284,9 +349,11 @@ def install_08_evaluate(ctx, pre, post):
 
 
 # --------------------------------------------------------------------------
-def install_09_verify(ctx):
+def install_09_verify(ctx, *, stop_on_fail=None):
     """수동 Uninstall 수행 후 실행하는 검증 전용 TC. 제거 동작 자체는 자동화하지 않는다."""
     r = TCResult("TC_Basic_Install_09", "Uninstall 및 데이터 유지 확인 (검증부)")
+    if stop_on_fail is not None:
+        r.stop_on_fail = stop_on_fail
 
     r.assert_true(1, "관리자 권한으로 수행", sysinfo.is_elevated(),
                   expected="Administrator", actual=sysinfo.is_elevated())
@@ -331,13 +398,16 @@ REGISTRY = [
     {"id": "TC_Basic_Install_02", "title": "Viewer 실행 전 필수 환경 확인",
      "mode": "single", "run": install_02},
     {"id": "TC_Basic_Install_07", "title": "설치 옵션 및 변경 적용 확인",
+     "lifecycle_action": "install", "lifecycle_evaluate": evaluate_lifecycle,
      "mode": "prepost", "evaluate": install_07_evaluate,
      "pre_hint": "Theme/Language/Kiosk를 config.json의 기대값으로 설정한 직후",
      "post_hint": "Viewer를 재시작한 후"},
     {"id": "TC_Basic_Install_08", "title": "Upgrade 후 기존 데이터 유지 확인",
+     "lifecycle_action": "upgrade", "lifecycle_evaluate": evaluate_lifecycle,
      "mode": "prepost", "evaluate": install_08_evaluate,
      "pre_hint": "Upgrade 수행 직전", "post_hint": "Upgrade 및 Setting Import 완료 후"},
     {"id": "TC_Basic_Install_09", "title": "Uninstall 및 데이터 유지 확인 (검증부)",
+     "lifecycle_action": "uninstall", "lifecycle_evaluate": evaluate_lifecycle,
      "mode": "single", "run": install_09_verify,
      "guard": "Uninstall을 수동으로 수행한 뒤에만 실행하십시오."},
 ]

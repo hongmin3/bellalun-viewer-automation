@@ -25,6 +25,14 @@ from core import specs
 from core import viewer_processing as vp
 
 
+def _close_saved_setting(ui):
+    """Update·저장 확인을 마친 Setting만 기존 공통 닫기 경로로 닫는다."""
+    from core import setting_changes
+    if not setting_changes.close_setting(ui):
+        raise flows.FlowError('저장 완료한 Setting 창의 닫힘을 확인하지 못했습니다.')
+    return True
+
+
 def _ev(ctx, name):
     root = Path(ctx.evidence_root) / "Viewer_XIPL"
     root.mkdir(parents=True, exist_ok=True)
@@ -1375,10 +1383,7 @@ def compatibility_04(ctx):
                        "TEST_2D_B_M.pim", presets.get("PRESET_FLOW_B"),
                        note="PROCEDURE.VIEW_POSITION_PRESET.XIPLParamName 조회")
 
-        close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700
-                 and c.rect[1] < 100]
-        if close:
-            ui.click(close[0], settle=1.5)
+        _close_saved_setting(ui)
 
         # Step 5: New Patient에서 DATA_XIPL_PRESET_01 검사 시작
         #
@@ -1866,9 +1871,7 @@ def compatibility_05(ctx):
                        "TEST_QC_3D.eap", qc_common.get("DefaultReconParam"),
                        note="CONFIGURATION.QC_COMMON.DefaultReconParam 조회")
 
-        close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700 and c.rect[1] < 100]
-        if close:
-            ui.click(close[0], settle=1.5)
+        _close_saved_setting(ui)
         flows.ensure_patient_screen(ui)
 
         # Step 3: 2D Q.C 항목(ACR Phantom) 1회 촬영
@@ -2629,10 +2632,7 @@ def compatibility_07(ctx):
                    + ("" if cleanup_ok else " — 복구 실패, cleanup_error 확인 후"
                                             " 수동 정리 필요"))
 
-        close = [c for c in ui.by_id(4) if c.visible and c.rect[0] > 1700
-                 and c.rect[1] < 100]
-        if close:
-            ui.click(close[0], settle=1.5)
+        _close_saved_setting(ui)
 
         # --- Step 4: 시험 검사 시작 ---------------------------------------
         # 이전 실행이 검사를 열어 둔 채 끝났으면 New Patient 탭에 갈 수 없다

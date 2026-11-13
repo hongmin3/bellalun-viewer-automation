@@ -1,0 +1,2 @@
+# Ubuntu 서버의 선택 WinRM adapter. 기본 프로그램에는 필요하지 않다.
+pywinrm>=0.5.0,<0.6

@@ -375,7 +375,7 @@ def _as_view(result):
 class Checkpoint:
     """단계 결과를 단계가 끝날 때마다 원자적으로 기록하는 저장점."""
 
-    def __init__(self, path, identity, payload=None):
+    def __init__(self, path, identity, payload=None, *, execution_fingerprint=None):
         self.path = path
         self.identity = identity
         self.payload = payload or {
@@ -383,10 +383,12 @@ class Checkpoint:
             "created": datetime.now().astimezone().isoformat(timespec="seconds"),
             "stages": {}, "order": [], "extras": {}, "resumes": [],
         }
+        if payload is None and execution_fingerprint is not None:
+            self.payload["execution_fingerprint"] = execution_fingerprint
 
     # --- 읽기 ---------------------------------------------------------
     @classmethod
-    def load(cls, path, identity):
+    def load(cls, path, identity, *, execution_fingerprint=None):
         """저장점을 읽는다. 없거나 손상됐거나 다른 체인이면 CheckpointError."""
         if not os.path.isfile(path):
             raise CheckpointError(f"재개할 저장점이 없습니다: {path}")
@@ -404,6 +406,10 @@ class Checkpoint:
             raise CheckpointError("저장점 판(schema)이 다릅니다.")
         if payload.get("identity") != identity:
             raise CheckpointError("저장점의 체인 구성이 현재 체인과 다릅니다.")
+        if execution_fingerprint is not None and (
+                not execution_fingerprint
+                or payload.get("execution_fingerprint") != execution_fingerprint):
+            raise CheckpointError("저장점의 실행 지문이 없거나 현재 설정·Viewer·Baseline·소스·복원 세대와 다릅니다. 새로 실행하십시오.")
         stages = payload.get("stages")
         if not isinstance(stages, dict) or not isinstance(payload.get("order"), list):
             raise CheckpointError("저장점의 단계 기록이 잘못되었습니다.")
@@ -509,6 +515,8 @@ def result_from_dict(data):
                               item.get("note", ""),
                               blocks_verdict=item.get("blocks_verdict")))
     r.evidence = list(data.get("evidence") or [])
+    if data.get('cause_evidence'):
+        r.cause_evidence = list(data['cause_evidence'])
     r.timings = list(data.get("timings") or [])
     for key, attr in (("started", "started"), ("completed", "completed")):
         try:

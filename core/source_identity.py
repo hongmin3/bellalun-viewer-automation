@@ -4,6 +4,7 @@
 릴리스 게이트(`tools/release_gate.py`)는 같은 커밋·수정 없는 소스에서 나온 실행 결과만
 인정한다. 설치판(Nuitka)에는 `tools/`가 들어가지 않으므로 이 함수는 `core`에 둔다.
 """
+import hashlib
 import json
 import shutil
 import subprocess
@@ -61,12 +62,24 @@ def combine_run_identity(start, end):
     """실행 시작 때와 리포트 작성 때의 식별 정보를 합친다.
 
     리포트 시점의 값만 쓰면 실행 도중 커밋이 바뀌어도 새 커밋의 깨끗한 결과로 보인다.
-    시작 때 커밋이 다르거나 시작 때부터 수정이 있었으면 `source_dirty`를 참으로 둔다.
+    확인된 수정·커밋 변경은 True, 확인 실패는 None으로 보존한다.
     """
     if not start:
         return dict(end)
     merged = dict(end, source_commit_at_start=start.get("source_commit"))
-    if (start.get("source_commit") != end.get("source_commit")
-            or start.get("source_dirty") is not False):
+    first_commit, last_commit = start.get("source_commit"), end.get("source_commit")
+    if (start.get("source_dirty") is True or end.get("source_dirty") is True
+            or (first_commit and last_commit and first_commit != last_commit)):
         merged["source_dirty"] = True
+    elif (not first_commit or not last_commit
+          or start.get("source_dirty") is not False or end.get("source_dirty") is not False):
+        merged["source_dirty"] = None
     return merged
+
+
+def execution_fingerprint(plan_id, restore_generation=None):
+    """계획 신원과 복원 세대를 묶는다. 복원 후 옛 저장점 재개를 방지한다."""
+    payload = {"plan_id": plan_id, "restore_generation": restore_generation}
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                         separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()

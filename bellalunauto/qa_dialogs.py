@@ -103,18 +103,23 @@ def diagnostics_error_report(error, workspace):
             '`BellalunAuto.exe selfcheck`를 실행하고, 위 기록 파일과 함께 담당자에게 전달하세요.')
 
 
-def confirm_plan(root, plan):
+def confirm_plan(root, plan, *, layout=None, open_config=None):
     import tkinter as tk
     from tkinter import ttk, scrolledtext
     from .runplan import format_plan
     from core.run_preparation import preparation_items, preparation_complete, validate_preparation
     dialog = tk.Toplevel(root)
     dialog.title('실행 전 확인 — 데이터 변경 동의')
-    dialog.geometry('850x700')
-    view = scrolledtext.ScrolledText(dialog, wrap='word', font=('맑은 고딕', 10))
+    dialog.geometry('1000x900' if layout is not None else '850x740')
+    # 매번 사용자가 새로 선택한다. 이전 동의나 저장된 계획은 승인으로 재사용하지 않는다.
+    plan['restore_after'] = False
+    view = scrolledtext.ScrolledText(dialog, wrap='word', height=10, font=('맑은 고딕', 10))
     view.pack(fill='both', expand=True, padx=12, pady=12)
     view.insert('end', format_plan(plan))
     view.configure(state='disabled')
+    if layout is not None:
+        _diagnostics_panel(dialog, layout, open_config or (lambda: None), height=5)
+    restore = tk.BooleanVar(value=False)
     agreed = tk.BooleanVar(value=False)
     accepted = [False]
     ttk.Label(dialog, text='UAC 권한 승인은 아래 데이터 변경 동의를 대신하지 않습니다.').pack(pady=4)
@@ -132,6 +137,11 @@ def confirm_plan(root, plan):
         value = tk.BooleanVar(value=False)
         checks[item['key']] = value
         ttk.Checkbutton(dialog, text=item['label'], variable=value, command=refresh).pack(anchor='w', padx=12)
+    ttk.Checkbutton(dialog, text='시험 종료 후 DB·변경 대상 파일을 실행 전 상태로 복원 (이번 실행만)',
+                    variable=restore).pack(anchor='w', padx=12, pady=6)
+    ttk.Label(dialog, text='선택 시 시험 전 사본과 해시를 보관하고 시험·보고서 저장 후 복원합니다. '
+                          '미선택 시 사본을 보관하고 기존 종료 정책을 따릅니다.',
+              wraplength=940).pack(anchor='w', padx=12)
     ttk.Checkbutton(dialog, text='위 변경에 동의합니다', variable=agreed,
                     command=refresh).pack(pady=6)
 
@@ -144,6 +154,7 @@ def confirm_plan(root, plan):
                 messagebox.showerror('준비 확인 필요', str(error), parent=dialog)
                 return
             plan['preparation_checked'] = checked()
+            plan['restore_after'] = restore.get()
             accepted[0] = True
             dialog.destroy()
     start.configure(command=accept)
@@ -155,14 +166,13 @@ def confirm_plan(root, plan):
     return accepted[0]
 
 
-def show_diagnostics(root, layout, open_config):
+def _diagnostics_panel(parent, layout, open_config, *, height=14):
     import tkinter as tk
     from tkinter import ttk, messagebox
     from .app import diagnostics
-    dialog = tk.Toplevel(root)
-    dialog.title('준비 점검 — 실패 해결 후 다시 점검')
-    dialog.geometry('940x600')
-    tree = ttk.Treeview(dialog, columns=('state', 'name', 'detail'), show='headings', height=14)
+    dialog = ttk.Frame(parent)
+    dialog.pack(fill='both', expand=True)
+    tree = ttk.Treeview(dialog, columns=('state', 'name', 'detail'), show='headings', height=height)
     for key, label, width in (('state', '결과', 65), ('name', '항목', 200), ('detail', '현재 상태', 620)):
         tree.heading(key, text=label)
         tree.column(key, width=width)
@@ -222,11 +232,23 @@ def show_diagnostics(root, layout, open_config):
             messagebox.showerror('증거 폴더 열기', '최근 OCR 선택 실패 행을 선택하세요. '
                                  '증거 폴더가 없으면 해당 시험을 다시 실행한 뒤 점검하세요.', parent=dialog)
 
-    ttk.Button(dialog, text='선택 항목 설정 화면 열기', command=resolve).pack(side='left', padx=12, pady=10)
-    ttk.Button(dialog, text='OCR 실패 증거 폴더 열기', command=open_evidence).pack(side='left', padx=6)
-    ttk.Button(dialog, text='다시 점검', command=refresh).pack(side='left', padx=12)
-    ttk.Button(dialog, text='닫기', command=dialog.destroy).pack(side='right', padx=12)
+    actions = ttk.Frame(dialog)
+    actions.pack(fill='x')
+    ttk.Button(actions, text='선택 항목 설정 화면 열기', command=resolve).pack(side='left', padx=12, pady=10)
+    ttk.Button(actions, text='OCR 실패 증거 폴더 열기', command=open_evidence).pack(side='left', padx=6)
+    ttk.Button(actions, text='다시 점검', command=refresh).pack(side='left', padx=12)
     refresh()
+    return dialog
+
+
+def show_diagnostics(root, layout, open_config):
+    import tkinter as tk
+    from tkinter import ttk
+    dialog = tk.Toplevel(root)
+    dialog.title('준비 점검 — 실패 해결 후 다시 점검')
+    dialog.geometry('940x600')
+    _diagnostics_panel(dialog, layout, open_config)
+    ttk.Button(dialog, text='닫기', command=dialog.destroy).pack(anchor='e', padx=12, pady=10)
     return dialog
 
 

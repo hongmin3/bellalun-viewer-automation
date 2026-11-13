@@ -180,6 +180,8 @@ class TCResult:
         self._step_cursor_wall = self.started
         self._step_cursor = time.perf_counter()
         self.evidence = []
+        self.cause_evidence = []
+        self.reused_from_checkpoint = False
         #: 이 TC 안에서 이미 FAIL 로 중단시켰는가(중복 예외 방지).
         self._stopped = False
         #: TC 가 **중간에 중단**됐는가. `abort()` 가 True 로 세운다.
@@ -365,15 +367,19 @@ class TCResult:
         return SKIP
 
     def as_dict(self):
-        return {
+        data = {
             "tc_id": self.tc_id, "title": self.title, "verdict": self.verdict,
             "started": self.started.isoformat(timespec="seconds"),
             "completed": (self.completed or datetime.now()).isoformat(timespec="seconds"),
             "duration_seconds": self.duration_seconds,
             "counts": self.counts, "evidence": self.evidence,
             "timings": self.timings,
+            "reused_from_checkpoint": self.reused_from_checkpoint,
             "checks": [c.as_dict() for c in self.checks],
         }
+        if getattr(self, 'cause_evidence', None):
+            data['cause_evidence'] = self.cause_evidence
+        return data
 
 
 # ---------------------------------------------------------------------
@@ -879,6 +885,28 @@ def _render_html(results, meta, siblings=None):
          + (f" &nbsp;|&nbsp; 실행 명령 <code>{e(meta['command'])}</code>"
             if meta.get("command") else "") + "</div>"]
 
+    identity_rows = [
+        ("실행 번호", meta.get("run_id")),
+        ("자동화 버전", meta.get("automation_version")),
+        ("소스 커밋", meta.get("source_commit")),
+        ("소스 출처", meta.get("source_identity_origin")),
+        ("소스 변경 여부", {True: "수정 있음", False: "변경 없음"}.get(
+            meta.get("source_dirty"), "확인 불가")),
+        ("계획 지문", meta.get("plan_id")),
+        ("설정 지문", meta.get("config_fingerprint")),
+        ("실행 지문", meta.get("execution_fingerprint")),
+        ("Viewer 신원", meta.get("viewer_identity")),
+        ("자료 신원", meta.get("baseline_identity")),
+        ("복원 상태", meta.get("restoration")),
+    ]
+    if any(meta.get(key) is not None for key in (
+            "run_id", "automation_version", "source_commit", "source_identity_origin",
+            "plan_id", "execution_fingerprint", "restoration")):
+        P.append("<details class='appendix' id='execution-identity'><summary>실행 신원과 복원 상태</summary><table>")
+        for label, value in identity_rows:
+            P.append(f"<tr><th>{e(label)}</th><td>{_report_value(value if value is not None else '확인 불가')}</td></tr>")
+        P.append("</table></details>")
+
     # --- 결론: 먼저 읽을 한 문장과 TC별 원인 한 줄(사용자 요청 2026-11-05) ----
     summary = outcome_summary(results)
     colors = {"ok": ("#e7f6ec", "#1e7b3a", "성공"), "warn": ("#fff6e0", "#8a5a00", "주의"),
@@ -1145,6 +1173,17 @@ def _render_html(results, meta, siblings=None):
         P.append(f"<div class='meta'>시작 {r.started:%Y-%m-%d %H:%M:%S}"
                  f" &nbsp;→&nbsp; 종료 {end:%Y-%m-%d %H:%M:%S}"
                  f" &nbsp;|&nbsp; 소요 {r.duration_seconds:.1f}s</div>")
+        if r.reused_from_checkpoint:
+            P.append("<div class='meta'>저장점 재사용 · 이번 실행에서 다시 수행하지 않은 단계입니다.</div>")
+        if getattr(r, 'cause_evidence', None):
+            P.append('<h3>원인 관련 로그 관찰 (판정과 별개)</h3><table>'
+                     '<tr><th>Step</th><th>출처 / 분류</th><th>원인 확정</th><th>증거</th></tr>')
+            for cause in r.cause_evidence:
+                P.append('<tr><td>' + e(str(cause.get('step') or 'TC')) + '</td><td>'
+                         + e(str(cause.get('source', ''))) + ' / ' + e(str(cause.get('category', '')))
+                         + '</td><td>' + e(str(cause.get('attribution', 'undetermined')))
+                         + '</td><td>' + _report_value(cause.get('evidence', {})) + '</td></tr>')
+            P.append('</table>')
 
         # 사양·검증 목적 (기준 문서 원문)
         if r.timings:

@@ -87,7 +87,7 @@ def _safe_cwd():
     return Path(__file__).resolve().parents[1]
 
 
-_WORKSPACE_FOLDERS = ('Log', 'Reports', 'Evidence', 'Cache', 'Temp', 'work')
+_WORKSPACE_FOLDERS = ('Log', 'Reports', 'Evidence', 'Cache', 'Temp', 'work', 'Runs', 'preservation')
 _EXECUTED_PATHS = ('viewer.exe', 'xipl.studio_exe', 'xipl.tesseract_exe', 'baseline_dir')
 
 
@@ -294,17 +294,20 @@ def diagnostics(layout, check_connections=True):
         for name, raw in [('MWL 서버', dicom.get('mwl_server_url')),
                           ('Print 서버', dicom.get('print_server_url')),
                           ('Storage 서버', section(dicom.get('storage_scp')).get('api_url'))]:
+            configured = False
             try:
                 parsed = urlsplit(raw or '')
                 if parsed.scheme not in ('http', 'https') or not parsed.hostname:
                     raise ValueError('미설정')
+                configured = True
                 with socket.create_connection((parsed.hostname, parsed.port or
                                                (443 if parsed.scheme == 'https' else 80)), timeout=3):
                     available = True
             except (OSError, ValueError):
                 available = False
-            add(name, available, '연결 가능' if available else '미설정 또는 연결 실패',
-                'PC별 설정의 서버 주소·포트와 시험망 연결을 확인하세요.')
+            add(name, available, '연결 가능' if available else ('연결 실패' if configured else '주소 미설정'),
+                '서버 가동·포트와 시험망 연결을 확인하세요.' if configured else
+                'PC별 설정에 서버 주소와 포트를 입력하세요.')
     return items
 
 
@@ -400,6 +403,21 @@ def wait_worker_ready(path, parent, timeout=15):
 
 
 def run_guarded(layout, arguments, stop_file=None):
+    """GUI 콜백 없이도 감독 프로세스가 최종 실행 상태를 남긴다."""
+    code = 3
+    try:
+        code = _run_guarded_impl(layout, arguments, stop_file)
+        return code
+    finally:
+        run_id = os.environ.get('BELLALUN_QA_RUN')
+        if run_id:
+            from bellalunauto.runs import RunRecord
+            path = Path(layout.workspace) / 'Runs' / run_id / 'run.json'
+            data = json.loads(path.read_text(encoding='utf-8'))
+            RunRecord(layout.workspace, path, data).finish(code)
+
+
+def _run_guarded_impl(layout, arguments, stop_file=None):
     from core import automation_health as health
     from core.ui import foreground_unlocked, taskbar_autohidden
     from bellalunauto.processes import WindowsJob

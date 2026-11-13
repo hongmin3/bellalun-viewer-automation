@@ -80,6 +80,41 @@ class RunPlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_plan(self.layout, self.config, 'snapshot-baseline')
 
+    def test_plan_identity_changes_for_execution_inputs_but_redacts_secrets(self):
+        first = self.plan()
+        self.assertTrue(first.get('plan_id'))
+        self.assertEqual(first['plan_id'], self.plan()['plan_id'])
+        self.config['viewer']['login']['password'] = 'another-secret'
+        self.assertEqual(first['plan_id'], self.plan()['plan_id'])
+        self.config['display'] = {'width': 1600}
+        self.assertNotEqual(first['plan_id'], self.plan()['plan_id'])
+        self.config.pop('display')
+        viewer = Path(self.config['viewer']['exe'])
+        viewer.write_bytes(b'viewer-one')
+        next_plan = self.plan()
+        self.assertNotEqual(first['plan_id'], next_plan['plan_id'])
+        viewer.write_bytes(b'viewer-two')
+        self.assertNotEqual(next_plan['plan_id'], self.plan()['plan_id'])
+        viewer.unlink()
+        (self.layout.resource_dir / 'assets/Baseline/DATA.bak').write_bytes(b'changed')
+        self.assertNotEqual(first['plan_id'], self.plan()['plan_id'])
+        self.assertNotIn('another-secret', json.dumps(self.plan()))
+
+    def test_plan_uses_resource_source_and_detects_changes_inside_same_dirty_state(self):
+        self.layout.resource_dir.joinpath('build-info.json').write_text(json.dumps({
+            'source_commit': 'a' * 40, 'source_dirty': True}), encoding='utf-8')
+        source = self.layout.resource_dir / 'core'
+        source.mkdir()
+        module = source / 'example.py'
+        module.write_text('x = 1', encoding='utf-8')
+        before = self.plan()
+        self.assertEqual(before['source_identity']['source_commit'], 'a' * 40)
+        module.write_text('x = 2', encoding='utf-8')
+        after = self.plan()
+        self.assertNotEqual(before['plan_id'], after['plan_id'])
+        self.assertNotEqual(before['source_fingerprint'], after['source_fingerprint'])
+        self.assertEqual(before['source_identity'], after['source_identity'])
+
 
 if __name__ == '__main__':
     unittest.main()

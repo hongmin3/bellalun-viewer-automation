@@ -171,3 +171,56 @@ def test_progress_accepts_new_file_with_coarse_timestamp_but_not_unchanged_old_s
     record.refresh_progress()
     assert record.data['progress']['current_tc'] == 'NEW'
     assert record.data['progress']['completed'] == 1
+
+
+def test_fresh_supervisor_completion_is_not_overwritten_by_gui(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    saved = dict(record.data, status='completed', exit_code=1, summary='supervisor-final',
+                 preservation={'status': 'restored'}, reports=['supervisor-report'])
+    record.path.write_text(json.dumps(saved), encoding='utf-8')
+    record.finish(9)
+    assert record.data['status'] == 'completed'
+    assert record.data['summary'] == 'supervisor-final'
+    assert json.loads(record.path.read_text(encoding='utf-8')) == saved
+
+
+def test_progress_reads_small_live_file_without_opening_wu_checkpoint(tmp_path, monkeypatch):
+    from pathlib import Path
+    from bellalunauto.runs import RunRecord, engine_progress
+    record = RunRecord.create(tmp_path, 'run-winupdate', {})
+    engine_progress(tmp_path, record.data['run_id'], 'TC4', 4, 20)
+    checkpoint = tmp_path / 'work' / 'winupdate_checkpoint.json'
+    checkpoint.write_text('{}', encoding='utf-8')
+    original = Path.read_bytes
+    def guarded(path):
+        if path == checkpoint:
+            pytest.fail('GUI must not fingerprint the large checkpoint')
+        return original(path)
+    monkeypatch.setattr(Path, 'read_bytes', guarded)
+    record.refresh_progress()
+    assert record.data['progress']['completed'] == 3
+    assert record.data['progress']['current_tc'] == 'TC4'
+
+
+def test_progress_refresh_does_not_overwrite_supervisor_final_record(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {})
+    saved = dict(record.data, status='abnormal', summary='final')
+    record.path.write_text(json.dumps(saved), encoding='utf-8')
+    record.refresh_progress()
+    assert record.data['status'] == 'abnormal'
+    assert json.loads(record.path.read_text(encoding='utf-8')) == saved
+
+
+def test_invalid_live_progress_is_read_failure_without_overwriting_run(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-winupdate', {})
+    original = record.path.read_bytes()
+    folder = tmp_path / 'work'
+    folder.mkdir()
+    (folder / 'qa_progress.json').write_text(json.dumps({
+        'run_id': record.data['run_id'], 'current_tc': 'TC4', 'index': None}), encoding='utf-8')
+    with pytest.raises(ValueError, match='진행'):
+        record.refresh_progress()
+    assert record.path.read_bytes() == original

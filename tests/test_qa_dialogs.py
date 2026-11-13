@@ -29,7 +29,7 @@ def test_real_confirmation_requires_check_and_closes_without_product(agree, acti
         checked.append('disabled' in start.state())
         if agree:
             boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
-            assert len(boxes) == (5 if action == 'run-winupdate' else 3)
+            assert len(boxes) == (6 if action == 'run-winupdate' else 4)
             for box in boxes[:-1]:
                 box.invoke()
                 assert 'disabled' in start.state()
@@ -78,3 +78,219 @@ def tk_root():
     root.withdraw()
     yield root
     root.destroy()
+
+
+@pytest.mark.parametrize('restore', [False, True])
+def test_consent_shows_diagnostics_and_records_each_run_restoration(restore, monkeypatch, tk_root, tmp_path):
+    from types import SimpleNamespace
+    from bellalunauto.qa_dialogs import confirm_plan
+    from bellalunauto import runplan, app
+    monkeypatch.setattr(runplan, 'format_plan', lambda plan: '합성 실행 계획')
+    monkeypatch.setattr(app, 'diagnostics', lambda layout: [
+        {'name': 'MWL 서버', 'ok': False, 'detail': '미설정', 'fix': '서버 주소를 입력하세요.'}])
+    plan = {'action': 'run-regression', 'restore_after': True}
+    layout = SimpleNamespace(workspace=tmp_path)
+    opened, observed = [], []
+    def interact():
+        dialog = tk_root.winfo_children()[0]
+        controls = list(widgets(dialog))
+        tree = next(w for w in controls if isinstance(w, ttk.Treeview))
+        row = tree.get_children()[0]
+        observed.append(tuple(tree.item(row)['values']))
+        tree.selection_set(row)
+        tree.event_generate('<<TreeviewSelect>>')
+        settings = next(w for w in controls if isinstance(w, ttk.Button)
+                        and w.cget('text') == '선택 항목 설정 화면 열기')
+        settings.invoke()
+        boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
+        restoration = next(w for w in boxes if '실행 전 상태로 복원' in w.cget('text'))
+        assert 'selected' not in restoration.state(), '이전 실행 선택을 다음 실행에 재사용하면 안 됩니다.'
+        for box in boxes:
+            if box is not restoration or restore:
+                box.invoke()
+        next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '동의하고 시작').invoke()
+    tk_root.after(20, interact)
+    timeout = tk_root.after(2000, lambda: [w.destroy() for w in tk_root.winfo_children()])
+    try:
+        assert confirm_plan(tk_root, plan, layout=layout, open_config=lambda: opened.append(True))
+        assert plan['restore_after'] is restore
+        assert observed == [('FAIL', 'MWL 서버', '미설정')]
+        assert opened == [True]
+    finally:
+        tk_root.after_cancel(timeout)
+
+
+@pytest.mark.parametrize('label,keyboard', [
+    ('버전', True), ('결과 폴더 열기', False), ('PC별 설정', False),
+    ('준비 점검', False), ('기본기능 체크리스트 자동화 수행', False),
+    ('Windows Update 체크리스트 자동화 수행', False), ('수동 검토', False),
+    ('공유 ZIP', False), ('자동 닫기 멈춤', False),
+])
+def test_real_gui_completion_countdown_is_cancelled_before_button_action(
+        label, keyboard, monkeypatch, tk_root, tmp_path):
+    from types import SimpleNamespace
+    from bellalunauto import gui, qa_dialogs, runplan
+    from tkinter import messagebox
+    from bellalunauto.runs import RunRecord
+    layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / 'config.json', resource_dir=tmp_path)
+    layout.config_path.write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(gui, 'load_gui_config', lambda layout: {})
+    monkeypatch.setattr(gui, 'validate_config', lambda config: [])
+    monkeypatch.setattr(runplan, 'build_plan', lambda *args: {'action': args[-1]})
+    monkeypatch.setattr(qa_dialogs, 'confirm_plan', lambda *args, **kwargs: True)
+    monkeypatch.setattr(qa_dialogs, 'show_diagnostics', lambda *args: None)
+    monkeypatch.setattr(qa_dialogs, 'review_run', lambda *args: None)
+    monkeypatch.setattr(qa_dialogs, 'share_run', lambda *args: None)
+    monkeypatch.setattr(gui, '_settings_dialog', lambda *args: None)
+    monkeypatch.setattr(gui.os, 'startfile', lambda path: None)
+    monkeypatch.setattr(messagebox, 'showinfo', lambda *args, **kwargs: None)
+    def start(controller, action, **kwargs):
+        controller.record = RunRecord.create(tmp_path, action, {})
+        controller.record.data.update(status='completed', exit_code=1, verdicts={'FAIL': 1},
+                                      next_action='review', review_status='pending')
+        controller.record.save()
+        controller.process = SimpleNamespace(poll=lambda: 1, returncode=1)
+        controller.log_path = tmp_path / 'synthetic.log'
+    monkeypatch.setattr(gui.RunController, 'start', start)
+    root = tk.Toplevel(tk_root)
+    root.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root)
+    observed = []
+    errors = []
+    root.report_callback_exception = lambda *args: errors.append(args)
+    def finish():
+        root.quit()
+        root.destroy()
+    def interact():
+        controls = list(widgets(root))
+        regression = next(w for w in controls if isinstance(w, ttk.Button)
+                          and w.cget('text') == '기본기능 체크리스트 자동화 수행')
+        regression.invoke()
+        root.after(250, cancel)
+    def cancel():
+        controls = list(widgets(root))
+        stop_close = [w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '자동 닫기 멈춤']
+        observed.append(bool(stop_close) and 'disabled' not in stop_close[0].state())
+        if not stop_close:
+            finish()
+            return
+        assert stop_close[0].winfo_ismapped(), '자동 닫기 멈춤은 완료 화면에서 항상 보여야 합니다.'
+        countdown = [w for w in controls if isinstance(w, ttk.Label)
+                     and w.cget('textvariable') and '초 후' in str(root.getvar(w.cget('textvariable')))]
+        observed.append(bool(countdown))
+        target = next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == label)
+        if keyboard:
+            target.focus_force()
+            root.update()
+            target.event_generate('<KeyPress-space>')
+            target.event_generate('<KeyRelease-space>')
+            root.update()
+        else:
+            target.invoke()
+        observed.append('disabled' in stop_close[0].state())
+        finish()
+    root.after(20, interact)
+    root.after(2500, finish)
+    assert gui.launch(layout) == 0
+    assert not errors
+    assert observed == [True, True, True]
+
+
+def test_real_gui_automatically_destroys_only_after_sixty_seconds(monkeypatch, tk_root, tmp_path):
+    from types import SimpleNamespace
+    from bellalunauto import gui, qa_dialogs, runplan, auto_close
+    from bellalunauto.runs import RunRecord
+    layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / 'config.json', resource_dir=tmp_path)
+    layout.config_path.write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(gui, 'load_gui_config', lambda layout: {})
+    monkeypatch.setattr(gui, 'validate_config', lambda config: [])
+    monkeypatch.setattr(runplan, 'build_plan', lambda *args: {'action': args[-1]})
+    monkeypatch.setattr(qa_dialogs, 'confirm_plan', lambda *args, **kwargs: True)
+    now, destroyed, boundary = [0.0], [], []
+    original_init = auto_close.CompletionAutoClose.__init__
+    def init(timer, scheduler, close, update):
+        original_init(timer, scheduler, close, update, clock=lambda: now[0])
+    monkeypatch.setattr(auto_close.CompletionAutoClose, '__init__', init)
+    def start(controller, action, **kwargs):
+        controller.record = RunRecord.create(tmp_path, action, {})
+        controller.record.data.update(status='completed', exit_code=1, verdicts={'FAIL': 1},
+                                      next_action='review', review_status='pending')
+        controller.record.save()
+        controller.process = SimpleNamespace(poll=lambda: 1, returncode=1)
+        controller.log_path = tmp_path / 'synthetic.log'
+    monkeypatch.setattr(gui.RunController, 'start', start)
+    root = tk.Toplevel(tk_root)
+    root.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root)
+    original_destroy = root.destroy
+    def destroy():
+        destroyed.append(now[0])
+        root.quit()
+        original_destroy()
+    root.destroy = destroy
+    def begin():
+        button = next(w for w in widgets(root) if isinstance(w, ttk.Button)
+                      and w.cget('text') == '기본기능 체크리스트 자동화 수행')
+        button.invoke()
+    root.after(20, begin)
+    root.after(350, lambda: now.__setitem__(0, 59.999))
+    def at_boundary():
+        boundary.append(root.winfo_exists())
+        now[0] = 60.0
+    root.after(1300, at_boundary)
+    root.after(2500, root.destroy)
+    assert gui.launch(layout) == 0
+    assert boundary == [1]
+    assert destroyed == [60.0]
+
+
+@pytest.mark.parametrize('save_failure', [False, True])
+def test_real_gui_manual_close_waits_for_log_and_final_record(save_failure, monkeypatch, tk_root, tmp_path):
+    import json
+    from types import SimpleNamespace
+    from bellalunauto import gui, qa_dialogs, runplan
+    from bellalunauto.runs import RunRecord
+    if save_failure:
+        def fail_save(*args):
+            raise OSError('synthetic final write failure')
+        monkeypatch.setattr(RunRecord, 'finish', fail_save)
+    layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / 'config.json', resource_dir=tmp_path)
+    layout.config_path.write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(gui, 'load_gui_config', lambda layout: {})
+    monkeypatch.setattr(gui, 'validate_config', lambda config: [])
+    monkeypatch.setattr(runplan, 'build_plan', lambda *args: {'action': args[-1]})
+    monkeypatch.setattr(qa_dialogs, 'confirm_plan', lambda *args, **kwargs: True)
+    reading, records, alive, ended = [True], [], [], []
+    def start(controller, action, **kwargs):
+        controller.record = RunRecord.create(tmp_path, action, {})
+        records.append(controller.record.path)
+        controller.process = SimpleNamespace(poll=lambda: 1, returncode=1)
+        controller.reader = SimpleNamespace(is_alive=lambda: reading[0])
+        controller.log_path = tmp_path / 'synthetic.log'
+    monkeypatch.setattr(gui.RunController, 'start', start)
+    root = tk.Toplevel(tk_root)
+    root.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root)
+    original_destroy = root.destroy
+    def destroy():
+        ended.append(json.loads(records[0].read_text(encoding='utf-8'))['status'])
+        root.quit()
+        original_destroy()
+    root.destroy = destroy
+    def begin():
+        next(w for w in widgets(root) if isinstance(w, ttk.Button)
+             and w.cget('text') == '기본기능 체크리스트 자동화 수행').invoke()
+        root.tk.call(root.protocol('WM_DELETE_WINDOW'))
+        alive.append(bool(root.winfo_exists()))
+        reading[0] = False
+    root.after(20, begin)
+    if save_failure:
+        def after_error():
+            alive.append(bool(root.winfo_exists()))
+            # 오류를 확인한 뒤의 명시적인 새 닫기 동작은 허용한다.
+            root.tk.call(root.protocol('WM_DELETE_WINDOW'))
+        root.after(350, after_error)
+    root.after(2000, root.destroy)
+    assert gui.launch(layout) == 0
+    assert alive == ([True, True] if save_failure else [True])
+    assert ended == (['running'] if save_failure else ['abnormal'])

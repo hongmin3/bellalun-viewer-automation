@@ -14,6 +14,7 @@ VIEWER.exe는 MFC(AfxWnd140u) 네이티브 앱이다. 확인해 보니 각 컨�
 import ctypes
 import ctypes.wintypes as w
 import time
+from core.performance import timed
 
 u32 = ctypes.windll.user32
 k32 = ctypes.windll.kernel32
@@ -572,6 +573,7 @@ class ViewerUi:
             return True
         return False
 
+    @timed('ui.launch')
     def launch(self, exe_path, wait=15):
         import os
         import subprocess
@@ -650,6 +652,7 @@ class ViewerUi:
                 out.append(c)
         return sorted(out, key=lambda c: c.rect[0])
 
+    @timed('ui.controls')
     def controls(self, window=None, max_depth=5, visible_only=True, all_windows=True):
         """컨트롤 목록. 기본은 프로세스의 모든 최상위 창을 훑는다.
 
@@ -685,6 +688,7 @@ class ViewerUi:
                 return ch.text
         return control.text
 
+    @timed('ui.by_id')
     def by_id(self, ctrl_id, window=None):
         return [c for c in self.controls(window) if c.ctrl_id == ctrl_id]
 

@@ -82,7 +82,7 @@ def _source_identity_meta(ctx):
     try:
         from core.source_identity import combine_run_identity, source_identity
         return combine_run_identity(getattr(ctx, "source_identity_at_start", None),
-                                    source_identity(getattr(ctx, "root", ".")))
+                                    source_identity(getattr(ctx, "resource_root", getattr(ctx, "root", "."))))
     except Exception as exc:                           # noqa: BLE001
         print(f"  source-identity: 확인 실패 — {exc}")
         return {"source_commit": None, "source_dirty": None,
@@ -103,13 +103,29 @@ def _bind_checkpoint_source(ctx, checkpoint, resume):
         checkpoint.set_extra("source_identity", getattr(ctx, "source_identity_at_start", None))
 
 
+def _execution_meta(ctx):
+    from bellalunauto import __version__
+    plan = getattr(ctx, 'execution_plan', {})
+    return {'run_id': getattr(ctx, 'run_id', os.environ.get('BELLALUN_QA_RUN')),
+            'automation_version': __version__, 'execution_mode': 'live',
+            'chain_completed': not bool(getattr(ctx, 'execution_incomplete', False)),
+            'plan_id': plan.get('plan_id'), 'config_fingerprint': plan.get('config_fingerprint'),
+            'execution_fingerprint': getattr(ctx, 'execution_fingerprint', None),
+            'viewer_identity': plan.get('viewer'), 'baseline_identity': plan.get('baseline'),
+            'restoration': getattr(ctx, 'restoration', {'status': 'pending'}),
+            'execution_block': getattr(ctx, 'execution_block', None),
+            'performance': (ctx.performance_recorder.snapshot()
+                            if hasattr(ctx, 'performance_recorder') else []),
+            **getattr(ctx, 'execution_error', {})}
+
+
 def _report_meta(ctx, results):
     """HTML 리포트에 실을 부가 정보를 모은다.
 
     실패해도 리포트 생성 자체는 살린다 — 대신 **조용히 넘기지 않고** 이유를
     출력한다(체크리스트 기록이 죽은 코드였던 2026-08-18 사례와 같은 처리).
     """
-    meta = {"command": _command_line(), **_source_identity_meta(ctx)}
+    meta = {"command": _command_line(), **_source_identity_meta(ctx), **_execution_meta(ctx)}
     try:
         from core import checklist, sysinfo, tc_modules
         source = checklist.source_path(ctx)
@@ -243,6 +259,26 @@ def _tesseract_version(exe):
 LAST_REPORT_PATHS = {}
 
 
+def _stage_causes(ctx, tc_id, started, log_path, log_offset):
+    try:
+        from core import failure_evidence
+        current_log = _viewer_log_path(ctx)
+        if not current_log:
+            return []
+        with open(current_log, 'rb') as stream:
+            if current_log == log_path and os.path.getsize(current_log) >= log_offset:
+                stream.seek(log_offset)
+            raw = stream.read(2 * 1024 * 1024)
+        text, encoding = failure_evidence.decode_log_bytes(raw)
+        window = {'path': current_log, 'found': True, 'encoding': encoding,
+                  'error': None, 'lines': text.splitlines(),
+                  'window': [datetime.fromtimestamp(int(started)).isoformat(),
+                             datetime.fromtimestamp(time.time() + 1).isoformat()]}
+        return failure_evidence.log_cause_evidence(window, tc_id=tc_id)
+    except (OSError, AttributeError, KeyError, ValueError):
+        return []
+
+
 def guarded(fn, ctx, tc_id, title):
     """TC 하나가 예외로 죽어도 **회귀 전체를 멈추지 않는다.**
 
@@ -258,11 +294,27 @@ def guarded(fn, ctx, tc_id, title):
     반환: `TCResult` 리스트(진입 함수가 단일 객체를 주면 감싸 준다).
     """
     from core.result import TCResult
+    started = time.time()
+    log_path, log_offset = None, 0
+    try:
+        log_path = _viewer_log_path(ctx)
+        log_offset = os.path.getsize(log_path) if log_path else 0
+    except (OSError, AttributeError, KeyError):
+        pass
     try:
         out = fn(ctx)
     except Exception as exc:                           # noqa: BLE001
         import traceback
         r = TCResult(tc_id, title)
+        causes = _stage_causes(ctx, tc_id, started, log_path, log_offset)
+        if causes:
+            r.blocked(0, f'{tc_id} 실행 중 제품/환경 경고 관찰',
+                      '같은 실행 구간에서 제품 경고와 자동화 예외가 관찰됐습니다. 원인 귀속은 미확정입니다.')
+            r.cause_evidence = causes
+            ctx.execution_block = {'tc_id': tc_id, 'causes': causes,
+                                   'automation_exception': type(exc).__name__}
+            ctx.execution_incomplete = True
+            return [r]
         r.abort(0, f"{tc_id} 진입", exc,
                 note="이 TC 의 진입 함수가 예외를 던졌다(모듈 자체 예외처리가 "
                      "없거나 그보다 앞에서 발생). **회귀는 중단하지 않고 다음 TC "
@@ -273,7 +325,17 @@ def guarded(fn, ctx, tc_id, title):
         return [r]
     if out is None:
         return []
-    return list(out) if isinstance(out, (list, tuple)) else [out]
+    rows = list(out) if isinstance(out, (list, tuple)) else [out]
+    failed = [r for r in rows if getattr(r, 'verdict', None) in {'FAIL', 'BLOCKED'}]
+    if failed:
+        causes = _stage_causes(ctx, tc_id, started, log_path, log_offset)
+        if causes:
+            from core.failure_evidence import link_cause_evidence
+            for result in failed:
+                link_cause_evidence(result, causes)
+            ctx.execution_block = {'tc_id': tc_id, 'causes': causes}
+            ctx.execution_incomplete = True
+    return rows
 
 
 def _checklist_step_count(text):
@@ -448,7 +510,7 @@ def recover_viewer_after_termination(ctx, tc_id, produced, started):
         evidence_path, _payload = failure_evidence.collect_failure_evidence(
             os.path.join(ctx.evidence_root, "failure"), tc_id=tc_id, reason=info.get("message"),
             event_time=time.time(), viewer_pid=None, log_path=_viewer_log_path(ctx),
-            crash_since=started)
+            crash_since=started, result=target)
         if evidence_path:
             info = dict(info, failure_evidence=evidence_path)
             target.attach(evidence_path)
@@ -697,7 +759,7 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
     from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
                               meta={"command": _command_line(), "env": env,
-                                    **_source_identity_meta(ctx),
+                                    **_source_identity_meta(ctx), **_execution_meta(ctx),
                                     "usb_unverified": usb_flags,
                                     "update_evidence": update_meta,
                                     "execution_mode": execution_mode,
@@ -946,7 +1008,49 @@ def _wu_precondition_broken(produced):
     return [x for x in produced if _view(x).get("verdict") in ("FAIL", "BLOCKED")]
 
 
+def _write_emergency_results(ctx, results, problem):
+    """주 보고서 저장소가 실패해도 별도 실행 폴더에 결과 보존을 시도한다."""
+    from pathlib import Path
+    emergency = Path(ctx.root) / 'Runs' / 'emergency'
+    emergency.mkdir(parents=True, exist_ok=True)
+    target = emergency / f'results-{time.time_ns()}.json'
+    payload = {'meta': {**_execution_meta(ctx), 'chain_completed': False, 'persistence_error': problem},
+               'results': [r.as_dict() if hasattr(r, 'as_dict') else r for r in results]}
+    with target.open('x', encoding='utf-8') as output:
+        json.dump(payload, output, ensure_ascii=False, default=str)
+        output.flush()
+        os.fsync(output.fileno())
+    return target
+
+
 def _run_winupdate_chain(ctx, resume=False):
+    """저장 실패에도 완료된 단계 결과를 보존하고 부분 실행으로 닫는다."""
+    ctx.partial_results = []
+    try:
+        return _run_winupdate_chain_impl(ctx, resume=resume)
+    except OSError as error:
+        from tests import winupdate
+        problem = {"type": type(error).__name__, "errno": error.errno,
+                   "winerror": getattr(error, "winerror", None)}
+        # 예외 메시지는 계정·환자·파일 경로를 담을 수 있어 기록하지 않는다.
+        print(f"[FAIL] 실행 기록 저장 실패: {problem['type']} — 부분 결과를 보존합니다.")
+        try:
+            shutdown_viewer("저장 실패로 WU 중단")
+        except Exception as cleanup_error:
+            problem['cleanup_error'] = type(cleanup_error).__name__
+        rows = [r.as_dict() if hasattr(r, 'as_dict') else r
+                for r in ctx.partial_results]
+        meta = {"checkpoint_save_failed": problem, "partial_source_results": rows}
+        try:
+            wu_results = winupdate.build_wu_results(winupdate.lookup_from_results(rows))
+            _finish_winupdate(ctx, wu_results, source_note="저장 실패로 중단",
+                             execution_mode="live", chain_completed=False, extra_meta=meta)
+        except OSError:
+            _write_emergency_results(ctx, rows, problem)
+        return 3
+
+
+def _run_winupdate_chain_impl(ctx, resume=False):
     """WU 체크리스트에 필요한 TC만 순서대로 실제 실행하는 전용 체인.
 
     `run-regression`과 같은 전제 게이트·guarded 실행 방식을 쓰되, WU 매핑에
@@ -978,7 +1082,8 @@ def _run_winupdate_chain(ctx, resume=False):
     path = wu_chain.checkpoint_path(ctx.root)
     if resume:
         try:
-            checkpoint = wu_chain.Checkpoint.load(path, identity)
+            checkpoint = wu_chain.Checkpoint.load(path, identity,
+                execution_fingerprint=getattr(ctx, 'execution_fingerprint', None))
         except wu_chain.CheckpointError as exc:
             print(f"[run-winupdate --resume] 재개하지 않습니다: {exc}")
             print("  저장점 없이 처음부터 실행하려면 --resume 없이 다시 실행하십시오.")
@@ -991,7 +1096,8 @@ def _run_winupdate_chain(ctx, resume=False):
         moved = wu_chain.set_aside(path)
         if moved:
             print(f"  [run-winupdate] 이전 저장점을 보관했습니다: {moved}")
-        checkpoint = wu_chain.Checkpoint(path, identity)
+        checkpoint = wu_chain.Checkpoint(path, identity,
+            execution_fingerprint=getattr(ctx, 'execution_fingerprint', None))
         _bind_checkpoint_source(ctx, checkpoint, resume=False)
         checkpoint.save()
 
@@ -999,7 +1105,7 @@ def _run_winupdate_chain(ctx, resume=False):
     print(f"[run-winupdate] 시작 {started:%Y-%m-%d %H:%M:%S} — "
           "WU 체크리스트에 필요한 TC만 순서대로 실행합니다.")
 
-    results, reused, trips = [], [], {}
+    results, reused, trips = ctx.partial_results, [], {}
 
     def meta_extra():
         return {"resumed": bool(resume), "resume_count": checkpoint.resume_count,
@@ -1026,10 +1132,15 @@ def _run_winupdate_chain(ctx, resume=False):
                     trips[stage_id] = trip
                     if stage_id not in WU_PRECONDITIONS:
                         _wu_restart_after_trip(ctx, stage_id, trip)
-                else:
+                elif not getattr(ctx, 'execution_block', None):
                     recover_viewer_after_termination(ctx, stage_id, produced, tc_started)
+                results.extend(produced)
                 checkpoint.complete(stage_id, produced, trip=trip)
-            results.extend(produced)
+            if checkpoint.done(stage_id) and stage_id in reused:
+                results.extend(produced)
+            if getattr(ctx, 'execution_block', None):
+                aborted_precondition = produced[0]
+                break
             if stage_id in WU_PRECONDITIONS:
                 broken = _wu_precondition_broken(produced)
                 if broken:
@@ -1111,6 +1222,7 @@ def _run_winupdate_chain(ctx, resume=False):
                 wu10_result = TCResult("TC_WindowsUpdate_10",
                                        winupdate.WU_TITLES["TC_WindowsUpdate_10"])
                 wu10_result.abort(0, "TC_WindowsUpdate_10 실행", "결과를 만들지 못했습니다.")
+            ctx.partial_results.append(wu10_result)
             checkpoint.complete("TC_WindowsUpdate_10", [wu10_result],
                                 trip=trips.get("TC_WindowsUpdate_10"))
 
@@ -1124,10 +1236,11 @@ def _run_winupdate_chain(ctx, resume=False):
     note = f"전용 체인, {elapsed:.1f}분"
     if resume:
         note += f", 저장점에서 재개 {checkpoint.resume_count}회"
-    code = _finish_winupdate(ctx, wu_results, elapsed, source_note=note,
-                             execution_mode="live", chain_completed=True,
-                             extra_meta=meta_extra())
+    # 완료 표식을 쓰지 못했으면 완주 리포트를 먼저 게시하지 않는다.
     checkpoint.finish()
+    code = _finish_winupdate(ctx, wu_results, elapsed, source_note=note,
+                             execution_mode="live", chain_completed=not bool(getattr(ctx, 'execution_block', None)),
+                             extra_meta=meta_extra())
     return code
 
 
@@ -1367,6 +1480,9 @@ def _main():
     sync_parser.add_argument("--install-task", action="store_true", help="평일 11:00 예약 작업 등록 명령을 보인다")
     sync_parser.add_argument("--remove-task", action="store_true", help="예약 작업 삭제 명령을 보인다")
     sync_parser.add_argument("--apply", action="store_true", help="--install-task/--remove-task를 실제로 실행한다")
+    for name in ('run-regression', 'run-winupdate', 'run-wu09'):
+        sub.choices[name].add_argument('--restore-after', action=argparse.BooleanOptionalAction,
+            default=None, help='이번 실행 후 원상복원 여부; --no-restore-after는 사전 백업만 보존')
     args = ap.parse_args()
 
     # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
@@ -1389,6 +1505,110 @@ def _main():
                                  probe_all=args.probe_options))
 
     ctx = Context(args.config)
+    # 사람의 취소는 계획 해시·백업·서비스 중지보다 먼저 처리한다.
+    if args.cmd in {'run-winupdate', 'run-wu09'} and not getattr(args, 'from_regression', None):
+        from core.run_preparation import confirm_cli
+        try:
+            if not confirm_cli(args.cmd, prepared=args.prepared):
+                return 2
+        except ValueError as error:
+            print(error)
+            return 2
+        args.preparation_confirmed = True
+        if args.cmd == 'run-wu09' and _wu_preflight(ctx)['blocked']:
+            return 2
+    if args.cmd in {'run-regression', 'run-winupdate', 'run-wu09'} and not getattr(args, 'from_regression', None):
+        return _execute_preserved(ctx, args)
+    return _dispatch(ctx, args)
+
+
+def _execute_preserved(ctx, args):
+    from pathlib import Path
+    from types import SimpleNamespace
+    from core.execution_session import execution_session
+    from bellalunauto.runplan import build_plan
+    ctx.execution_plan = build_plan(SimpleNamespace(workspace=Path(ctx.root),
+        resource_dir=Path(ctx.resource_root)), ctx.cfg, args.cmd)
+    ctx.execution_fingerprint = ctx.execution_plan['execution_fingerprint']
+    choice = getattr(args, 'restore_after', None)
+    if choice is not None:
+        ctx.preservation_choice = choice
+    started = time.time()
+    code = 3
+    try:
+        from core.performance import collect_performance
+        with collect_performance() as recorder, execution_session(ctx, args.cmd):
+            ctx.performance_recorder = recorder
+            try:
+                code = _dispatch(ctx, args)
+            except OSError as error:
+                ctx.execution_incomplete = True
+                ctx.execution_error = {'persistence_error': {'type': type(error).__name__,
+                    'errno': error.errno, 'winerror': getattr(error, 'winerror', None)}}
+                try:
+                    shutdown_viewer('실행 기록 실패')
+                except Exception as cleanup_error:
+                    ctx.execution_error['cleanup_error'] = type(cleanup_error).__name__
+                try:
+                    finish(ctx, getattr(ctx, 'partial_results', []))
+                except OSError:
+                    _write_emergency_results(ctx, getattr(ctx, 'partial_results', []), ctx.execution_error)
+                code = 3
+    finally:
+        # 복원 후의 최종 결과를 모든 리포트 형식에 연결한다. 이전 회차는 수정하지 않는다.
+        if hasattr(ctx, 'restoration'):
+            from core.wu_chain import result_from_dict
+            for path in Path(ctx.reports_root).glob('Result_*.json'):
+                if path.stat().st_mtime < started:
+                    continue
+                data = json.loads(path.read_text(encoding='utf-8'))
+                if (data.get('meta') or {}).get('run_id') != ctx.run_id:
+                    continue
+                data['meta']['restoration'] = ctx.restoration
+                data['meta']['performance'] = recorder.snapshot()
+                if ctx.restoration.get('status') not in {'verified', 'preserved'}:
+                    data['meta']['chain_completed'] = False
+                restored_rows = [result_from_dict(r) for r in data['results']]
+                for result, original in zip(restored_rows, data['results']):
+                    result.reused_from_checkpoint = original.get('reused_from_checkpoint', False)
+                    redirected = []
+                    for evidence in result.evidence:
+                        target = evidence
+                        if isinstance(evidence, str):
+                            for name, source in getattr(ctx, 'preservation_roots', {}).items():
+                                archived = ctx.restoration.get('roots', {}).get(name, {}).get('archive')
+                                if not archived:
+                                    continue
+                                try:
+                                    relative = Path(evidence).relative_to(source)
+                                except ValueError:
+                                    continue
+                                candidate = Path(archived) / relative
+                                if candidate.is_file():
+                                    from core.run_preservation import _check_path, _hash
+                                    import shutil
+                                    saved = _check_path(Path(ctx.root) / 'Evidence' / 'preserved' /
+                                                        ctx.run_id / name / relative)
+                                    saved.parent.mkdir(parents=True, exist_ok=True)
+                                    if not saved.exists():
+                                        with candidate.open('rb') as source_file, saved.open('xb') as output:
+                                            shutil.copyfileobj(source_file, output, 1024 * 1024)
+                                    if _hash(saved) != _hash(candidate):
+                                        raise OSError('보관 증거 사본 해시가 일치하지 않습니다.')
+                                    target = str(saved)
+                        redirected.append(target)
+                    result.evidence = redirected
+                try:
+                    write_reports(restored_rows, ctx.reports_root,
+                                  path.stem[len('Result_'):], meta=data['meta'])
+                except OSError as error:
+                    _write_emergency_results(ctx, restored_rows, {'type': type(error).__name__,
+                                              'phase': 'restoration-report'})
+                    code = 3
+    return code
+
+
+def _dispatch(ctx, args):
     # 실행 도중 커밋이 바뀐 결과를 새 커밋의 결과로 기록하지 않도록 시작 때 값을 둔다(REQ-DIST-005).
     ctx.source_identity_at_start = _source_identity_meta(ctx)
     # **FAIL 이 나면 그 TC 를 즉시 중단한다**(2026-08-24 사용자 지시). 어차피 그
@@ -1405,7 +1625,7 @@ def _main():
     if args.cmd == "run-winupdate" and getattr(args, "from_regression", None):
         return _run_winupdate_from_regression(ctx, args.from_regression)
 
-    if args.cmd in {'run-winupdate', 'run-wu09'}:
+    if args.cmd in {'run-winupdate', 'run-wu09'} and not getattr(args, 'preparation_confirmed', False):
         from core.run_preparation import confirm_cli
         try:
             if not confirm_cli(args.cmd, prepared=args.prepared):
@@ -1417,6 +1637,7 @@ def _main():
             return 2
 
     results = []
+    ctx.partial_results = results
     if args.cmd == "list":
         scope_path = os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json")
         with open(scope_path, encoding="utf-8") as f:
@@ -1713,6 +1934,9 @@ def _main():
                 pass
             produced = guarded(fn, ctx, tc_id, title)
             results.extend(produced)
+            if getattr(ctx, 'execution_block', None):
+                aborted_precondition = produced[0]
+                break
             recover_viewer_after_termination(
                 ctx, tc_id, produced, tc_started)
             if tc_id in PRECONDITIONS:
@@ -1732,6 +1956,7 @@ def _main():
                     x for x in results
                     if x.tc_id == "AUTOMATION_ENVIRONMENT_RESET")
         if aborted_precondition is not None:
+            ctx.execution_incomplete = True
             fails = [f"Step {c.step} {c.title}: {c.actual}"
                      for c in aborted_precondition.checks if c.status == "FAIL"]
             print()

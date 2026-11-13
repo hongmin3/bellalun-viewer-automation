@@ -657,6 +657,7 @@ def launch(layout, workspace_chosen=False) -> int:
     import tkinter as tk
     from tkinter import filedialog, messagebox, scrolledtext, ttk
     from . import __version__
+    from .auto_close import CompletionAutoClose
     from .runtime import resolve_layout
 
     root = tk.Tk()
@@ -695,6 +696,14 @@ def launch(layout, workspace_chosen=False) -> int:
     buttons = []
     status = tk.StringVar(value="대기 중 · 수행할 체크리스트를 선택하세요.")
     ttk.Label(root, textvariable=status, padding=10, wraplength=960).pack(anchor="w")
+    countdown = tk.StringVar(value='')
+    ttk.Label(root, textvariable=countdown, padding=6).pack(anchor='w', padx=4)
+
+    def show_countdown(seconds):
+        countdown.set('' if seconds is None else f'체크리스트 실행이 끝났습니다. {seconds}초 후 이 창을 닫습니다.')
+        auto_close_button.configure(state='disabled' if seconds is None else 'normal')
+
+    auto_close = CompletionAutoClose(root, root.destroy, show_countdown)
     progress = ttk.Progressbar(root, mode="indeterminate")
     progress.pack(fill="x", padx=12)
     output = scrolledtext.ScrolledText(root, wrap="word", height=22, state="disabled", font=("Consolas", 10))
@@ -736,7 +745,7 @@ def launch(layout, workspace_chosen=False) -> int:
                 status.set('실행 계획과 Baseline 해시를 확인하고 있습니다…')
                 root.update_idletasks()
                 plan = build_plan(layout, controller.config, action)
-                if not confirm_plan(root, plan):
+                if not confirm_plan(root, plan, layout=layout, open_config=settings):
                     status.set('실행 전 확인을 취소했습니다. 시험을 시작하지 않았습니다.')
                     return
             controller.start(action, consent=plan is not None, plan=plan)
@@ -754,7 +763,8 @@ def launch(layout, workspace_chosen=False) -> int:
 
     # selfcheck와 portability-check는 같은 점검이라 화면에는 하나만 둔다(REQ-DIST-002).
     for label, action in (("준비 점검", "selfcheck"), ("기본기능 체크리스트 자동화 수행", "run-regression"), ("Windows Update 체크리스트 자동화 수행", "run-winupdate")):
-        button = ttk.Button(toolbar, text=label, command=prepare if action == 'selfcheck' else lambda selected=action: run(selected))
+        callback = prepare if action == 'selfcheck' else lambda selected=action: run(selected)
+        button = ttk.Button(toolbar, text=label, command=auto_close.command(callback))
         button.pack(side="left", padx=4)
         buttons.append(button)
 
@@ -766,7 +776,7 @@ def launch(layout, workspace_chosen=False) -> int:
 
     footer = ttk.Frame(root, padding=10)
     footer.pack(fill="x")
-    settings_button = ttk.Button(footer, text="PC별 설정", command=settings)
+    settings_button = ttk.Button(footer, text="PC별 설정", command=auto_close.command(settings))
     settings_button.pack(side="left", padx=4)
     buttons.append(settings_button)
 
@@ -777,7 +787,7 @@ def launch(layout, workspace_chosen=False) -> int:
             os.startfile(str(folder))
         except OSError:
             messagebox.showerror("결과 폴더", "결과 폴더를 열 수 없습니다. 작업 폴더의 Reports를 확인하세요.", parent=root)
-    ttk.Button(footer, text="결과 폴더 열기", command=open_results).pack(side="left", padx=4)
+    ttk.Button(footer, text="결과 폴더 열기", command=auto_close.command(open_results)).pack(side="left", padx=4)
     def selected_record():
         from .runs import latest_run
         return controller.record or latest_run(layout.workspace)
@@ -800,10 +810,13 @@ def launch(layout, workspace_chosen=False) -> int:
     results_bar = ttk.Frame(root, padding=8)
     results_bar.pack(fill='x')
     for label, callback in (('수동 검토', review), ('공유 ZIP', share)):
-        button = ttk.Button(results_bar, text=label, command=callback)
+        button = ttk.Button(results_bar, text=label, command=auto_close.command(callback))
         button.pack(side='left', padx=4)
         buttons.append(button)
-    ttk.Button(footer, text="버전", command=lambda: messagebox.showinfo("버전", f"BellalunAuto {__version__}", parent=root)).pack(side="left", padx=4)
+    ttk.Button(footer, text="버전", command=auto_close.command(
+        lambda: messagebox.showinfo("버전", f"BellalunAuto {__version__}", parent=root))).pack(side="left", padx=4)
+    auto_close_button = ttk.Button(results_bar, text='자동 닫기 멈춤', command=auto_close.cancel, state='disabled')
+    auto_close_button.pack(side='left', padx=4)
     ttk.Label(footer, text="과거 WU 결과 변환은 CLI 명령을 사용하세요.").pack(side="left", padx=12)
 
     def stop():
@@ -821,7 +834,7 @@ def launch(layout, workspace_chosen=False) -> int:
             finally:
                 stopping.clear()
         threading.Thread(target=request_stop, daemon=True).start()
-    stop_button = ttk.Button(footer, text="실행 중단", command=stop, state="disabled")
+    stop_button = ttk.Button(footer, text="실행 중단", command=auto_close.command(stop), state="disabled")
     stop_button.pack(side="right")
 
     def poll():
@@ -831,15 +844,17 @@ def launch(layout, workspace_chosen=False) -> int:
             for line in controller.drain():
                 append(line)
             code = controller.process.returncode
+            finished_record = None
             if controller.record:
                 try:
                     controller.record.finish(code)
                     data = controller.record.data
-                    counts = ' / '.join(f'{key} {value}' for key, value in data['verdicts'].items())
+                    counts = ' / '.join(f'{key} {value}' for key, value in data.get('verdicts', {}).items())
                     labels = {'completed': '자동 실행 완료', 'stopped': '중단', 'abnormal': '비정상 종료', 'uac_cancelled': 'UAC 취소 — 시험 시작 안 함'}
                     status.set(f"{data['run_id']} · {labels.get(data['status'], data['status'])} · {counts}\n"
                                f"{data.get('summary', '')}\n{data['review_status']} · 다음 행동: {data['next_action']}")
                     append(f"\n실행 기록: {controller.record.path}\n보고서: " + '\n'.join(data['reports']) + '\n')
+                    finished_record = data
                 except (OSError, ValueError) as error:
                     status.set(f'실행 기록 저장 실패: {type(error).__name__} · 작업 폴더 권한과 보고서를 확인하세요.')
             elif code == 1223:
@@ -848,9 +863,15 @@ def launch(layout, workspace_chosen=False) -> int:
                 status.set(f"실행 종료 · 종료 코드 {code} · 새 리포트의 TC별 판정을 확인하세요.")
             active[0] = False
             set_busy(False)
+            if controller.record is not None and finished_record is None:
+                # 앞서 받은 닫기 요청으로 저장 오류 화면을 없애지 않는다.
+                close_requested[0] = False
             if close_requested[0]:
+                auto_close.cancel()
                 root.destroy()
                 return
+            if finished_record is not None:
+                auto_close.start(finished_record)
         if not stopping.is_set() and controller.running:
             stop_button.configure(state="normal")
             if controller.record:
@@ -865,11 +886,16 @@ def launch(layout, workspace_chosen=False) -> int:
         root.after(200, poll)
 
     def close():
+        auto_close.cancel()
         if controller.running:
             if not messagebox.askyesno("실행 중 종료", "시험을 중단하고 이 실행의 자식 프로세스를 정리한 뒤 종료할까요?", parent=root):
                 return
             close_requested[0] = True
             stop()
+            return
+        if active[0]:
+            close_requested[0] = True
+            status.set('로그와 최종 실행 기록을 마무리한 뒤 창을 닫습니다…')
             return
         root.destroy()
     root.protocol("WM_DELETE_WINDOW", close)

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bellalun 원격 실행</title><link rel="stylesheet" href="/dashboard.css"><script src="/dashboard.js" defer></script></head>
+<body><header><p class="eyebrow">BELLALUN QA</p><h1>원격 실행</h1><p>고정한 코드와 허용된 실행 계획으로 시험을 시작하고 결과를 확인합니다.</p></header>
+<main><section aria-labelledby="auth-title"><h2 id="auth-title">서버 연결</h2>
+<form id="auth"><label>접근 토큰<input id="token" type="password" autocomplete="off" required></label><button>연결</button><button id="logout" type="button">연결 해제</button></form>
+<p id="connection" role="status">접근 토큰을 입력하세요. 토큰은 이 탭의 세션에만 보관됩니다.</p></section>
+<section id="controls" hidden><h2>시험 시작</h2><form id="submit">
+<label>대상 PC<select id="pc" required></select></label><label>실행 계획<select id="profile" required></select></label>
+<label>고정 코드 묶음<select id="bundle" required></select></label><label>시험 후 원상복원<select id="restore" required><option value="">선택하세요</option><option value="true">원상복원</option><option value="false">현재 상태 유지</option></select></label>
+<button>선택한 계획 실행</button></form><p>대상·계정·사용자 세션·공용 잠금 준비가 확인되지 않으면 실행을 차단합니다.</p></section>
+<section><div class="row"><h2>실행 기록</h2><button id="refresh" type="button">새로 고침</button></div>
+<div class="table-wrap"><table><thead><tr><th>실행</th><th>PC / 계획</th><th>상태</th><th>결과</th><th>동작</th></tr></thead><tbody id="jobs"></tbody></table></div>
+<p id="message" role="status"></p></section><section><h2>실행 로그</h2><pre id="logs">실행 기록에서 로그를 선택하세요.</pre></section>
+</main><footer>서버 배포와 실제 제품 수용은 별도 절차입니다. 실행 상태와 제품 PASS/FAIL을 구분해 확인하세요.</footer></body></html>

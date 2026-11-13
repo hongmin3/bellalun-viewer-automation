@@ -406,6 +406,69 @@ def extract_log_window(log_path, event_time, before=30, after=30, *,
 # --------------------------------------------------------------------------
 # 증거 묶음
 # --------------------------------------------------------------------------
+def log_cause_evidence(log_window, *, tc_id, step=None):
+    """사건 시각으로 한정한 Viewer 로그의 명시 경고·오류만 연결한다.
+
+    SQL 시간 초과와 디스크 경고는 별도 관찰이다. 이 함수는 실제 용량 부족,
+    두 관찰의 인과 관계 또는 제품 결함을 확정하지 않으며 판정을 바꾸지 않는다.
+    줄 번호는 원본 전체가 아니라 ``extract_log_window``가 남긴 구간 기준이다.
+    """
+    if not isinstance(log_window, dict) or not log_window.get('found') or log_window.get('error'):
+        return []
+    try:
+        start, end = [_as_local_naive(value) for value in log_window['window']]
+        if start > end or not log_window.get('path'):
+            return []
+    except (KeyError, TypeError, ValueError):
+        return []
+    groups = []
+    current = None
+    for index, line in enumerate(log_window.get('lines') or [], 1):
+        if not isinstance(line, str):
+            continue
+        stamp = parse_log_timestamp(line)
+        if stamp is not None:
+            current = None
+            if start <= stamp <= end:
+                current = {'line_start': index, 'line_end': index, 'lines': [line]}
+                groups.append(current)
+        elif current is not None:
+            current['lines'].append(line)
+            current['line_end'] = index
+    causes = []
+    for group in groups:
+        text = '\n'.join(group['lines'])
+        sql = re.search(r'sql(?:exception|client|command)|SQL Server|ODBC.*SQL', text, re.I)
+        timeout = re.search(r'timeout(?:\s+expired)?|time\s*out|시간\s*초과', text, re.I)
+        disk = re.search(r'(?:disk|storage)\s*(?:free\s*)?(?:space|capacity).{0,100}'
+                         r'(?:low|insufficient|not enough|less than|below|shortage)|'
+                         r'(?:not enough|insufficient|low).{0,30}(?:disk|storage)\s*(?:space|capacity)|'
+                         r'디스크.{0,30}(?:부족|미만)', text, re.I)
+        categories = (['sql-timeout'] if sql and timeout else [])
+        if disk:
+            categories.append('disk-space-warning')
+        for category in categories:
+            causes.append({
+                'tc_id': tc_id, 'step': step, 'source': 'viewer-log', 'category': category,
+                'attribution': 'undetermined',
+                'note': '사건 구간의 명시 관찰이며 제품 결함·환경 원인 또는 다른 경고와의 인과 관계는 미확정입니다.',
+                'evidence': {'path': str(log_window['path']), 'window': log_window['window'],
+                             'line_basis': 'extracted-window', 'line_start': group['line_start'],
+                             'line_end': group['line_end'], 'text': text[:4000]},
+            })
+    return causes
+
+
+def link_cause_evidence(result, causes):
+    """이미 수집한 관찰을 TC에 연결한다. 기존 checks·verdict는 건드리지 않는다."""
+    linked = list(getattr(result, 'cause_evidence', []) or [])
+    for cause in causes:
+        if cause not in linked:
+            linked.append(cause)
+    result.cause_evidence = linked
+    return linked
+
+
 def _crash_info(process_name, since):
     """`automation_health` 재사용. WER 덤프 탐지를 이 모듈에서 다시 구현하지 않는다."""
     from core import automation_health
@@ -430,7 +493,7 @@ def collect_failure_evidence(evidence_dir, *, tc_id, reason, event_time=None,
                              viewer_pid=None, log_path=None, before=30, after=30,
                              process_name="VIEWER", expected_processes=None,
                              crash_since=None, include_crash=True,
-                             now=None, readers=None):
+                             now=None, readers=None, result=None):
     """실패 주변 증거를 ``evidence_dir``에 JSON으로 쓰고 ``(path, payload)``를 돌려준다.
 
     **절대 예외를 던지지 않는다.** 쓰기에 실패하면 path는 None이고 이유는
@@ -469,6 +532,9 @@ def collect_failure_evidence(evidence_dir, *, tc_id, reason, event_time=None,
         payload["foreground_reason"] = _safe(contamination_reason, fg, expected)
         payload["log"] = _safe(readers.get("log") or extract_log_window,
                                log_path, event, before, after)
+        payload['cause_evidence'] = log_cause_evidence(payload['log'], tc_id=tc_id)
+        if result is not None:
+            link_cause_evidence(result, payload['cause_evidence'])
         if include_crash:
             since = crash_since if crash_since is not None else (
                 event.timestamp() - float(before))
