@@ -264,8 +264,9 @@ ZIP은 `150dd5f75b17ac6961e4b2363209ee999c885017533868677d45070c69f987ae`다.
 abnormal/exit3, 이미지 정리0, GUI 유지가 확인됐다. 원시10개파일·1,040,774bytes를 해시 대조해
 보존했으며 보고서 SHA는 `6dc2d7fe26e72947737f85aabdd11dc25431f9855b1f3856d86000ebaa09f347`다.
 
-가림 root66564의 실제 화면·UIA Title/DismissButton을 확인해 BellalunAuto 자체 비정상 종료
-알림임을 확인했다. 그 알림만 UIA로 해제해 해당 창 높이0·본문 없음·지점 적중 해제를 확인했다.
+종료 후 root66564의 실제 화면·UIA Title/DismissButton에서 현재 BellalunAuto 자체 비정상 종료
+알림을 확인했다. 실패 당시 같은 HWND의 본문은 기록되지 않아 최초 가림 알림의 종류는 미확정이다.
+현재 확인한 우리 알림만 UIA로 해제해 창 높이0·본문 없음·지점 적중 해제를 확인했다.
 다른 프로젝트 창·OS 알림 설정은 바꾸지 않았다. 향후 실행 전에도 우리 알림만 식별해 정리한다.
 
 복원 오류는 errno13/winerror5, 첫 미완료 mkdir/xipl/VAW였다. 이것만으로 실제 실패 syscall의
@@ -293,3 +294,9 @@ metadata writer 수정의 실제 Windows 읽기 핸들·영구 오류 시험과 
 readiness·workspace failed0/gateFailures0/checkerError=false다. 이전 버전의 현재 상태 문구도
 배포·보존 안내에서 당시 기록으로 구분했다. 기존 미확정·문장 길이·보관본/캐시 경고는 유지한다.
 새1.0.17 EXE의 설치·전체 기본/WU 수용 결과를 소스 시험으로 대체하지 않는다.
+
+수정은 `f2854f74d86de7d02c291df329b136537e77fa28`로 커밋·push했다.
+00:51 KST에 같은 깨끗한 소스의1.0.17 후보 빌드를 OS 분리 프로세스로 시작했다.
+상태는 상위 `work/regression_state.135.377.json`의 run673,
+시작2026-11-14T00:51:36.493608+09:00, 결과는 Git 제외 `work/run673-build-result.json`을 따른다.
+상태 기록도 같은 메타데이터 교체 보조를 사용한다. 설치판은1.0.16이며 새 후보 수용은 미완료다.
