@@ -287,3 +287,99 @@ def test_extended_length_alias_cannot_hide_overlapping_product_and_backup(tmp_pa
     with pytest.raises(PreservationError, match="겹칩니다"):
         RunPreservation(source / "work", "overlap", {"image": extended}).prepare()
     assert list(source.iterdir()) == []
+
+
+@pytest.mark.parametrize("winerror", [32, 5])
+def test_shared_restore_error_records_codes_and_first_unverified_operation(tmp_path, monkeypatch, winerror):
+    import errno
+    source, share, run = shared_run(tmp_path)
+    run.prepare()
+    (source / "a-added").write_bytes(b"first generated file")
+    locked = source / "b-locked"
+    locked.write_bytes(b"second generated file")
+    error = PermissionError(errno.EACCES, "private exception text", str(locked))
+    error.winerror = winerror
+    replace = os.replace
+    def fail_locked_file(src, dst):
+        if Path(src) == locked:
+            raise error
+        return replace(src, dst)
+    monkeypatch.setattr(os, "replace", fail_locked_file)
+
+    result = run.finalize()
+
+    assert result["status"] == "error"
+    assert result["error_type"] == "PermissionError"
+    assert run.journal["delta_operations"][0]["phase"] == "verified"
+    expected = {"errno": errno.EACCES, "winerror": winerror,
+                "operation": {"index": 1, "kind": "quarantine", "root": "image",
+                              "relative": "b-locked", "phase": "quarantine"}}
+    assert result.get("error_detail") == expected
+    saved = json.loads((run.run_dir / "journal.json").read_text(encoding="utf-8"))
+    assert saved["result"]["error_detail"] == expected
+    assert RunPreservation.pending(run.workspace) == [run.run_id]
+    assert locked.read_bytes() == b"second generated file"
+    detail = json.dumps(result["error_detail"])
+    assert str(source) not in detail and "private exception text" not in detail
+
+
+def test_shared_ordinary_error_detail_excludes_exception_text_and_private_paths(tmp_path, monkeypatch):
+    from core import preservation_storage
+    source, share, run = shared_run(tmp_path)
+    run.prepare()
+    def fail_archive(*args):
+        raise RuntimeError(f"private exception text: {source}")
+    monkeypatch.setattr(preservation_storage, "_archive", fail_archive)
+
+    result = run.finalize()
+
+    assert result["status"] == "error" and result["error_type"] == "RuntimeError"
+    assert result.get("error_detail") == {"errno": None, "winerror": None, "operation": None}
+    detail = json.dumps(result["error_detail"])
+    assert str(source) not in detail and "private exception text" not in detail
+    assert RunPreservation.pending(run.workspace) == [run.run_id]
+
+
+@pytest.mark.parametrize("damaged", [None, [None],
+    [{"kind": [], "phase": "planned", "root": "image", "relative": "generated"}],
+    [{"kind": "quarantine", "phase": [], "root": "image", "relative": "generated"}]])
+def test_shared_damaged_journal_diagnostics_preserve_original_error(tmp_path, monkeypatch, damaged):
+    import errno
+    source, share, run = shared_run(tmp_path)
+    run.prepare()
+    run.journal["delta_operations"] = damaged
+    error = PermissionError(errno.EACCES, "private exception text", str(source))
+    error.winerror = 5
+    def fail_backup_verification():
+        raise error
+    monkeypatch.setattr(run, "_verify_backups", fail_backup_verification)
+
+    result = run.finalize()
+
+    assert result["status"] == "error" and result["error_type"] == "PermissionError"
+    assert result["error_detail"]["errno"] == errno.EACCES
+    assert result["error_detail"]["winerror"] == 5
+    saved = json.loads((run.run_dir / "journal.json").read_text(encoding="utf-8"))
+    assert saved["state"] == "error" and saved["result"] == result
+    assert RunPreservation.pending(run.workspace) == [run.run_id]
+    assert "private exception text" not in json.dumps(result["error_detail"])
+
+
+def test_shared_diagnostic_failure_cannot_replace_original_error(tmp_path, monkeypatch):
+    from core import preservation_storage
+    source, share, run = shared_run(tmp_path)
+    run.prepare()
+    def fail_archive(*args):
+        raise PermissionError("original private error")
+    def fail_diagnostic(*args):
+        raise TypeError("secondary private diagnostic error")
+    monkeypatch.setattr(preservation_storage, "_archive", fail_archive)
+    monkeypatch.setattr(preservation_storage, "_restore_error_detail", fail_diagnostic)
+
+    result = run.finalize()
+
+    assert result["status"] == "error" and result["error_type"] == "PermissionError"
+    assert result["error_detail"] == {"errno": None, "winerror": None, "operation": None}
+    saved = json.loads((run.run_dir / "journal.json").read_text(encoding="utf-8"))
+    assert saved["state"] == "error" and saved["result"] == result
+    assert RunPreservation.pending(run.workspace) == [run.run_id]

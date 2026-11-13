@@ -177,6 +177,10 @@ Station AE를 읽지 못하면 아무 job이나 고르지 않고 실패로 남�
 
 UI 조작은 제품이 그 조작을 받을 수 있는 상태가 된 뒤에 한다.
 
+다른 앱이 입력을 가리면 Viewer 자체 활성화만 재시도한다. 활성화 재시도의 대기 예산은10초다. 외부 창을 뒤로 보내거나
+외부 앱에 합성 키를 보내지 않는다. 포인터 위치의 실제 창과 대상 컨트롤의 유효성·위치가
+확인된 뒤에만 입력한다. 차단이 지속되면 ForegroundError로 후속 UI 전체를 중단하고 복원 경계로 나간다.
+
 Examined의 Today 검색이 0건이면 뜨는 `No Result` 안내를 먼저 확인하고 지정 환자를
 월 범위로 검색한다. 다른 안내창 뒤의 콤보·검색 버튼을 누르지 않는다. 안내 문구와
 단일 확인 버튼을 확인할 수 없으면 자동으로 넘기지 않고 중단한다.
@@ -814,6 +818,8 @@ PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검
 마무리 대기가 남으면 다음 실행을 차단하고, 원본 완료 증명 없는 정리 재개는 거부한다.
 중단 실행은 공유 사본·복원 파일·DB·서비스를 다시 확인하고 별도 복구 영수증을 저장한 뒤 마무리 대기를 해제할 수 있다.
 이때 원래 중단/비정상 판정을 유지하고 생성 이미지는 보존한다. 정상완주·이미지 정리·완료 자동 닫기로 승격하지 않는다.
+복원 중 파일 접근 오류에는 errno·winerror와 첫 미완료 작업의 상대 위치·단계를 기록한다.
+절대경로와 예외 문구를 진단 필드에 복제하지 않으며 오류 판정·보존 정책은 유지한다.
 ### REQ-TCUP-005 Import 제외 항목과 Post Reconstruction 적용값 구분
 
 WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
@@ -1122,7 +1128,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | implemented |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | implemented |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | implemented |
-| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py`, `tests/test_xipl_save_dialog.py` | implemented |
+| REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/result.py`, `core/xipl.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_pointer_safety.py`, `tests/test_environment_failure_gate.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py`, `tests/test_xipl_save_dialog.py` | implemented |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | implemented |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | implemented |

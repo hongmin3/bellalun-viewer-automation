@@ -17,11 +17,25 @@ import json
 import os
 import re
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 
 PASS, FAIL, MANUAL, SKIP, BLOCKED = (
     "PASS", "FAIL", "MANUAL", "SKIP", "BLOCKED")
 STATUSES = (PASS, FAIL, MANUAL, SKIP, BLOCKED)
+
+_abort_observer = ContextVar('tc_abort_observer', default=None)
+
+
+@contextmanager
+def observe_aborts(observer):
+    """현재 실행 범위의 중단을 알리고, 중첩 실행 종료 시 이전 관찰자를 복원한다."""
+    token = _abort_observer.set(observer)
+    try:
+        yield
+    finally:
+        _abort_observer.reset(token)
 
 
 def _report_value(value):
@@ -191,6 +205,9 @@ class TCResult:
         #: Step 3·5 를 별도 판정으로 내지 않는다) 멀쩡한 리포트에 없는 FAIL 이
         #: 생긴다.
         self.aborted = False
+        # 실행 가드가 예외의 실제 종류로 후속 입력 가능 여부를 판단한다.
+        # 공개 리포트에는 넣지 않으며, 정리 중 두 번째 abort가 첫 예외를 지우지 않는다.
+        self._abort_exceptions = []
 
     # --- 등록 헬퍼 -----------------------------------------------------
     def add(self, step, title, status, expected="", actual="", note="",
@@ -280,13 +297,18 @@ class TCResult:
         메시지가 비거나 모호한 경우 원인을 못 짚는다.
         """
         self.aborted = True
+        if isinstance(exc, BaseException):
+            self._abort_exceptions.append(exc)
         detail = exc if isinstance(exc, str) else f"{type(exc).__name__}: {exc}"
         check = self.add(step, title, FAIL, actual=detail, stop=False,
                         note=note or
-                        "이 단계에서 예외가 발생해 TC 가 중단됐다. 회귀는 멈추지 "
-                        "않고 다음 TC 로 넘어간다. 남은 Step 은 '미수행(FAIL)'로 "
+                        "이 단계에서 예외가 발생해 TC 가 중단됐다. 후속 TC 수행은 "
+                        "실행 가드의 안전성 판단을 따른다. 남은 Step 은 '미수행(FAIL)'로 "
                         "채워진다 — 제품 결함 판정이 아니라 수행하지 못한 것이다.")
         check.interrupted = True
+        observer = _abort_observer.get()
+        if observer is not None:
+            observer(self, exc)
         return check
 
     def cleanup(self, step, title, status, expected="", actual="", note=""):

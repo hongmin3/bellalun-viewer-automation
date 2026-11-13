@@ -280,7 +280,7 @@ def _stage_causes(ctx, tc_id, started, log_path, log_offset):
 
 
 def guarded(fn, ctx, tc_id, title):
-    """TC 하나가 예외로 죽어도 **회귀 전체를 멈추지 않는다.**
+    """개별 TC 예외를 기록하고, 입력 안전성이 깨졌으면 후속 TC를 차단한다.
 
     대부분의 TC 모듈은 스스로 `try/except` 로 감싸 `TCResult.abort()` 를 남긴다.
     그런데 감싸지 않은 진입점이 있었다 — 2026-08-24 정적 감사에서
@@ -289,11 +289,28 @@ def guarded(fn, ctx, tc_id, title):
     TC 가 아예 수행되지 않는다.
 
     개별 파일을 하나씩 고치는 대신 **호출 지점에서 한 번에** 막는다. 새 TC 를
-    붙이는 사람이 `except` 를 잊어도 회귀는 계속 돈다.
+    붙이는 사람이 `except` 를 잊어도 일반 예외는 다음 TC로 진행한다.
+    입력 대상의 포커스를 보장하지 못한 ForegroundError는 전체 입력을 멈춘다.
 
     반환: `TCResult` 리스트(진입 함수가 단일 객체를 주면 감싸 준다).
     """
-    from core.result import TCResult
+    from core.result import TCResult, observe_aborts
+
+    def block_foreground(errors, causes, origin_tc_id=tc_id):
+        from core.ui import ForegroundError
+        for error in errors:
+            if isinstance(error, ForegroundError):
+                if not getattr(ctx, 'execution_block', None):
+                    ctx.execution_block = {
+                        'tc_id': origin_tc_id, 'causes': causes,
+                        'automation_exception': type(error).__name__,
+                        'reason': '입력 대상의 포커스를 보장하지 못해 후속 TC 입력을 중단합니다.'}
+                elif causes:
+                    ctx.execution_block['causes'] = causes
+                ctx.execution_incomplete = True
+                return True
+        return False
+
     started = time.time()
     log_path, log_offset = None, 0
     try:
@@ -302,7 +319,9 @@ def guarded(fn, ctx, tc_id, title):
     except (OSError, AttributeError, KeyError):
         pass
     try:
-        out = fn(ctx)
+        with observe_aborts(lambda result, error: block_foreground(
+                [error], [], origin_tc_id=result.tc_id)):
+            out = fn(ctx)
     except Exception as exc:                           # noqa: BLE001
         import traceback
         r = TCResult(tc_id, title)
@@ -311,16 +330,21 @@ def guarded(fn, ctx, tc_id, title):
             r.blocked(0, f'{tc_id} 실행 중 제품/환경 경고 관찰',
                       '같은 실행 구간에서 제품 경고와 자동화 예외가 관찰됐습니다. 원인 귀속은 미확정입니다.')
             r.cause_evidence = causes
-            ctx.execution_block = {'tc_id': tc_id, 'causes': causes,
-                                   'automation_exception': type(exc).__name__}
+            if not getattr(ctx, 'execution_block', None):
+                ctx.execution_block = {'tc_id': tc_id, 'causes': causes,
+                                       'automation_exception': type(exc).__name__}
+            else:
+                ctx.execution_block['causes'] = causes
             ctx.execution_incomplete = True
             return [r]
+        input_blocked = block_foreground([exc], causes) or bool(getattr(ctx, 'execution_block', None))
+        action = '후속 TC 입력을 중단합니다' if input_blocked else '다음 TC 로 계속합니다'
         r.abort(0, f"{tc_id} 진입", exc,
                 note="이 TC 의 진입 함수가 예외를 던졌다(모듈 자체 예외처리가 "
-                     "없거나 그보다 앞에서 발생). **회귀는 중단하지 않고 다음 TC "
-                     "로 넘어간다.** 남은 Step 은 미수행(FAIL)으로 채워진다.\n"
+                     f"없거나 그보다 앞에서 발생). {action}. "
+                     "남은 Step 은 미수행(FAIL)으로 채워진다.\n"
                      + traceback.format_exc(limit=8))
-        print(f"  [guard] {tc_id} 예외로 중단 — 다음 TC 로 계속합니다: "
+        print(f"  [guard] {tc_id} 예외로 중단 — {action}: "
               f"{type(exc).__name__}: {exc}")
         return [r]
     if out is None:
@@ -333,8 +357,13 @@ def guarded(fn, ctx, tc_id, title):
             from core.failure_evidence import link_cause_evidence
             for result in failed:
                 link_cause_evidence(result, causes)
-            ctx.execution_block = {'tc_id': tc_id, 'causes': causes}
+            if not getattr(ctx, 'execution_block', None):
+                ctx.execution_block = {'tc_id': tc_id, 'causes': causes}
+            else:
+                ctx.execution_block['causes'] = causes
             ctx.execution_incomplete = True
+        block_foreground([error for result in failed
+                          for error in getattr(result, '_abort_exceptions', [])], causes)
     return rows
 
 
@@ -956,7 +985,9 @@ def _wu_chain_stages():
                 out.append(rr)
             r6 = TCResult("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용")
             r6.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
-            out.extend([compatibility_04(ctx), r6, compatibility_07(ctx)])
+            out.extend(run_xipl_sequence(ctx, None, (4,)))
+            out.append(r6)
+            out.extend(run_xipl_sequence(ctx, None, (7,)))
             return out
         return run_xipl_sequence(ctx, session, (2, 3, 4, 6, 7))
 

@@ -10,6 +10,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import uuid
@@ -317,6 +318,42 @@ def _restore_operations(run):
         run._save("restoring")
 
 
+def _restore_error_detail(run, error):
+    """오류 문구·실제 경로 대신 코드와 첫 미검증 작업의 안전한 필드만 남긴다."""
+    detail = {"errno": None, "winerror": None, "operation": None}
+    if isinstance(error, OSError):
+        for key in ("errno", "winerror"):
+            value = getattr(error, key, None)
+            if isinstance(value, int) and not isinstance(value, bool):
+                detail[key] = value
+    operations = run.journal.get("delta_operations", [])
+    if not isinstance(operations, list):
+        return detail
+    for index, operation in enumerate(operations):
+        if not isinstance(operation, dict):
+            detail["operation"] = {"index": index, "kind": None, "root": None,
+                                   "relative": None, "phase": None}
+            break
+        kind, phase = operation.get("kind"), operation.get("phase")
+        if phase == "verified":
+            continue
+        relative = operation.get("relative")
+        try:
+            relative = (_relative_path(relative) if relative else "") if isinstance(relative, str) else None
+        except PreservationError:
+            relative = None
+        root = operation.get("root", "")
+        detail["operation"] = {
+            "index": index,
+            "kind": kind if isinstance(kind, str) and kind in {"quarantine", "mkdir", "restore"} else None,
+            "root": root if isinstance(root, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", root) else None,
+            "relative": relative,
+            "phase": phase if isinstance(phase, str) and phase in {"planned", "quarantine", "mkdir", "stage", "replace"} else None,
+        }
+        break
+    return detail
+
+
 def finalize_shared(run):
     result = {"run_id": run.run_id, "manifest": str(run.run_dir / "manifest.json"),
               "backup": str(run.data_dir), "archive_manifest": str(run.run_dir / "archive_manifest.json"),
@@ -362,6 +399,11 @@ def finalize_shared(run):
     except Exception as exc:
         result["status"] = "error"
         result["error_type"] = type(exc).__name__
+        try:
+            result["error_detail"] = _restore_error_detail(run, exc)
+        except Exception:
+            # 진단 자료가 손상돼도 최초 오류와 error journal 저장을 가리지 않는다.
+            result["error_detail"] = {"errno": None, "winerror": None, "operation": None}
         run._save("error", result=result)
     return result
 

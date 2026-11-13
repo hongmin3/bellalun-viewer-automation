@@ -3086,7 +3086,8 @@ def run_xipl(ctx):
         r6.abort(0, "Viewer 시험 데이터 준비(Procedure +, F8)", exc)
         # `_04`/`_05`/`_07` 은 공용 픽스처(`_prepare`)를 쓰지 않고 스스로 검사를
         # 만든다. 그래서 픽스처 준비가 실패해도 그대로 수행한다.
-        out.extend([compatibility_04(ctx), compatibility_05(ctx), r6,
-                    compatibility_07(ctx)])
+        out.extend(run_xipl_sequence(ctx, None, (4, 5)))
+        out.append(r6)
+        out.extend(run_xipl_sequence(ctx, None, (7,)))
         return out
     return run_xipl_sequence(ctx, session, (1, 2, 3, 4, 5, 6, 7))

@@ -469,29 +469,10 @@ def nudge_foreground_input():
 
 
 def force_foreground(hwnd):
-    """`SetForegroundWindow` 가 **무시될 때** 쓰는 표준 우회.
+    """입력 큐 연결을 잠시 사용해 대상 창 자체만 활성화한다.
 
-    Windows 는 포그라운드를 쥐고 있지 않은 프로세스의 `SetForegroundWindow` 를
-    조용히 거부한다(반환값만 0이고 예외는 없다). 그래서 호출만 하고 넘어가면
-    "올렸다고 생각하는데 실제로는 안 올라간" 상태가 된다.
-
-    2026-08-25 실측: Claude Code 데스크톱 앱이 최전면을 쥐고 있어 Viewer 가 끝내
-    올라오지 못했고, 그 상태에서 물리 키 입력이 나가 **계정 ID 가 그 앱의
-    입력란에 타이핑됐다.**
-
-    두 가지를 함께 쓴다.
-
-    `AttachThreadInput` 으로 최전면 창의 입력 스레드에 우리 스레드를 붙이면 같은
-    입력 큐를 공유하게 되어 호출이 받아들여진다(2026-08-25 실측: Claude 앱이
-    최전면인 상태에서 **1회 시도로** Viewer 가 올라왔다).
-
-    **널리 쓰이는 "Alt 키 탭" 우회는 쓰지 않는다.** 처음에는 대비책으로 넣었는데,
-    Viewer 는 MFC 앱이라 Alt 가 메뉴 활성화로 해석된다. 그 한 번의 Alt 때문에
-    Setting 창의 Q.C. 그룹 페이지 5개를 통째로 읽지 못했다(2026-08-25 실측).
-    포커스를 얻으려고 **시험 대상에 입력을 주입하면 안 된다.**
-
-    성공 여부는 이 함수가 판정하지 않는다. 호출자(`bring_to_front`)가 실제
-    최전면 창을 다시 읽어 확인한다.
+    전역 foreground 잠금 설정, 외부 창의 Z-order와 합성키는 변경하지 않는다.
+    실제 성공 여부는 호출자가 전경 또는 클릭 적중 창으로 확인한다.
     """
     fg = u32.GetForegroundWindow()
     our_tid = k32.GetCurrentThreadId()
@@ -499,12 +480,6 @@ def force_foreground(hwnd):
     attached = False
     if target_tid and target_tid != our_tid:
         attached = bool(u32.AttachThreadInput(our_tid, target_tid, True))
-    lock_timeout = _foreground_lock_timeout()
-    if lock_timeout:
-        # 포그라운드 **잠금 타임아웃**이 남아 있으면 `AttachThreadInput` 을
-        # 붙여도 Windows 가 전환을 거부한다. 0 으로 두는 동안만 허용되므로
-        # 값을 읽어 두고 `finally` 에서 **반드시 원래 값으로 되돌린다.**
-        _set_foreground_lock_timeout(0)
     try:
         # **최소화됐을 때만** 복원한다. `ShowWindow(hwnd, SW_RESTORE)` 를 무조건
         # 부르면 **최대화된 창이 이전 크기로 줄어든다.** Viewer 는 전체화면으로
@@ -520,8 +495,6 @@ def force_foreground(hwnd):
         u32.BringWindowToTop(hwnd)
         u32.SetForegroundWindow(hwnd)
     finally:
-        if lock_timeout:
-            _set_foreground_lock_timeout(lock_timeout)
         if attached:
             u32.AttachThreadInput(our_tid, target_tid, False)
 
@@ -698,65 +671,70 @@ class ViewerUi:
                 if (c.text.lower() == t if exact else t in c.text.lower())]
 
     # --- 조작 ----------------------------------------------------------
-    def require_front_for_pointer(self, what="클릭", point=None):
-        """포인터 조작 **직전**에 Viewer 가 최전면인지 보장한다.
-
-        `click` 은 `SetCursorPos` + `mouse_event` 로 **실제 마우스**를 움직인다.
-        화면 좌표로 누르므로 **그 좌표를 덮고 있는 창이 클릭을 가져간다.**
-        컨트롤 ID 로 좌표를 구했다는 사실은 아무 보호가 되지 않는다.
-
-        2026-08-25 실측: Claude Code 앱 창이 Viewer 를 덮고 있어 로그인 클릭이
-        전부 그 앱으로 들어갔고, Viewer 는 로그인 화면에 그대로 멈췄다.
-        보고서에는 "Patient 화면이 준비되지 않았습니다" 만 남아 원인이 보이지
-        않았다.
-
-        **가려진 채로는 누르지 않는다.** 조용히 진행하면 (1) 시험이 무의미해지고
-        (2) 사용자의 다른 프로그램을 임의로 클릭하게 된다. 후자가 더 나쁘다.
-
-        비용: 정상 경로는 `foreground_pid()` 한 번(마이크로초)이다.
-
-        **다중 모니터 — `point` 가 그 창의 실제 화면 사각형 밖이면 막지 않는다**
-        (2026-08-28 실측). 최전면 창이 **다른 모니터**에 있으면 클릭 좌표를
-        전혀 덮지 않으므로 실제로는 위험하지 않다. 그런데도 `bring_to_front()`
-        를 부르면 `main_window()` 를 최전면으로 올리는 과정에서 **지금 조작하려는
-        다른 최상위 창(예: Q.C 테스트 창)이 그 뒤로 밀릴 수 있다** — 안 눌러도
-        되는 걸 누르려다 오히려 대상 창을 가리는 역효과다. `point` 를 안 주면
-        (기존 호출부, 키 입력처럼 좌표가 없는 경우) 이 판단을 할 수 없으므로
-        **예전처럼 보수적으로** 막는다.
-        """
-        if self.is_foreground():
+    def require_front_for_pointer(self, what="클릭", point=None, expected_root=None):
+        """포인터 좌표의 실제 적중 창이 자기 프로세스인지 확인한다."""
+        if point is not None:
+            hit = _window_at_point(point)
+            if (hit and self.pid and _pid_of(hit) == self.pid
+                    and (expected_root is None or hit == expected_root)):
+                return True
+        elif self.is_foreground() or self.blocking_window() is None:
+            # 좌표 없는 기존 호출은 전경 가드를 사용한다.
             return True
-        blocking = self.blocking_window()
-        if blocking is None:
-            # **가리는 창이 없다** — 최전면이 Windows 셸(데스크톱/작업표시줄)
-            # 이거나 화면 전환 중인 순간이다. 클릭이 다른 프로그램으로 갈 위험이
-            # 없으므로 **창을 건드리지 않고** 그대로 진행한다.
-            #
-            # 이 구분을 빼면 정상 상황을 가림으로 오판한다. 2026-08-19 회귀가
-            # 바로 그것 때문에 로그인을 중단시켜 14개 TC 가 연쇄 FAIL 했다.
-            # 여기서 `bring_to_front()` 를 부르는 것조차 해롭다 — 그것이
-            # 시험 대상 창을 재배치한다.
+        result = (self.bring_to_front(point=point, expected_root=expected_root)
+                  if expected_root is not None else self.bring_to_front(point=point))
+        hit = _window_at_point(point) if point is not None else None
+        if result["ok"] and (point is None or
+                (hit and self.pid and _pid_of(hit) == self.pid
+                 and (expected_root is None or hit == expected_root))):
             return True
-        if point is not None and not _rect_contains_point(
-                _rect_of(blocking["hwnd"]), point):
-            return True
-        result = self.bring_to_front(point=point)
-        if result["ok"]:
-            return True
-        raise RuntimeError(
+        raise ForegroundError(
             f"{what} 전에 Viewer 를 최전면으로 올리지 못했습니다"
-            f"(가린 창: {result['blocking'] or blocking}). 클릭이 다른 "
-            f"프로그램으로 들어가므로 중단합니다.")
+            f"(가린 창: {result.get('blocking')}, 적중 창: {hit}). "
+            "클릭이 다른 프로그램으로 들어가므로 중단합니다.")
+
+    def _validate_pointer_control(self, target):
+        if isinstance(target, Control) and (
+                not u32.IsWindow(target.hwnd) or not u32.IsWindowVisible(target.hwnd)
+                or _pid_of(target.hwnd) != self.pid or _rect_of(target.hwnd) != target.rect
+                or _class_of(target.hwnd) != target.cls
+                or u32.GetDlgCtrlID(target.hwnd) != target.ctrl_id):
+            raise ForegroundError("클릭 대상 컨트롤이 이동하거나 유실되어 입력하지 않습니다.")
+
+    def _pointer_target(self, target, what):
+        """복구 전 대상 root를 보존하고 입력 위치를 준비한다."""
+        self._validate_pointer_control(target)
+        point = target.center if isinstance(target, Control) else target
+        point = tuple(map(int, point))
+        root = _u32p.GetAncestor(target.hwnd, GA_ROOT) if isinstance(target, Control) else None
+        self.require_front_for_pointer(what, point=point, expected_root=root)
+        state = (target, point, root or _window_at_point(point))
+        self._check_pointer_target(state)
+        return state
+
+    def _check_pointer_target(self, state, point=None):
+        """행위 직전 재검증만 한다. 눌림 상태에서는 창 복구를 시도하지 않는다."""
+        target, original, root = state
+        self._validate_pointer_control(target)
+        if isinstance(target, Control) and _u32p.GetAncestor(target.hwnd, GA_ROOT) != root:
+            raise ForegroundError("포인터 대상 컨트롤의 최상위 창이 변경되어 입력하지 않습니다.")
+        hit = _window_at_point(point if point is not None else original)
+        if not root or hit != root or _pid_of(hit) != self.pid:
+            raise ForegroundError(
+                f"포인터 위치가 대상 창과 다릅니다(기대 root={root}, 실제 root={hit}). 입력하지 않습니다.")
 
     def click(self, target, settle=0.4):
         """Control 또는 (x, y)를 클릭한다. **Viewer 가 최전면일 때만** 누른다."""
-        x, y = target.center if isinstance(target, Control) else target
-        self.require_front_for_pointer("클릭", point=(x, y))
+        state = self._pointer_target(target, "클릭")
+        x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
+        self._check_pointer_target(state)
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        time.sleep(0.06)
-        u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        try:
+            time.sleep(0.06)
+        finally:
+            u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
         time.sleep(settle)
 
     def double_click(self, target, settle=1.2, gap=0.08):
@@ -766,14 +744,17 @@ class ViewerUi:
         가 더블클릭으로 인식하지 않는다(기본 임계값 500ms). 인라인 편집이 열리지
         않아 "편집할 수 없다"고 오판한 적이 있다(2026-08-20 Hospital Code).
         """
-        x, y = target.center if isinstance(target, Control) else target
-        self.require_front_for_pointer("더블클릭", point=(x, y))
+        state = self._pointer_target(target, "더블클릭")
+        x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.06)
         for _ in range(2):
+            self._check_pointer_target(state)
             u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-            time.sleep(0.03)
-            u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            try:
+                time.sleep(0.03)
+            finally:
+                u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
             time.sleep(gap)
         time.sleep(settle)
 
@@ -785,9 +766,10 @@ class ViewerUi:
         2196 을 검사 내 검색으로 추정했으나 Pre-send Preview). 파괴적일 수 있는
         버튼은 누르기 전에 이걸로 먼저 확인한다.
         """
-        self.require_front_for_pointer("호버")
-        x, y = target.center if isinstance(target, Control) else target
+        state = self._pointer_target(target, "호버")
+        x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
+        self._check_pointer_target(state)
         time.sleep(settle)
         return (int(x), int(y))
 
@@ -797,38 +779,60 @@ class ViewerUi:
         커스텀 렌더 목록에서 컨텍스트 메뉴를 확인할 때 쓴다. 좌클릭과 같은 방식으로
         물리 입력을 보낸다 — `WM_CONTEXTMENU` 주입은 이 UI 에서 통하지 않는다.
         """
-        self.require_front_for_pointer("우클릭")
-        x, y = target.center if isinstance(target, Control) else target
+        state = self._pointer_target(target, "우클릭")
+        x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
+        self._check_pointer_target(state)
         u32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
-        time.sleep(0.06)
-        u32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+        try:
+            time.sleep(0.06)
+        finally:
+            u32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
         time.sleep(settle)
 
     def drag(self, start, end, duration=.4, settle=.4):
         """Drag between physical screen coordinates."""
-        self.require_front_for_pointer("드래그")
-        sx, sy = start.center if isinstance(start, Control) else start
-        ex, ey = end.center if isinstance(end, Control) else end
+        first = self._pointer_target(start, "드래그 시작")
+        last = self._pointer_target(end, "드래그 종료")
+        sx, sy = first[1]
+        ex, ey = last[1]
         u32.SetCursorPos(int(sx), int(sy))
         time.sleep(.08)
+        self._check_pointer_target(first)
+        self._check_pointer_target(last)
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-        steps = max(4, int(duration / .03))
-        for i in range(1, steps + 1):
-            x = sx + (ex - sx) * i / steps
-            y = sy + (ey - sy) * i / steps
-            u32.SetCursorPos(int(x), int(y))
-            time.sleep(duration / steps)
-        u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+        failed = True
+        try:
+            steps = max(4, int(duration / .03))
+            for i in range(1, steps + 1):
+                x = int(sx + (ex - sx) * i / steps)
+                y = int(sy + (ey - sy) * i / steps)
+                self._check_pointer_target(first)
+                self._check_pointer_target(last)
+                # 경로가 시작 창 또는 종료 창 안인지 확인한다.
+                state = last if _window_at_point((x, y)) == last[2] else first
+                self._check_pointer_target(state, (x, y))
+                u32.SetCursorPos(x, y)
+                time.sleep(duration / steps)
+                self._check_pointer_target(state, (x, y))
+            failed = False
+        finally:
+            try:
+                u32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            except Exception:
+                if not failed:
+                    raise
+                # 해제 시도 실패가 원래 중단 이유를 덮지 않는다.
         time.sleep(settle)
 
     def wheel(self, target, notches, settle=.5):
         """Scroll at a control/point. Positive is up, negative is down."""
-        self.require_front_for_pointer("휠 스크롤")
-        x, y = target.center if isinstance(target, Control) else target
+        state = self._pointer_target(target, "휠 스크롤")
+        x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(.08)
+        self._check_pointer_target(state)
         delta = ctypes.c_ulong(int(notches * 120) & 0xFFFFFFFF).value
         u32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0)
         time.sleep(settle)
@@ -968,76 +972,53 @@ class ViewerUi:
         u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         return int(pid.value) or None
 
-    def bring_to_front(self, attempts=6, settle=0.6, point=None):
-        """Viewer를 최전면으로 올리고 **실제로 올라왔는지 확인**한다.
+    def bring_to_front(self, attempts=None, settle=0.25, point=None, timeout=10,
+                       expected_root=None):
+        """자기 창만 활성화하며 단일 활성화 재시도 예산 안에서 다시 관측한다.
 
-        `SetForegroundWindow`는 Windows가 무시할 수 있다(다른 프로세스가 포커스를
-        쥐고 있을 때). 그래서 호출만 하고 넘어가면, 가려진 상태에서 물리 키 입력을
-        보내 **비밀번호가 다른 창으로 들어간다.**
-
-        올리지 못하면 마지막으로 최전면이던 창 정보를 함께 돌려준다. 호출자가
-        "무엇이 가리고 있었는지" 보고할 수 있게 하는 것이 목적이다.
-
-        **`point` 가 있으면 그 좌표를 실제로 담고 있는 우리 창을 올린다** —
-        없으면 `main_window()` 를 올린다. `main_window()` 만 올리면 지금 누르려는
-        창이 메인 프레임과 **다른 최상위 창**(예: Q.C 테스트 창, XIPL Studio)일 때
-        메인 프레임이 그 앞으로 나와 **오히려 대상 창을 가릴 수 있다** — 2026-08-28
-        실측: `_qc_recover` 의 Cancel 클릭이 예외 없이 "성공"했는데도 Q.C 테스트
-        창이 닫히지 않았다(클릭이 새로 최전면이 된 메인 프레임으로 들어갔다).
-
-        반환: {"ok": bool, "blocking": {...}|None, "attempts": int}
+        외부 창의 Z-order를 바꾸거나 합성키를 보내지 않는다. 포인터 호출은
+        전경 PID뿐 아니라 해당 좌표의 실제 적중 창까지 확인한다.
         """
-        hwnd = None
-        if point is not None:
+        start = time.monotonic()
+        deadline = start + min(10.0, max(0.0, timeout))
+        hwnd = expected_root
+        if hwnd is None and point is not None:
             candidate = _window_at_point(point)
             if candidate and self.pid and _pid_of(candidate) == self.pid:
                 hwnd = candidate
         if hwnd is None:
             win = self.main_window()
             hwnd = win.hwnd if win else None
-        if not hwnd:
-            return {"ok": False, "blocking": None, "attempts": 0}
-        pushed_back = []
-        for attempt in range(1, attempts + 1):
-            if self.is_foreground():
-                return {"ok": True, "blocking": None,
-                        "attempts": attempt - 1,
-                        "pushed_back": pushed_back or None}
-            # `SetForegroundWindow` 만으로는 다른 앱이 최전면을 쥐고 있을 때
-            # 거부당한다. `force_foreground` 가 그 잠금을 푼다(주석 참고).
-            force_foreground(hwnd)
-            time.sleep(settle)
-            # **절반을 써도 안 올라오면 가리는 창을 뒤로 보낸다.**
-            # 잠금 해제와 `AttachThreadInput` 만으로 뚫리지 않는 경우가 있다
-            # (2026-08-28 실측 — 자동화를 띄운 콘솔 창). 최소화·종료가 아니라
-            # Z-order 만 낮추므로 사용자가 클릭 한 번으로 되돌릴 수 있다.
-            if attempt >= max(1, attempts // 2) and not self.is_foreground():
-                blocking = self.blocking_window()
-                if blocking and blocking.get("hwnd") not in pushed_back:
-                    if push_window_back(blocking["hwnd"]):
-                        pushed_back.append(blocking["hwnd"])
-                        force_foreground(hwnd)
-                        time.sleep(settle)
-        # **위 단계를 모두 이기는 창이 있다** — 최전면을 쥔 콘솔 창(2026-10-17
-        # 실측, `switch_to_window` 주석). 다른 프로그램이 가리고 있을 때만
-        # 두 단계를 더 쓴다. 셸이 최전면이면(가린 창 없음) 키가 Viewer 로 갈 수
-        # 있으므로 가상키를 보내지 않는다.
-        escalation = None
-        if not self.is_foreground() and self.blocking_window():
-            switch_to_window(hwnd)
-            time.sleep(settle)
-            if self.is_foreground():
-                escalation = "switch"
-            elif self.blocking_window():
-                nudge_foreground_input()
+        count = 0
+        interval = min(0.25, max(0.01, settle))
+        reason = None
+        while True:
+            if not hwnd or not u32.IsWindow(hwnd) or _pid_of(hwnd) != self.pid:
+                reason = "target_lost"
+                break
+            hit = _window_at_point(point) if point is not None else None
+            ready = (bool(hit and _pid_of(hit) == self.pid
+                          and (expected_root is None or hit == expected_root))
+                     if point is not None else self.is_foreground())
+            if ready:
+                return {"ok": True, "blocking": None, "attempts": count,
+                        "elapsed_seconds": time.monotonic() - start}
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or (attempts is not None and count >= attempts):
+                reason = "timeout"
+                break
+            # 같은 프로세스의 대상 HWND만 활성화한다.
+            if count % 2:
+                switch_to_window(hwnd)
+            else:
                 force_foreground(hwnd)
-                time.sleep(settle)
-                if self.is_foreground():
-                    escalation = "nudge"
-        return {"ok": self.is_foreground(),
-                "blocking": self.blocking_window(), "attempts": attempts,
-                "pushed_back": pushed_back or None,
-                "escalation": escalation}
+            count += 1
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(interval, remaining))
+        return {"ok": False, "blocking": self.blocking_window(), "attempts": count,
+                "reason": reason, "target_hwnd": hwnd,
+                "elapsed_seconds": time.monotonic() - start}
 
     def require_front(self, what="키 입력"):
         """물리 키 입력 **직전**에 Viewer 가 최전면인지 보장한다.

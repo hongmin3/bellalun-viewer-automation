@@ -170,3 +170,73 @@ private 운영 상세와 HTML도 갱신해 문서 동기화 검사를 통과했�
 최종 workspace gate는 failed0/gateFailures0/checkerError=false다. 앱 시험 미설정 경고는
 별도 수행한 위 pytest와 구분하며 보관본·생성 캐시 경고는 유지했다.
 실제 새 EXE 수용 결과로 소스 시험을 대체하지 않는다. 다음은 깨끗한1.0.15 소스의 후보 빌드다.
+
+소스 수정은 `3275be14f009ad3eacc7ae8a3881bb8601979bb4`로 커밋·push했다.
+20:05 KST에 같은 커밋의 깨끗한 분리 작업 트리에서1.0.15 후보 빌드를 OS 분리 프로세스로 시작했다.
+감시 상태는 상위 `work/regression_state.135.377.json`, 결과는 Git 제외
+`work/run670-build-result.json`을 따른다. 빌드·산출물 검증 성공 전에는 새 설치를 시작하지 않는다.
+
+## run671 — 1.0.15 설치와 기본 전체 재검증 시작
+
+분리 빌드run670은20:31 KST에 끝났다. 소스3275be1/source_dirty=false,
+시험·컴파일 생략false다. 빌드 내 전체시험1469 passed+302 subtests/skip0,140.03초다.
+run671에서 ZIP CRC·5항목/4payload·해제 파일과 런타임1010개 집합/크기/SHA,
+EXE 버전·도움말 종료0을 독립 확인했다. 릴리스 gate는 미통과 후보로 유지한다.
+
+| 산출물 | SHA256 |
+|---|---|
+| 1.0.15 Setup | `8dfe0a18041b063a7f36dbd2f963faa08571d7f9231ebf42ab852a20b2f1771a` |
+| 1.0.15 EXE | `21a263dfff3aa362c7f7ebcf1ea80e5d22fda68111aecff47c0fbe8f6b42694b` |
+| 1.0.15 납품 ZIP | `f2d8c40a579e978fe3e9beed21e64c55cb0820559cf1fc19f949a4763b45bad8` |
+
+기존 반복 설치·전체 재검증 승인으로 납품 ZIP에서 해제한 동일 Setup을 Inno 공식 옵션으로
+1.0.14→1.0.15 업데이트했다. Setup·자동 준비 종료0, 재부팅 요구 없음,
+설치 runtime1010개 일치, 기존 작업1704개 변경/누락0, config 바이트 보존을 확인했다.
+설치 마법사 화면 수용을 의미하지 않는다. 증거는 Git 제외 `work/run671/installation.json`이다.
+
+일반 Default 입력 데스크톱 확인 후 설치된 Auto GUI를 열고 기본 전체 준비·데이터 변경 동의·
+기본 원상복원=True를 확인해20:40 KST에 시작했다. 실행은
+`20261113-204028-87eb3b97`, consent.source=GUI/action=run-regression/restore_after=true다.
+새 GUI PID/창/EXE 해시를 확인한 별도 native 제어를 사용했고 시작 뒤 원래 창 우선순위로 되돌렸다.
+제품 Viewer/Studio만 대상으로 한 창 우선순위 보조와 읽기 전용 감시는 OS 분리 프로세스다.
+다른 앱의 PC 정리 창은 조작하지 않았다. 상태 파일은 상위 `work/regression_state.135.377.json`의
+run671, 시작 시각20:40:48.236797+09:00을 따른다. 기본 최종 결과·WU·수정 지점 실물 PASS와
+복원/정리·자동 닫기/모든 취소 조건은 아직 미완료다.
+
+
+## run672 — 1.0.15 실패 증거 보존과 복구
+
+기본 실행20261113-204028-87eb3b97은 PASS10/MANUAL1/SKIP10/FAIL15,
+복원 PermissionError로 abnormal/exit3이었다. GUI는 종료되지 않았고 생성 Image 정리는0개로 차단됐다.
+원본 Reports/Evidence/Log219개·23,065,334bytes를 전체 해시 대조해 별도 보존했다.
+원본 보고서 SHA256은 `91175a1014416d135857f695d92c25a3260cbed5ef835863ef4cd749f587e38c`다.
+
+WF01은 MWL 조회1건까지 진행한 뒤 클릭 전 포커스 가드에서 '새 알림' 창에 막혔다.
+제목만으로 Windows 알림인지·잠시 나타난 창인지 단정하지 않는다. 후속 선행 데이터 부족 실패가
+이어져 이번 결과는 전체 회귀 성공 근거가 되지 않는다. XIPL06은 새 파일 생성·Viewer 선택·
+실제 적용까지6개 판정이 PASS다. XIPL03은 Apply 후 기본값·Overlay 판정을 통과했지만 재시작 후
+검사 화면 재진입 오류로 전체 PASS가 아니다. 외부 창을 조작하지 않고
+Viewer 자체 활성화만 최대10초 시도하며 실제 클릭 위치·컨트롤 상태를 재확인하도록 소스1.0.16을
+보완한다. 지속 ForegroundError는 후속 기본/WU 입력을 중단한다.
+
+복원 첫 미완료 작업은 ImageTemp/XIPLTemp/1.img 격리였다. 원래 errno/winerror가 기록되지 않아
+권한·공유 잠금 원인을 확정할 수 없다. 재확인 시 Windows Restart Manager의 해당 파일 잠금 소유자는0명,
+Studio/helper/Viewer도 없었다. 서버 종료나 전역 권한 변경은 하지 않았다.
+기존 복구 CLI --apply로 격리·파일·4DB 복원을 재개해 status=verified,
+Bellalun Service RUNNING과 pending 해제를 확인했다. 원래 abnormal/exit3 유지,
+interrupted_recovery 별도 영수증, 이미지 정리는skipped/interrupted_run/삭제0이다.
+소스에는 향후 오류의 errno/winerror와 비공개 절대경로를 제외한 첫 미완료 상대 작업을 남긴다.
+이번 원인을 해결했다고 단정하거나 정상완주·전체 PASS로 승격하지 않는다.
+
+입력 보호는 모든6종 포인터 경로에서 실제 적중 root·PID와 대상 Control 신원/위치를 확인한다.
+가려진 내부 팝업은 해당 root만 활성화한다. 지속 차단은 abort 시점의 scoped 관찰자를 통해
+즉시 전파하며, 뒤 정리 예외나 XIPL 묶음 내부에서 다음 TC로 넘어가지 않는다.
+일반 제품 FAIL과 보통 RuntimeError는 기존처럼 처리한다. 독립 검토의 오클릭·팝업 회복·
+중첩 전파·손상된 오류 기록 지적을 각각 재현 시험으로 보완했고 재검토 추가 Critical/Important는 없다.
+
+최종 전체 소스 `python -X utf8=0 -m pytest tests -q`는 실제 Inno 경로 지정으로
+1578 passed+302 subtests passed/skip0,183.95초다. 정적4종·추적성·WU 자체검사·문서 동기화 실패0,
+완료 정리90문서/삭제0/실패0, readiness·workspace failed0/gateFailures0/checkerError=false다.
+기존 미확정·문장 길이·보관본/캐시·앱 시험 미설정 경고는 유지하며 위 pytest를 별도 실행했다.
+비정상 GUI가 계속 열린 증거를 수집한 뒤23:36에 다음 설치 준비를 위해 직접 닫았다.
+이를 자동 닫기 성공으로 세지 않는다. 다음은 깨끗한1.0.16 후보 빌드·설치와 기본/WU 전체 재검증이다.
