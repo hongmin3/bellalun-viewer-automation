@@ -27,6 +27,29 @@ QCType int, ScheduleType int 두 개다. 확인창을 취소했으며 제품 시
 readiness·workspace gate는 실패0이다. workspace는 앱 시험을 실행하지 않아 위 pytest를 별도로 수행했다. 수정 후보 빌드는 별도 수행하며
 실제 수용 성공으로 대체하지 않는다.
 
+## 1.0.14 후보 준비 완료 — 새 빌드 실제 실행 전
+
+분리 빌드run666은2026-11-13 14:32 KST에 완료됐다. 소스는
+`7c7731f6414c6a5e3d1d9123f14d7db8a1a164ca`, source_dirty=false이며 시험·컴파일 생략은 모두false다.
+분리 소스의 전체 선행시험은1409 passed+302 subtests passed/skip0,172.08초다.
+run667에서 기존 산출물만 독립 재검증했다. ZIP CRC·5개 항목·4개 payload 해시,
+해제 파일·런타임1,010개 전체 크기/해시/파일 집합, EXE 버전·도움말 종료0이 확인됐다.
+빌드를 반복하거나 후보를 설치하지 않았다. 증거는 Git 제외
+`work/run666-build-result.json`, `work/run667-candidate-verification.json`이다.
+
+| 산출물 | SHA256 |
+|---|---|
+| `release/1.0.14/BellalunAuto-1.0.14-candidate-setup.exe` | `f755127389670e71e5e9bcab44b2c210f76acf8df2adca1c1f06beb361dcb700` |
+| 컴파일된 `BellalunAuto.exe` | `8fa4f490c15782b35817ee185cb323a12389713c3a19f9be6770ca0f4a431206` |
+| `release/BellalunAuto-1.0.14-release.zip` | `75ee564b2acbdefab2078e35cf43947aca789d27a331494e489d4f4200838ea3` |
+
+기존1.0.13 실행 승인은 보존한다. 수정된1.0.14는 새 빌드이므로 AGENTS.md의 실제 UI 회귀
+승인 규칙에 따라 새 EXE/해시와 범위를 제시하고 답변을 기다린다. 계획은 ZIP해제→Setup업데이트→
+설치된Auto GUI→기본/WU전체→선택복원·결과·Image정리→60초자동닫기·모든취소조건이다.
+공용 보존·실행·DB·판정 변경의 영향이 넓어 두 묶음 전체가 필요하다.4–6시간 이상 예상하며
+마우스·키보드를 점유하고4DB복원·설정변경·USB왕복을 수행한다. NAS는 이번 범위에서 제외하고
+별도 로컬 차이 보존을 사용한다. 새 녹화는 하지 않는다. 전체 수용·릴리스 게이트는 미통과다.
+
 현재4DB·빈 Image·QC 참조 및 설정·XIPL·DemoImage의 별도 사전 보존·해시 검증을 마쳤다.
 SQL BACKUP/VERIFYONLY와48개 선언 비교 범위의 사본/현재값 일치를 확인했다.
 검증 증거는 Git 제외 `work/run666/`와 별도 로컬 저장소에 둔다. 현재 로컬 차이 보존 모델은
