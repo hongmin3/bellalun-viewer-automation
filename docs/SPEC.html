@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="a6e4a4719b332b4e564dd998dbf1e4ed2576035eb5e806167303fc8dbbaba3d3">
+<meta name="spec-source-sha256" content="42dc3725f1141362f336d590f69803758b2cf1058830bc1498fcb895e16088a4">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -432,8 +432,9 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <section class="card kind-req" id="REQ-REGRESSION-001">
 <h3><span class="idtag">REQ-REGRESSION-001</span> 기준 체크리스트 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>automation_scope.json</code>, <code>core/automation_health.py</code>, <code>core/printscp.py</code>, <code>tests/workflow08.py</code>, <code>core/flows.py</code>, <code>core/ui.py</code>, <code>core/result.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow01.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow09.py</code>, <code>tests/workflow15.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a>; <code>tests/test_workflow02_acquisition.py</code>, <code>tests/test_automation_health.py</code>, <code>tests/test_focus_recovery.py</code>, <code>tests/test_pointer_safety.py</code>, <code>tests/test_environment_failure_gate.py</code>, <code>tests/test_result_reports.py</code>, <code>tests/test_scheduled_date.py</code>, <code>tests/test_workflow09_recon_scope.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_send_recovery.py</code>, <code>tests/test_preview_readiness.py</code>, <code>tests/test_printscp_jobs.py</code>, <code>tests/test_xipl_step_selection.py</code>, <code>tests/test_xipl_apply_click.py</code>, <code>tests/test_xipl_save_dialog.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></span></div>
-<details class="history"><summary>변경 이력 28</summary>
+<details class="history"><summary>변경 이력 29</summary>
 <ul>
+<li><span class="hist">1.0.18 후보 — 로그인 입력 차단의 원인 유지</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 두 로그인 진입 경로에서 최전면 확보 실패의 제한 재시도는 유지한다. 마지막 시도도 입력 차단이면 원래 <code>ForegroundError</code>를 다시 전달해 후속 TC와 정상 완료 처리를 막는다. 이후 시도에서 일반 로그인 실패가 발생하면 과거 최전면 오류로 바꾸지 않는다.</li>
 <li><span class="hist">1.0.16 후보 — 입력 차단 재시도와 실패 전파 보완</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 입력이 가려질 때 외부 창·외부 앱의 키를 조작하지 않고 Viewer만 최대10초 활성화한다. 실제 클릭 위치와 컨트롤 유효성·위치를 재확인하며, 지속 차단은 후속 기본/WU 입력을 중단한다.</li>
 <li><span class="hist">1.0.15 후보 — XIPL 저장 시점과 파일명 입력 수정</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: XIPL06 Save As의 파일명 칸을 다른 창이 가리면 물리 입력이 전달되지 않던 문제를 수정했다. Studio 소유 대화상자에 파일명을 직접 전달하고 실제 값 일치를 확인한 뒤 저장한다. 원본 PIM을 불러온 소형 실물 시험에서 별도 파일 생성을 확인했으며 전체 기본/WU 재시험은 남아 있다.</li>
 <li><span class="hist">1.0.11 후보(1.0.10 후속 수정) — 2026-11-11</span> <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 위 대기를 되돌리고, 3D Apply 클릭이 받아들여졌는지 확인한다. 클릭 뒤 5초 안에 창이 닫히거나 Post Recon 로그가 남지 않으면 최대 3번 다시 누르고, 끝내 안 되면 중단한다. 성공한 실행은 Apply 클릭 0.01초 뒤 Preview 스레드가 끝나고 창이 닫혔다. 실패한 두 실행(run110, run111)은 Preview 영상이 막 그려지던 때(eNoti:5 0.6초 뒤) 누른 클릭이 로그도 창 변화도 없이 무시됐다. 판정 기준은 그대로다.</li>
@@ -1526,8 +1527,9 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-003">
 <h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">1.0.18 후보 — 로그인 입력 차단의 원인 유지</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 제품 FAIL과 입력 차단에 따른 불완전 실행을 구분한다. 입력 차단이 일반 로그인 오류 문구로 바뀌어 완료 자동 닫기로 이어지던 경로를 차단한다. 새 설치판의 실제 수용은 별도 수행한다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 회귀·선택한 복원·최종 저장 후 GUI 60초 자동 닫기를 추가했다. 멈춤 또는 다른 버튼은 그 회차 타이머를 취소하고, 중단·비정상·UAC 취소에는 자동 닫기를 적용하지 않는다.</li>
 </ul>
 </details>

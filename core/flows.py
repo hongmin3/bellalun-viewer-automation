@@ -1624,8 +1624,8 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
         #
         # ACCOUNT 테이블에는 실패 횟수/잠금 컬럼이 없어(Key/System/Group/ID/
         # Password/Name) 재시도로 계정이 잠길 위험은 없다. 그래도 진짜 잘못된
-        # 자격증명을 무한히 덮지 않도록 횟수를 제한하고, 소진되면 기존과 똑같이
-        # 명확한 FlowError로 중단한다.
+        # 자격증명을 무한히 덮지 않도록 횟수를 제한한다. 소진 시 입력 차단은
+        # 원래 ForegroundError를 유지하고 일반 로그인 실패는 FlowError로 중단한다.
         # 성공 판정은 "실제로 로그인 화면을 벗어났는가"로 한다. 팝업이 떴다는
         # 사실만으로 실패로 단정하면, 늦게 뜬 Demo 모드 안내 같은 무해한 팝업에도
         # 회귀 전체가 중단된다. 대신 걷어낸 팝업 문구는 로그로 남겨 추적 가능하게
@@ -1658,7 +1658,7 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                 ok = ui.login(login["id"], login["password"])
             except ForegroundError as exc:
                 ok = False
-                focus_error = str(exc)
+                focus_error = exc
                 say(f"로그인 전 최전면 확보 실패: {focus_error}")
             popped = guard.sweep()
             msgs = "; ".join(p["message"] or "(문구 미노출)" for p in popped)
@@ -1667,9 +1667,10 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                     say(f"로그인 중 팝업을 닫았습니다(로그인은 성공): {msgs}")
                 break
             if attempt >= attempts:
+                if focus_error is not None:
+                    # 재시도 소진 후에도 입력 차단의 타입을 보존해 실행 체인을 멈춘다.
+                    raise focus_error
                 detail = f"마지막 팝업: {msgs} " if popped else ""
-                if focus_error:
-                    detail += f"마지막 최전면 실패: {focus_error} "
                 # 가려져서 실패한 것인지 바로 알 수 있게 최전면 창을 함께 남긴다.
                 front_now = ui.foreground_window()
                 occluded = ""

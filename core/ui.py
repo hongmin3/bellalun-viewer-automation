@@ -1309,13 +1309,16 @@ class ViewerUi:
             # "로그인 화면을 벗어났는가" 라는 확실한 신호로 판단하고 그때만 다시
             # 시도한다. `flows.cold_start` 의 `login_attempts` 와 같은 방식이다.
             ok = False
+            focus_error = None
             for attempt in range(1, login_attempts + 1):
                 # 최전면 확보 실패는 키를 보내기 전에 멈춘 것이라 다시 시도한다
                 # (`flows.cold_start` 의 같은 처리 주석 참고).
+                focus_error = None
                 try:
                     ok = self.login(user_id, password)
                 except ForegroundError as exc:
                     ok = False
+                    focus_error = exc
                     notes.append(f"로그인 {attempt}회차 최전면 확보 실패: {exc}")
                 if ok:
                     if attempt > 1:
@@ -1325,6 +1328,9 @@ class ViewerUi:
                 self.sweep_dialogs(timeout=3)
                 time.sleep(1.0)
             if not ok:
+                if focus_error is not None:
+                    # 로그인 오류 문자열로 바꾸면 후속 TC 차단 근거가 사라진다.
+                    raise focus_error
                 # `core/ui.py` 는 모듈 최상단에 `os`/`PIL` 을 두지 않는다
                 # (`capture_dialog` 과 같은 지역 import 방식을 따른다).
                 import os

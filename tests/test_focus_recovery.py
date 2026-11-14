@@ -246,10 +246,26 @@ class ColdStartLoginFocusRetryTests(unittest.TestCase):
     def test_persistent_focus_loss_still_aborts_with_the_blocker_named(self):
         err = ui_mod.ForegroundError("가린 창: THIEF_CONSOLE")
         ui = _LoginUi([err, err, err])
-        with self.assertRaises(flows.FlowError) as caught:
+        with self.assertRaises(ui_mod.ForegroundError) as caught:
             self._run(ui)
         self.assertEqual(3, ui.login_calls)
+        self.assertIs(err, caught.exception)
         self.assertIn("THIEF_CONSOLE", str(caught.exception))
+
+    def test_later_plain_login_failure_does_not_reuse_old_focus_error(self):
+        ui = _LoginUi([ui_mod.ForegroundError('earlier blocker'), False, False])
+        with self.assertRaises(flows.FlowError):
+            self._run(ui)
+
+    def test_exhausted_login_focus_failure_reaches_execution_guard(self):
+        from types import SimpleNamespace
+        import run
+        ui = _LoginUi([ui_mod.ForegroundError('blocked input') for _ in range(3)])
+        ctx = SimpleNamespace(cfg={})
+        with mock.patch.object(run, '_viewer_log_path', return_value=None):
+            rows = run.guarded(lambda _ctx: self._run(ui), ctx, 'TC_LOGIN', 'login')
+        self.assertEqual('FAIL', rows[0].verdict)
+        self.assertEqual('ForegroundError', ctx.execution_block['automation_exception'])
 
     def test_other_login_errors_are_not_swallowed(self):
         """잘못된 계정 선택 같은 다른 예외는 재시도로 덮지 않는다."""
@@ -273,6 +289,28 @@ class EnsureReadyFocusRetryTests(unittest.TestCase):
             notes = ui_mod.ViewerUi.ensure_ready(fake, None, "service", "pw")
         self.assertEqual(2, fake.login.call_count)
         self.assertTrue(any("THIEF" in n for n in notes))
+
+    def test_exhausted_focus_retry_preserves_the_original_exception(self):
+        fake = mock.Mock(pid=1)
+        error = ui_mod.ForegroundError('own input occluded')
+        fake.login.side_effect = [error, error, error]
+        fake.sweep_dialogs.return_value = []
+        with mock.patch.object(ui_mod.time, 'sleep', lambda *_: None):
+            with self.assertRaises(ui_mod.ForegroundError) as caught:
+                ui_mod.ViewerUi.ensure_ready(fake, None, 'service', 'pw')
+        self.assertIs(error, caught.exception)
+        self.assertEqual(3, fake.login.call_count)
+
+    def test_later_plain_failure_is_not_reclassified_as_old_focus_error(self):
+        fake = mock.Mock(pid=1)
+        fake.login.side_effect = [ui_mod.ForegroundError('earlier'), False, False]
+        fake.sweep_dialogs.return_value = []
+        fake.main_window.return_value = None
+        with mock.patch.object(ui_mod.time, 'sleep', lambda *_: None), \
+                mock.patch('PIL.ImageGrab.grab', side_effect=OSError('no screen in unit test')):
+            with self.assertRaises(RuntimeError) as caught:
+                ui_mod.ViewerUi.ensure_ready(fake, None, 'service', 'pw')
+        self.assertNotIsInstance(caught.exception, ui_mod.ForegroundError)
 
 
 if __name__ == "__main__":
