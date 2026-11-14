@@ -1,6 +1,6 @@
 # Bellalun Viewer 기본기능 QA 자동화
 
-현재 소스는 1.0.17 후보이며 설치판은 1.0.16입니다. Windows 메타데이터 읽기·교체 경합을 보완하고 새 후보를 준비합니다. 기본기능·WU 전체 수용은 아직 완료하지 않았습니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 확인한 뒤 ZIP 해제 → Setup 설치 → 설치된 Auto GUI에서 검증합니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
+현재 소스와 설치판은 1.0.17 후보입니다. 납품 ZIP 해제·Setup 업데이트 후 설치된 GUI의 기본 전체는 PASS25/MANUAL1/SKIP10/FAIL0, WU 전체는 PASS10/SKIP3/FAIL0입니다. 선택 복원·생성 이미지 정리·정상 완료 약60초 후 자동 닫기를 확인했습니다. ‘자동 닫기 멈춤’의 취소도 확인했으며 다른 버튼·키보드 취소 수용은 진행 중입니다. [검증 범위와 선행조건](docs/practical-preservation-validation.md)을 참고하세요. 화면 녹화·편집·업로드는 포함하지 않습니다.
 
 전파교육 자료: [Bellalun·VXvue 자동화 구현과 워크플로우](docs/automation-training.md) — 구조 비교, 시나리오 추적, 실행 주의점과 보고서 판독 실습을 설명합니다.
 
@@ -10,7 +10,7 @@
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-현재 설치판은 **1.0.16 후보**입니다. 최신 후속 개선(P1~P14와 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 새 EXE의 실제 수용 검증은 구분합니다. 마지막 전체 소스 GUI 확인은 이전 TC 고도화 기준이며, 이번 후속 소스의 새 EXE 수용은 별도 확인합니다. 설치판의 검증 기록과 최신 소스 실행 결과는 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
+현재 설치판은 **1.0.17 후보**입니다. 최신 후속 개선(P1~P14와 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 설치판의 실제 수용 검증은 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
 
 이전 1.0.12 후보는 빌드·CLI만 검증했으며, 이후 1.0.13 후보를 설치했습니다. 기본기능·WU 실물 수용을 통과하기 전까지 후보로 표시합니다. [이전 로컬 검증과 후보 정보](docs/followup-validation.md), [원격 실행 설정과 제한](remote/README.md)을 확인하세요.
 
