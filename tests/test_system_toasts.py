@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Windows 알림 배너는 닫기 버튼으로만 알림 센터로 옮긴다.
 
-Validates: REQ-FOLLOWUP-005
+Validates: REQ-FOLLOWUP-005, REQ-REGRESSION-001
 
 run699 의 실제 배너(ShellExperienceHost `새 알림`, PriorityToastView,
 동작 버튼 해제·파일 보내기·검토)를 근거로 만든 시험이다.
@@ -177,3 +177,21 @@ class BringToFrontToastTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DescribeWindowTests(unittest.TestCase):
+    """Validates: REQ-REGRESSION-001 — 가린 창을 특정할 정보를 남기되 제목은 남기지 않는다."""
+
+    def test_description_has_process_class_rect_but_no_title(self):
+        info = dict(RUN699, title="받은 메일 제목")
+        with mock.patch.object(ui_mod.system_toasts, "window_info", return_value=info), \
+                mock.patch.object(ui_mod.u32, "GetWindowLongW", return_value=0x8):
+            text = ui_mod.describe_window(197626)
+        self.assertIn("ShellExperienceHost.exe", text)
+        self.assertIn("class=Windows.UI.Core.CoreWindow", text)
+        self.assertIn("topmost=True", text)
+        self.assertNotIn("받은 메일", text)
+
+    def test_missing_window(self):
+        with mock.patch.object(ui_mod.system_toasts, "window_info", return_value=None):
+            self.assertEqual("[창 없음]", ui_mod.describe_window(5))

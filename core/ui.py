@@ -500,6 +500,24 @@ def force_foreground(hwnd):
             u32.AttachThreadInput(our_tid, target_tid, False)
 
 
+def describe_window(hwnd):
+    """가린 창을 나중에 특정할 수 있게 프로세스·클래스·위치·항상 위 여부를 적는다.
+
+    run700 XIPL06 은 적중 창 번호만 남아 어떤 프로그램인지 확인할 수 없었다.
+    창 제목은 남기지 않는다(메일 제목 같은 개인 정보가 들 수 있다).
+    """
+    try:
+        info = system_toasts.window_info(hwnd)
+        if not info:
+            return "[창 없음]"
+        topmost = bool(u32.GetWindowLongW(hwnd, -20) & 0x00000008)
+        exe = (info.get("path") or "").replace("/", "\\").rsplit("\\", 1)[-1] or "?"
+        return "[%s pid=%s class=%s rect=%s topmost=%s]" % (
+            exe, info["pid"], info["cls"], info["rect"], topmost)
+    except Exception:                                   # noqa: BLE001
+        return "[창 정보 조회 실패]"
+
+
 def _is_shell_window(front):
     """최전면 창이 Windows 셸(데스크톱/작업표시줄)인지."""
     if not front:
@@ -691,7 +709,7 @@ class ViewerUi:
             return True
         raise ForegroundError(
             f"{what} 전에 Viewer 를 최전면으로 올리지 못했습니다"
-            f"(가린 창: {result.get('blocking')}, 적중 창: {hit}). "
+            f"(가린 창: {result.get('blocking')}, 적중 창: {hit} {describe_window(hit)}). "
             "클릭이 다른 프로그램으로 들어가므로 중단합니다.")
 
     def _validate_pointer_control(self, target):
@@ -722,7 +740,8 @@ class ViewerUi:
         hit = _window_at_point(point if point is not None else original)
         if not root or hit != root or _pid_of(hit) != self.pid:
             raise ForegroundError(
-                f"포인터 위치가 대상 창과 다릅니다(기대 root={root}, 실제 root={hit}). 입력하지 않습니다.")
+                f"포인터 위치가 대상 창과 다릅니다(기대 root={root}, 실제 root={hit} "
+                f"{describe_window(hit)}). 입력하지 않습니다.")
 
     def click(self, target, settle=0.4):
         """Control 또는 (x, y)를 클릭한다. **Viewer 가 최전면일 때만** 누른다."""

@@ -5,7 +5,7 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 소스·설치판 1.0.18 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음 |
+| Project Version | BellalunAuto 소스 1.0.19 후보·설치판 1.0.18 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음 |
 | Last Updated | 2026-11-15 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
