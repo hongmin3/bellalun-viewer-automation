@@ -1,6 +1,26 @@
 # 진행 상태
 
-## 현재 상태 — 1.0.19 설치와 기본 전체 실행 중 (2026-11-15 run702)
+## 현재 상태 — XIPL06 원인 확정·수정, 1.0.20 후보 빌드 중 (2026-11-15 run703)
+
+설치판1.0.19 기본 전체 `20261115-163113-8ee03a21`은 19:3x KST에 abnormal/종료1로 끝났다.
+결과는 1.0.18과 같은 PASS23/FAIL1(XIPL06)/MANUAL1/SKIP10이고, 파일·DB·서비스 복원은 verified다.
+
+1.0.19의 가린 창 진단이 원인을 보였다. 적중 창은
+`AddInProcess.exe pid=9504 class=HwndWrapper[Process;…] rect=(503,211,841,961) topmost=False`였다.
+이 창은 XIPL.STUDIO가 띄운 PIM 편집기이며, 클릭 목표(편집기 제목줄)와 위치가 맞는다.
+가림 확인이 XIPL.STUDIO와 프로세스 번호가 다르다는 이유로 제품 창을 막은 자동화 결함이다. 제품 결함이 아니다.
+
+| 항목 | 결과 |
+|---|---|
+| 수정 | `6e510c0`: XIPL.STUDIO의 직접 자식 `AddInProcess.exe`만, 포커스 해제 클릭 동안만 제품 창으로 인정. 다른 프로그램은 계속 차단 |
+| 시험 | 재현 시험 `tests/test_xipl_addin_pointer.py` 3건, 전체 pytest 1618 passed/2 skipped/실패0, readiness failed0 |
+| 복구 | 1.0.19 실행의 마무리 대기를 `recover_preservation.py --apply`로 해제(verified, 이미지 보존, pending 없음, `work/run703-recovery/`). 1.0.19 GUI는 정상 닫기 |
+| 알림 처리 | 1.0.19 실행 로그에 실행 중 시험 알림 1건 처리 기록. 그 밖의 알림 가림은 없었다 |
+| 빌드 | 1.0.20 후보, 깨끗한 소스 `work/run703-1.0.20-source`, 결과 `work/run703-build-result.json` |
+
+**재개 첫 단계:** 빌드 결과를 확인하고 1.0.20을 설치한 뒤 기본 전체를 다시 실행한다. XIPL06 PASS를 본 뒤 WU 전체, 60초 자동 닫기, 다른 GUI 버튼·키보드 취소 수용 순서로 진행한다.
+
+## run702 — 1.0.19 설치와 기본 전체 (2026-11-15)
 
 | 항목 | 결과 |
 |---|---|
