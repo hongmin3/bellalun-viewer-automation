@@ -17,7 +17,7 @@
 현재 제품 작업의 우선순위와 남은 결정은 `NEXT_WORK.md`에 둔다.
 사양과 구현이 다르면 `SPEC / CODE MISMATCH`로 보고한다.
 
-후속 안정화는 REQ-FOLLOWUP-001~004와 REQ-TCUP-005를 읽는다.
+후속 안정화는 REQ-FOLLOWUP-001~005와 REQ-TCUP-005를 읽는다.
 P1–P14의 구현·시험 연결과 버전별 실제 확인 범위는
 [후속 구현 정리](docs/issue137-implementation-summary.md)에 모았다.
 이 정리는 요구사항을 바꾸거나 미완료 수용을 완료로 승격하지 않는다.
@@ -829,6 +829,37 @@ PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검
 Windows에서 읽기 핸들과 메타데이터 교체가 겹쳐 오류5·32·33이 발생하면 작성한 같은 임시 파일을
 같은 대상에 재시도한다. 재시도 예산은2초, 간격은0.05초다. 다른 오류나 예산 초과는 원래 오류로
 중단하며 이전 파일을 유지한다. 데이터 파일 격리·DB 복원에 이 재시도를 확장하지 않는다.
+
+### REQ-FOLLOWUP-005 Windows 알림 배너 가림 자동 처리
+
+하는 일: 제품을 조작하는 동안 화면 오른쪽 아래의 Windows 알림 배너가 Viewer를 가리지 않게 한다. 사람이 PC 앞에서 알림을 닫아 주지 않아도 회귀가 이어진다.
+
+> **예시** 2026-11-15에 Defender의 "Microsoft로 보낼 파일 검토" 배너가 사라지지 않아 회귀를 시작하지 못했다. 같은 자리의 배너가 그 전 WF01 클릭을 막았다.
+
+언제:
+
+- 제품을 조작하는 명령이 시작될 때 이미 떠 있는 배너를 처리한다.
+- 실행 동안 1초마다 배너를 찾고, 보이면 바로 처리한다. 같은 배너 창은 2초 안에 다시 처리하지 않는다.
+- 클릭·키 입력 직전 가림 확인에서 가린 창이 배너이면 처리한 뒤 같은 10초 기한 안에서 다시 확인한다. 한 번의 확인에서 두 번까지 처리한다.
+
+순서:
+
+1. 배너 창을 확인한다. Windows 시스템 앱 폴더의 `ShellExperienceHost.exe`가 띄운 `새 알림`(`New notification`) 창이고, 높이가 0보다 커야 한다.
+2. 배너 안의 알림마다 머리의 닫기 버튼(`DismissButton`, 이름 "이 알림을 알림 센터로 이동")을 UI Automation으로 누른다.
+3. 배너가 사라졌는지 2초 안에서 다시 확인하고 결과를 실행 로그에 남긴다.
+
+결과: 알림은 알림 센터로 옮겨지고 내용은 그대로 남는다. 로그에는 보낸 앱 이름과 개수, 배너가 사라졌는지만 남긴다.
+
+안 될 때: 버튼을 찾지 못하거나 누르지 못하면 오류로 기록하고 기존 가림 처리(REQ-REGRESSION-001의 입력 중단)를 그대로 따른다. PASS로 바꾸지 않는다.
+
+지킬 것:
+
+- 알림 안의 동작 버튼(해제·파일 보내기·검토 같은 `VerbButton`)과 설정 버튼은 누르지 않는다. 알림이 묻는 결정은 사람이 한다.
+- 다른 프로그램 창, Windows 알림 설정, Defender 설정은 바꾸지 않는다.
+- 알림 제목·본문은 기록하지 않는다. 메일 제목 같은 개인 정보가 들 수 있다.
+- 시험에서는 환경 변수 `BELLALUN_DISABLE_TOAST_GUARD=1`로 감시를 끈다.
+
+이유: 배너는 항상 위에 뜨는 셸 창이라 Viewer를 앞으로 올려도 그 아래에 놓인다. 알림 표시기를 다시 시작해도 같은 배너가 다시 떴다.
 ### REQ-TCUP-005 Import 제외 항목과 Post Reconstruction 적용값 구분
 
 WF14는 UPS 모델 선택만 Import 복원 대조에서 분리하고 Import 직전 변경값 유지를
@@ -1127,6 +1158,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | implemented |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/gui.py` | `tests/test_auto_close.py`, `tests/test_qa_runs.py` | implemented |
 | REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | implemented |
+| REQ-FOLLOWUP-005 | `core/system_toasts.py`, `core/ui.py`, `run.py` | `tests/test_system_toasts.py`, `tests/test_focus_recovery.py` | implemented |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | implemented |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | implemented |
 | REQ-TCUP-002 | `core/setting_lists.py`, `tests/workflow14.py`, `tests/winupdate.py` | TEST-TCUP-001; `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py` | implemented |

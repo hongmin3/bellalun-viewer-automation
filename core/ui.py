@@ -14,6 +14,7 @@ VIEWER.exe는 MFC(AfxWnd140u) 네이티브 앱이다. 확인해 보니 각 컨�
 import ctypes
 import ctypes.wintypes as w
 import time
+from core import system_toasts
 from core.performance import timed
 
 u32 = ctypes.windll.user32
@@ -978,6 +979,10 @@ class ViewerUi:
 
         외부 창의 Z-order를 바꾸거나 합성키를 보내지 않는다. 포인터 호출은
         전경 PID뿐 아니라 해당 좌표의 실제 적중 창까지 확인한다.
+
+        예외는 Windows 알림 배너 하나다(REQ-FOLLOWUP-005). 가린 창이 배너면
+        배너의 닫기 버튼으로 알림 센터로 옮긴 뒤 같은 기한 안에서 다시 본다.
+        한 번 호출에 두 번까지만 시도한다(`core.system_toasts`).
         """
         start = time.monotonic()
         deadline = start + min(10.0, max(0.0, timeout))
@@ -992,6 +997,7 @@ class ViewerUi:
         count = 0
         interval = min(0.25, max(0.01, settle))
         reason = None
+        toast_tries = 0
         while True:
             if not hwnd or not u32.IsWindow(hwnd) or _pid_of(hwnd) != self.pid:
                 reason = "target_lost"
@@ -1007,6 +1013,12 @@ class ViewerUi:
             if remaining <= 0 or (attempts is not None and count >= attempts):
                 reason = "timeout"
                 break
+            if toast_tries < 2:
+                cover = hit if point is not None else (self.blocking_window() or {}).get("hwnd")
+                if cover and system_toasts.is_toast_window(cover):
+                    toast_tries += 1
+                    system_toasts.dismiss(cover, log=print)
+                    continue
             # 같은 프로세스의 대상 HWND만 활성화한다.
             if count % 2:
                 switch_to_window(hwnd)

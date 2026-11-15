@@ -1392,8 +1392,9 @@ def main():
             if control:
                 # Hold the product lock before any foreground/taskbar mutation.
                 # Restore both settings when dispatch returns or raises.
+                from core.system_toasts import toasts_dismissed
                 from core.ui import foreground_unlocked, taskbar_autohidden
-                with foreground_unlocked(), taskbar_autohidden():
+                with foreground_unlocked(), taskbar_autohidden(), toasts_dismissed():
                     return _main()
             return _main()
     except AlreadyRunning:
