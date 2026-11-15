@@ -500,6 +500,57 @@ def force_foreground(hwnd):
             u32.AttachThreadInput(our_tid, target_tid, False)
 
 
+def _owned(ui, pid):
+    """그 프로세스가 이 드라이버의 제품 창인가.
+
+    기본은 제품 프로세스 하나다. `helper_pids` 에는 제품이 직접 띄운 보조
+    프로세스만 잠깐 넣는다(XIPL 의 PIM 편집기는 XIPL.STUDIO 가 띄운
+    `AddInProcess.exe` 창이다. run702 XIPL06 실측).
+    """
+    own = getattr(ui, "pid", None)
+    helpers = getattr(ui, "helper_pids", ())
+    if not isinstance(helpers, (set, frozenset)):
+        helpers = ()
+    return bool(pid and own and (pid == own or pid in helpers))
+
+
+class _PROCESSENTRY32W(ctypes.Structure):
+    _fields_ = [("dwSize", w.DWORD), ("cntUsage", w.DWORD), ("th32ProcessID", w.DWORD),
+                ("th32DefaultHeapID", ctypes.c_void_p), ("th32ModuleID", w.DWORD),
+                ("cntThreads", w.DWORD), ("th32ParentProcessID", w.DWORD),
+                ("pcPriClassBase", ctypes.c_long), ("dwFlags", w.DWORD),
+                ("szExeFile", ctypes.c_wchar * 260)]
+
+
+_k32p = ctypes.WinDLL("kernel32", use_last_error=True)
+_k32p.CreateToolhelp32Snapshot.argtypes = (w.DWORD, w.DWORD)
+_k32p.CreateToolhelp32Snapshot.restype = w.HANDLE
+_k32p.Process32FirstW.argtypes = (w.HANDLE, ctypes.POINTER(_PROCESSENTRY32W))
+_k32p.Process32NextW.argtypes = (w.HANDLE, ctypes.POINTER(_PROCESSENTRY32W))
+_k32p.CloseHandle.argtypes = (w.HANDLE,)
+
+
+def child_pids(parent_pid, exe_name):
+    """parent_pid 가 직접 띄운, 실행 파일 이름이 exe_name 인 프로세스 번호들."""
+    k32 = _k32p
+    snap = k32.CreateToolhelp32Snapshot(0x2, 0)          # TH32CS_SNAPPROCESS
+    if not snap or snap == w.HANDLE(-1).value:
+        return frozenset()
+    found = set()
+    try:
+        entry = _PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(entry)
+        ok = k32.Process32FirstW(snap, ctypes.byref(entry))
+        while ok:
+            if (parent_pid and entry.th32ParentProcessID == int(parent_pid)
+                    and entry.szExeFile.lower() == exe_name.lower()):
+                found.add(int(entry.th32ProcessID))
+            ok = k32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snap)
+    return frozenset(found)
+
+
 def describe_window(hwnd):
     """가린 창을 나중에 특정할 수 있게 프로세스·클래스·위치·항상 위 여부를 적는다.
 
@@ -538,6 +589,7 @@ class ViewerUi:
     def __init__(self, process_name="VIEWER"):
         self.process_name = process_name
         self._pid = None
+        self.helper_pids = frozenset()
 
     # --- 프로세스 ------------------------------------------------------
     @property
@@ -694,7 +746,7 @@ class ViewerUi:
         """포인터 좌표의 실제 적중 창이 자기 프로세스인지 확인한다."""
         if point is not None:
             hit = _window_at_point(point)
-            if (hit and self.pid and _pid_of(hit) == self.pid
+            if (hit and _owned(self, _pid_of(hit))
                     and (expected_root is None or hit == expected_root)):
                 return True
         elif self.is_foreground() or self.blocking_window() is None:
@@ -704,7 +756,7 @@ class ViewerUi:
                   if expected_root is not None else self.bring_to_front(point=point))
         hit = _window_at_point(point) if point is not None else None
         if result["ok"] and (point is None or
-                (hit and self.pid and _pid_of(hit) == self.pid
+                (hit and _owned(self, _pid_of(hit))
                  and (expected_root is None or hit == expected_root))):
             return True
         raise ForegroundError(
@@ -738,7 +790,7 @@ class ViewerUi:
         if isinstance(target, Control) and _u32p.GetAncestor(target.hwnd, GA_ROOT) != root:
             raise ForegroundError("포인터 대상 컨트롤의 최상위 창이 변경되어 입력하지 않습니다.")
         hit = _window_at_point(point if point is not None else original)
-        if not root or hit != root or _pid_of(hit) != self.pid:
+        if not root or hit != root or not _owned(self, _pid_of(hit)):
             raise ForegroundError(
                 f"포인터 위치가 대상 창과 다릅니다(기대 root={root}, 실제 root={hit} "
                 f"{describe_window(hit)}). 입력하지 않습니다.")
@@ -1008,7 +1060,7 @@ class ViewerUi:
         hwnd = expected_root
         if hwnd is None and point is not None:
             candidate = _window_at_point(point)
-            if candidate and self.pid and _pid_of(candidate) == self.pid:
+            if candidate and _owned(self, _pid_of(candidate)):
                 hwnd = candidate
         if hwnd is None:
             win = self.main_window()
@@ -1018,11 +1070,11 @@ class ViewerUi:
         reason = None
         toast_tries = 0
         while True:
-            if not hwnd or not u32.IsWindow(hwnd) or _pid_of(hwnd) != self.pid:
+            if not hwnd or not u32.IsWindow(hwnd) or not _owned(self, _pid_of(hwnd)):
                 reason = "target_lost"
                 break
             hit = _window_at_point(point) if point is not None else None
-            ready = (bool(hit and _pid_of(hit) == self.pid
+            ready = (bool(hit and _owned(self, _pid_of(hit))
                           and (expected_root is None or hit == expected_root))
                      if point is not None else self.is_foreground())
             if ready:

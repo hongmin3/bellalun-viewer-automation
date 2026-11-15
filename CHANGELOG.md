@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.20 후보 — XIPL PIM 편집기 클릭 허용 범위
+
+- REQ-REGRESSION-001: XIPL의 PIM 편집기는 XIPL.STUDIO가 띄운 `AddInProcess.exe` 창이다. 입력 가림 확인이 이 창을 다른 프로그램으로 보고 XIPL06의 포커스 해제 클릭을 막았다(설치판1.0.18·1.0.19 기본 전체에서 같은 단계 FAIL). 이제 XIPL.STUDIO의 직접 자식 `AddInProcess.exe`만, 그 클릭 동안만 제품 창으로 인정한다. 다른 프로그램 창은 그대로 막는다. 1.0.19에서 추가한 가린 창 정보로 원인을 확인했다.
+
 ## 1.0.19 후보 — 알림 배너 처리와 입력 가림 진단
 
 - REQ-FOLLOWUP-005: 아래 알림 배너 자동 처리를 설치판에 넣는다.

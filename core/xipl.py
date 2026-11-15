@@ -25,7 +25,7 @@ from pathlib import Path
 
 from PIL import Image, ImageGrab, ImageStat
 
-from .ui import ViewerUi, children
+from .ui import ViewerUi, child_pids, children
 
 
 class XiplStudio:
@@ -429,9 +429,18 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
         # back the pre-SetValue value). Click the editor's own title bar
         # (non-interactive, no data binding) to blur focus without risking
         # a Tab landing on another row and reshuffling its layout.
+        #
+        # The PIM editor is hosted by XIPL.STUDIO's own AddInProcess.exe child
+        # (run702: the pointer guard rejected the click because that window's
+        # pid differs from XIPL.STUDIO).  Accept only that direct child, only
+        # for this click; any other program's window still blocks input.
         win = self.ui.main_window()
         if win:
-            self.ui.click((win.rect[0] + 55 + 150, win.rect[1] + 55 + 10), settle=.3)
+            self.ui.helper_pids = child_pids(self.ui.pid, "AddInProcess.exe")
+            try:
+                self.ui.click((win.rect[0] + 55 + 150, win.rect[1] + 55 + 10), settle=.3)
+            finally:
+                self.ui.helper_pids = frozenset()
         return {"field": field_name, "before": float(old), "after": float(new)}
 
     def save(self, wait=2):
