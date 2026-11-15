@@ -16,6 +16,7 @@
     "tests/test_checkpoint_partial_report.py",
     "tests/test_close_examine_confirm.py",
     "tests/test_combo_popup.py",
+    "tests/test_completion_notice.py",
     "tests/test_completion_scope.py",
     "tests/test_console_children.py",
     "tests/test_console_dbreset.py",

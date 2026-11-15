@@ -180,6 +180,12 @@ def _report_rows(path):
     return data.get("meta") or {}, data.get("results", [])
 
 
+def suite_environment(base):
+    """설치판 묶음 실행은 무인 실행이다. 같은 신호를 자식에 넘긴다 (REQ-FOLLOWUP-003)."""
+    from bellalunauto.auto_close import UNATTENDED_ENV
+    return dict(base, PYTHONIOENCODING="utf-8", **{UNATTENDED_ENV: "1"})
+
+
 def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, expected_tcs=()):
     """설치판 EXE 로 한 전체 실행을 수행하고 결과 근거를 모은다."""
     from bellalunauto.app import completed_report
@@ -192,7 +198,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     args.append(command)
     started = time.time()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
-    env = dict(clean_environment() if clean_env else os.environ, PYTHONIOENCODING="utf-8")
+    env = suite_environment(clean_environment() if clean_env else os.environ)
     with open(log_path, "w", encoding="utf-8", errors="replace") as log:
         log.write(f"# command: {args}\n# cwd: {cwd}\n# started: {started_at}\n")
         log.flush()

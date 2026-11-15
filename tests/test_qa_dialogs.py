@@ -387,7 +387,7 @@ def test_real_gui_completion_countdown_is_cancelled_before_button_action(
         finish()
     root.after(20, interact)
     root.after(2500, finish)
-    assert gui.launch(layout) == 0
+    assert gui.launch(layout, unattended='option') == 0
     assert not errors
     assert observed == [True, True, True]
 
@@ -404,8 +404,8 @@ def test_real_gui_automatically_destroys_only_after_sixty_seconds(monkeypatch, t
     monkeypatch.setattr(qa_dialogs, 'confirm_plan', lambda *args, **kwargs: True)
     now, destroyed, boundary = [0.0], [], []
     original_init = auto_close.CompletionAutoClose.__init__
-    def init(timer, scheduler, close, update):
-        original_init(timer, scheduler, close, update, clock=lambda: now[0])
+    def init(timer, scheduler, close, update, **kwargs):
+        original_init(timer, scheduler, close, update, **dict(kwargs, clock=lambda: now[0]))
     monkeypatch.setattr(auto_close.CompletionAutoClose, '__init__', init)
     def start(controller, action, **kwargs):
         controller.record = RunRecord.create(tmp_path, action, {})
@@ -435,7 +435,9 @@ def test_real_gui_automatically_destroys_only_after_sixty_seconds(monkeypatch, t
         now[0] = 60.0
     root.after(1300, at_boundary)
     root.after(2500, root.destroy)
-    assert gui.launch(layout) == 0
+    from bellalunauto import completion_notice
+    monkeypatch.setattr(completion_notice, 'show', lambda record: {'status': 'shown', 'at': 'now'})
+    assert gui.launch(layout, unattended='environment') == 0
     assert boundary == [1]
     assert destroyed == [60.0]
 
@@ -490,3 +492,180 @@ def test_real_gui_manual_close_waits_for_log_and_final_record(save_failure, monk
     assert gui.launch(layout) == 0
     assert alive == ([True, True] if save_failure else [True])
     assert ended == (['running'] if save_failure else ['abnormal'])
+
+
+def _completed_run_gui(monkeypatch, tk_root, tmp_path, now):
+    """가짜 정상 완주 실행과 시계를 묶은 실물 Tk 화면 준비 (REQ-FOLLOWUP-003)."""
+    from types import SimpleNamespace
+    from bellalunauto import gui, qa_dialogs, runplan, auto_close
+    from bellalunauto.runs import RunRecord
+    layout = SimpleNamespace(workspace=tmp_path, config_path=tmp_path / 'config.json', resource_dir=tmp_path)
+    layout.config_path.write_text('{}', encoding='utf-8')
+    monkeypatch.setattr(gui, 'load_gui_config', lambda layout: {})
+    monkeypatch.setattr(gui, 'validate_config', lambda config: [])
+    monkeypatch.setattr(runplan, 'build_plan', lambda *args: {'action': args[-1]})
+    monkeypatch.setattr(qa_dialogs, 'confirm_plan', lambda *args, **kwargs: True)
+    original_init = auto_close.CompletionAutoClose.__init__
+
+    def init(timer, scheduler, close, update, **kwargs):
+        original_init(timer, scheduler, close, update, **dict(kwargs, clock=lambda: now[0]))
+    monkeypatch.setattr(auto_close.CompletionAutoClose, '__init__', init)
+    records = []
+
+    def start(controller, action, **kwargs):
+        controller.record = RunRecord.create(tmp_path, action, {})
+        controller.record.data.update(status='completed', exit_code=1, verdicts={'PASS': 3, 'FAIL': 1},
+                                      reports=[str(tmp_path / 'Reports' / 'Result_x.html')],
+                                      next_action='review', review_status='pending')
+        controller.record.save()
+        records.append(controller.record.path)
+        controller.process = SimpleNamespace(poll=lambda: 1, returncode=1)
+        controller.log_path = tmp_path / 'synthetic.log'
+    monkeypatch.setattr(gui.RunController, 'start', start)
+    # finish()는 Reports에서 실제 리포트를 다시 찾는다. 이 시험은 실행 기록의 값을 그대로 쓴다.
+    monkeypatch.setattr(RunRecord, 'finish', lambda record, code: None)
+    root = tk.Toplevel(tk_root)
+    root.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root)
+    destroyed = []
+    original_destroy = root.destroy
+
+    def destroy():
+        destroyed.append(now[0])
+        root.quit()
+        original_destroy()
+    root.destroy = destroy
+
+    def begin():
+        next(w for w in widgets(root) if isinstance(w, ttk.Button)
+             and w.cget('text') == '기본기능 체크리스트 자동화 수행').invoke()
+    root.after(20, begin)
+    return gui, layout, root, records, destroyed
+
+
+def test_real_gui_human_run_keeps_result_window_and_marks_seen(monkeypatch, tk_root, tmp_path):
+    import json
+    now = [0.0]
+    gui, layout, root, records, destroyed = _completed_run_gui(monkeypatch, tk_root, tmp_path, now)
+    titles, alive = [], []
+
+    def later():
+        titles.append(root.title())
+        now[0] = 3600.0
+
+    def check():
+        alive.append(bool(root.winfo_exists()))
+        root.destroy()
+    root.after(400, later)
+    root.after(1500, check)
+    assert gui.launch(layout) == 0
+    assert '자동 닫기 꺼짐(사람 실행)' in titles[0]
+    assert alive == [True] and destroyed == [3600.0]
+    saved = json.loads(records[0].read_text(encoding='utf-8'))
+    assert saved['launch_mode'] == {'mode': 'human', 'signal': None}
+    assert saved['result_seen'] is True and 'auto_close' not in saved
+
+
+def test_real_gui_unattended_close_leaves_notice_and_next_launch_shows_unseen(monkeypatch, tk_root, tmp_path):
+    import json
+    from bellalunauto import completion_notice
+    now = [0.0]
+    gui, layout, root, records, destroyed = _completed_run_gui(monkeypatch, tk_root, tmp_path, now)
+    shown, titles = [], []
+
+    def notify(record):
+        shown.append((record['run_id'], root.state()))
+        return {'status': 'failed', 'reason': 'timeout', 'at': 'now'}
+    monkeypatch.setattr(completion_notice, 'show', notify)
+
+    def later():
+        titles.append(root.title())
+        now[0] = 60.0
+    root.after(400, later)
+    root.after(3000, root.destroy)
+    assert gui.launch(layout, unattended='option') == 0
+    assert '초 뒤 자동 닫힘(무인 실행)' in titles[0]
+    assert destroyed == [60.0]
+    saved = json.loads(records[0].read_text(encoding='utf-8'))
+    # 알림은 창을 숨긴 뒤 띄우고, 실패해도 창은 닫히며 실패 사실이 실행 기록에 남는다.
+    assert shown == [(saved['run_id'], 'withdrawn')]
+    assert saved['auto_close']['notification'] == {'status': 'failed', 'reason': 'timeout', 'at': 'now'}
+    assert saved['auto_close']['signal'] == 'option' and saved['result_seen'] is False
+    assert saved['launch_mode'] == {'mode': 'unattended', 'signal': 'option'}
+
+    # 다음에 사람이 열면 확인하지 않은 결과를 먼저 보여 주고, 입력하면 확인한 것으로 저장한다.
+    root2 = tk.Toplevel(tk_root)
+    root2.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root2)
+    texts = []
+
+    def look():
+        labels = [w for w in widgets(root2) if isinstance(w, ttk.Label) and w.cget('textvariable')]
+        texts.extend(str(root2.getvar(w.cget('textvariable'))) for w in labels)
+        log = next(w for w in widgets(root2) if w.winfo_class() == 'Text')
+        texts.append(log.get('1.0', 'end'))
+        log.event_generate('<ButtonPress-1>', x=5, y=5)
+        root2.update()
+        root2.quit()
+        root2.destroy()
+    root2.after(300, look)
+    assert gui.launch(layout) == 0
+    assert any('확인하지 않은 마지막 실행 결과' in text and saved['run_id'] in text
+               and 'PASS 3 / FAIL 1 / MANUAL 0 / SKIP 0 / BLOCKED 0' in text and 'Result_x.html' in text
+               for text in texts)
+    assert json.loads(records[0].read_text(encoding='utf-8'))['result_seen'] is True
+
+
+def test_real_gui_unattended_launch_keeps_unseen_mark_without_human_input(monkeypatch, tk_root, tmp_path):
+    import json
+    from bellalunauto import completion_notice
+    now = [0.0]
+    gui, layout, root, records, destroyed = _completed_run_gui(monkeypatch, tk_root, tmp_path, now)
+    monkeypatch.setattr(completion_notice, 'show', lambda record: {'status': 'shown', 'at': 'now'})
+    root.after(400, lambda: now.__setitem__(0, 60.0))
+    root.after(3000, root.destroy)
+    assert gui.launch(layout, unattended='option') == 0
+    root2 = tk.Toplevel(tk_root)
+    root2.withdraw()
+    monkeypatch.setattr(tk, 'Tk', lambda: root2)
+
+    def click_and_close():
+        # 무인으로 연 화면의 클릭은 에이전트일 수 있어 확인 표시를 바꾸지 않는다.
+        log = next(w for w in widgets(root2) if w.winfo_class() == 'Text')
+        log.event_generate('<ButtonPress-1>', x=5, y=5)
+        root2.update()
+        root2.quit()
+        root2.destroy()
+    root2.after(300, click_and_close)
+    assert gui.launch(layout, unattended='environment') == 0
+    assert json.loads(records[0].read_text(encoding='utf-8'))['result_seen'] is False
+
+
+@pytest.mark.parametrize('sequence,options', [
+    ('<ButtonPress-1>', {'x': 5, 'y': 5}), ('<MouseWheel>', {'delta': -120}), ('<KeyPress-a>', {}),
+])
+def test_real_gui_input_on_log_cancels_unattended_countdown(sequence, options, monkeypatch, tk_root, tmp_path):
+    import json
+    now = [0.0]
+    gui, layout, root, records, destroyed = _completed_run_gui(monkeypatch, tk_root, tmp_path, now)
+    observed = []
+
+    def touch():
+        stop_close = next(w for w in widgets(root) if isinstance(w, ttk.Button) and w.cget('text') == '자동 닫기 멈춤')
+        observed.append('disabled' not in stop_close.state())
+        log = next(w for w in widgets(root) if w.winfo_class() == 'Text')
+        log.focus_force()
+        root.update()
+        log.event_generate(sequence, **options)
+        root.update()
+        observed.append('disabled' in stop_close.state())
+        now[0] = 600.0
+
+    def check():
+        observed.append(bool(root.winfo_exists()))
+        root.destroy()
+    root.after(400, touch)
+    root.after(1600, check)
+    assert gui.launch(layout, unattended='option') == 0
+    assert observed == [True, True, True] and destroyed == [600.0]
+    assert json.loads(records[0].read_text(encoding='utf-8'))['result_seen'] is True

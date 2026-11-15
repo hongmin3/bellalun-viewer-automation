@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="394a17cd1067ff92056b3ee3bce0f377df0f6202a86dcc8010455056f2c3480e">
+<meta name="spec-source-sha256" content="7b627588d5f3f93eb9f4d3ccf16066382bb58ec70a12631de8426a96198c7e93">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,8 +92,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.20 후보·설치판 1.0.19 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>43</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>32</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>1</b><span>implemented</span></div><div class="stat st-verified"><b>42</b><span>verified</span></div></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="stats"><div class="stat"><b>43</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>32</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>41</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -140,7 +140,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-KNOW-001">REQ-KNOW-001 <span>지식 폴더 서버 동기화</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001 <span>실행 보존·자원·결과 안정화</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002 <span>준비·설치·효율·원격 실행</span></a></li>
-<li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003 <span>회귀 완료 후 60초 자동 닫기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003 <span>회귀 완료 후 60초 자동 닫기 (무인 실행만)</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004 <span>공용 보존과 볼륨별 용량 기준</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-005">REQ-FOLLOWUP-005 <span>Windows 알림 배너 가림 자동 처리</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TCUP-005">REQ-TCUP-005 <span>Import 제외 항목과 Post Reconstruction 적용값 구분</span></a></li>
@@ -244,7 +244,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr class="group"><th colspan="5"><span class="gcode">FOLLOWUP</span></th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="이름">실행 보존·자원·결과 안정화</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="테스트"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code>, <code>tests/test_report_identity_followup.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="이름">준비·설치·효율·원격 실행</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>remote/bundles.py</code>, <code>remote/interlock.py</code>, <code>remote/service.py</code>, <code>remote/result_views.py</code>, <code>remote/winrm_executor.py</code>, <code>tools/scope_summary.py</code></td><td data-label="테스트"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_remote_result_paths.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="이름">회귀 완료 후 60초 자동 닫기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="테스트"><code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="이름">회귀 완료 후 60초 자동 닫기 (무인 실행만)</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></td><td data-label="테스트"><code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="이름">공용 보존과 볼륨별 용량 기준</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/runs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-005">REQ-FOLLOWUP-005</a></td><td data-label="이름">Windows 알림 배너 가림 자동 처리</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/system_toasts.py</code>, <code>core/ui.py</code>, <code>run.py</code></td><td data-label="테스트"><code>tests/test_system_toasts.py</code>, <code>tests/test_focus_recovery.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">SPECSYNC</span> 동작 변경과 사양 동기화 검사</th></tr>
@@ -1547,16 +1547,55 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <p>같은 실행 묶음은 해시를 확인한 PC 사본을 재사용한다. 대용량 묶음은 인증된 HTTPS로 전송하며 필요한 설정이 없으면 차단한다. 실행 중 진행 상태와 최근 로그를 전달한다. 기본 실행 제한은 6시간이고, 최장 예상 시간을 설정하면 제한까지 충분한 여유가 있는지 검사한다. 시작 후 정리·복원 완료를 확인하지 못하면 PC와 공용 잠금을 유지한다.</p>
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-003">
-<h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기 (무인 실행만)</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></span></div>
+<details class="history"><summary>변경 이력 7</summary>
 <ul>
+<li><span class="hist">1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 회귀 완료 뒤 60초 자동 닫기를 무인 실행에만 적용한다. 무인 여부는 명령줄 <code>--unattended</code> 또는 환경 변수 <code>QA_AUTOMATION_UNATTENDED=1</code>로만 정하며, 신호가 없으면 사람 실행으로 보고 결과 창을 남긴다. 창 제목에 <code>자동 닫기 꺼짐(사람 실행)</code> 또는 <code>N초 뒤 자동 닫힘(무인 실행)</code>을 표시한다. 신호 이름과 문구는 VXvue 자동화와 같게 쓴다.</li>
+<li><span class="hist">1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 카운트다운 중 창 안의 클릭·휠 스크롤·키 입력도 그 회차의 자동 닫기를 취소한다. 기존에는 버튼 실행만 취소했다.</li>
+<li><span class="hist">1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 자동으로 닫힐 때 창을 숨긴 뒤 Windows 알림 센터에 실행 번호·판정 합계·리포트 경로를 남기고, 실행 기록에 알림 결과와 <code>result_seen: false</code>를 저장한다. 다음에 화면을 열면 확인하지 않은 마지막 실행 결과를 먼저 보여 준다. 알림 실패는 창 닫기와 결과 저장을 막지 않는다.</li>
+<li><span class="hist">1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 무인 화면 시작 도구 <code>tools/launch_gui.py</code>를 더했다. 원격 실행과 설치판 묶음 실행도 자식에 같은 환경 변수를 넘긴다. 판정 로직과 Expected는 바꾸지 않았다.</li>
 <li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.18 후보 — 로그인 입력 차단의 원인 유지</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 제품 FAIL과 입력 차단에 따른 불완전 실행을 구분한다. 입력 차단이 일반 로그인 오류 문구로 바뀌어 완료 자동 닫기로 이어지던 경로를 차단한다. 새 설치판의 실제 수용은 별도 수행한다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 회귀·선택한 복원·최종 저장 후 GUI 60초 자동 닫기를 추가했다. 멈춤 또는 다른 버튼은 그 회차 타이머를 취소하고, 중단·비정상·UAC 취소에는 자동 닫기를 적용하지 않는다.</li>
 </ul>
 </details>
-<p>기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 GUI에 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다. 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼을 누르면 그 회차의 자동 닫기를 취소한다. 키보드 버튼 실행도 취소하며 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.</p>
+<p>하는 일: 에이전트·Hub·스크립트가 연 GUI는 회귀가 끝난 뒤 60초가 지나면 스스로 닫혀 다음 무인 실행을 막지 않는다. 사람이 연 GUI는 사람이 닫을 때까지 결과를 남긴다.</p>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>VXvue에서 2026-11-12 결과 창이 남아 다음 테마 실행이 선택 창을 240초 기다린 뒤 실패했다. 반대로 사람이 약 50분 걸리는 회귀를 돌려 두고 자리를 비우면, 60초 뒤 창이 사라져 결과를 놓쳤다.</p>
+</aside>
+<p>무인 여부:</p>
+<ul>
+<li>명시 신호로만 정한다. GUI 시작 명령줄의 <code>--unattended</code> 또는 환경 변수 <code>QA_AUTOMATION_UNATTENDED=1</code> 중 하나다. 환경 변수는 정확히 <code>1</code>일 때만 신호로 본다.</li>
+<li>신호가 없으면 사람 실행이다. 창 제목, 실행 기록의 신호 출처, 실행 시간 같은 다른 정황으로 무인을 추측하지 않는다.</li>
+<li>같은 이름을 VXvue 자동화(#148)와 함께 쓴다.</li>
+<li>창 제목에 방식을 표시한다. 사람 실행은 <code>자동 닫기 꺼짐(사람 실행)</code>이다. 무인 실행은 <code>60초 뒤 자동 닫힘(무인 실행)</code>이며 카운트다운 중에는 남은 초 <code>N초 뒤 자동 닫힘(무인 실행)</code>으로 바꾼다.</li>
+<li>저장소의 무인 GUI 시작 도구 <code>tools/launch_gui.py</code>는 두 신호를 모두 넘긴다. 창 없이 CLI로 도는 원격 실행(<code>remote/winrm_executor.py</code>)과 설치판 묶음 실행(<code>tools/run_installed_suites.py</code>)은 결과 창이 없지만, 그 실행이 띄우는 자식에 같은 환경 변수를 넘긴다.</li>
+</ul>
+<p>언제 닫는가:</p>
+<ul>
+<li>무인 실행에서 기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다.</li>
+<li>중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. 사람 실행에는 어떤 결과에도 적용하지 않는다.</li>
+</ul>
+<p>취소:</p>
+<ul>
+<li>‘자동 닫기 멈춤’ 또는 다른 GUI 버튼(키보드 실행 포함)을 누르면 그 회차의 자동 닫기를 취소한다.</li>
+<li>창 안의 마우스 클릭, 휠 스크롤, 글자 선택, 키 입력도 그 회차를 취소한다.</li>
+<li>새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.</li>
+</ul>
+<p>닫힐 때 남기는 흔적:</p>
+<ul>
+<li>자동으로 닫히면 실행 기록 <code>run.json</code>의 <code>auto_close</code>에 신호 출처·닫은 시각·알림 결과를 저장하고, 결과를 아직 확인하지 않았다고(<code>result_seen: false</code>) 표시한다.</li>
+<li>창을 숨긴 다음 Windows 알림 센터에 남는 알림을 띄운다. 알림에는 실행 번호, 판정 합계(PASS/FAIL/MANUAL/SKIP/BLOCKED), 리포트 경로를 쓴다. 알림은 실행이 끝나고 창을 숨긴 뒤에만 띄우며 제품 조작 중에는 띄우지 않는다.</li>
+<li>알림을 띄우지 못해도 결과·리포트 저장과 창 닫기를 막지 않는다. 실패 사실과 원인 분류를 <code>auto_close.notification</code>에 남긴다.</li>
+<li>사람이 결과를 본 실행(사람 실행의 완료, 무인 카운트다운을 사람이 취소)은 <code>result_seen: true</code>로 저장한다.</li>
+</ul>
+<p>다음에 열 때:</p>
+<ul>
+<li>GUI를 열면 <code>result_seen: false</code>인 가장 최근 실행을 찾아 상태 줄과 로그 맨 위에 &quot;확인하지 않은 마지막 실행 결과&quot;로 실행 번호·판정 합계·리포트 경로를 보여 준다.</li>
+<li>창 안에서 사람의 입력(클릭·키 입력·스크롤)이 있으면 그 실행을 확인한 것으로 저장한다. 무인으로 연 GUI가 입력 없이 다시 닫히면 표시를 유지한다.</li>
+<li>이 표시는 판정·리포트를 바꾸지 않는다.</li>
+</ul>
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-004">
 <h3><span class="idtag">REQ-FOLLOWUP-004</span> 공용 보존과 볼륨별 용량 기준</h3>
@@ -2133,7 +2172,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tbody>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="Test"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code>, <code>tests/test_report_identity_followup.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="Implementation"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>remote/bundles.py</code>, <code>remote/interlock.py</code>, <code>remote/service.py</code>, <code>remote/result_views.py</code>, <code>remote/winrm_executor.py</code>, <code>tools/scope_summary.py</code></td><td data-label="Test"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_remote_result_paths.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="Implementation"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="Test"><code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="Implementation"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></td><td data-label="Test"><code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="Implementation"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/runs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-005">REQ-FOLLOWUP-005</a></td><td data-label="Implementation"><code>core/system_toasts.py</code>, <code>core/ui.py</code>, <code>run.py</code></td><td data-label="Test"><code>tests/test_system_toasts.py</code>, <code>tests/test_focus_recovery.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a></td><td data-label="Implementation"><code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>

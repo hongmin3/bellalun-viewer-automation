@@ -21,7 +21,7 @@ def make_timer():
     from bellalunauto.auto_close import CompletionAutoClose
     scheduler, now, updates, closed = Scheduler(), [100.0], [], []
     timer = CompletionAutoClose(scheduler, lambda: closed.append(True), updates.append,
-                                clock=lambda: now[0])
+                                clock=lambda: now[0], unattended=True)
     return timer, scheduler, now, updates, closed
 
 

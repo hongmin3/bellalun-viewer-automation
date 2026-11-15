@@ -189,6 +189,18 @@ class RunRecord:
     def review_targets(self):
         return [row['tc_id'] for row in self.result_rows() if row.get('verdict') != 'PASS']
 
+    def annotate(self, **fields):
+        """판정과 무관한 표시 정보만 덧붙인다. 감독 프로세스가 쓴 최종 상태를 먼저 다시 읽는다."""
+        self.reload()
+        self.data.update(fields)
+        self.save()
+
+    def record_auto_close(self, info):
+        self.annotate(auto_close=dict(info, closed_at=_now()), result_seen=False)
+
+    def mark_result_seen(self):
+        self.annotate(result_seen=True)
+
     def save_review(self, reviewer, entries, *, complete=False):
         self.reload()
         allowed = {'확인 완료', '결함 등록', '재시험 필요'}
@@ -204,6 +216,15 @@ class RunRecord:
         })
         self.data['review_status'] = status
         self.save()
+
+
+def latest_unseen(workspace, limit=50):
+    """자동으로 닫혀 아직 사람이 확인하지 않은(`result_seen: false`) 가장 최근 실행 (REQ-FOLLOWUP-003)."""
+    for path in sorted((Path(workspace) / 'Runs').glob('*/run.json'), reverse=True)[:limit]:
+        data = _read(path)
+        if data.get('run_id') == path.parent.name and data.get('result_seen') is False:
+            return RunRecord(workspace, path, data)
+    return None
 
 
 def latest_run(workspace):

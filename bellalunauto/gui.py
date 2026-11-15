@@ -642,7 +642,7 @@ def config_error_text(layout, error) -> str:
             "이름을 바꾸면 처음 실행처럼 이 PC의 값을 다시 찾아 저장합니다.")
 
 
-def recover_start(error) -> int:
+def recover_start(error, unattended=None) -> int:
     """화면 시작 전 경로 오류. 작업 폴더 기억이 손상되면 다시 고르게 하고, 취소하면 아무것도 바꾸지 않는다."""
     import tkinter as tk
     from tkinter import filedialog, messagebox
@@ -672,7 +672,7 @@ def recover_start(error) -> int:
                 messagebox.showerror("작업 폴더를 쓸 수 없음", f"{chosen}\n\n{problem}\n\n다른 폴더를 고르세요. 기존 파일은 바꾸지 않았습니다.", parent=root)
     finally:
         root.destroy()
-    return launch(layout, workspace_chosen=True)
+    return launch(layout, workspace_chosen=True, unattended=unattended)
 
 
 def workspace_error_text(workspace, error) -> str:
@@ -681,17 +681,22 @@ def workspace_error_text(workspace, error) -> str:
             "포터블은 쓰기 가능한 폴더(예: D:\\BellalunAuto)에 풀어 실행하세요. 기존 파일은 바꾸지 않았습니다.")
 
 
-def launch(layout, workspace_chosen=False) -> int:
-    """Tk 이벤트 루프. 호출만으로 제품 시험이나 DB 복원을 시작하지 않는다."""
+def launch(layout, workspace_chosen=False, unattended=None) -> int:
+    """Tk 이벤트 루프. 호출만으로 제품 시험이나 DB 복원을 시작하지 않는다.
+
+    `unattended`는 무인 신호의 출처(`option`·`environment`)이고 없으면 사람 실행이다(REQ-FOLLOWUP-003).
+    """
     import tkinter as tk
     from tkinter import filedialog, messagebox, scrolledtext, ttk
     from . import __version__
-    from .auto_close import CompletionAutoClose
+    from .auto_close import CompletionAutoClose, mode_label
     from .runtime import resolve_layout
 
     root = tk.Tk()
     root.withdraw()
-    root.title(f"BellalunAuto {__version__}")
+    def set_title(seconds=None):
+        root.title(f"BellalunAuto {__version__} · {mode_label(unattended, seconds)}")
+    set_title()
     root.geometry("960x720")
     first_run = not Path(layout.config_path).exists()
     # 설치판은 설치 폴더 아래 `작업`을 쓰므로 고르지 않는다. 소스 실행만 처음 한 번 고른다.
@@ -725,14 +730,52 @@ def launch(layout, workspace_chosen=False) -> int:
     buttons = []
     status = tk.StringVar(value="대기 중 · 수행할 체크리스트를 선택하세요.")
     ttk.Label(root, textvariable=status, padding=10, wraplength=960).pack(anchor="w")
-    countdown = tk.StringVar(value='')
+    countdown = tk.StringVar(value=mode_label(unattended))
     ttk.Label(root, textvariable=countdown, padding=6).pack(anchor='w', padx=4)
 
     def show_countdown(seconds):
-        countdown.set('' if seconds is None else f'체크리스트 실행이 끝났습니다. {seconds}초 후 이 창을 닫습니다.')
+        countdown.set(mode_label(unattended) if seconds is None
+                      else f'체크리스트 실행이 끝났습니다. {seconds}초 후 이 창을 닫습니다.')
+        set_title(seconds)
         auto_close_button.configure(state='disabled' if seconds is None else 'normal')
 
-    auto_close = CompletionAutoClose(root, root.destroy, show_countdown)
+    finished_run = [None]
+    unseen_run = [None]
+
+    def close_after_countdown():
+        # 창을 먼저 숨긴 뒤 알린다. 알림·기록 실패는 창 닫기를 막지 않는다.
+        from .completion_notice import show
+        record = finished_run[0]
+        try:
+            root.withdraw()
+        except tk.TclError:
+            pass
+        if record is not None:
+            notification = show(record.data)
+            try:
+                record.record_auto_close({'mode': 'unattended', 'signal': unattended, 'notification': notification})
+            except (OSError, ValueError):
+                pass
+        root.destroy()
+
+    def mark_seen(record):
+        try:
+            record.mark_result_seen()
+        except (OSError, ValueError):
+            status.set('결과 확인 표시를 저장하지 못했습니다. 작업 폴더 권한을 확인하세요.')
+
+    def on_input(event=None):
+        # 카운트다운 중 사람의 클릭·스크롤·키 입력은 그 회차의 자동 닫기를 취소한다.
+        if auto_close.interaction() and finished_run[0] is not None:
+            mark_seen(finished_run[0])
+        # 무인 화면은 에이전트 클릭과 사람 입력을 가릴 수 없어 확인 표시를 바꾸지 않는다.
+        if not unattended and unseen_run[0] is not None:
+            mark_seen(unseen_run[0])
+            unseen_run[0] = None
+
+    auto_close = CompletionAutoClose(root, close_after_countdown, show_countdown, unattended=bool(unattended))
+    for sequence in ('<ButtonPress>', '<KeyPress>', '<MouseWheel>'):
+        root.bind(sequence, on_input, add='+')
     progress = ttk.Progressbar(root, mode="indeterminate")
     progress.pack(fill="x", padx=12)
     output = scrolledtext.ScrolledText(root, wrap="word", height=22, state="disabled", font=("Consolas", 10))
@@ -900,7 +943,16 @@ def launch(layout, workspace_chosen=False) -> int:
                 root.destroy()
                 return
             if finished_record is not None:
-                auto_close.start(finished_record)
+                finished_run[0] = controller.record
+                armed = auto_close.start(finished_record)
+                try:
+                    controller.record.annotate(launch_mode={'mode': 'unattended' if unattended else 'human',
+                                                            'signal': unattended})
+                    if not armed and not unattended:
+                        # 사람 실행은 결과 창이 사람이 닫을 때까지 남는다.
+                        controller.record.mark_result_seen()
+                except (OSError, ValueError):
+                    status.set('실행 방식 기록을 저장하지 못했습니다. 작업 폴더 권한을 확인하세요.')
         if not stopping.is_set() and controller.running:
             stop_button.configure(state="normal")
             if controller.record:
@@ -929,6 +981,18 @@ def launch(layout, workspace_chosen=False) -> int:
         root.destroy()
     root.protocol("WM_DELETE_WINDOW", close)
     root.after(200, poll)
+    try:
+        from .completion_notice import primary_report, verdict_totals
+        from .runs import latest_unseen
+        unseen_run[0] = latest_unseen(layout.workspace)
+    except (OSError, ValueError):
+        unseen_run[0] = None
+    if unseen_run[0] is not None:
+        data = unseen_run[0].data
+        notice = (f"확인하지 않은 마지막 실행 결과 · {data['run_id']} · {verdict_totals(data.get('verdicts'))}\n"
+                  f"리포트: {primary_report(data.get('reports')) or '없음'}")
+        status.set(notice)
+        append(notice + '\n')
     if first_run:
         status.set("PC별 설정을 자동으로 찾아 저장했습니다. 준비 점검의 [FAIL] 행만 PC별 설정에서 채우세요.")
         # 조회 전용 점검이라 바로 보여 준다. 시험·DB 복원은 시작하지 않는다.

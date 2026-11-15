@@ -560,7 +560,11 @@ def main(argv=None):
     parser.add_argument('--stop-file', help=argparse.SUPPRESS)
     parser.add_argument('--elevation-log', help=argparse.SUPPRESS)
     parser.add_argument('--run-id', help=argparse.SUPPRESS)
+    # 에이전트·Hub·스크립트가 연 화면이라는 명시 신호. 회귀 완료 뒤 60초에 창을 닫는다(REQ-FOLLOWUP-003).
+    parser.add_argument('--unattended', action='store_true')
     options, arguments = parser.parse_known_args(argv)
+    from bellalunauto.auto_close import unattended_signal
+    unattended = unattended_signal(options.unattended, os.environ)
     if options.run_id:
         import re
         if not re.fullmatch(r'[0-9]{8}-[0-9]{6}-[a-f0-9]{8}', options.run_id):
@@ -581,7 +585,7 @@ def main(argv=None):
                 raise
             # 숨김 콘솔 EXE의 화면 실행은 print가 보이지 않는다. 창으로 원인과 복구를 보인다.
             from bellalunauto.gui import recover_start
-            return recover_start(exc)
+            return recover_start(exc, unattended=unattended)
         if options.elevation_log:
             if not options.elevated or not ctypes.windll.shell32.IsUserAnAdmin():
                 raise PermissionError('승격 실행 로그는 관리자 프로세스에서만 사용할 수 있습니다.')
@@ -595,7 +599,7 @@ def main(argv=None):
                     return main(forwarded)
         if not arguments:
             from bellalunauto.gui import launch
-            return launch(layout)
+            return launch(layout, unattended=unattended)
         if arguments == ['prepare-install']:
             from bellalunauto.prerequisites import prepare_install
             return prepare_install(layout)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용
+
+- REQ-FOLLOWUP-003: 회귀 완료 뒤 60초 자동 닫기를 무인 실행에만 적용한다. 무인 여부는 명령줄 `--unattended` 또는 환경 변수 `QA_AUTOMATION_UNATTENDED=1`로만 정하며, 신호가 없으면 사람 실행으로 보고 결과 창을 남긴다. 창 제목에 `자동 닫기 꺼짐(사람 실행)` 또는 `N초 뒤 자동 닫힘(무인 실행)`을 표시한다. 신호 이름과 문구는 VXvue 자동화와 같게 쓴다.
+- REQ-FOLLOWUP-003: 카운트다운 중 창 안의 클릭·휠 스크롤·키 입력도 그 회차의 자동 닫기를 취소한다. 기존에는 버튼 실행만 취소했다.
+- REQ-FOLLOWUP-003: 자동으로 닫힐 때 창을 숨긴 뒤 Windows 알림 센터에 실행 번호·판정 합계·리포트 경로를 남기고, 실행 기록에 알림 결과와 `result_seen: false`를 저장한다. 다음에 화면을 열면 확인하지 않은 마지막 실행 결과를 먼저 보여 준다. 알림 실패는 창 닫기와 결과 저장을 막지 않는다.
+- REQ-FOLLOWUP-003: 무인 화면 시작 도구 `tools/launch_gui.py`를 더했다. 원격 실행과 설치판 묶음 실행도 자식에 같은 환경 변수를 넘긴다. 판정 로직과 Expected는 바꾸지 않았다.
+
 ## 2026-11-16 소스 — 동작 변경과 SPEC 동기화 검사
 
 - REQ-SPECSYNC-001: 동작 파일(`run.py`, `core/`, `bellalunauto/`, `remote/`, `tests/`의 `.py`)을 바꾼 커밋은 같은 커밋에서 `SPEC.md`를 바꾸거나 `[spec-unchanged: <REQ-ID> <사유>]`를 남겨야 한다. commit-msg hook(`tools/install_git_hooks.py`)과 push 전 `verify`가 검사한다.

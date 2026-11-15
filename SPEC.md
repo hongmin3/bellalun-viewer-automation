@@ -5,7 +5,7 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 소스 1.0.20 후보·설치판 1.0.19 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음 |
+| Project Version | BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음 |
 | Last Updated | 2026-11-15 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
@@ -807,9 +807,38 @@ TEST-KNOW-001
 
 같은 실행 묶음은 해시를 확인한 PC 사본을 재사용한다. 대용량 묶음은 인증된 HTTPS로 전송하며 필요한 설정이 없으면 차단한다. 실행 중 진행 상태와 최근 로그를 전달한다. 기본 실행 제한은 6시간이고, 최장 예상 시간을 설정하면 제한까지 충분한 여유가 있는지 검사한다. 시작 후 정리·복원 완료를 확인하지 못하면 PC와 공용 잠금을 유지한다.
 
-### REQ-FOLLOWUP-003 회귀 완료 후 60초 자동 닫기
+### REQ-FOLLOWUP-003 회귀 완료 후 60초 자동 닫기 (무인 실행만)
 
-기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 GUI에 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다. 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼을 누르면 그 회차의 자동 닫기를 취소한다. 키보드 버튼 실행도 취소하며 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.
+하는 일: 에이전트·Hub·스크립트가 연 GUI는 회귀가 끝난 뒤 60초가 지나면 스스로 닫혀 다음 무인 실행을 막지 않는다. 사람이 연 GUI는 사람이 닫을 때까지 결과를 남긴다.
+
+> **예시** VXvue에서 2026-11-12 결과 창이 남아 다음 테마 실행이 선택 창을 240초 기다린 뒤 실패했다. 반대로 사람이 약 50분 걸리는 회귀를 돌려 두고 자리를 비우면, 60초 뒤 창이 사라져 결과를 놓쳤다.
+
+무인 여부:
+- 명시 신호로만 정한다. GUI 시작 명령줄의 `--unattended` 또는 환경 변수 `QA_AUTOMATION_UNATTENDED=1` 중 하나다. 환경 변수는 정확히 `1`일 때만 신호로 본다.
+- 신호가 없으면 사람 실행이다. 창 제목, 실행 기록의 신호 출처, 실행 시간 같은 다른 정황으로 무인을 추측하지 않는다.
+- 같은 이름을 VXvue 자동화(#148)와 함께 쓴다.
+- 창 제목에 방식을 표시한다. 사람 실행은 `자동 닫기 꺼짐(사람 실행)`이다. 무인 실행은 `60초 뒤 자동 닫힘(무인 실행)`이며 카운트다운 중에는 남은 초 `N초 뒤 자동 닫힘(무인 실행)`으로 바꾼다.
+- 저장소의 무인 GUI 시작 도구 `tools/launch_gui.py`는 두 신호를 모두 넘긴다. 창 없이 CLI로 도는 원격 실행(`remote/winrm_executor.py`)과 설치판 묶음 실행(`tools/run_installed_suites.py`)은 결과 창이 없지만, 그 실행이 띄우는 자식에 같은 환경 변수를 넘긴다.
+
+언제 닫는가:
+- 무인 실행에서 기본기능 또는 실시간 WU가 정상 완주하고 리포트·선택한 복원·최종 실행 기록 저장을 마친 뒤 60초 카운트다운을 표시하고 창을 닫는다. 제품 FAIL이 있어도 정상 완주면 적용한다.
+- 중단·비정상·UAC 취소·준비 점검에는 적용하지 않는다. 사람 실행에는 어떤 결과에도 적용하지 않는다.
+
+취소:
+- ‘자동 닫기 멈춤’ 또는 다른 GUI 버튼(키보드 실행 포함)을 누르면 그 회차의 자동 닫기를 취소한다.
+- 창 안의 마우스 클릭, 휠 스크롤, 글자 선택, 키 입력도 그 회차를 취소한다.
+- 새 회귀 완료 때만 다시 시작한다. 취소된 과거 콜백은 창을 닫지 못한다.
+
+닫힐 때 남기는 흔적:
+- 자동으로 닫히면 실행 기록 `run.json`의 `auto_close`에 신호 출처·닫은 시각·알림 결과를 저장하고, 결과를 아직 확인하지 않았다고(`result_seen: false`) 표시한다.
+- 창을 숨긴 다음 Windows 알림 센터에 남는 알림을 띄운다. 알림에는 실행 번호, 판정 합계(PASS/FAIL/MANUAL/SKIP/BLOCKED), 리포트 경로를 쓴다. 알림은 실행이 끝나고 창을 숨긴 뒤에만 띄우며 제품 조작 중에는 띄우지 않는다.
+- 알림을 띄우지 못해도 결과·리포트 저장과 창 닫기를 막지 않는다. 실패 사실과 원인 분류를 `auto_close.notification`에 남긴다.
+- 사람이 결과를 본 실행(사람 실행의 완료, 무인 카운트다운을 사람이 취소)은 `result_seen: true`로 저장한다.
+
+다음에 열 때:
+- GUI를 열면 `result_seen: false`인 가장 최근 실행을 찾아 상태 줄과 로그 맨 위에 "확인하지 않은 마지막 실행 결과"로 실행 번호·판정 합계·리포트 경로를 보여 준다.
+- 창 안에서 사람의 입력(클릭·키 입력·스크롤)이 있으면 그 실행을 확인한 것으로 저장한다. 무인으로 연 GUI가 입력 없이 다시 닫히면 표시를 유지한다.
+- 이 표시는 판정·리포트를 바꾸지 않는다.
 
 ### REQ-FOLLOWUP-004 공용 보존과 볼륨별 용량 기준
 
@@ -1242,7 +1271,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 |---|---|---|---|
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py`, `tests/test_report_identity_followup.py` | verified |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `remote/bundles.py`, `remote/interlock.py`, `remote/service.py`, `remote/result_views.py`, `remote/winrm_executor.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_remote_result_paths.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | verified |
-| REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/gui.py` | `tests/test_auto_close.py`, `tests/test_qa_runs.py` | verified |
+| REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/completion_notice.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/launch_gui.py`, `tools/run_installed_suites.py`, `remote/winrm_executor.py` | `tests/test_auto_close.py`, `tests/test_completion_notice.py`, `tests/test_qa_runs.py`, `tests/test_installed_suites.py`, `tests/test_remote_execution.py` | implemented |
 | REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | verified |
 | REQ-FOLLOWUP-005 | `core/system_toasts.py`, `core/ui.py`, `run.py` | `tests/test_system_toasts.py`, `tests/test_focus_recovery.py` | verified |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | verified |

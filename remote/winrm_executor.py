@@ -356,6 +356,7 @@ Start-ScheduledTask -TaskName 'BellalunRemote-{job_id}'
         arguments = subprocess.list2cmdline(argv[1:])
         return f"""$ErrorActionPreference='Stop'
 $env:BELLALUN_REMOTE_JOB_ID={ps_literal(job['id'])}
+$env:QA_AUTOMATION_UNATTENDED='1'
 $root={ps_literal(root)}
 try {{
  $child=Start-Process -FilePath {ps_literal(argv[0])} -ArgumentList {ps_literal(arguments)} -WorkingDirectory ($root+'\\code') -PassThru -RedirectStandardOutput ($root+'\\stdout.log') -RedirectStandardError ($root+'\\stderr.log')
