@@ -4,10 +4,30 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 
 ## 새 세션 시작
 
-1. 이전 작업을 잇는 경우 전체 탐색보다 `progress.md`를 먼저 읽는다.
-2. 이 파일에서 관련 경로를 찾고 필요한 `docs/` 문서만 읽는다.
-3. 제품/자동화 현재 상태가 필요할 때만 `NEXT_WORK.md`의 관련 절을 읽는다.
-4. 코드 작업이면 대상 TC의 기준 문서와 관련 함수부터 확인한다.
+**구현 전 `SPEC.md`의 해당 REQ와 12절을 먼저 읽는다.** 자동화 구현·판정 로직은 `SPEC.md`와 측정 근거(실측 Evidence·리포트)만 근거로 쓴다. 문서에 없는 동작·컨트롤·문구는 추측하지 말고 `SPEC / CODE MISMATCH` 또는 SPEC 13절 `(TBD)`로 남긴다.
+
+1. `git fetch` 뒤 `git rev-list --left-right --count HEAD...origin/main`으로 앞섬·뒤처짐을 확인한다.
+   뒤처졌으면 `git pull --ff-only`로 맞춘 뒤 읽는다. 낡은 SPEC으로 구현하지 않는다.
+   `python tools/install_git_hooks.py --check`가 실패하면 `python tools/install_git_hooks.py`로 commit-msg hook을 설치한다(clone마다 한 번).
+2. 코드 작업이면 `SPEC.md`에서 대상 REQ 본문, 12절의 구현·테스트 경로, 대상 TC의 기준 문서를 읽는다.
+3. 이전 작업을 잇는 경우 전체 탐색보다 `progress.md`를 읽는다. 진행 기록은 사양이 아니다.
+4. 이 파일에서 관련 경로를 찾고 필요한 `docs/` 문서만 읽는다.
+5. 제품/자동화 현재 상태가 필요할 때만 `NEXT_WORK.md`의 관련 절을 읽는다.
+
+### 동작 변경과 SPEC 동기화 (REQ-SPECSYNC-001~003)
+
+- `core/`·`bellalunauto/`·`remote/`·`run.py`·`tests/`의 동작을 바꾸면 관련 REQ 본문과 12절을 **같은 커밋**에 갱신한다.
+  아래 공통 SPEC 블록의 "필요하면 `SPEC.md`"보다 이 규칙이 우선한다.
+- 사양이 그대로인 변경(기존 REQ가 이미 그 동작을 말하는 버그 수정 등)만 커밋 메시지에 `[spec-unchanged: <REQ-ID> <사유>]`를 적는다. REQ-ID는 `SPEC.md`에 정의된 것이어야 한다.
+- 커밋 전에는 commit-msg hook이, push 전에는 `botyard.json`의 `verify`(`python tools/spec_sync_check.py` 포함)가 이를 검사한다. hook을 `--no-verify`로 건너뛰지 않는다.
+- 새 동작 파일은 12절에 넣는다. `tests/test_spec_trace_coverage.py`의 `UNTRACED_BASELINE`은 줄이기만 한다.
+- 12절 `verified`는 `verify`가 도는 단위시험 통과만 뜻한다. 설치판·실제 제품 수용은 `progress.md`와 검증 기록 문서에 둔다.
+
+### 추적 정보 두 곳의 역할
+
+`SPEC.md` 12절은 자동화 요구사항(REQ)이 어느 코드와 단위시험으로 구현·검증되는지 잇는다. 자동화를 고칠 때 볼 곳이다.
+`traceability.json`은 체크리스트 TC가 제품 사양서·매뉴얼의 어느 쪽·조항을 근거로 하는지 잇는다. 판정 기준과 인용을 확인할 때 볼 곳이며 `python tools/traceability.py`로 원문 대조를 검사한다.
+두 파일은 서로를 대신하지 않는다. 제품 근거 인용은 12절에, 코드 경로는 `traceability.json`에 적지 않는다.
 
 ## 목적과 경계
 
@@ -27,10 +47,11 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 | `tests/` | TC 시나리오와 판정; `workflowNN.py`는 기본 Workflow 번호와 대응 |
 | `tools/` | 정적 검사, 추적성, 문서·회귀 운영 도구 |
 | `automation_scope.json` | TC별 자동화 등급·범위·제약의 데이터 원본 |
-| `traceability.json` | 사양과 TC 간 추적성 데이터 원본 |
+| `traceability.json` | 체크리스트 TC ↔ 제품 사양서 인용의 추적 원본(REQ ↔ 코드·시험은 `SPEC.md` 12절) |
 | `config.example.json` | 로컬 `config.json` 템플릿 |
 | `NEXT_WORK.md` | 제품/자동화의 현재 상태와 우선순위 |
 | `progress.md` | 여러 AI 세션에 걸친 작업 checkpoint |
+| `botyard.json` | 로컬 검증 게이트(`verify`)와 그 게이트가 도는 시험 목록 |
 
 구조와 데이터 흐름은 필요할 때 `docs/architecture.md`를 읽는다.
 
@@ -43,7 +64,10 @@ python run.py portability-check
 python run.py list
 python tools/run_regression.py              # 소스 UI 진단용(실행 전 사용자 승인 필요)
 python run.py --help                        # 개별 명령 확인
+python tools/install_git_hooks.py           # clone마다 한 번: SPEC 동기화 commit-msg hook
 ```
+
+커밋·push 전 로컬 게이트는 `botyard.json`의 `verify` 네 명령이다(약 3분, 제품을 조작하지 않는다).
 
 코드 검증 순서와 외부 환경 제약은 필요할 때 `docs/testing-guide.md`를 읽는다.
 문서만 바꾼 경우 실제 Viewer/UI 회귀 대신 링크·명령·diff를 검증한다.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16 소스 — 동작 변경과 SPEC 동기화 검사
+
+- REQ-SPECSYNC-001: 동작 파일(`run.py`, `core/`, `bellalunauto/`, `remote/`, `tests/`의 `.py`)을 바꾼 커밋은 같은 커밋에서 `SPEC.md`를 바꾸거나 `[spec-unchanged: <REQ-ID> <사유>]`를 남겨야 한다. commit-msg hook(`tools/install_git_hooks.py`)과 push 전 `verify`가 검사한다.
+- REQ-SPECSYNC-002: 동작 파일이 12절 추적표에 나오는지 단위시험으로 확인한다. 도입 때 근거 없이 매핑할 수 없던 52개는 줄이기만 하는 목록에 남겼다. REQ-FOLLOWUP-002 본문이 정의한 원격 실행 모듈 5개와 그 시험, `Validates:` 표기가 있는 시험 1개는 12절에 넣었다.
+- REQ-SPECSYNC-003: `botyard.json`을 커밋하고 `verify` 네 명령을 정했다. `verify` 통과 뒤 자동 시험이 있는 42개 행을 verified로 올렸다. 판정 기준과 Expected는 바꾸지 않았다.
+
 ## 1.0.20 후보 — XIPL PIM 편집기 클릭 허용 범위
 
 - REQ-REGRESSION-001: XIPL의 PIM 편집기는 XIPL.STUDIO가 띄운 `AddInProcess.exe` 창이다. 입력 가림 확인이 이 창을 다른 프로그램으로 보고 XIPL06의 포커스 해제 클릭을 막았다(설치판1.0.18·1.0.19 기본 전체에서 같은 단계 FAIL). 이제 XIPL.STUDIO의 직접 자식 `AddInProcess.exe`만, 그 클릭 동안만 제품 창으로 인정한다. 다른 프로그램 창은 그대로 막는다. 1.0.19에서 추가한 가린 창 정보로 원인을 확인했다.
