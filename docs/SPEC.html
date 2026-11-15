@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="42dc3725f1141362f336d590f69803758b2cf1058830bc1498fcb895e16088a4">
+<meta name="spec-source-sha256" content="fb99e9ee9a9d5c7589f1790243a474b180d21221af00927451e59a2672f50285">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,7 +92,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.0</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 1.0.13 후보 개발 중; 설치판 1.0.11, Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-13</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스·설치판 1.0.18 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
 <div class="stats"><div class="stat"><b>39</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>31</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>39</b><span>implemented</span></div></div>
 </header>
 <div class="layout">
@@ -252,6 +252,10 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 컴파일·설치·실제 제품 시험의 검증 범위는 각각 결과 기록으로 구분한다.
 현재 제품 작업의 우선순위와 남은 결정은 <code>NEXT_WORK.md</code>에 둔다.
 사양과 구현이 다르면 <code>SPEC / CODE MISMATCH</code>로 보고한다.</p>
+<p>후속 안정화는 <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>~004와 <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>를 읽는다.
+P1–P14의 구현·시험 연결과 버전별 실제 확인 범위는
+<a href="../docs/issue137-implementation-summary.md">후속 구현 정리</a>에 모았다.
+이 정리는 요구사항을 바꾸거나 미완료 수용을 완료로 승격하지 않는다.</p>
 <section class="chapter" id="sec-1">
 <h2>1. 목적</h2>
 <p>Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증 가능한 PASS/FAIL 근거를 남긴다.
@@ -837,8 +841,9 @@ Windows Update의 원문 Step 접이식 설명이 비어 있는 기존 한계를
 <section class="card kind-req" id="REQ-DIST-001">
 <h3><span class="idtag">REQ-DIST-001</span> 설치와 실행 경로</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></span></div>
-<details class="history"><summary>변경 이력 6</summary>
+<details class="history"><summary>변경 이력 7</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: SPEC 표지와 배포·보존 안내의 현재 버전을1.0.18 후보로 정정하고 README의 후보 Setup 경로를 맞췄다. 제어 이슈 정리와 잔여 이관은 전체 수용 완료를 뜻하지 않는다.</li>
 <li><span class="hist">1.0.14 후보 — 실제 DB 사전 보존 차단 수정</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>: 깨끗한 소스7c7731f에서 시험·컴파일 생략 없이 후보 Setup·납품 ZIP을 생성했다. 전체 선행시험1409개와302 subtests, ZIP·해제·런타임1010개 파일 대조와 EXE 버전·도움말을 확인했다. 후속1.0.14 설치·자동 준비·파일 대조는 끝났으며 기본/WU 전체 수용은 미수행이다.</li>
 <li><span class="hist">2026-11-05 (변경 영향별 회귀와 설치판 검증, 1.0.1 관리자 설치와 첫 실행) · Added</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>: 설치판의 설정·리포트·증거·로그를 설치 폴더 아래 <code>작업</code> 폴더에 둔다(사용자 결정). Setup이 이 폴더에만 Users 수정 권한을 주고, 업데이트·제거 때 남긴다. 포터블은 EXE 옆 <code>작업</code>이다.</li>
 <li><span class="hist">2026-10-20 · Fixed</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>: 작업 폴더 경로에 <code>%</code>가 있으면 Viewer의 Setting Export 저장이 거부되어 WF14가 300초 뒤 FAIL하던 문제를 막았다. 제품을 조작하는 실행은 시작 전에 거부하고 해결 방법을 알리며, 자체진단에 &quot;작업 폴더 경로 문자&quot; 항목을 더했다. 실측: 후보10 최소 환경 실행에서 작업 폴더 <code>...O'Brien %TEMP% #한글</code> 아래 <code>WF14_Baseline_Settings.vms</code>를 Windows 저장 대화상자가 &quot;파일 이름이 올바르지 않습니다&quot;로 거부했다. <code>&amp;</code>·괄호·작은따옴표·<code>#</code>·한글은 같은 실행에서 문제가 없었다.</li>
@@ -975,8 +980,9 @@ Viewer가 XIPL을 찾는 <code>XIPL_PATH</code>가 없거나 그 아래 <code>SE
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 설치판의 승인 범위를 확인하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 11</summary>
+<details class="history"><summary>변경 이력 12</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: SPEC 표지와 배포·보존 안내의 현재 버전을1.0.18 후보로 정정하고 README의 후보 Setup 경로를 맞췄다. 제어 이슈 정리와 잔여 이관은 전체 수용 완료를 뜻하지 않는다.</li>
 <li><span class="hist">1.0.4 후보 — 2026-11-10</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>: 같은9847708 후보를 승인 후 설치 업데이트하고 기본27 TC·실시간WU13 TC를 각각1회 종료했다. 기본PASS19/FAIL6/MANUAL1/SKIP1·WU PASS9/FAIL1/SKIP3, WU09 USB 왕복PASS다. 게이트는26개 중24통과·2거부이며 정식 배포로 바꾸지 않는다. 설치 파일1,010개·스냅샷443/403개 해시와 기존자료622개 사전 복사본 보존을 확인했다. <a href="../docs/reliability-2026-11-10.md">실측 결과와 미수행 Step</a>을 구분해 기록했다.</li>
 <li><span class="hist">2026-11-10 (1.0.3 설치판 실측 검증)</span> <a class="idref" href="#REQ-REGRESSION-002">REQ-REGRESSION-002</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 같은 설치판으로 기본27행·실시간WU13행을 각1회 종료했다. 기본PASS19/FAIL6/MANUAL1/SKIP1, WU PASS6/FAIL4/SKIP3이며 배포 게이트는 거부다. 실행 시간·원본 보존·HTML 확인과 미수행 범위를 검증 기록에 반영했다. 제품 코드·허용 목록·후보 산출물은 바꾸지 않았다.</li>
 <li><span class="hist">2026-11-06 (후보8 설치판 두 전체 회귀) · Verified</span> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-REGRESSION-001">REQ-REGRESSION-001</a>: 수정 소스 <code>7d5b1fa</code>로 후보8을 빌드·설치해 기본기능·WU 두 전체를 한 번 실행했다. 기본기능은 PASS 22 / FAIL 3 / MANUAL 1 / SKIP 1, WU는 PASS 10 / SKIP 3이다. 배포 게이트는 기본기능 <code>WF_02</code>의 3D-W 촬영 단계 FAIL 1건으로 거부됐다. 이 촬영 중 Viewer가 DB 쿼리 시간 초과를 한 번 냈고 Recon/Syn 등록이 자동화의 대기 시간보다 늦었다. 기대값·대기 시간·gate는 바꾸지 않았다.</li>
@@ -1503,8 +1509,9 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-001">
 <h3><span class="idtag">REQ-FOLLOWUP-001</span> 실행 보존·자원·결과 안정화</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>: 파일/DB 사전 사본·해시 검증·실행별 선택 복원, 볼륨별 자원 예산, 저장 실패 부분/비상 결과와 감독 최종 기록을 구현했다. 소스·제품·자료 지문과 복원 journal로 재개를 검증한다.</li>
 </ul>
 </details>
@@ -1514,8 +1521,9 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-002">
 <h3><span class="idtag">REQ-FOLLOWUP-002</span> 준비·설치·효율·원격 실행</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>tools/scope_summary.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>: 준비 결과·해결 안내 통합, 승인 Release Note 추출과 실제 설치 구성 관찰, 검증 프로필 기반 제품 수명주기 CLI, 원인 증거·UI 비용 계측, 범위 문서 생성과 원격 실행 기반을 추가했다. 실제 제품 설치·제거·서버 배포와 Windows 원격 실행 수용은 미수행이다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>: 원격 묶음의 해시 캐시·인증 HTTPS 다운로드, 진행 상태와 최근 로그 전달, 기본 6시간 제한과 예상 시간 검사를 보강했다. 시작 후 복원 미확인 종료는 잠금을 유지한다. 기존 묶음의 검증 정보 갱신과 Python 실행 인자 호환을 확인했다.</li>
 </ul>
@@ -1527,8 +1535,9 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-003">
 <h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/gui.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_qa_runs.py</code></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.18 후보 — 로그인 입력 차단의 원인 유지</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 제품 FAIL과 입력 차단에 따른 불완전 실행을 구분한다. 입력 차단이 일반 로그인 오류 문구로 바뀌어 완료 자동 닫기로 이어지던 경로를 차단한다. 새 설치판의 실제 수용은 별도 수행한다.</li>
 <li><span class="hist">1.0.12 후보 — 2026-11-13 실행 보존과 후속 개선</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 정상 회귀·선택한 복원·최종 저장 후 GUI 60초 자동 닫기를 추가했다. 멈춤 또는 다른 버튼은 그 회차 타이머를 취소하고, 중단·비정상·UAC 취소에는 자동 닫기를 적용하지 않는다.</li>
 </ul>
@@ -1538,8 +1547,9 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-FOLLOWUP-004">
 <h3><span class="idtag">REQ-FOLLOWUP-004</span> 공용 보존과 볼륨별 용량 기준</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/runs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
-<details class="history"><summary>변경 이력 7</summary>
+<details class="history"><summary>변경 이력 8</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.17 후보 — 메타데이터 교체와 읽기 경합 보완</span> <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: Windows 읽기 핸들이 열린 메타데이터를 교체할 때 발생하는 오류5·32·33만 2초 예산으로 재시도한다. 읽기가 끝나면 같은 임시 파일을 원자적으로 교체하며, 영구 오류에서는 기존 파일과 실패 판정을 유지한다. journal·실행 기록 두 쓰기 경로에 적용하며 데이터 파일·DB 복원은 바꾸지 않는다.</li>
 <li><span class="hist">1.0.17 후보 — 메타데이터 교체와 읽기 경합 보완</span> <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 파일 접근 오류가 해당 실행의 journal·manifest 경로와 정확히 일치할 때만 역할 이름을 진단에 남긴다. 실제 경로·예외 문구는 복제하지 않는다.</li>
 <li><span class="hist">1.0.16 후보 — 입력 차단 재시도와 실패 전파 보완</span> <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 파일 복원 오류의 errno·winerror와 첫 미완료 상대 작업을 남긴다. 1.0.15 기본 실행의 복원 오류는 보존된 원본으로 재개해 파일·4DB 검증과 서비스를 복구했다. 원래 abnormal/exit3과 생성 파일 보존을 유지하며 전체 성공으로 바꾸지 않았다.</li>
@@ -1567,8 +1577,9 @@ Windows에서 읽기 핸들과 메타데이터 교체가 겹쳐 오류5·32·33�
 <section class="card kind-req" id="REQ-TCUP-005">
 <h3><span class="idtag">REQ-TCUP-005</span> Import 제외 항목과 Post Reconstruction 적용값 구분</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
 <li><span class="hist">1.0.15 후보 — XIPL 저장 시점과 파일명 입력 수정</span> <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: XIPL03의 Apply 직후 Overlay·기본값 검사는 유지하고, 10개 저장값과 결과 파일 변경은 정상 저장·재시작 뒤 판정한다. 재시작 전 해당 검사의 신규 저장 로그·모달 부재가 확인되지 않으면 후속 UI를 차단한다. 제목이 비어 있는 처리 창도 고유 컨트롤과 내부 위치로 식별하며 모호한 후보는 거절한다.</li>
 <li><span class="hist">1.0.13 후보 개발 중 — 공용 보존과 용량 기준</span> <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: WF14의 UPS Import 제외·변경값 유지와 XIPL03의 XTP 기본값/실제 img·Overlay 적용값을 구분했다. Apply timeout 증거 보존·최신 Study 사본·재시작 대조를 보강하고, 과거 기대값 오류를 제품 결함으로 제외하던 WU/릴리스 목록을 비웠다. 원시 결과를 수정하거나 XIPL03 전체 PASS로 바꾸지 않는다.</li>
 </ul>

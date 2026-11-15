@@ -4,9 +4,9 @@
 
 | 항목 | 값 |
 |---|---|
-| Document Version | 1.4.0 |
-| Project Version | BellalunAuto 1.0.13 후보 개발 중; 설치판 1.0.11, Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-13 |
+| Document Version | 1.4.1 |
+| Project Version | BellalunAuto 소스·설치판 1.0.18 후보; 전체 실물 수용 미완료, Viewer 제품 릴리스 변경 없음 |
+| Last Updated | 2026-11-15 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -16,6 +16,11 @@
 컴파일·설치·실제 제품 시험의 검증 범위는 각각 결과 기록으로 구분한다.
 현재 제품 작업의 우선순위와 남은 결정은 `NEXT_WORK.md`에 둔다.
 사양과 구현이 다르면 `SPEC / CODE MISMATCH`로 보고한다.
+
+후속 안정화는 REQ-FOLLOWUP-001~004와 REQ-TCUP-005를 읽는다.
+P1–P14의 구현·시험 연결과 버전별 실제 확인 범위는
+[후속 구현 정리](docs/issue137-implementation-summary.md)에 모았다.
+이 정리는 요구사항을 바꾸거나 미완료 수용을 완료로 승격하지 않는다.
 
 ## 1. 목적
 
