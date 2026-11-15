@@ -18,7 +18,20 @@
 남은 별도 범위(NAS 인증, P10 승인 설치 기준, P11 실제 제품 수명주기, P14 Windows 원격, 다른 OS·계정)는
 `NEXT_WORK.md`를 따른다. 이번 결과로 정식 릴리스 판정을 대신하지 않는다.
 
-**다음 작업:** 자동화 SPEC 동기화 강화(변경-사양 동반 검사, 추적 범위 검사, `botyard.json` verify).
+## run718 — 동작 변경과 SPEC 동기화 검사 (2026-11-16)
+
+| 항목 | 결과 |
+|---|---|
+| 변경-사양 동반 | `tools/spec_sync_check.py`, commit-msg hook 설치 `tools/install_git_hooks.py`(이 checkout에 설치함). 예외 표기 `[spec-unchanged: <REQ-ID> <사유>]` (REQ-SPECSYNC-001) |
+| 추적 범위 | `tests/test_spec_trace_coverage.py`. 미추적 61개 중 근거 있는 기존 파일 7개와 새 시험 2개를 12절로, 52개는 줄이기만 하는 `UNTRACED_BASELINE`에 남김 (REQ-SPECSYNC-002) |
+| 게이트 | `botyard.json` 커밋: spec-sync·readiness·traceability·pytest. autoSync·autoPush false. 통과 뒤 42개 행 verified, NFR-BOUNDARY-001 implemented, REQ-VERDICT-003 draft (REQ-SPECSYNC-003) |
+| RED→GREEN | 새 시험 RED(모듈·`botyard.json` 없음, 미추적 61개) 확인 뒤 구현. 실제 저장소 사본에서 ① 예외 없는 동작 커밋 ② 없는 REQ-ID ③ hook 우회 커밋의 push 전 검사 ④ 12절 밖 새 파일 ⑤ `verifyTests` 누락 ⑥ 목록 미정리를 모두 실패로 확인. 정당한 예외 표기는 통과 |
+| 검증 | pytest 1646 passed/2 skipped, readiness failed0, traceability 이상 없음, spec-sync 위반0 |
+
+공통 SPEC 관리 블록의 "필요하면 `SPEC.md`" 문구는 키트가 덮어쓰는 구역이라 고치지 않았다. 같은 커밋 규칙은 `AGENTS.md` 앞쪽 "동작 변경과 SPEC 동기화" 절에 두고 우선한다고 적었다.
+VXvue(#148)는 같은 도구 이름(`tools/spec_sync_check.py`, `tools/install_git_hooks.py`)과 예외 표기를 쓴다.
+
+**다음 작업:** `UNTRACED_BASELINE` 52개를 근거(REQ 본문·`Validates:` 표기) 확인 뒤 12절로 옮겨 줄인다.
 
 ## run714 — 1.0.20 WU 통과·버튼 취소 확인 (2026-11-16)
 
