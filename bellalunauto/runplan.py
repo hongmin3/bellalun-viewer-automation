@@ -69,7 +69,7 @@ def _backup_identity(path, database):
     return row
 
 
-def build_plan(layout, config, action):
+def build_plan(layout, config, action, combined=False):
     """실제 선택 경로의 자료와 설정을 읽어 JSON으로 저장 가능한 계획을 만든다.
 
     파일 날짜는 UTC, sha256은 실제 파일 전체의 해시다. 누락/조회 실패는
@@ -80,6 +80,8 @@ def build_plan(layout, config, action):
               'run-winupdate': 'Windows Update 체크리스트 자동화 수행'}
     if action not in labels:
         raise ValueError('실행 계획은 기본기능 전체 또는 Windows Update 전체에만 제공됩니다.')
+    # 기본+WU 결합 실행(REQ-SPEEDUP-001)은 WU로 실행하고 기본 전체의 기준 상태 복원을 쓴다.
+    combined = bool(combined) and action == 'run-winupdate'
     cfg = bundled_config(config, layout.resource_dir)
     baseline = Path(source_dir(SimpleNamespace(cfg=cfg, root=str(layout.workspace))))
     asset_version = None
@@ -99,7 +101,8 @@ def build_plan(layout, config, action):
             pass
     display = cfg.get('display') or {}
     plan = {
-        'action': action, 'label': labels[action],
+        'action': action,
+        'label': '기본기능+Windows Update 결합 수행' if combined else labels[action],
         'viewer': {'path': viewer, 'version': version},
         'sql': {'instance': cfg.get('sql_server', '.\\BELLALUN'),
                 'service': cfg.get('sql_service_name', 'MSSQL$BELLALUN')},
@@ -115,7 +118,7 @@ def build_plan(layout, config, action):
                         'enforce': bool(display.get('enforce', True))},
             'xipl': {'path': (cfg.get('xipl') or {}).get('parameter_dir', r'C:\XIPL\PARAMETER'),
                      'policy': ('TEST_* 시험 파라미터를 삭제 후 재생성합니다.'
-                                if action == 'run-regression' else
+                                if action == 'run-regression' or combined else
                                 'XIPL TC에서 필요한 TEST_* 시험 파라미터 사본을 준비합니다.')},
             'dicom': 'MWL/Storage/Print DICOM 서버를 Viewer에 등록하고 연결합니다.',
             'usb': {'enabled': action in {'run-winupdate', 'run-wu09'}, 'folder': EXPORT_FOLDER,
@@ -129,6 +132,8 @@ def build_plan(layout, config, action):
             f'원상복원을 선택하지 않으면 USB {EXPORT_FOLDER}에서 삭제한 기존 파일은 복구하지 않습니다. 선택하면 검증된 사전 사본으로 복원합니다.',
         ],
     }
+    if combined:
+        plan['run_scope'] = 'combined'
     viewer_file = _backup_identity(Path(viewer), 'Viewer') if viewer else {
         'status': 'missing', 'sha256': None}
     plan['viewer'].update(status=viewer_file['status'], sha256=viewer_file['sha256'])
@@ -136,7 +141,8 @@ def build_plan(layout, config, action):
     plan['source_identity'] = source_identity(layout.resource_dir)
     plan['source_fingerprint'] = _source_content_identity(layout.resource_dir)
     plan['plan_id'] = _digest({
-        'action': action, 'config_fingerprint': plan['config_fingerprint'],
+        'action': action, **({'run_scope': 'combined'} if combined else {}),
+        'config_fingerprint': plan['config_fingerprint'],
         'viewer': plan['viewer'], 'source_identity': plan['source_identity'],
         'source_fingerprint': plan['source_fingerprint'],
         'baseline': {'path': plan['baseline']['path'], 'asset_version': asset_version,

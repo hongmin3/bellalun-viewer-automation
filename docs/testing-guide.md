@@ -42,6 +42,7 @@
 | 기본기능만 | `--suites run-regression` |
 | WU만 | `--suites run-winupdate` |
 | 두 묶음 전체 | `--suites run-regression,run-winupdate` |
+| 개발 중 두 묶음 결합 실행(REQ-SPEEDUP-001, 약 2시간) | `--suites run-combined` (릴리스 게이트는 세지 않는다) |
 | WF14 단독 예시 | `--suites run-wf14 --expected-tc TC_Basic_WorkFlow_14` |
 | XIPL04 단독 예시 | `--suites run-xipl-04 --expected-tc TC_XIPL_compatibility_04` |
 

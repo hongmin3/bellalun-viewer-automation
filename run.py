@@ -114,6 +114,7 @@ def _execution_meta(ctx):
             'viewer_identity': plan.get('viewer'), 'baseline_identity': plan.get('baseline'),
             'restoration': getattr(ctx, 'restoration', {'status': 'pending'}),
             'execution_block': getattr(ctx, 'execution_block', None),
+            **({'run_scope': ctx.run_scope} if getattr(ctx, 'run_scope', None) else {}),
             'performance': (ctx.performance_recorder.snapshot()
                             if hasattr(ctx, 'performance_recorder') else []),
             **getattr(ctx, 'execution_error', {})}
@@ -748,7 +749,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
     if preflight.get("summary"):
         env.update(preflight["summary"])
     env["실행 방식"] = ("과거 결과 변환" if execution_mode == "historical" else
-                         "소스 단독 시험" if execution_mode == "single" else "실시간 제품 시험")
+                         "소스 단독 시험" if execution_mode == "single" else
+                         "실시간 제품 시험(기본+WU 결합 실행)"
+                         if (extra_meta or {}).get("run_scope") == "combined" else "실시간 제품 시험")
     update_rows, update_meta = _wu_update_evidence(ctx, execution_mode)
     from tests.winupdate import usb_unverified
     usb_flags = [r.tc_id for r in wu_results if usb_unverified(r)]
@@ -956,6 +959,113 @@ def _wu_reset_stage(ctx):
     return [reset]
 
 
+def _basic_reset_stage(ctx):
+    """기본 전체의 첫 단계: 기준 DB 복원·제품 서비스 재기동·XIPL `TEST_*` 재생성."""
+    from core.dbreset import has_baseline, restore_baseline, baseline_state
+    from core.result import TCResult, PASS, FAIL
+    from core import viewer_processing as vp
+    reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")
+    # 전제 준비는 첫 실패에서 멈추지 않는다 — DB 복원·서비스 기동·시험 파라미터
+    # 재생성 중 **무엇이 안 됐는지 전부** 보여 줘야 진단이 된다. 대신 아래
+    # 전제 게이트가 회귀 자체를 중단시킨다.
+    reset.stop_on_fail = False
+    if has_baseline(ctx):
+        try:
+            outcome = restore_baseline(ctx)
+            # restore는 DB 단독 접속을 위해 제품 서비스를 내린다. 다시
+            # RUNNING이 되지 않으면 이후 모든 TC가 Viewer 시작 단계에서
+            # 연쇄 실패하므로, 여기서 잡아 원인을 명확히 남긴다
+            # (2026-08-18 실측: 이 누락으로 8개 TC가 연쇄 FAIL).
+            services = outcome.get("services") or {}
+            down = {k: v for k, v in services.items() if v != "RUNNING"}
+            reset.assert_true(
+                0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원 "
+                   "및 제품 서비스 재기동",
+                not down,
+                expected="restore 완료 + 제품 서비스 RUNNING",
+                actual={"restore": "완료", "services": services},
+                note="서비스가 내려간 채로 진행하면 첫 Viewer 시작에서 "
+                     "메인 메뉴(2015)를 찾지 못해 회귀가 연쇄 실패한다.")
+        except Exception as exc:
+            reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
+                      FAIL, actual=str(exc))
+    else:
+        reset.manual(0, "DB 기준 스냅샷 복원",
+                     "기준 스냅샷(.bak 4개)을 찾지 못해 복원을 건너뛰었습니다. "
+                     "저장소 상위 폴더의 Baseline 폴더에 DATA/ACCOUNT/"
+                     "CONFIGURATION/PROCEDURE.bak을 넣거나 "
+                     "`python run.py snapshot-baseline`으로 생성하세요.",
+                     expected="기준 스냅샷 존재", actual=baseline_state(ctx))
+
+    # 회귀는 시험 파라미터도 기준 상태에서 시작해야 한다. 이전 실행이 남긴
+    # TEST_* 파일(제품이 만든 .pi 잔재, 예전 이름 규칙 포함)을 전부 지우고
+    # 제품 기본 파라미터에서 새로 복사한다. 개별 TC 실행은 이와 달리
+    # 없는 것만 만들어 재사용한다(vp.ensure_parameter_copies).
+    param_root = (ctx.cfg.get("xipl") or {}).get(
+        "parameter_dir", r"C:\XIPL\PARAMETER")
+    try:
+        param_reset = vp.reset_parameter_copies(param_root)
+        reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", PASS,
+                  expected=list(vp.TEST_PARAMETER_FILES),
+                  actual={"removed": param_reset["removed"],
+                          "created": [os.path.basename(p)
+                                      for p in param_reset["created"]]})
+    except Exception as exc:
+        reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
+                  expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
+
+    # Storage SCP 수신 목록은 **더 이상 자동으로 지우지 않는다**
+    # (2026-08-28 사용자 확정 — 2026-08-27 결정을 뒤집음). 이 서버는 여러 PC 가
+    # 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 전체를
+    # 지운다. TC 판정은 환자 필터(`core/send_verify.received`)로 이미 정확하므로
+    # 초기화 없이도 틀리지 않는다.
+    return [reset]
+
+
+def _basic_chain_stages():
+    """기본 전체 사슬 (함수, TC ID, 제목). 개정본 TC 행 순서다(`run-regression` 주석 참고)."""
+    from tests.install import install_01, install_02
+    from tests.workflow01 import run as run_workflow01
+    from tests.workflow02 import run as run_workflow02
+    from tests.workflow03 import run as run_overlay
+    from tests.workflow04 import run as run_send
+    from tests.workflow05 import run as run_3d
+    from tests.workflow06 import run as run_all_images
+    from tests.workflow07 import run as run_emergency
+    from tests.workflow08 import run as run_film_print
+    from tests.workflow09 import run as run_export
+    from tests.workflow10 import run as run_hospital_code
+    from tests.workflow11 import run as run_reject
+    from tests.workflow12 import run as run_study_reject
+    from tests.workflow13 import run as run_account
+    from tests.workflow14 import run as run_setting_transfer
+    from tests.workflow15 import run as run_presend
+    from tests.workflow16 import run as run_kiosk
+    from tests.xipl_flows import run_xipl
+    return [
+        (install_01, "TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인"),
+        (install_02, "TC_Basic_Install_02", "Viewer 실행 전 필수 환경 확인"),
+        (setup_all, "DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결"),
+        (run_workflow01, "TC_Basic_WorkFlow_01", "MWL 및 Local 검사 생성"),
+        (run_workflow02, "TC_Basic_WorkFlow_02", "공통 2D/3D 검사 촬영 및 Tool 적용"),
+        (run_overlay, "TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정"),
+        (run_send, "TC_Basic_WorkFlow_04", "2D 수동 DICOM Send"),
+        (run_3d, "TC_Basic_WorkFlow_05", "3D 수동 DICOM Send"),
+        (run_all_images, "TC_Basic_WorkFlow_06", "All Images 및 Dose SR 전송"),
+        (run_emergency, "TC_Basic_WorkFlow_07", "Emergency 검사 Auto Send"),
+        (run_film_print, "TC_Basic_WorkFlow_08", "2D/3D Film Print"),
+        (run_export, "TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export"),
+        (run_hospital_code, "TC_Basic_WorkFlow_10", "MWL Hospital Code와 Procedure 매핑"),
+        (run_reject, "TC_Basic_WorkFlow_11", "Image Reject 및 Restore"),
+        (run_study_reject, "TC_Basic_WorkFlow_12", "Study Reject 및 Restore"),
+        (run_account, "TC_Basic_WorkFlow_13", "계정 추가·수정 및 로그인"),
+        (run_setting_transfer, "TC_Basic_WorkFlow_14", "Setting Export 및 Import"),
+        (run_presend, "TC_Basic_WorkFlow_15", "Pre-send Preview 표시 및 전송"),
+        (run_kiosk, "TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher"),
+        (run_xipl, "TC_XIPL_compatibility", "XIPL 연동 01~07"),
+    ]
+
+
 def _wu_chain_stages():
     """WU 체인 단계 목록 (함수, 단계 ID, 제목). 이 순서가 저장점의 체인 구성이 된다."""
     from tests.install import install_01, install_02
@@ -1010,6 +1120,48 @@ def _wu_chain_stages():
     ]
 
 
+def _combined_chain_stages():
+    """기본+WU 결합 실행 단계 (REQ-SPEEDUP-001).
+
+    기본 전체 사슬을 개정본 순서 그대로 쓰고, DICOM 서버 설정 뒤에 WU의 화면 계약을 넣는다.
+    끝의 USB 왕복·WU_10은 `WU_TAIL_STAGES`로 WU 체인과 같은 방식으로 실행한다.
+    """
+    stages = [(_basic_reset_stage, "AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")]
+    for stage in _basic_chain_stages():
+        stages.append(stage)
+        if stage[1] == "DICOM_Server_Setup":
+            stages.append((_wu_screen_contract_stage, "AUTOMATION_SCREEN_CONTRACT",
+                           "로그인 직후 핵심 컨트롤 화면 계약"))
+    return stages
+
+
+#: 결합 실행의 기본 리포트에 넣지 않는 결과. 화면 계약은 WU 전제 단계, WU_10은 WU 전용 결과다.
+COMBINED_WU_ONLY = {"AUTOMATION_SCREEN_CONTRACT"}
+
+
+def _combined_basic_rows(results):
+    from tests.winupdate import _view
+    rows = []
+    for row in results:
+        tc_id = _view(row)["tc_id"]
+        if tc_id in COMBINED_WU_ONLY or tc_id.startswith("TC_WindowsUpdate_"):
+            continue
+        rows.append(row)
+    return rows
+
+
+def _finish_combined_basic(ctx, results):
+    """결합 실행의 기본 리포트: 기본 TC 결과와 사람 전용 SKIP을 기본 전체와 같은 형식으로 쓴다."""
+    from core.scope_results import regression_skips
+    from core.wu_chain import result_from_dict
+    rows = [row if hasattr(row, "finalize") else result_from_dict(row)
+            for row in _combined_basic_rows(results)]
+    with open(os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json"),
+              encoding="utf-8") as source:
+        rows.extend(regression_skips(json.load(source), rows))
+    return finish(ctx, rows)
+
+
 def _wu_restart_after_trip(ctx, stage_id, trip):
     """감시자가 끊은 단계 뒤에는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다."""
     from core import flows
@@ -1053,11 +1205,11 @@ def _write_emergency_results(ctx, results, problem):
     return target
 
 
-def _run_winupdate_chain(ctx, resume=False):
+def _run_winupdate_chain(ctx, resume=False, with_basic=False):
     """저장 실패에도 완료된 단계 결과를 보존하고 부분 실행으로 닫는다."""
     ctx.partial_results = []
     try:
-        return _run_winupdate_chain_impl(ctx, resume=resume)
+        return _run_winupdate_chain_impl(ctx, resume=resume, with_basic=with_basic)
     except OSError as error:
         from tests import winupdate
         problem = {"type": type(error).__name__, "errno": error.errno,
@@ -1080,7 +1232,7 @@ def _run_winupdate_chain(ctx, resume=False):
         return 3
 
 
-def _run_winupdate_chain_impl(ctx, resume=False):
+def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
     """WU 체크리스트에 필요한 TC만 순서대로 실제 실행하는 전용 체인.
 
     `run-regression`과 같은 전제 게이트·guarded 실행 방식을 쓰되, WU 매핑에
@@ -1106,7 +1258,10 @@ def _run_winupdate_chain_impl(ctx, resume=False):
         print("[run-winupdate] 실행 전 점검에서 실행을 막는 항목이 있어 시작하지 않습니다.")
         return 2
 
-    stages = _wu_chain_stages()
+    if with_basic:
+        # 결합 실행은 기본 TC 결과로 기본 리포트도 쓰므로 실행 기록과 리포트에 범위를 남긴다.
+        ctx.run_scope = "combined"
+    stages = _combined_chain_stages() if with_basic else _wu_chain_stages()
     stage_ids = [sid for _, sid, _ in stages] + list(WU_TAIL_STAGES)
     identity = wu_chain.chain_identity(stage_ids)
     path = wu_chain.checkpoint_path(ctx.root)
@@ -1133,12 +1288,14 @@ def _run_winupdate_chain_impl(ctx, resume=False):
 
     started = datetime.now()
     print(f"[run-winupdate] 시작 {started:%Y-%m-%d %H:%M:%S} — "
-          "WU 체크리스트에 필요한 TC만 순서대로 실행합니다.")
+          + ("기본 전체와 WU 전용 단계를 한 번에 실행합니다(결합 실행)." if with_basic
+             else "WU 체크리스트에 필요한 TC만 순서대로 실행합니다."))
 
     results, reused, trips = ctx.partial_results, [], {}
 
     def meta_extra():
-        return {"resumed": bool(resume), "resume_count": checkpoint.resume_count,
+        extra = {"run_scope": "combined"} if with_basic else {}
+        return {**extra, "resumed": bool(resume), "resume_count": checkpoint.resume_count,
                 "execution": {"started": started.isoformat(),
                               "completed": datetime.now().isoformat(),
                               "basis": "이번 WU 체인 실행 구간(재개 전 대기 제외)"},
@@ -1185,10 +1342,14 @@ def _run_winupdate_chain_impl(ctx, resume=False):
             shutdown = shutdown_viewer("전제 준비 실패로 run-winupdate 중단")
             print(f"  viewer-shutdown: {shutdown}")
             elapsed = (datetime.now() - started).total_seconds() / 60
+            if with_basic:
+                ctx.execution_incomplete = True
+                _finish_combined_basic(ctx, results)
             lookup = winupdate.lookup_from_results(results)
             wu_results = winupdate.build_wu_results(lookup)
             return _finish_winupdate(ctx, wu_results, elapsed,
-                                     source_note="전용 체인(전제 실패로 조기 중단)",
+                                     source_note=("기본+WU 결합 실행(전제 실패로 조기 중단)" if with_basic
+                                                  else "전용 체인(전제 실패로 조기 중단)"),
                                      execution_mode="live", chain_completed=False,
                                      extra_meta=meta_extra())
 
@@ -1263,15 +1424,17 @@ def _run_winupdate_chain_impl(ctx, resume=False):
     lookup = winupdate.lookup_from_results(results)
     wu_results = winupdate.build_wu_results(
         lookup, live_extra={"usb": usb_outcome, "wu10": wu10_result})
-    note = f"전용 체인, {elapsed:.1f}분"
+    note = (f"기본+WU 결합 실행, {elapsed:.1f}분" if with_basic
+            else f"전용 체인, {elapsed:.1f}분")
     if resume:
         note += f", 저장점에서 재개 {checkpoint.resume_count}회"
     # 완료 표식을 쓰지 못했으면 완주 리포트를 먼저 게시하지 않는다.
     checkpoint.finish()
+    basic_code = _finish_combined_basic(ctx, results) if with_basic else 0
     code = _finish_winupdate(ctx, wu_results, elapsed, source_note=note,
                              execution_mode="live", chain_completed=not bool(getattr(ctx, 'execution_block', None)),
                              extra_meta=meta_extra())
-    return code
+    return code or basic_code
 
 
 def cmd_update_watch(args):
@@ -1465,6 +1628,10 @@ def _main():
         "--resume", action="store_true",
         help="중단된 실시간 체인을 work/winupdate_checkpoint.json 저장점에서 이어 실행한다. "
              "완료 단계 결과는 재사용하고 남은 단계만 실행한다(REQ-WU-002).")
+    winupdate_parser.add_argument(
+        "--with-basic", action="store_true",
+        help="기본기능 전체와 WU 전용 단계를 한 번에 실행하는 결합 실행(REQ-SPEEDUP-001). "
+             "개발 중 확인용이며 릴리스 수용은 run-regression과 run-winupdate를 따로 실행한다.")
     winupdate_parser.add_argument('--prepared', action='store_true',
                                   help='실행 전 준비 체크리스트를 모두 확인했음을 전달(USB 실제 점검 유지)')
     usb_parser = sub.add_parser('run-wu09', help='WU09 단독: WF09와 USB Export/Import만 실행')
@@ -1515,6 +1682,8 @@ def _main():
         sub.choices[name].add_argument('--restore-after', action=argparse.BooleanOptionalAction,
             default=None, help='이번 실행 후 원상복원 여부; --no-restore-after는 사전 백업만 보존')
     args = ap.parse_args()
+    if getattr(args, "with_basic", False) and getattr(args, "from_regression", None):
+        ap.error("--with-basic은 이번 실행의 실시간 결과만 씁니다. --from-regression과 함께 쓸 수 없습니다.")
 
     # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
     if args.cmd == "sync-knowledge":
@@ -1559,7 +1728,8 @@ def _execute_preserved(ctx, args):
     from core.execution_session import execution_session
     from bellalunauto.runplan import build_plan
     ctx.execution_plan = build_plan(SimpleNamespace(workspace=Path(ctx.root),
-        resource_dir=Path(ctx.resource_root)), ctx.cfg, args.cmd)
+        resource_dir=Path(ctx.resource_root)), ctx.cfg, args.cmd,
+        **({'combined': True} if getattr(args, 'with_basic', False) else {}))
     ctx.execution_fingerprint = ctx.execution_plan['execution_fingerprint']
     choice = getattr(args, 'restore_after', None)
     if choice is not None:
@@ -1950,84 +2120,7 @@ def _dispatch(ctx, args):
         regression_started = datetime.now()
         print(f"[run-regression] 시작 {regression_started:%Y-%m-%d %H:%M:%S} — "
               "완료되면 Viewer 를 종료하고 결과 요약을 출력합니다.")
-        # 개정본 TC 행 순서대로 적는다(읽는 사람이 실행 순서를 그대로 본다).
-        from tests.install import install_01, install_02
-        from tests.workflow01 import run as run_workflow01
-        from tests.workflow02 import run as run_workflow02
-        from tests.workflow03 import run as run_overlay
-        from tests.workflow04 import run as run_send
-        from tests.workflow05 import run as run_3d
-        from tests.workflow06 import run as run_all_images
-        from tests.workflow07 import run as run_emergency
-        from tests.workflow08 import run as run_film_print
-        from tests.workflow09 import run as run_export
-        from tests.workflow10 import run as run_hospital_code
-        from tests.workflow11 import run as run_reject
-        from tests.workflow12 import run as run_study_reject
-        from tests.workflow13 import run as run_account
-        from tests.workflow14 import run as run_setting_transfer
-        from tests.workflow15 import run as run_presend
-        from tests.workflow16 import run as run_kiosk
-        from tests.xipl_flows import run_xipl
-        from core.dbreset import has_baseline, restore_baseline, baseline_state
-        from core.result import TCResult, PASS, FAIL
-        from core import viewer_processing as vp
-        reset = TCResult("AUTOMATION_ENVIRONMENT_RESET", "회귀 테스트 전 기준 상태 복원")
-        # 전제 준비는 첫 실패에서 멈추지 않는다 — DB 복원·서비스 기동·시험 파라미터
-        # 재생성 중 **무엇이 안 됐는지 전부** 보여 줘야 진단이 된다. 대신 아래
-        # 전제 게이트가 회귀 자체를 중단시킨다.
-        reset.stop_on_fail = False
-        if has_baseline(ctx):
-            try:
-                outcome = restore_baseline(ctx)
-                # restore는 DB 단독 접속을 위해 제품 서비스를 내린다. 다시
-                # RUNNING이 되지 않으면 이후 모든 TC가 Viewer 시작 단계에서
-                # 연쇄 실패하므로, 여기서 잡아 원인을 명확히 남긴다
-                # (2026-08-18 실측: 이 누락으로 8개 TC가 연쇄 FAIL).
-                services = outcome.get("services") or {}
-                down = {k: v for k, v in services.items() if v != "RUNNING"}
-                reset.assert_true(
-                    0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원 "
-                       "및 제품 서비스 재기동",
-                    not down,
-                    expected="restore 완료 + 제품 서비스 RUNNING",
-                    actual={"restore": "완료", "services": services},
-                    note="서비스가 내려간 채로 진행하면 첫 Viewer 시작에서 "
-                         "메인 메뉴(2015)를 찾지 못해 회귀가 연쇄 실패한다.")
-            except Exception as exc:
-                reset.add(0, "DATA/ACCOUNT/CONFIGURATION/PROCEDURE 기준 스냅샷 복원",
-                          FAIL, actual=str(exc))
-        else:
-            reset.manual(0, "DB 기준 스냅샷 복원",
-                         "기준 스냅샷(.bak 4개)을 찾지 못해 복원을 건너뛰었습니다. "
-                         "저장소 상위 폴더의 Baseline 폴더에 DATA/ACCOUNT/"
-                         "CONFIGURATION/PROCEDURE.bak을 넣거나 "
-                         "`python run.py snapshot-baseline`으로 생성하세요.",
-                         expected="기준 스냅샷 존재", actual=baseline_state(ctx))
-
-        # 회귀는 시험 파라미터도 기준 상태에서 시작해야 한다. 이전 실행이 남긴
-        # TEST_* 파일(제품이 만든 .pi 잔재, 예전 이름 규칙 포함)을 전부 지우고
-        # 제품 기본 파라미터에서 새로 복사한다. 개별 TC 실행은 이와 달리
-        # 없는 것만 만들어 재사용한다(vp.ensure_parameter_copies).
-        param_root = (ctx.cfg.get("xipl") or {}).get(
-            "parameter_dir", r"C:\XIPL\PARAMETER")
-        try:
-            param_reset = vp.reset_parameter_copies(param_root)
-            reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", PASS,
-                      expected=list(vp.TEST_PARAMETER_FILES),
-                      actual={"removed": param_reset["removed"],
-                              "created": [os.path.basename(p)
-                                          for p in param_reset["created"]]})
-        except Exception as exc:
-            reset.add(0, "XIPL 시험 파라미터(TEST_*) 전체 삭제 후 재생성", FAIL,
-                      expected=list(vp.TEST_PARAMETER_FILES), actual=str(exc))
-
-        # Storage SCP 수신 목록은 **더 이상 자동으로 지우지 않는다**
-        # (2026-08-28 사용자 확정 — 2026-08-27 결정을 뒤집음). 이 서버는 여러 PC 가
-        # 함께 쓰고 개별 스터디 삭제 API 가 없어 `DELETE /api/studies` 가 전체를
-        # 지운다. TC 판정은 환자 필터(`core/send_verify.received`)로 이미 정확하므로
-        # 초기화 없이도 틀리지 않는다.
-        results.append(reset)
+        results.extend(_basic_reset_stage(ctx))
         # **개정본 체크리스트의 TC 행 순서대로 수행한다**(사용자 요청 2026-08-20).
         # 체크리스트가 의존성 순서로 설계돼 있어서 행 순서 = 실행 순서가 된다.
         #   WF_03~15 는 DATA_FLOW_MWL_01 픽스처를 쓰고 WF_01·WF_02 가 그것을 만든다.
@@ -2043,28 +2136,7 @@ def _dispatch(ctx, args):
         # 감싸지 않은 진입점이 실제로 있었다 — `install_01`/`install_02` 는
         # `except` 가 없는데 **회귀의 첫 단계**라, 거기서 죽으면 나머지 25개 TC 가
         # 아예 수행되지 않았다(2026-08-24 정적 감사).
-        chain = [
-            (install_01, "TC_Basic_Install_01", "설치 버전 및 패키지 구성 확인"),
-            (install_02, "TC_Basic_Install_02", "Viewer 실행 전 필수 환경 확인"),
-            (setup_all, "DICOM_Server_Setup", "MWL/Storage/Print 서버 자동 등록 및 연결"),
-            (run_workflow01, "TC_Basic_WorkFlow_01", "MWL 및 Local 검사 생성"),
-            (run_workflow02, "TC_Basic_WorkFlow_02", "공통 2D/3D 검사 촬영 및 Tool 적용"),
-            (run_overlay, "TC_Basic_WorkFlow_03", "Image Overlay 및 Print Overlay 설정"),
-            (run_send, "TC_Basic_WorkFlow_04", "2D 수동 DICOM Send"),
-            (run_3d, "TC_Basic_WorkFlow_05", "3D 수동 DICOM Send"),
-            (run_all_images, "TC_Basic_WorkFlow_06", "All Images 및 Dose SR 전송"),
-            (run_emergency, "TC_Basic_WorkFlow_07", "Emergency 검사 Auto Send"),
-            (run_film_print, "TC_Basic_WorkFlow_08", "2D/3D Film Print"),
-            (run_export, "TC_Basic_WorkFlow_09", "Normal 및 Anonymous Export"),
-            (run_hospital_code, "TC_Basic_WorkFlow_10", "MWL Hospital Code와 Procedure 매핑"),
-            (run_reject, "TC_Basic_WorkFlow_11", "Image Reject 및 Restore"),
-            (run_study_reject, "TC_Basic_WorkFlow_12", "Study Reject 및 Restore"),
-            (run_account, "TC_Basic_WorkFlow_13", "계정 추가·수정 및 로그인"),
-            (run_setting_transfer, "TC_Basic_WorkFlow_14", "Setting Export 및 Import"),
-            (run_presend, "TC_Basic_WorkFlow_15", "Pre-send Preview 표시 및 전송"),
-            (run_kiosk, "TC_Basic_WorkFlow_16", "Kiosk 및 System Launcher"),
-            (run_xipl, "TC_XIPL_compatibility", "XIPL 연동 01~07"),
-        ]
+        chain = _basic_chain_stages()
         # **전제 게이트** (2026-08-25 사용자 지시)
         #   "전제 준비부터 뻑나면 그냥 바로 전체 회귀를 종료해주라. 서버들이
         #    정상적으로 등록이 안되면 테스트의 의미가 없어."
@@ -2151,7 +2223,8 @@ def _dispatch(ctx, args):
         announce_done(results, elapsed, LAST_REPORT_PATHS)
         return code
     if args.cmd == "run-winupdate":
-        return _run_winupdate_chain(ctx, resume=bool(getattr(args, "resume", False)))
+        return _run_winupdate_chain(ctx, resume=bool(getattr(args, "resume", False)),
+                                    with_basic=bool(getattr(args, "with_basic", False)))
     if args.cmd == 'run-wu09':
         return _run_wu09_single(ctx)
     if args.cmd in ("setup-dicom", "run-auto"):

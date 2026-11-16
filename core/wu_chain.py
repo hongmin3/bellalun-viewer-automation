@@ -39,6 +39,8 @@ STAGE_TIMEOUTS = {
     "DICOM_Server_Setup": 20 * 60,
     "TC_Basic_WorkFlow_02": 45 * 60,
     "TC_XIPL_compatibility_subset": 60 * 60,
+    # 기본+WU 결합 실행(REQ-SPEEDUP-001)의 XIPL 01~07 한 단계. 기본 전체 실측 약 22분.
+    "TC_XIPL_compatibility": 60 * 60,
     "TC_Basic_WorkFlow_14": 45 * 60,
     "WU09_USB": 30 * 60,
     "TC_WindowsUpdate_10": 60 * 60,
@@ -52,6 +54,15 @@ KILL_GRACE_SECONDS = 90
 
 #: 한 단계가 만드는 TC 결과. 상한을 넘으면 이 ID마다 BLOCKED 결과를 만든다.
 STAGE_OUTPUTS = {
+    "TC_XIPL_compatibility": [
+        ("TC_XIPL_compatibility_01", "XIPL 연동 준비"),
+        ("TC_XIPL_compatibility_02", "Viewer 2D Image Processing"),
+        ("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction"),
+        ("TC_XIPL_compatibility_04", "Preset별 2D Default Parameter"),
+        ("TC_XIPL_compatibility_05", "XIPL 연동 05"),
+        ("TC_XIPL_compatibility_06", "XIPL Parameter 저장 후 Viewer 적용"),
+        ("TC_XIPL_compatibility_07", "XIPL Parameter 적용"),
+    ],
     "TC_XIPL_compatibility_subset": [
         ("TC_XIPL_compatibility_02", "Viewer 2D Image Processing"),
         ("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction"),

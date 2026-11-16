@@ -15,6 +15,7 @@
     "tests/test_cause_evidence_followup.py",
     "tests/test_checkpoint_partial_report.py",
     "tests/test_close_examine_confirm.py",
+    "tests/test_combined_run.py",
     "tests/test_combo_popup.py",
     "tests/test_completion_notice.py",
     "tests/test_completion_scope.py",

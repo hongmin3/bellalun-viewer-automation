@@ -641,7 +641,9 @@ def main(argv=None):
                 from bellalunauto.runs import RunRecord
                 from bellalunauto.runplan import build_plan
                 config = bundled_config(load_config(layout), layout.resource_dir)
-                record = RunRecord.create(layout.workspace, arguments[0], build_plan(layout, config, arguments[0]))
+                combined = {'combined': True} if '--with-basic' in arguments else {}
+                record = RunRecord.create(layout.workspace, arguments[0],
+                                          build_plan(layout, config, arguments[0], **combined))
                 os.environ['BELLALUN_QA_RUN'] = record.data['run_id']
                 print(f"실행 번호: {record.data['run_id']} · 화면 동의 없음(CLI)")
             code = -1

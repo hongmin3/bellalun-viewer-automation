@@ -36,6 +36,9 @@ WU_IDS = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
 #: 사람이 직접 하는 범위(REQ-VERDICT-002, 판정 SKIP). 목표 판정에서 빼고 나머지 10건의 PASS 를 요구한다.
 WU_MANUAL = {"TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"}
 SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
+#: 기본+WU 결합 실행(REQ-SPEEDUP-001). 개발 중 확인용이며 릴리스 게이트는 이 실행을 세지 않는다.
+COMBINED_COMMAND = "run-combined"
+COMBINED_ARGS = ("run-winupdate", "--with-basic")
 SINGLE_COMMANDS = {
     **{f"run-wf{i:02}": f"TC_Basic_WorkFlow_{i:02}" for i in range(1, 17)},
     **{f"run-xipl-{i:02}": f"TC_XIPL_compatibility_{i:02}" for i in range(1, 8)},
@@ -49,6 +52,8 @@ def validate_selection(suites, expected_tcs):
     if commands and len(commands) == len(set(commands)) and set(commands) <= full:
         if not expected_tcs:
             return commands
+    if commands == [COMBINED_COMMAND] and not expected_tcs:
+        return commands
     if (len(commands) == 1 and commands[0] in SINGLE_COMMANDS
             and list(expected_tcs) == [SINGLE_COMMANDS[commands[0]]]):
         return commands
@@ -195,7 +200,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     args = [str(exe), "--workspace", str(workspace)]
     if config:
         args += ["--config", str(config)]
-    args.append(command)
+    args.extend(COMBINED_ARGS if command == COMBINED_COMMAND else (command,))
     started = time.time()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     env = suite_environment(clean_environment() if clean_env else os.environ)
@@ -208,8 +213,8 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     reports = Path(workspace) / "Reports"
     if command == "run-regression":
         report = health.latest_full_regression(str(reports), since=started - 1)
-    elif command == "run-winupdate":
-        report = completed_report(reports, command, started - 1)
+    elif command in ("run-winupdate", COMBINED_COMMAND):
+        report = completed_report(reports, "run-winupdate", started - 1)
     else:
         report = selected_report(reports, command, started - 1, expected_tcs)
     result = {"command": command, "args": args, "cwd": str(cwd), "exit_code": proc.returncode,
@@ -224,8 +229,17 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
                                                    "source_commit", "source_dirty",
                                                    "source_identity_origin")}
         result["tc_verdicts"] = {row.get("tc_id"): row.get("verdict") for row in rows}
-        if command == "run-winupdate":
+        if command in ("run-winupdate", COMBINED_COMMAND):
             result["wu_target"] = wu_target(rows)
+    if command == COMBINED_COMMAND:
+        # 같은 실행 번호로 남긴 기본 리포트를 함께 기록한다. 없으면 완료로 보지 않는다.
+        basic = health.latest_full_regression(str(reports), since=started - 1)
+        result["basic_report"] = basic
+        result["completed"] = bool(report) and bool(basic)
+        if basic:
+            result["basic_report_sha256"] = sha256(basic["path"])
+            _meta, basic_rows = _report_rows(basic["path"])
+            result["basic_tc_verdicts"] = {row.get("tc_id"): row.get("verdict") for row in basic_rows}
     result["snapshot"] = snapshot(workspace, started - 1,
                                   Path(out_dir) / "snapshots" / command)
     state = Path(workspace) / "work" / "regression_state.json"

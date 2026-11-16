@@ -753,6 +753,34 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 #### 지킬 것
 기록한 핸들 증가는 원인 확정이 아니다. 증거 수집 실패는 판정과 실행을 막지 않는다.
 
+### REQ-SPEEDUP-001 기본+WU 결합 실행
+
+#### 하는 일
+기본기능 전체와 실시간 WU를 한 번의 실행으로 수행해 두 묶음이 같은 플로우를 두 번 돌리는 시간을 없앤다.
+명령은 `run-winupdate --with-basic`이다. 실행 기록의 action은 `run-winupdate`로 남아 USB 준비 확인(REQ-TCUP-004), 실행 전 점검(REQ-WU-004), 업데이트 근거(REQ-WU-005), 보존·복원·정리(REQ-FOLLOWUP-004)를 WU 전체와 똑같이 한 번씩 적용한다.
+
+> **근거(2026-11-16 실측, `docs/regression-timing.md`)** 1.0.20~1.0.21 WU 체인 79분 중 약 74분이 기본 전체에서 이미 실행하는 TC(Install_01/02, DICOM 설정, WF01~06·08·09·14, XIPL 02/03/04/06/07)다. WU 전용 실시간 단계는 USB 왕복(약 1.7분)과 WU_10(약 3분), 화면 계약(약 12초)뿐이다. 두 묶음을 따로 돌리면 약 206분, 결합하면 약 120분으로 예상한다.
+
+#### 순서
+1. 실행 전 점검이 막으면 WU와 같이 저장점을 만들지 않고 종료 코드 2로 멈춘다.
+2. 기본 전체의 기준 상태 복원(DB 4개 복원·서비스 재기동·XIPL `TEST_*` 재생성)을 첫 단계로 한다.
+3. 기본 전체의 TC를 개정 체크리스트 순서대로 실행한다. DICOM 서버 설정 뒤에 WU의 화면 계약 단계를 넣는다. XIPL은 01~07 전체를 한 단계로 실행한다.
+4. 이어서 WU 전용 단계 USB 왕복(WU09_USB)과 WU_10을 실시간으로 실행한다.
+5. 모든 단계는 WU 체인과 같은 감시(단계 시간 상한·응답 없음 120초, REQ-WU-002)와 저장점을 쓴다. 전제 단계(기준 상태 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 멈춘다.
+6. 끝나면 같은 실행 번호로 리포트 두 개를 만든다.
+   - 기본 리포트: 실행한 기본 TC 결과와 사람 전용 SKIP(REQ-TCUP-001)을 기본 전체와 같은 형식으로 쓴다. WU 결과는 넣지 않는다.
+   - WU 리포트: 이번 실행의 기본 TC 결과를 WU 매핑(`build_wu_results`)에 넣고 USB 왕복·WU_10 실시간 결과를 붙인다.
+
+#### 표시
+- 두 리포트의 meta `run_scope`는 `combined`다. WU 리포트의 실행 방식은 `실시간 제품 시험(기본+WU 결합 실행)`으로 표시한다.
+- 실행 계획 이름은 `기본기능+Windows Update 결합 수행`이고 XIPL 정책은 기본 전체와 같은 `TEST_*` 삭제 후 재생성이다.
+- `--resume`은 같은 결합 체인의 저장점에서만 이어 가고, 재개 표시는 REQ-WU-002를 따른다. 단독 WU 체인의 저장점으로는 결합 실행을 재개하지 않는다.
+
+#### 지킬 것
+- 판정 기준·Expected·입력 안전 가드·단계 시간 상한을 바꾸지 않는다. WU 결과는 이번 실행에서 실제로 수행한 기본 TC 결과만 쓴다. 과거 리포트를 쓰는 `--from-regression` 변환과 섞지 않는다(`--with-basic`과 함께 쓰면 거부한다).
+- 결합 실행은 개발 중 반복 확인용이다. 릴리스 수용의 최종 전체 회귀는 지금처럼 `run-regression`과 `run-winupdate`를 따로 실행한다. 설치판 릴리스 게이트(REQ-DIST-005)는 결합 실행 결과를 기본 전체 실행으로 세지 않는다.
+- 기존 `run-regression`·`run-winupdate`의 단계 구성과 순서는 바꾸지 않는다.
+
 ### REQ-KNOW-001 지식 폴더 서버 동기화
 
 #### 목적
@@ -1140,6 +1168,12 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py`가 가짜 로그로 ±30초 구간 추출, 핸들·메모리 조회 실패 처리, 오염 판정, 여러 리포트의 판정 갈림 집계를 확인한다.
 - Expected Result: 증거 수집은 예외를 내지 않고, 통계는 갈린 TC·단계를 센다.
 
+### TEST-SPEEDUP-001 기본+WU 결합 실행 구성
+
+- 검증 대상: REQ-SPEEDUP-001.
+- 절차: `tests/test_combined_run.py`가 결합 단계 목록(기준 상태 복원 → 기본 TC 체크리스트 순서, DICOM 설정 뒤 화면 계약, XIPL 01~07 한 단계, 끝에 USB 왕복·WU_10), 기존 `run-regression`·WU 체인 단계 목록 불변, XIPL 전체 단계의 시간 상한과 BLOCKED 출력 7건, 기본 리포트에서 WU 결과 제외, `--with-basic`과 `--from-regression` 동시 사용 거부, 실행 계획 이름·XIPL 정책, 릴리스 게이트가 결합 실행을 기본 전체 실행으로 세지 않음을 확인한다.
+- Expected Result: 단계 구성·표시·거부가 REQ-SPEEDUP-001과 같다. 실제 소요 비교는 승인받은 설치판 UI 실행으로 따로 기록한다.
+
 ### TEST-TRACE-002 WU 추적성과 정적 자체검사
 
 - 검증 대상: REQ-TRACE-002.
@@ -1309,6 +1343,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | verified |
 | REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | verified |
 | REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `tests/workflow14.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py` | verified |
+| REQ-SPEEDUP-001 | `run.py`, `core/wu_chain.py`, `bellalunauto/runplan.py`, `bellalunauto/app.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py` | TEST-SPEEDUP-001; `tests/test_combined_run.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
@@ -1353,4 +1388,5 @@ NFR-BOUNDARY-001은 수동 절차(TEST-BOUNDARY-001)만 있어 implemented로 �
 ## 14. 향후 개선 후보
 
 Hub/Worker 진행률 소비 측 확인과 기존 우선순위는 `NEXT_WORK.md`를 따른다.
+회귀 시간 단축의 다음 후보(영향 기반 선택 회귀, 복원 단계 시간 세분화, 고정 대기의 상태 기반 전환, 불필요한 Viewer 재시작 제거)와 측정 근거는 `docs/regression-timing.md` 5절에 있다. 각 후보는 SPEC 요구사항을 먼저 정한 뒤 구현한다.
 배포 작업을 이유로 새로운 TC·판정 완화·Viewer 제품 변경을 추가하지 않는다.
