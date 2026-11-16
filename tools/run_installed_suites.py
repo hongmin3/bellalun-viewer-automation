@@ -60,6 +60,34 @@ def validate_selection(suites, expected_tcs):
     raise ValueError("--suites에 전체 묶음을 지정하거나 단독 명령 하나와 맞는 --expected-tc를 지정하세요")
 
 
+#: 원상복원 선택이 필요한 전체 묶음. EXE의 `_execute_preserved` 경로와 같다.
+FULL_COMMANDS = {"run-regression", "run-winupdate", COMBINED_COMMAND}
+#: 실행 전 준비 확인(USB 포함, REQ-TCUP-004)이 필요한 묶음.
+USB_COMMANDS = {"run-winupdate", COMBINED_COMMAND}
+
+
+def check_preparation(commands, prepared):
+    """USB 묶음에는 `--prepared`가 있어야 하고, USB 묶음이 없으면 주지 않는다."""
+    if prepared and not USB_COMMANDS & set(commands):
+        raise ValueError("--prepared는 run-winupdate·run-combined에만 씁니다")
+    if not prepared and USB_COMMANDS & set(commands):
+        raise ValueError("USB를 쓰는 묶음은 준비 체크리스트를 확인한 뒤 --prepared를 지정하세요")
+
+
+def command_args(command, restore_after, prepared=False):
+    """EXE에 넘길 명령 인수. 전체 묶음은 원상복원 선택을 반드시 붙인다 (REQ-DIST-004)."""
+    args = list(COMBINED_ARGS) if command == COMBINED_COMMAND else [command]
+    if command in FULL_COMMANDS:
+        if not isinstance(restore_after, bool):
+            raise ValueError("전체 묶음은 --restore-after 또는 --no-restore-after를 지정하세요")
+        args.append("--restore-after" if restore_after else "--no-restore-after")
+    elif restore_after is not None:
+        raise ValueError("단독 TC 명령에는 원상복원 선택을 넘기지 않습니다")
+    if command in USB_COMMANDS and prepared:
+        args.append("--prepared")
+    return args
+
+
 def selected_report(reports_dir, command, since, expected_tcs):
     """선택 TC와 실행 명령이 일치하는 새 리포트만 찾는다."""
     for path in sorted(Path(reports_dir).glob("Result_*.json"),
@@ -191,7 +219,8 @@ def suite_environment(base):
     return dict(base, PYTHONIOENCODING="utf-8", **{UNATTENDED_ENV: "1"})
 
 
-def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, expected_tcs=()):
+def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, expected_tcs=(),
+              restore_after=None, prepared=False):
     """설치판 EXE 로 한 전체 실행을 수행하고 결과 근거를 모은다."""
     from bellalunauto.app import completed_report
     from core import automation_health as health
@@ -200,7 +229,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     args = [str(exe), "--workspace", str(workspace)]
     if config:
         args += ["--config", str(config)]
-    args.extend(COMBINED_ARGS if command == COMBINED_COMMAND else (command,))
+    args.extend(command_args(command, restore_after, prepared))
     started = time.time()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     env = suite_environment(clean_environment() if clean_env else os.environ)
@@ -260,6 +289,10 @@ def main(argv=None):
     parser.add_argument("--out", required=True, type=Path, help="비어 있거나 없는 실행 기록 폴더")
     parser.add_argument("--suites", required=True, help="승인받은 실행 명령(여러 묶음은 쉼표로 구분)")
     parser.add_argument("--expected-tc", action="append", default=[], help="단독 실행의 TC ID")
+    parser.add_argument("--restore-after", action=argparse.BooleanOptionalAction, default=None,
+                        help="전체 묶음 실행 후 원상복원 여부(전체 묶음에서 필수, 단독 TC에서는 쓰지 않음)")
+    parser.add_argument("--prepared", action="store_true",
+                        help="USB 묶음의 실행 전 준비 체크리스트를 실행자가 확인했음(run-winupdate·run-combined)")
     parser.add_argument("--clean-env", action="store_true",
                         help="PATH를 Windows 기본값만 두고 Python 관련 변수를 깨진 값으로 바꿔 실행")
     args = parser.parse_args(argv)
@@ -268,6 +301,9 @@ def main(argv=None):
         args.config = args.config.resolve()
     try:
         commands = validate_selection(args.suites, args.expected_tc)
+        for command in commands:
+            command_args(command, args.restore_after, args.prepared)
+        check_preparation(commands, args.prepared)
     except ValueError as error:
         parser.error(str(error))
 
@@ -284,6 +320,7 @@ def main(argv=None):
                     "build_info": str(args.build_info.resolve()),
                     "build_info_sha256": sha256(args.build_info),
                     "selected_commands": commands, "expected_tcs": args.expected_tc,
+                    "restore_after": args.restore_after, "prepared": args.prepared,
                     "config": str(config), "cwd": str(cwd), "clean_env": args.clean_env,
                     "install": verify_install(args.exe, args.build_info),
                     "runs": []}
@@ -301,7 +338,8 @@ def main(argv=None):
         verification["current"] = command
         save()
         result = run_suite(args.exe, args.workspace, config, command, out, cwd,
-                           clean_env=args.clean_env, expected_tcs=args.expected_tc)
+                           clean_env=args.clean_env, expected_tcs=args.expected_tc,
+                           restore_after=args.restore_after, prepared=args.prepared)
         verification["runs"].append(result)
         save()
         print(f"[{datetime.now():%H:%M:%S}] {command} 종료: exit={result['exit_code']} "

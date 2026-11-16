@@ -1,6 +1,9 @@
 # Changelog
 
-## 2026-11-16 소스 — 기본+WU 결합 실행과 회귀 시간 측정
+## 1.0.22 후보 — 기본+WU 결합 실행과 회귀 시간 측정
+
+- REQ-DIST-004: 설치판 실행 도구 `tools/run_installed_suites.py`가 전체 묶음에 원상복원 선택(`--restore-after`/`--no-restore-after`)을, USB 묶음(`run-winupdate`·`run-combined`)에 준비 확인(`--prepared`)을 받아 EXE에 넘긴다. 빠지면 제품 실행 전에 거부한다. 이전에는 두 값을 넘기지 않아 CLI 전체 실행이 EXE에서 바로 거부됐다.
+- REQ-SPEEDUP-001: 결합 실행은 개발 중 확인용으로 두고 릴리스 수용은 기본·WU를 따로 돌리는 지금 방식을 유지한다(사용자 결정 2026-11-16).
 
 - REQ-SPEEDUP-001: `run-winupdate --with-basic`으로 기본기능 전체와 WU 전용 실시간 단계(화면 계약·USB 왕복·WU_10)를 한 번에 실행한다. 보존·복원·이미지 정리는 한 번만 하고, 같은 실행 번호로 기본 리포트와 WU 리포트를 만든다. WU 결과는 이번 실행의 기본 TC 결과만 쓴다. 1.0.20~1.0.21 실측으로 두 묶음 따로 약 206분, 결합 시 약 120분을 예상한다(`docs/regression-timing.md`).
 - REQ-SPEEDUP-001: 모든 단계에 WU 체인의 시간 상한·응답 없음 감시와 저장점을 쓰므로 `--with-basic --resume`으로 끊긴 단계부터 이어 갈 수 있다. 리포트 meta `run_scope`는 `combined`이고 WU 실행 방식은 `실시간 제품 시험(기본+WU 결합 실행)`으로 보인다.

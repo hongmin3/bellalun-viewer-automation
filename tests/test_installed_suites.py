@@ -133,6 +133,62 @@ class SelectedScopeTests(unittest.TestCase):
         self.assertEqual(runner.validate_selection("run-wf14", ["TC_Basic_WorkFlow_14"]), ["run-wf14"])
 
 
+class RestoreChoiceTests(unittest.TestCase):
+    """전체 묶음 CLI 실행은 원상복원 선택을 EXE에 넘긴다 (REQ-DIST-004, REQ-FOLLOWUP-004)."""
+
+    def _cli(self, folder, *extra):
+        script = Path(__file__).resolve().parents[1] / "tools/run_installed_suites.py"
+        out = Path(folder) / "output"
+        proc = subprocess.run([sys.executable, str(script), "--exe", "missing.exe",
+            "--build-info", "missing.json", "--workspace", folder, "--out", str(out), *extra],
+            capture_output=True)
+        return proc, out
+
+    def test_full_suite_without_restore_choice_is_refused_before_output(self):
+        for suites in ("run-regression", "run-winupdate", "run-combined"):
+            with self.subTest(suites=suites), tempfile.TemporaryDirectory() as folder:
+                proc, out = self._cli(folder, "--suites", suites)
+                self.assertEqual(proc.returncode, 2)
+                self.assertFalse(out.exists())
+                self.assertIn("--restore-after", proc.stderr.decode("utf-8", "replace"))
+
+    def test_choice_is_passed_after_the_command(self):
+        for choice, flag in ((True, "--restore-after"), (False, "--no-restore-after")):
+            self.assertEqual(runner.command_args("run-combined", choice, prepared=True),
+                             ["run-winupdate", "--with-basic", flag, "--prepared"])
+            self.assertEqual(runner.command_args("run-winupdate", choice, prepared=True),
+                             ["run-winupdate", flag, "--prepared"])
+            self.assertEqual(runner.command_args("run-regression", choice, prepared=True),
+                             ["run-regression", flag])
+
+    def test_usb_suite_without_preparation_is_refused(self):
+        for suites in ("run-winupdate", "run-combined", "run-regression,run-winupdate"):
+            with self.subTest(suites=suites), tempfile.TemporaryDirectory() as folder:
+                proc, out = self._cli(folder, "--suites", suites, "--restore-after")
+                self.assertEqual(proc.returncode, 2)
+                self.assertFalse(out.exists())
+                self.assertIn("--prepared", proc.stderr.decode("utf-8", "replace"))
+
+    def test_preparation_without_usb_suite_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            proc, out = self._cli(folder, "--suites", "run-regression", "--restore-after",
+                                  "--prepared")
+            self.assertEqual(proc.returncode, 2)
+            self.assertFalse(out.exists())
+
+    def test_single_tc_gets_no_restore_flag(self):
+        self.assertEqual(runner.command_args("run-wf14", None), ["run-wf14"])
+        with self.assertRaises(ValueError):
+            runner.command_args("run-winupdate", None)
+
+    def test_restore_choice_on_single_tc_is_refused(self):
+        with tempfile.TemporaryDirectory() as folder:
+            proc, out = self._cli(folder, "--suites", "run-wf14", "--expected-tc",
+                                  "TC_Basic_WorkFlow_14", "--restore-after")
+            self.assertEqual(proc.returncode, 2)
+            self.assertFalse(out.exists())
+
+
 class CleanEnvironmentTests(unittest.TestCase):
     """개발 도구 없는 PC를 흉내 내는 최소 환경(`--clean-env`)."""
 

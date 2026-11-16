@@ -232,6 +232,8 @@ class InstalledSuiteTests(unittest.TestCase):
                     patch("bellalunauto.app.completed_report", return_value=None), \
                     patch("core.automation_health.latest_full_regression", return_value=None), \
                     patch.object(suites, "snapshot", return_value={}):
-                result = suites.run_suite("exe", tmp, None, "run-combined", tmp, tmp)
-        self.assertEqual(seen["args"][-2:], ["run-winupdate", "--with-basic"])
+                result = suites.run_suite("exe", tmp, None, "run-combined", tmp, tmp,
+                                          restore_after=True, prepared=True)
+        self.assertEqual(seen["args"][-4:], ["run-winupdate", "--with-basic", "--restore-after",
+                                             "--prepared"])
         self.assertFalse(result["completed"])

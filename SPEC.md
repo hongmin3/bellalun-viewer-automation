@@ -490,6 +490,11 @@ Viewer가 XIPL을 찾는 `XIPL_PATH`가 없거나 그 아래 `SERVER_X64\XIPL.KE
 최종 배포 EXE로 REQ-REGRESSION-002에 따라 승인받은 범위의 UI 회귀를 수행한다.
 빌드 성공·설치 성공·기동 성공·제품 시험 성공을 구분하며 미수행 검증은 완료로 쓰지 않는다.
 
+설치판 실행 도구(`tools/run_installed_suites.py`)로 전체 묶음(`run-regression`·`run-winupdate`·`run-combined`)을 돌릴 때는 실행 후 원상복원 여부를 `--restore-after` 또는 `--no-restore-after`로 받아 EXE에 그대로 넘긴다.
+둘 다 없으면 설치 대조나 제품 실행 전에 거부한다. 단독 TC 명령에는 이 선택을 넘기지 않는다.
+USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체크리스트(REQ-TCUP-004)를 확인했다는 `--prepared`를 받아 그 명령에만 넘긴다. 없으면 같은 시점에 거부하고, USB 묶음이 없는데 주면 거부한다.
+이유: CLI 실행에는 화면 동의가 없어 EXE가 원상복원 선택과 준비 확인 없이는 시작을 거부한다(REQ-FOLLOWUP-004, REQ-TCUP-004). 2026-11-16 결합 실행 준비 중 도구가 두 값을 넘기지 않는 것을 확인했다.
+
 ### REQ-DIST-005 설치판의 승인 범위를 확인하는 릴리스 게이트
 
 #### 하는 일
