@@ -4,6 +4,7 @@
 
 - REQ-DIST-004: 설치판 실행 도구 `tools/run_installed_suites.py`가 전체 묶음에 원상복원 선택(`--restore-after`/`--no-restore-after`)을, USB 묶음(`run-winupdate`·`run-combined`)에 준비 확인(`--prepared`)을 받아 EXE에 넘긴다. 빠지면 제품 실행 전에 거부한다. 이전에는 두 값을 넘기지 않아 CLI 전체 실행이 EXE에서 바로 거부됐다.
 - REQ-DIST-003: 빌드 전 회귀 이름 검사(`tools/check_regression_names.py`)가 `run-regression` 분기와 사슬 목록 함수(`_basic_chain_stages`·`_wu_chain_stages`·`_combined_chain_stages`)를 각각 검사하고 주석·문자열 속 이름은 세지 않는다. 결합 실행 구현 뒤 분기 주석의 `install_01`을 세어 1.0.22 빌드를 막던 오탐을 고쳤다. 같은 검사를 `verify` 게이트 시험(`tests/test_regression_names_check.py`)에서도 돌린다.
+- REQ-SPEEDUP-001: 설치판 1.0.22 결합 실행(`20261116-153658-96d60922`)이 기본 PASS 25 / MANUAL 1 / SKIP 10, WU TC PASS 10 / SKIP 3·세부 224로 따로 실행과 같은 판정을 냈다. 소요는 약 206분에서 125.9분으로 줄었다(`docs/regression-timing.md` 6.1절).
 - REQ-SPEEDUP-001: 결합 실행은 개발 중 확인용으로 두고 릴리스 수용은 기본·WU를 따로 돌리는 지금 방식을 유지한다(사용자 결정 2026-11-16).
 
 - REQ-SPEEDUP-001: `run-winupdate --with-basic`으로 기본기능 전체와 WU 전용 실시간 단계(화면 계약·USB 왕복·WU_10)를 한 번에 실행한다. 보존·복원·이미지 정리는 한 번만 하고, 같은 실행 번호로 기본 리포트와 WU 리포트를 만든다. WU 결과는 이번 실행의 기본 TC 결과만 쓴다. 1.0.20~1.0.21 실측으로 두 묶음 따로 약 206분, 결합 시 약 120분을 예상한다(`docs/regression-timing.md`).

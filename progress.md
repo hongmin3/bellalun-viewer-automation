@@ -1,6 +1,6 @@
 # 진행 상태
 
-## 현재 상태 — 1.0.22 설치판 결합 실행 비교 중 (2026-11-16 run729)
+## 현재 상태 — 1.0.22 설치판 결합 실행 비교 완료 (2026-11-16 run729~733)
 
 사용자 승인(run729): 1.0.22 빌드·설치 뒤 결합 실행 1회. 릴리스 수용은 추천대로 기본·WU를 따로 돌리는 지금 방식을 유지한다.
 
@@ -9,10 +9,12 @@
 | 빌드 전 수정 1 | `7dd8f38` 설치판 실행 도구가 `--restore-after`·`--prepared`를 EXE에 넘기지 않아 CLI 전체 실행이 바로 거부되던 문제(REQ-DIST-004) |
 | 빌드 전 수정 2 | `6139040` 첫 빌드가 회귀 이름 검사 오탐(주석 속 `install_01`)으로 중단. 검사를 `ast` 기반으로 바꾸고 사슬 함수도 검사, verify 시험 추가(REQ-DIST-003) |
 | 빌드·설치 | 소스 `6139040` dirty=false, runtime 1010개 해시 일치. 1.0.21→1.0.22 무인 업데이트 종료0, 기존 작업 파일 2069개 변경·누락0, 설정 보존 (`work/run729-install/`) |
-| USB | 실행 전 `D:\BellalunWU09` 6파일 백업·manifest `work/run729-usb/` (run674 기준과 해시 같음) |
-| 결합 실행 | 15:36 KST `tools/run_installed_suites.py --suites run-combined --restore-after --prepared`, 기록 `work/run729-combined/`. 환경 점검 OK9/WARN1(가용 메모리 1.8 GiB)/BLOCK0 |
+| 결합 실행 `20261116-153658-96d60922` | 15:36~17:42 KST, 125.9분, completed/종료0. 기본 PASS25/MANUAL1/SKIP10/FAIL0, WU TC PASS10/SKIP3, 세부 224(PASS220/SKIP4). 따로 실행과 판정 같음 |
+| 복원·정리 | 파일 6곳·DB verified, Bellalun Service·SQL RUNNING, 이미지 37개(4,144,646,340 bytes) 정리, 제품·자동화 프로세스 남지 않음 |
+| USB | `D:\BellalunWU09` 6파일·폴더 3개가 실행 전 manifest(`work/run729-usb/`)와 해시 일치 |
+| 소요 비교 | 따로 약 206분 → 결합 125.9분(약 80분 단축). 복원 단계는 14.9분으로 따로 실행 1회보다 길다(`docs/regression-timing.md` 6.1절) |
 
-다음 시작점: 종료 뒤 `work/run729-combined/verification.json`에서 기본 PASS25/MANUAL1/SKIP10, WU TC PASS10/SKIP3·세부 224, 복원 verified, USB 해시를 확인하고 소요를 `docs/regression-timing.md` 6절에 비교한다. 그다음 선택 회귀 → 복원 단계 시간 기록 → 고정 대기 정리 순서.
+다음 시작점: 후보 2 영향 기반 선택 회귀를 SPEC부터 작성한다. 이어서 후보 3 복원 단계 안 DB·파일·서비스 시간 기록(결합 실행 복원 14.9분 원인 확인), 후보 4 고정 대기 정리 순서.
 
 ## 이전 상태 — 회귀 시간 단축: 측정과 결합 실행 구현 (2026-11-16 run728)
 
