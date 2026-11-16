@@ -4,6 +4,7 @@
 
 - REQ-SPEEDUP-002: 선택 회귀에서 `TC_Basic_WorkFlow_14`를 고르면 `TC_Basic_WorkFlow_03`도 함께 실행한다. WF14 Step 7은 Print Overlay 목록 행을 열거해 DB와 대조하는데, 기준 상태에는 그 행이 없고 WF03이 만든다. 설치판 1.0.23 선택 실행 `20261116-191248-48515288`(WF14+XIPL)에서 WF03 없이 돌린 WF14가 "Overlay 이름 목록에 행이 없다"로 FAIL했다(같은 TC는 1.0.22 기본 전체에서 PASS). 판정 기준은 바꾸지 않았다.
 - REQ-SPEEDUP-002·003·004: 같은 선택 실행에서 선택 실행 표시·`run_scope: selected`·전체 회귀 제외, 복원 단계 시간 기록(`phases`·`timings`), XIPL 01~07 PASS를 설치판으로 확인했다. XIPL 묶음은 1629초 → 1286초로 줄었다(`docs/regression-timing.md` 6.2절).
+- REQ-SPEEDUP-002·004: 설치판 1.0.24 선택 실행 `20261116-205152-a88ea63c`(`--select TC_Basic_WorkFlow_14`)가 WF03을 함께 돌려 PASS 7/FAIL 0, WF14 PASS를 확인했다. 설정 그룹 재클릭 생략으로 WF14 목록 수집이 약 60초 줄었다(`docs/regression-timing.md` 6.3절).
 
 ## 1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기
 

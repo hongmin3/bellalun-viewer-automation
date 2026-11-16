@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="bbc7a794277ec4bc8df9a15880b6eba2d03f39a7373ecc694961ea280a3d345c">
+<meta name="spec-source-sha256" content="eff78a7588ea442545bfe17499d26cf2fab3a39b22c1bab85f2244dbaaa51636">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1557,10 +1557,11 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <section class="card kind-req" id="REQ-SPEEDUP-002">
 <h3><span class="idtag">REQ-SPEEDUP-002</span> 영향 기반 선택 회귀</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>core/selection.py</code>, <code>core/automation_health.py</code>, <code>core/result.py</code>, <code>bellalunauto/runplan.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/impact_scope.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/release_gate.py</code>, <code>tools/run_installed_suites.py</code>, <code>tools/recover_preservation.py</code>, <code>remote/winrm_executor.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-002">TEST-SPEEDUP-002</a>; <code>tests/test_selected_run.py</code>, <code>tests/test_impact_scope.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-SPEEDUP-002">TEST-SPEEDUP-002</a></span></div>
-<details class="history"><summary>변경 이력 7</summary>
+<details class="history"><summary>변경 이력 8</summary>
 <ul>
 <li><span class="hist">1.0.24 후보 — 선택 회귀의 WF14 선행 TC 보완</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>: 선택 회귀에서 <code>TC_Basic_WorkFlow_14</code>를 고르면 <code>TC_Basic_WorkFlow_03</code>도 함께 실행한다. WF14 Step 7은 Print Overlay 목록 행을 열거해 DB와 대조하는데, 기준 상태에는 그 행이 없고 WF03이 만든다. 설치판 1.0.23 선택 실행 <code>20261116-191248-48515288</code>(WF14+XIPL)에서 WF03 없이 돌린 WF14가 &quot;Overlay 이름 목록에 행이 없다&quot;로 FAIL했다(같은 TC는 1.0.22 기본 전체에서 PASS). 판정 기준은 바꾸지 않았다.</li>
 <li><span class="hist">1.0.24 후보 — 선택 회귀의 WF14 선행 TC 보완</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>·003·004: 같은 선택 실행에서 선택 실행 표시·<code>run_scope: selected</code>·전체 회귀 제외, 복원 단계 시간 기록(<code>phases</code>·<code>timings</code>), XIPL 01~07 PASS를 설치판으로 확인했다. XIPL 묶음은 1629초 → 1286초로 줄었다(<code>docs/regression-timing.md</code> 6.2절).</li>
+<li><span class="hist">1.0.24 후보 — 선택 회귀의 WF14 선행 TC 보완</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>·004: 설치판 1.0.24 선택 실행 <code>20261116-205152-a88ea63c</code>(<code>--select TC_Basic_WorkFlow_14</code>)가 WF03을 함께 돌려 PASS 7/FAIL 0, WF14 PASS를 확인했다. 설정 그룹 재클릭 생략으로 WF14 목록 수집이 약 60초 줄었다(<code>docs/regression-timing.md</code> 6.3절).</li>
 <li><span class="hist">1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>: <code>run-regression --select &lt;TC,...&gt;</code>로 영향받은 기본 TC와 smoke(<code>TC_Basic_Install_02</code>·<code>TC_Basic_WorkFlow_01</code>)만 실행한다. 기준 상태 복원·<code>DICOM_Server_Setup</code>과 선행 TC(WF_03~15·XIPL은 WF_01·02, WF_08·15는 WF_03)를 자동으로 더하고 체크리스트 순서로 돈다. 보존·복원·정리는 기본 전체와 같다.</li>
 <li><span class="hist">1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>: 선택 실행의 리포트·실행 기록은 <code>run_scope: selected</code>와 실행 목록을 남기고 &quot;선택 실행(영향 TC+smoke) — 전체 회귀 아님&quot;을 표시한다. 완료 전체 회귀 판정·경과일·설치판 릴리스 게이트는 선택 실행을 세지 않는다. 선택하지 않은 TC와 사람 전용 SKIP 행은 결과에 넣지 않는다.</li>
 <li><span class="hist">1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기</span> <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>: 빌드 릴리스 게이트(<code>tools/release_gate.py</code>)와 원격 실행 완료 판정도 선택 실행을 전체 회귀로 세지 않는다. 선택 실행이 전체 회귀 표식 TC(WF14·XIPL_07 등)를 모두 담아도 같다.</li>
