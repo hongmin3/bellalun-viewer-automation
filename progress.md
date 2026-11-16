@@ -1,6 +1,32 @@
 # 진행 상태
 
-## 현재 상태 — 1.0.20 설치판 수용 완료 (2026-11-16 run718)
+## 현재 상태 — 1.0.21 결과 창 자동 닫기 개선, 설치판 실측 완료 (2026-11-16 run720·723·727)
+
+REQ-FOLLOWUP-003을 바꿨다(`ea5b0d8`, push 완료). 60초 자동 닫기는 무인 실행에만 적용한다.
+
+| 항목 | 내용 |
+|---|---|
+| 무인 신호 | `--unattended` 또는 `QA_AUTOMATION_UNATTENDED=1`. 없으면 사람 실행 |
+| 표시 | 창 제목 끝 `자동 닫기 꺼짐(사람 실행)` / `N초 뒤 자동 닫힘(무인 실행)` |
+| 취소 | 버튼·키보드 버튼 + 창 안 클릭·휠·키 입력 |
+| 흔적 | 자동 닫힘 때 알림 센터 알림, `run.json`의 `auto_close`·`result_seen: false`, 다음 실행 때 맨 위 표시 |
+| wrapper | `tools/launch_gui.py`, 원격 실행·`tools/run_installed_suites.py` 환경 변수 |
+| 소스 검증 | RED 확인 뒤 구현. verify 4개 통과, pytest 1675 passed/2 skipped. 실제 알림이 알림 센터 기록에 남는 것을 확인하고 시험 알림은 지웠다 |
+
+**설치판 1.0.21 실측 (run720·723):**
+
+| 단계 | 결과 |
+|---|---|
+| 빌드·설치 | 소스 `ea5b0d8`(dirty=false), 실행 파일 1010개 해시 일치. 기존 작업 파일 2023개 변경·누락 0, 설정 보존 |
+| 무인 WU 전체 `20261116-074148-cc2791b3` | `tools/launch_gui.py`로 열어 제목 `BellalunAuto 1.0.21 · 60초 뒤 자동 닫힘(무인 실행)` 확인. completed/종료0, PASS10/SKIP3/FAIL0, 복원 verified. 완료 기록 09:14:45 → 창 닫힘 09:15:46, `auto_close.notification`=shown, `result_seen`=false. 알림 센터에 실행 번호·`PASS 10 / FAIL 0 / MANUAL 0 / SKIP 3 / BLOCKED 0`·HTML 리포트 경로가 남음(`work/run720-unattended/notification-history.json`) |
+| 무인 재실행 | 같은 도구로 다시 열자 막힘 없이 열리고 맨 위에 "확인하지 않은 마지막 실행 결과"가 보임. 입력 없이 닫은 뒤에도 `result_seen`=false 유지 (`work/run720-chain/`) |
+| 사람 실행 WU 전체 `20261116-110601-b740206d` | 신호 없이 연 창 제목 `자동 닫기 꺼짐(사람 실행)`, 같은 미확인 결과 표시, 로그 클릭 뒤 `result_seen`=true. completed/종료0, PASS10/SKIP3/FAIL0, 복원 verified. 완료(12:40:17) 뒤 243초 관찰과 1시간 33분 뒤 캡처에서 창 유지, `auto_close` 없음·알림 없음, `launch_mode` human. 확인 뒤 창을 닫았다 (`work/run720-human/`) |
+
+> **참고** 1회차 관찰기(`work/run720_observer.py`)가 `tasklist` 출력 인코딩 오류로 완료 직후 멈춰, 카운트다운 중 창 제목의 초 단위 기록은 없다. 닫힌 시각은 `run.json`의 `auto_close.closed_at`으로 확인했다. 관찰기는 고쳤다.
+
+VXvue(#148)는 같은 신호 이름과 문구를 쓴다. VXvue 저장소는 이 작업에서 고치지 않았다.
+
+## run718 — 1.0.20 설치판 수용 완료 (2026-11-16)
 
 #140·#145의 1.0.20 설치판 수용 항목을 모두 확인했다. 기본 전체(run710), WU 전체 두 번, 60초 자동 닫기,
 다른 GUI 버튼('버전')과 키보드 버튼 실행의 자동 닫기 취소다.

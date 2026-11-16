@@ -39,7 +39,7 @@
 | P12 | UI 호출·탐색 비용 계측과 공통 경로 정리 | REQ-FOLLOWUP-002 | `core/performance.py`; `tests/test_performance_followup.py` | 계측 시험. 실제 속도 개선 수치는 미확인 |
 | P13 | 자동화 범위 원본으로 문서 수치 생성·대조 | REQ-FOLLOWUP-002 | `tools/scope_summary.py`, `automation_scope.json` | `python tools/scope_summary.py --check`로 검증 |
 | P14 | 고정 원격 묶음, 인증 전송·해시 캐시, PC 잠금·진행·취소·결과 회수 | REQ-FOLLOWUP-002 | `remote/coordinator.py`; `tests/test_remote_execution.py` | 로컬 통신·모의 WinRM·Windows 파일 회수 시험. 실제 서버 배포·대상 Windows·공유 VHD 잠금 수용 미수행 |
-| 완료 창 | 정상 마무리 후 60초 자동 닫기와 회차별 취소 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`; `tests/test_auto_close.py`, `tests/test_qa_runs.py` | 설치판1.0.17의 자동 닫기·멈춤 확인. 설치판1.0.20에서 자동 닫기와 다른 GUI 버튼(버전)·키보드 버튼 취소 확인 |
+| 완료 창 | 무인 실행만 60초 자동 닫기, 창 안 입력·버튼 취소, 닫힐 때 알림과 미확인 결과 표시 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/completion_notice.py`, `tools/launch_gui.py`; `tests/test_auto_close.py`, `tests/test_completion_notice.py`, `tests/test_qa_dialogs.py` | 설치판1.0.20까지 버튼·키보드 취소 확인. 설치판1.0.21에서 무인 WU 1회 자동 닫힘·알림, 무인 재실행, 사람 실행 WU 1회 창 유지 확인 |
 | 공용 보존 | 저장소 신원·로컬 journal·차이 복원·정리 재개·미완료 마무리 차단 | REQ-FOLLOWUP-004 | `core/preservation_storage.py`, `core/atomic_metadata.py`, `tools/recover_preservation.py`; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_recover_preservation_cli.py` | 합성 파일과 실제 로컬 복원·정리 확인. 실제 SMB·긴 UNC 통합 수용은 제외·미검증 |
 | 판정 수정 | WF14 UPS Import 예외와 XIPL03 기본값·실제 적용값 구분 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py` | 1.0.17 기본 회귀에서 WF14·XIPL03·XIPL06 PASS. 과거 원시 FAIL은 보존 |
 
@@ -66,6 +66,8 @@
 | 1.0.18 WF01 진단 | run684의 Viewer 진입에서 PC 정리 창 적중으로 중단 | 성별 판독에 미도달. 성별 오류까지 같은 원인이라고 확정하지 않음 |
 | 1.0.20 기본 전체 | 36행 PASS25/MANUAL1/SKIP10/FAIL0, WF01 성별 판독·XIPL06 PASS | 복원·서비스·생성 Image 정리와 60초 자동 닫기 확인 |
 | 1.0.20 WU 전체 2회 | 각 13행 PASS10/SKIP3/FAIL0 | 1회차 끝에 '버전' 버튼, 2회차 끝에 키보드(Tab·Space) 실행으로 자동 닫기 취소 확인 |
+| 1.0.21 WU 무인 | 13행 PASS10/SKIP3/FAIL0, 복원 verified | 완료 61초 뒤 창 닫힘, 알림 센터에 실행 번호·판정 합계·리포트 경로, `result_seen` false |
+| 1.0.21 WU 사람 | 13행 PASS10/SKIP3/FAIL0, 복원 verified | 제목 `자동 닫기 꺼짐(사람 실행)`, 완료 1시간 33분 뒤에도 창 유지, 알림 없음 |
 
 1.0.18 진단 뒤 파일·4DB·서비스 복구와 pending 해제를 확인했다.
 원시 보고서·로그·복구 영수증·화면 증거는 로컬 Git 제외 작업 자료에 보존한다.
