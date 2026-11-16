@@ -260,6 +260,9 @@ def _safe_current(run, operation, target):
 
 
 def _restore_operations(run):
+    # 보관본 전체 검증은 이번 복원 실행의 첫 격리 직전에 한 번만 한다(REQ-SPEEDUP-006).
+    # 격리마다 반복하면 생성 이미지 수 × 보관본 전체 해시가 된다(1.0.23 실측 413.8초).
+    archive_checked = False
     for operation in _plan(run):
         if operation["phase"] == "verified":
             continue
@@ -279,7 +282,9 @@ def _restore_operations(run):
             else:
                 if _entry(target) != operation["expected"]:
                     raise PreservationError("보관 후 격리 대상이 변경되었습니다")
-                _verify_archive(run)
+                if not archive_checked:
+                    _verify_archive(run)
+                    archive_checked = True
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(target, destination)
         elif kind == "mkdir":

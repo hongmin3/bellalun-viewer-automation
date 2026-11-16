@@ -49,6 +49,7 @@ class XiplStudySelectionTests(unittest.TestCase):
 
         stack = ExitStack()
         stack.enter_context(patch.object(vp.flows, 'cold_start', return_value=(ui, None)))
+        stack.enter_context(patch.object(vp.flows, 'start_clean_viewer', return_value=(ui, [])))
         stack.enter_context(patch.object(vp.flows, 'ensure_patient_screen', return_value=True))
         stack.enter_context(patch.object(vp, 'ensure_tc01_overlay', return_value={}))
         stack.enter_context(patch.object(vp.flows, 'open_main_menu', return_value=True))

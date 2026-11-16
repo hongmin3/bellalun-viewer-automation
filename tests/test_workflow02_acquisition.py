@@ -85,6 +85,7 @@ def run_acquisition(monkeypatch, delays, *, missing=False, skipped=False, unrela
         (wf, '_capture', lambda *a: None),
         (wf, '_examined_search', lambda *a: [object()]),
         (flows, 'cold_start', lambda *a, **k: (ui, {})),
+        (flows, 'start_clean_viewer', lambda *a, **k: (ui, [])),
         (flows, 'ensure_patient_screen', lambda *a, **k: True),
         (flows, 'read_edit_information', lambda *a: {'patient_id': wf.PATIENT_ID, 'patient_name': 'AUTO MWL', 'study_datetime': '20261106000000'}),
         (flows, 'step_items', lambda *a: list(range(state.steps))),

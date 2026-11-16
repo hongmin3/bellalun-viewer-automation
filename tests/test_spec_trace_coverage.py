@@ -66,10 +66,6 @@ UNTRACED_BASELINE = {
     "tests/workflow05.py",
     "tests/workflow06.py",
     "tests/workflow07.py",
-    "tests/workflow10.py",
-    "tests/workflow11.py",
-    "tests/workflow12.py",
-    "tests/workflow13.py",
 }
 
 

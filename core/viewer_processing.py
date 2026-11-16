@@ -770,7 +770,8 @@ def open_test_study(ctx):
     if not {0, 1, 2, 3}.issubset(types):
         raise RuntimeError(f"Fixture requires InstanceType 0/1/2/3; actual={sorted(types)}")
 
-    ui, _ = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+    # 깨끗한 Viewer면 재시작하지 않는다(REQ-SPEEDUP-005). 아니면 지금처럼 다시 띄운다.
+    ui, _ = flows.start_clean_viewer(ctx.cfg, ctx.db)
     # Open the completed local study through View, not through MWL Examine.
     # Re-opening the MWL row would create another study with the same UID.
     patient_ready = False

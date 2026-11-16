@@ -130,6 +130,11 @@ def worker_command(layout, arguments, stop_file=None):
     return child_command(options + ['--worker'] + list(arguments))
 
 
+def finish_label(scope):
+    """감시 프로세스의 종료 줄·알림 제목. 선택 실행은 전체 실행으로 적지 않는다(REQ-SPEEDUP-002)."""
+    return '선택 실행 종료' if scope == 'selected' else '전체 실행 종료'
+
+
 def completed_report(reports_dir, command, since, scope=None):
     """완료 리포트. `scope='selected'`면 선택 회귀(REQ-SPEEDUP-002)를 끝까지 마친 리포트를 찾는다."""
     from core import automation_health as health
@@ -482,9 +487,10 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
                     return code or 3
                 health.write_state(str(layout.workspace), 'completed', exit_code=code, report=report,
                                    mode=command)
-                health.notify_windows('BellalunAuto 전체 실행 종료', str(report['verdicts']),
+                finished = finish_label(scope_of_arguments(arguments))
+                health.notify_windows(f'BellalunAuto {finished}', str(report['verdicts']),
                                       'warning' if code else 'info')
-                print(f"[{command}] 전체 실행 종료: {report['verdicts']} / {report['path']}")
+                print(f"[{command}] {finished}: {report['verdicts']} / {report['path']}")
             else:
                 cleanup = None
                 if code:

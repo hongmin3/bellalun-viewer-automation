@@ -461,6 +461,11 @@ def shutdown_viewer(reason="회귀 종료"):
     return detail
 
 
+def regression_label(ctx):
+    """`run-regression` 완료 표시 범위. 선택 실행은 전체 회귀로 적지 않는다(REQ-SPEEDUP-002)."""
+    return "선택 실행" if getattr(ctx, "run_scope", None) == "selected" else "전체 회귀"
+
+
 def announce_done(results, elapsed_minutes, paths, *, label='전체 회귀'):
     """전체 회귀 완료를 터미널에 **눈에 띄게** 알린다.
 
@@ -2242,7 +2247,7 @@ def _dispatch(ctx, args):
             print(f"  viewer-shutdown: {shutdown}")
             elapsed = (datetime.now() - regression_started).total_seconds() / 60
             code = finish(ctx, results)
-            announce_done(results, elapsed, LAST_REPORT_PATHS)
+            announce_done(results, elapsed, LAST_REPORT_PATHS, label=regression_label(ctx))
             return code or 1
         # **`AUTOMATION_3D_ACQUISITION_3DN/_3DW` 는 회귀에서 제외한다**
         # (2026-08-21 사용자 지시). 개정본 TC 가 아니고, 판정도 "장비 없이는
@@ -2257,7 +2262,7 @@ def _dispatch(ctx, args):
         print(f"  viewer-shutdown: {shutdown}")
         elapsed = (datetime.now() - regression_started).total_seconds() / 60
         code = finish(ctx, results)
-        announce_done(results, elapsed, LAST_REPORT_PATHS)
+        announce_done(results, elapsed, LAST_REPORT_PATHS, label=regression_label(ctx))
         return code
     if args.cmd == "run-winupdate":
         return _run_winupdate_chain(ctx, resume=bool(getattr(args, "resume", False)),

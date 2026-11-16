@@ -820,6 +820,7 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 #### 표시와 집계
 - 리포트와 실행 기록의 `run_scope`는 `selected`다. meta `selection`에 요청 TC, 추가된 선행 TC, smoke, 실제 실행 순서를 남긴다.
 - 리포트 첫 줄과 실행 신원 표에 "선택 실행(영향 TC+smoke) — 전체 회귀 아님"을 표시한다.
+- 콘솔 완료 요약 줄은 "선택 실행 완료", 화면 프로그램 감시 프로세스의 종료 줄과 Windows 알림 제목은 "선택 실행 종료"로 쓴다. 선택 실행에서 "전체 회귀 완료"·"전체 실행 종료"를 쓰지 않는다(2026-11-16 설치판 1.0.24 실측에서 콘솔만 전체 회귀로 표시됐다).
 - 실행 계획 이름은 `기본기능 선택 수행(영향 TC+smoke)`이다. 계획 지문에 선택 목록을 넣는다.
 - 완료 전체 회귀 판정(`completed_report_data`, 마지막 전체 회귀 경과일, 설치판·빌드 릴리스 게이트, 원격 실행 완료 판정)은 선택 실행을 기본 전체로 세지 않는다. 선택 실행이 전체 회귀 표식 TC를 모두 담아도 같다.
 - 선택 실행 자체의 완료는 `run_scope: selected`와 `chain_completed: true`인 이번 실행의 리포트로 판정한다. 실행 기록 상태, 정상완주 증거와 생성 이미지 정리(REQ-FOLLOWUP-004), 중단 뒤 정리 재개가 이 기준을 쓴다.
@@ -864,10 +865,48 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
    - 로그인 전: 이번 호출에서 Viewer를 실행했을 때만 기다린다.
    - 로그인 후: 이번 호출에서 실행했거나 로그인 화면에서 실제로 로그인했을 때만 기다린다. Demo 안내는 로그인 뒤에 뜬다(2026-08-24 실측).
    - 그 밖에는 지금 떠 있는 팝업이 있을 때만 닫는다. 이미 로그인된 Viewer에는 새로 뜰 기동·로그인 팝업이 없기 때문이다.
+3. **검사 닫기(`flows.close_examine`)**: 아래 세 고정 대기를 화면 신호로 끝낸다. 상한은 지금 값 그대로다.
+   - 저장 확인 팝업 대기(최대 6초): 종료 옵션 팝업(버튼 3개)이 보이면 바로 끝낸다. 저장 확인 팝업은 종료 옵션 팝업보다 먼저 뜨기 때문이다(2026-08-19 실측).
+   - 종료 옵션 팝업 대기(최대 6초)와 옵션을 누른 뒤의 대기(`wait`, 6~10초): 팝업이 뜨거나 Patient 화면의 New Patient 탭(2285)이 나타나면 끝낸다. Examine 화면에서는 이 탭이 열거되지 않는다(2026-08-28 WF06 실패 기록의 화면 표지 `['status_bar','examine']`).
+   - 검사 삭제 확인 팝업 대기(최대 4초): 옵션을 누른 뒤 팝업 없이 Patient 화면이 나타났으면 1초만 본다.
+   - 반환값 `settle`에 끝낸 신호(`dialog`·`patient`·`timeout`)와 기다린 초를 남긴다. 신호가 없으면 지금처럼 상한까지 기다린다.
+4. **WF13 메뉴 가시성(`tests/workflow13._menu_visibility`)**: 페이지마다 따로 최대 3초를 기다리지 않는다. 그룹을 연 뒤 한 번 열거한 화면에서 모든 페이지를 판정하고, 보이지 않은 페이지들만 같은 3초 안에서 함께 다시 본다. 보이지 않음(X)은 그 3초 동안 끝까지 보이지 않은 페이지다.
 
 #### 지킬 것
 - 시간 상한·응답 없음 감지(REQ-WU-002)·판정 기준·Expected를 바꾸지 않는다.
 - 상태를 확인할 수 없으면 기존 동작(그룹 클릭과 고정 대기)으로 돌아간다.
+
+### REQ-SPEEDUP-005 필요 없는 Viewer 재시작 줄이기
+
+#### 하는 일
+TC 시작의 강제 재시작(약 40~60초) 가운데 근거가 기록되지 않은 것을 "깨끗한 Viewer면 재사용"으로 바꾼다. 함수는 `flows.start_clean_viewer`다.
+
+#### 재사용 조건 (모두 만족할 때만)
+1. Viewer가 실행 중이고 로그인 화면이 아니며 DB에 접속된다.
+2. 떠 있는 팝업이 없다.
+3. DB에 Examine 중(`STUDY.StudyStatus=1`)인 검사가 없다.
+4. `ensure_patient_screen`으로 Patient 화면(New Patient 탭)에 들어갈 수 있다.
+5. 설정 `viewer.force_restart`가 켜져 있지 않다.
+하나라도 아니거나 확인 중 예외가 나면 지금처럼 강제 재시작한다. 판단과 이유를 기동 로그 첫 줄에 남긴다.
+
+#### 적용 범위
+- 재사용으로 바꾸는 곳: `TC_Basic_WorkFlow_02`·`10`·`11`·`12`의 시작, `TC_Basic_WorkFlow_13`의 시작(시험 계정 로그인·원래 계정 복구 재시작은 유지), `viewer_processing.open_test_study`(WF03·05·09). 코드와 이력에 재시작 이유가 적혀 있지 않은 곳이다.
+- 그대로 강제 재시작하는 곳: WF04(오래 떠 있던 세션에서 Send가 State=3에 멈춘 실측, 2026-08-27), WF06(앞 TC가 남긴 Examine 화면, 2026-08-28), DICOM 서버 설정, WF07·WF15(Send 판정), WF08(Print·Send), WF13의 계정 전환, WF14(설정 Import와 페이지 핸들 기록), XIPL 준비, WU 단계.
+
+#### 지킬 것
+- TC 절차·판정·Expected를 바꾸지 않는다. 재사용한 TC가 기존 기준 실행과 다른 판정을 내면 재사용을 되돌린다.
+
+### REQ-SPEEDUP-006 파일 복원의 보관본 재검증 줄이기
+
+#### 하는 일
+파일 차이 복원(`restore_files`)에서 생성 파일을 격리할 때마다 시험 후 보관본 전체를 다시 해시하지 않는다. 한 번의 복원 실행에서 첫 격리 직전에 한 번만 보관본 전체를 검증한다.
+
+> **근거(2026-11-16 실측, `docs/regression-timing.md` 6.2·6.3절)** 생성 이미지 32개 실행은 `restore_files` 413.8초, `archive_verify` 42.4초였고, 8개 실행은 58.0초, 7.5초였다. 격리 작업 수 × 보관본 전체 검증 시간과 맞는다.
+
+#### 지킬 것
+- 공용 저장소 식별자 확인, 격리 대상이 계획과 같은지 확인, 복원 파일의 사전 사본·임시 사본·교체 결과 해시 대조는 작업마다 그대로 한다.
+- 복원을 중단 뒤 다시 시작하면 그 실행의 첫 격리 직전에 다시 한 번 검증한다. 끝의 `archive_verify`도 그대로 한다.
+- 복원 순서·실패 처리·REQ-FOLLOWUP-004의 보존 정책은 바꾸지 않는다.
 - 설치판 UI에서 해당 TC가 같은 판정인지 확인한 뒤 수용으로 기록한다.
 
 ### REQ-KNOW-001 지식 폴더 서버 동기화
@@ -1267,7 +1306,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 - 검증 대상: REQ-SPEEDUP-002.
 - 절차 1: `tests/test_selected_run.py`가 선택 해석을 확인한다. 짧은 이름, smoke·전제·선행 TC 추가, 체크리스트 순서, XIPL 개별 ID의 단계 대응이다.
-- 절차 2: 같은 시험이 거부와 표시를 확인한다. 모르는 이름·전체와 같은 선택·다른 명령의 `--select`를 거부하고, 선택하지 않은 TC와 사람 전용 SKIP 행을 넣지 않으며, meta `run_scope`·`selection`, 계획 이름·지문을 남긴다.
+- 절차 2: 같은 시험이 거부와 표시를 확인한다. 모르는 이름·전체와 같은 선택·다른 명령의 `--select`를 거부하고, 선택하지 않은 TC와 사람 전용 SKIP 행을 넣지 않으며, meta `run_scope`·`selection`, 계획 이름·지문을 남긴다. `tests/test_completion_scope.py`가 선택 실행의 콘솔 완료 요약 줄과 감시 프로세스의 종료 줄·알림 제목이 "선택 실행"이고 "전체 회귀 완료"·"전체 실행 종료"가 없는지 확인한다.
 - 절차 3: 같은 시험이 집계를 확인한다. 완료 전체 회귀·릴리스 게이트가 선택 실행을 세지 않고, 선택 실행 완료는 선택 기준으로만 찾으며, 설치판 실행 도구가 `run-selected`를 받는다. CLI 보존 경로로 선택 실행을 끝까지 돌려 복원·정상완주 증거·생성 이미지 정리를 확인한다.
 - 절차 4: `tests/test_impact_scope.py`가 범위 추천을 확인한다. 문서·단위시험만은 `none`, TC 전용 파일은 `selected`, WU 전용 파일은 `wu`, 공용·지도 밖 동작 파일과 기본+WU 혼합은 `full`이다.
 - Expected Result: 선택·거부·표시·집계가 REQ-SPEEDUP-002와 같다. 실제 소요는 승인받은 설치판 UI 실행으로 따로 기록한다.
@@ -1281,8 +1320,20 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 ### TEST-SPEEDUP-004 상태 기반 대기
 
 - 검증 대상: REQ-SPEEDUP-004.
-- 절차: `tests/test_state_waits.py`가 가짜 UI로 페이지 버튼이 이미 보이면 그룹을 누르지 않고, 보이지 않으면 지금처럼 그룹을 누르는지, Setting 창을 찾지 못하면 기존 동작으로 돌아가는지 확인한다. `ensure_ready`가 이미 실행 중인 Viewer에서는 떠 있는 팝업이 없을 때 기동 팝업을 기다리지 않고, 떠 있으면 닫으며, 이번에 실행했을 때는 지금처럼 최대 8초 기다리는지 확인한다.
+- 절차: `tests/test_state_waits.py`가 가짜 UI로 페이지 버튼이 이미 보이면 그룹을 누르지 않고, 보이지 않으면 지금처럼 그룹을 누르는지, Setting 창을 찾지 못하면 기존 동작으로 돌아가는지 확인한다. `ensure_ready`가 이미 실행 중인 Viewer에서는 떠 있는 팝업이 없을 때 기동 팝업을 기다리지 않고, 떠 있으면 닫으며, 이번에 실행했을 때는 지금처럼 최대 8초 기다리는지 확인한다. `close_examine`이 종료 옵션 팝업이 보이면 저장 확인 대기를 끝내고, 옵션을 누른 뒤 Patient 탭이 나타나면 `wait` 상한 전에 끝내며 삭제 확인을 1초만 보고, 신호가 없으면 상한까지 기다리는지 확인한다. WF13 `_menu_visibility`가 그룹마다 한 번의 3초 안에서 보이지 않는 페이지를 함께 다시 보고, 늦게 나타난 페이지는 보임으로, 끝까지 없던 페이지는 안 보임으로 판정하는지 확인한다.
 - Expected Result: 대기 판단이 REQ-SPEEDUP-004와 같다. 제품 화면 수용은 설치판 UI 실행으로 따로 기록한다.
+
+### TEST-SPEEDUP-005 Viewer 재시작 줄이기
+
+- 검증 대상: REQ-SPEEDUP-005.
+- 절차: `tests/test_viewer_reuse.py`가 가짜 UI·DB로 다섯 조건을 모두 만족하면 재시작하지 않고, 조건 하나씩 어기거나 확인 중 예외가 나면 강제 재시작하며, 판단 이유를 기동 로그 첫 줄에 남기는지 확인한다. 적용 범위 TC 파일이 `start_clean_viewer`를 쓰고 그대로 두는 TC가 강제 재시작을 유지하는지 정적으로 확인한다.
+- Expected Result: 재시작 판단이 REQ-SPEEDUP-005와 같다. 판정이 같은지는 설치판 UI 실행으로 기록한다.
+
+### TEST-SPEEDUP-006 보관본 재검증 횟수
+
+- 검증 대상: REQ-SPEEDUP-006.
+- 절차: `tests/test_restore_archive_verify.py`가 격리 작업이 여러 개인 공용 보존 복원에서 보관본 전체 검증이 복원 실행마다 한 번(첫 격리 직전)인지, 보관본이 손상되면 지금처럼 첫 격리 전에 멈추는지, 중단 뒤 재개하면 다시 한 번 검증하는지 확인한다. 기존 `tests/test_shared_preservation.py`가 복원 결과가 바뀌지 않았음을 확인한다.
+- Expected Result: 검증 횟수와 실패 처리가 REQ-SPEEDUP-006과 같다.
 
 ### TEST-TRACE-002 WU 추적성과 정적 자체검사
 
@@ -1456,7 +1507,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPEEDUP-001 | `run.py`, `core/wu_chain.py`, `bellalunauto/runplan.py`, `bellalunauto/app.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py` | TEST-SPEEDUP-001; `tests/test_combined_run.py` | verified |
 | REQ-SPEEDUP-002 | `run.py`, `core/selection.py`, `core/automation_health.py`, `core/result.py`, `bellalunauto/runplan.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/impact_scope.py`, `tools/installed_release_gate.py`, `tools/release_gate.py`, `tools/run_installed_suites.py`, `tools/recover_preservation.py`, `remote/winrm_executor.py` | TEST-SPEEDUP-002; `tests/test_selected_run.py`, `tests/test_impact_scope.py` | verified |
 | REQ-SPEEDUP-003 | `core/preservation_storage.py`, `core/execution_session.py`, `core/phase_timer.py` | TEST-SPEEDUP-003; `tests/test_restore_timing.py` | verified |
-| REQ-SPEEDUP-004 | `core/flows.py`, `core/ui.py` | TEST-SPEEDUP-004; `tests/test_state_waits.py` | verified |
+| REQ-SPEEDUP-004 | `core/flows.py`, `core/ui.py`, `tests/workflow13.py` | TEST-SPEEDUP-004; `tests/test_state_waits.py` | verified |
+| REQ-SPEEDUP-005 | `core/flows.py`, `core/viewer_processing.py`, `tests/workflow02.py`, `tests/workflow10.py`, `tests/workflow11.py`, `tests/workflow12.py`, `tests/workflow13.py` | TEST-SPEEDUP-005; `tests/test_viewer_reuse.py` | implemented |
+| REQ-SPEEDUP-006 | `core/preservation_storage.py` | TEST-SPEEDUP-006; `tests/test_restore_archive_verify.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |

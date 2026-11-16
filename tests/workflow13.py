@@ -296,21 +296,25 @@ def _menu_visibility(ui):
             # 그룹 자체가 안 보이면 그 그룹의 모든 페이지가 접근 불가다.
             seen[group] = {"_group_error": str(exc)}
             continue
-        state = {}
-        for name, ctrl_id in pages.items():
-            # 그룹을 연 직후 페이지 레일이 아직 그려지는 중일 수 있다 — 한 번만
-            # 보면 간헐적으로 "안 보임"이 된다(2026-08-28 실측:
-            # `tool > image_tool`이 이 이유로 거짓 FAIL 이었다). 접근 불가(X)는
-            # 끝까지 안 보여야 하므로 상한을 짧게 둔다.
-            end = time.time() + 3
-            hits = []
-            while not hits and time.time() < end:
-                hits = [c for c in ui.controls(max_depth=8)
-                        if c.ctrl_id == ctrl_id and c.visible
-                        and c.rect[2] - c.rect[0] > 20]
-                if not hits:
-                    time.sleep(0.3)
-            state[name] = bool(hits)
+        # 그룹을 연 직후 페이지 레일이 아직 그려지는 중일 수 있다 — 한 번만
+        # 보면 간헐적으로 "안 보임"이 된다(2026-08-28 실측:
+        # `tool > image_tool`이 이 이유로 거짓 FAIL 이었다). 접근 불가(X)는
+        # 끝까지 안 보여야 하므로 상한을 짧게 둔다.
+        # 한 번 열거한 화면으로 모든 페이지를 판정하고, 안 보인 페이지들만 **같은
+        # 3초** 안에서 함께 다시 본다. 페이지마다 3초씩 따로 기다리지 않는다
+        # (REQ-SPEEDUP-004, 49페이지 × 최대 3초였다).
+        state = {name: False for name in pages}
+        missing = dict(pages)
+        end = time.time() + 3
+        while True:
+            shown = {c.ctrl_id for c in ui.controls(max_depth=8)
+                     if c.visible and c.rect[2] - c.rect[0] > 20}
+            for name in [n for n, ctrl_id in missing.items() if ctrl_id in shown]:
+                state[name] = True
+                del missing[name]
+            if not missing or time.time() >= end:
+                break
+            time.sleep(0.3)
         seen[group] = state
     return seen
 
@@ -388,7 +392,8 @@ def run(ctx):
         password = _password(ctx)
         name = "Auto Flow User"
 
-        ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+        # 시작만 깨끗한 Viewer를 재사용한다(REQ-SPEEDUP-005). 계정 전환·복구 재시작은 그대로다.
+        ui, startup = flows.start_clean_viewer(ctx.cfg, ctx.db)
         if not flows.ensure_patient_screen(ui):
             raise RuntimeError("Patient 화면이 준비되지 않았습니다")
 

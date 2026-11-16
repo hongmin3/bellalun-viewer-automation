@@ -193,7 +193,7 @@ def run(ctx):
 
         pre = snapshot.take(ctx.db)
 
-        ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+        ui, startup = flows.start_clean_viewer(ctx.cfg, ctx.db)
         if not flows.ensure_patient_screen(ui):
             raise RuntimeError("Patient 화면이 준비되지 않았습니다")
 

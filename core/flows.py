@@ -1707,6 +1707,48 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
     return ui, log
 
 
+def viewer_reuse_check(cfg, db, ui=None):
+    """TC 시작에서 Viewer를 다시 띄우지 않고 써도 되는지 본다(REQ-SPEEDUP-005).
+
+    반환: (재사용 가능 여부, 이유). 조건을 하나라도 확인하지 못하면 재사용하지 않는다.
+    """
+    if cfg["viewer"].get("force_restart"):
+        return False, "설정 viewer.force_restart"
+    ui = ui or ViewerUi()
+    if not ui.pid:
+        return False, "Viewer 미실행"
+    if ui.at_login_screen():
+        return False, "로그인 화면"
+    if not db.ping():
+        return False, "DB 접속 불가"
+    if ui.dialog():
+        return False, "팝업이 떠 있음"
+    row = db.one("DATA", "SELECT COUNT(*) AS n FROM STUDY WHERE StudyStatus=@s",
+                 {"s": STUDY_STATUS_EXAMINING})
+    if row is None or int(row.get("n") or 0):
+        return False, "Examine 중인 검사가 있음"
+    if not ensure_patient_screen(ui, wait=5, settle_timeout=5):
+        return False, f"Patient 화면 진입 실패(화면 표지 {known_screen(ui)})"
+    return True, "열린 검사·팝업 없음, Patient 화면"
+
+
+def start_clean_viewer(cfg, db, on_event=None):
+    """깨끗한 Viewer면 재사용하고, 아니면 `cold_start(force_restart=True)`로 다시 띄운다.
+
+    재시작 이유가 코드·이력에 남지 않은 TC 시작에만 쓴다(REQ-SPEEDUP-005 적용 범위).
+    판단과 이유를 기동 로그 첫 줄에 남긴다.
+    """
+    try:
+        reuse, why = viewer_reuse_check(cfg, db)
+    except Exception as exc:                           # noqa: BLE001
+        reuse, why = False, f"재사용 확인 실패({type(exc).__name__}: {exc})"
+    ui, log = cold_start(cfg, db, on_event=on_event, force_restart=not reuse)
+    log.insert(0, ("재시작 생략: " if reuse else "강제 재시작: ") + why)
+    if on_event:
+        on_event(log[0])
+    return ui, log
+
+
 def _find_process_pid(name):
     return ViewerUi(name).pid
 
@@ -2315,7 +2357,8 @@ def confirm_config_save(ui, save=False, timeout=6, tesseract_exe=None):
     return {"saved": bool(save), "ctrl_id": target.ctrl_id, "message": message}
 
 
-def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
+def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None,
+                            stop_on_options=False):
     """"There are changes. Do you like to save them?" 저장 확인 팝업을 처리한다.
 
     **발견 경위 (2026-08-19)**: `TC_XIPL_compatibility_04`가 회귀에서만 3회 연속
@@ -2344,6 +2387,10 @@ def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
     (실측). 처음 구현할 때 이걸 몰라서 문구 검사가 항상 실패했고, 핸들러가
     발동하지 않아 같은 실패가 한 번 더 났다.
 
+    `stop_on_options=True`(검사 닫기 전용)이면 종료 옵션 팝업(버튼 3개)이 보이거나
+    Patient 화면이 나타나는 즉시 None을 돌려준다. 저장 확인 팝업은 종료 옵션 팝업보다
+    **먼저** 뜨므로 그 뒤에는 오지 않는다(REQ-SPEEDUP-004).
+
     반환: {"saved": bool, "ctrl_id": int, "message": str} / 팝업 없으면 None.
     """
     end = time.time() + timeout
@@ -2353,6 +2400,9 @@ def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
         buttons = _visible_close_buttons(ui)
         if dialog and len(buttons) == 2:
             break
+        if stop_on_options and ((dialog and len(buttons) >= 3)
+                                or (not dialog and _patient_screen_shown(ui))):
+            return None
         time.sleep(.3)
     if not (dialog and len(buttons) == 2):
         return None
@@ -2391,6 +2441,41 @@ def confirm_unsaved_changes(ui, save=True, timeout=6, tesseract_exe=None):
     return {"saved": bool(save), "ctrl_id": target.ctrl_id, "message": message}
 
 
+def _patient_screen_shown(ui):
+    """Patient 화면의 New Patient 탭(2285)이 보이는가.
+
+    Examine 화면에서는 이 탭이 열거되지 않는다 — 2026-08-28 WF06 실패 기록에서
+    Examine 화면의 표지는 `['status_bar','examine']`뿐이었다(`known_screen`).
+    `ui.by_id`는 보이는 컨트롤만 열거한다.
+    """
+    return bool(ui.by_id(PATIENT["tab_new_patient"]))
+
+
+def _settle_after_close(ui, cap, poll=.25):
+    """검사 닫기 옵션을 누른 뒤 화면이 정리될 때까지 기다린다(REQ-SPEEDUP-004).
+
+    끝내는 신호
+      - `dialog`  : 버튼 2개 팝업(검사 삭제 확인 등)이 떴다. 처리는 호출부가 한다.
+      - `patient` : 팝업 없이 Patient 화면의 New Patient 탭이 나타났다.
+      - `timeout` : 신호 없이 상한 `cap`(이전의 고정 대기 값)까지 기다렸다.
+    닫히는 중인 종료 옵션 팝업처럼 다른 팝업은 신호로 보지 않는다.
+    """
+    started = time.time()
+    while True:
+        dialog = ui.dialog()
+        if dialog and len(_visible_close_buttons(ui)) == 2:
+            signal = "dialog"
+            break
+        if not dialog and _patient_screen_shown(ui):
+            signal = "patient"
+            break
+        if time.time() - started >= cap:
+            signal = "timeout"
+            break
+        time.sleep(poll)
+    return {"signal": signal, "waited": round(time.time() - started, 1)}
+
+
 def close_examine(ui, option="close", wait=8, evidence_path=None,
                   save_changes=True, tesseract_exe=None):
     """Examine 모드에서 검사를 종료한다.
@@ -2412,7 +2497,11 @@ def close_examine(ui, option="close", wait=8, evidence_path=None,
                            실측해 기록한다.
       option='cancel'  : 종료를 취소하고 Examine 모드에 남는다.
 
-    반환: {"dialog": bool, "option": str|None, "evidence": path|None}
+    고정 대기는 화면 신호로 끝낸다(REQ-SPEEDUP-004, `_settle_after_close`). 상한은
+    이전 값 그대로라 신호가 없으면 이전과 같은 시간을 기다린다.
+
+    반환: {"dialog": bool, "option": str|None, "evidence": path|None,
+           "settle": {"signal": ..., "waited": 초}}
     """
     if option not in CLOSE_OPTIONS:
         raise FlowError(f"알 수 없는 종료 옵션: {option}")
@@ -2427,7 +2516,8 @@ def close_examine(ui, option="close", wait=8, evidence_path=None,
     # (3개 필요)에 걸리지 않고, 방치하면 모달이 이후 모든 클릭을 삼킨다
     # (2026-08-19 회귀에서 TC_XIPL_04가 이 때문에 3회 연속 실패했다).
     unsaved = confirm_unsaved_changes(ui, save=save_changes,
-                                     tesseract_exe=tesseract_exe)
+                                     tesseract_exe=tesseract_exe,
+                                     stop_on_options=True)
 
     end = time.time() + 6
     d, buttons = None, []
@@ -2436,11 +2526,14 @@ def close_examine(ui, option="close", wait=8, evidence_path=None,
         buttons = _visible_close_buttons(ui)
         if len(buttons) >= 3:
             break
+        if not d and _patient_screen_shown(ui):
+            # 종료 옵션 팝업 없이 이미 Patient 화면으로 나왔다(남은 Step 없음).
+            break
         time.sleep(.25)
     if len(buttons) < 3:
-        time.sleep(wait)
+        settle = _settle_after_close(ui, wait)
         return {"dialog": False, "option": None, "evidence": None,
-                "unsaved_changes": unsaved}
+                "unsaved_changes": unsaved, "settle": settle}
 
     if evidence_path and d:
         try:
@@ -2461,20 +2554,23 @@ def close_examine(ui, option="close", wait=8, evidence_path=None,
             f"잘못된 버튼을 누르지 않도록 중단합니다.")
 
     ui.click(target, settle=1.5)
-    time.sleep(wait)
+    settle = _settle_after_close(ui, wait)
     # 촬영 영상이 없는 검사를 Close하면 "This study will be deleted. Are you
     # sure?"(Yes/Cancel) 확인이 한 번 더 뜬다(2026-08-18 실측). 이걸 처리하지
     # 않으면 "팝업이 남아 있습니다"로 실패하고 화면도 막힌다.
     # 사용자 승인(2026-08-18): 영상이 없는 검사는 삭제해도 된다 — 영상이 있으면
     # 이 확인 자체가 뜨지 않으므로, 여기서 Yes를 누르는 것은 빈 검사에만 해당한다.
-    confirm = confirm_study_delete(ui, accept=(option in ("close", "discard")))
+    # 팝업 없이 Patient 화면으로 나왔으면 삭제 확인은 이미 지나갔다 — 1초만 본다.
+    confirm = confirm_study_delete(ui, accept=(option in ("close", "discard")),
+                                   timeout=1 if settle["signal"] == "patient" else 4)
     if confirm:
         time.sleep(1.5)
     if ui.dialog() or len(_visible_close_buttons(ui)) >= 3:
         raise FlowError(
             f"종료 옵션 '{option}' 선택 후에도 팝업이 남아 있습니다."
             + (f" (검사 삭제 확인 처리: {confirm})" if confirm else ""))
-    return {"dialog": True, "option": option, "evidence": evidence_path}
+    return {"dialog": True, "option": option, "evidence": evidence_path,
+            "settle": settle}
 
 
 def study_status(db, study_key):

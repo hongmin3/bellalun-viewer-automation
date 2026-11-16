@@ -213,7 +213,7 @@ def run(ctx):
                actual=target)
 
     try:
-        ui, startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+        ui, startup = flows.start_clean_viewer(ctx.cfg, ctx.db)
         patient_ready = False
         # Immediately after a workflow boundary the Viewer frame can exist
         # before its status bar/menu children are attached.  Wait for the
