@@ -465,6 +465,13 @@ Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파
 자체 소스를 추출하거나 외부 python.exe를 실행하지 않는다. 동적 TC import를 컴파일에 포함한다.
 소스를 읽는 검사는 빌드 단계에서 수행하고 배포판 자체진단은 소스 없이 동작한다.
 
+빌드 전 정적 검사 중 회귀 이름 검사(`tools/check_regression_names.py`)는 회귀 사슬이 쓰는 TC 진입 함수(`run_*`·`install_*`·`setup_*`)가 그 함수 안에서 import되거나 대입됐는지 본다.
+- 대상은 `run-regression` 분기와 사슬 목록 함수(`_basic_chain_stages`·`_wu_chain_stages`·`_combined_chain_stages`)다. 각 대상은 자기 안의 바인딩과 모듈 전역만 인정한다.
+- 주석과 문자열 속 이름은 세지 않는다. 대상을 하나도 찾지 못하거나 세는 이름이 0개면 실패다.
+- 이 검사는 `verify` 게이트의 단위시험에서도 실행해 빌드 전에 잡는다.
+
+이유: 2026-11-16 결합 실행 구현으로 사슬이 `_basic_chain_stages()`로 옮겨진 뒤, 검사가 `run-regression` 분기 주석 속 `install_01`을 세어 1.0.22 빌드를 막았다. 사슬 함수는 검사하지 않는 상태였다.
+
 내부 자료는 승인된 로컬 manifest의 허용 목록과 해시로만 포함한다. 체크리스트 두 개·필수 사양/매뉴얼·
 승인 시험 Baseline·사용 안내·제3자 라이선스를 제공한다. 자료 버전과 Viewer/SQL 호환성을 확인한다.
 사내 원문·Baseline·자료가 든 패키지는 공개 Git/Release에 올리지 않는다.
@@ -1336,7 +1343,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |
-| REQ-DIST-003 | `tools/build_distribution.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py` | verified |
+| REQ-DIST-003 | `tools/build_distribution.py`, `tools/check_regression_names.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py`, `tests/test_regression_names_check.py` | verified |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | verified |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |

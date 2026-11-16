@@ -22,76 +22,108 @@
   세는 이름이 0개면 그 자체를 실패로 본다 — 검사가 무력화된 것을 침묵으로 넘기지
   않기 위해서다.
 
-실행: python tools_check_regression_names.py
+  2026-11-16: 사슬이 `_basic_chain_stages()` 같은 목록 함수로 옮겨진 뒤 예전 검사는
+  분기 **주석** 속 `install_01` 을 세어 빌드를 막았고, 정작 사슬 함수는 보지 않았다.
+  지금은 `ast` 로 실제 코드의 이름만 세고, 분기와 사슬 함수를 각각 따로 검사한다
+  (SPEC REQ-DIST-003).
+
+실행: python tools/check_regression_names.py
 """
 
-import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
 import ast
 import io
 import re
 import sys
 
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
 SRC = "run.py"
-text = io.open(SRC, encoding="utf-8").read()
-lines = text.split("\n")
+#: 사슬 목록을 만드는 함수. 각 함수 안에서 TC 진입 함수를 import 해야 한다.
+CHAIN_FUNCTIONS = ("_basic_chain_stages", "_wu_chain_stages", "_combined_chain_stages")
+NAME = re.compile(r"(?:run|install|setup)_\w+$")
 
-start = next((i for i, l in enumerate(lines)
-              if 'args.cmd == "run-regression"' in l), None)
-if start is None:
-    print("run-regression 블록을 찾지 못했습니다")
-    sys.exit(1)
-indent = len(lines[start]) - len(lines[start].lstrip())
-end = start + 1
-while end < len(lines):
-    line = lines[end]
-    if line.strip() and (len(line) - len(line.lstrip())) <= indent:
-        break
-    end += 1
-block = "\n".join(lines[start:end])
 
-bound = set(re.findall(r"import\s+\w+\s+as\s+(\w+)", block))
-bound |= {n for stmt in re.findall(r"^\s*from\s+\S+\s+import\s+(.+)$", block,
-                                   re.M)
-          for n in re.findall(r"(\w+)(?:\s+as\s+(\w+))?", stmt)
-          for n in ([n[1] or n[0]] if isinstance(n, tuple) else [n]) if n}
-bound |= set(re.findall(r"^\s*(\w+)\s*=", block, re.M))
+def _is_regression_branch(node):
+    if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+        return False
+    test = node.test
+    return (isinstance(test.left, ast.Attribute) and test.left.attr == "cmd"
+            and len(test.comparators) == 1 and isinstance(test.comparators[0], ast.Constant)
+            and test.comparators[0].value == "run-regression")
 
-# 모듈 레벨에 정의된 함수/변수는 전역이라 어디서든 쓸 수 있다(예: run.py 의
-# `def setup_all(...)`). 블록 밖 정의도 인정한다.
-tree = ast.parse(text, filename=SRC)
-bound |= {n.name for n in tree.body
-          if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
-bound |= {t.id for n in tree.body if isinstance(n, ast.Assign)
-          for t in n.targets if isinstance(t, ast.Name)}
-bound |= {a.asname or a.name.split(".")[0]
-          for n in tree.body if isinstance(n, ast.Import) for a in n.names}
-bound |= {a.asname or a.name
-          for n in tree.body if isinstance(n, ast.ImportFrom) for a in n.names}
 
-# 호출(`name(`)과 **참조**(`name,` / `(name,` / `[name`)를 함께 본다.
-# 참조만 해도 바인딩이 없으면 UnboundLocalError 다.
-PATTERN = r"\b((?:run|install|setup)_\w+)\b"
-# **import 줄을 먼저 걷어낸다.** 회귀 블록은 쓰는 이름을 그 블록 안에서
-# import 하므로, import 문에 나온 이름을 그냥 빼면 남는 게 없어진다
-# (2026-08-24 실수). 검사하려는 것은 'import 가 아닌 곳에서 쓰이는 이름' 이다.
-IMPORT_LINE = r"\s*(?:from\s+\S+\s+)?import\s"
-body = "\n".join(line for line in block.split("\n")
-                 if not re.match(IMPORT_LINE, line))
-used = set(re.findall(PATTERN, body))
-missing = sorted(used - bound)
+def _module_bound(tree):
+    bound = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(node.name)
+        elif isinstance(node, ast.Assign):
+            bound |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound |= {a.asname or a.name.split(".")[0] for a in node.names}
+    return bound
 
-print(f"회귀 블록: run.py {start + 1}~{end}행")
-print(f"쓰는 이름 {len(used)}개 / 블록 안에서 묶인 이름 {len(bound)}개")
-if not used:
-    print("\n*** 쓰는 이름이 0개다 — 검사가 아무것도 확인하지 못하고 있다. ***")
-    print("회귀 블록 추출 규칙이나 이름 패턴이 코드와 어긋났는지 확인하십시오.")
-    sys.exit(1)
-if missing:
-    print("\n블록 안에서 import/대입되지 않은 이름:")
-    for name in missing:
-        print(f"  {name}")
-    print("\n이 상태로 회귀를 돌리면 UnboundLocalError 로 죽는다.")
-    sys.exit(1)
-print("이상 없음. 회귀 블록이 쓰는 이름이 모두 그 블록 안에서 묶여 있다.")
+
+def _region_names(nodes):
+    """영역 안의 바인딩(import·대입·for 등)과, 패턴에 맞는 읽기 이름."""
+    bound, used = set(), set()
+    for top in nodes:
+        for node in ast.walk(top):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                bound |= {a.asname or a.name.split(".")[0] for a in node.names}
+            elif isinstance(node, ast.Name):
+                if isinstance(node.ctx, (ast.Store, ast.Del)):
+                    bound.add(node.id)
+                elif NAME.match(node.id):
+                    used.add(node.id)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                bound.add(node.name)
+    return bound, used
+
+
+def check(text):
+    """검사 결과: 영역 이름 목록, 영역별 쓰는 이름, 빠진 바인딩, 검사 자체 오류."""
+    tree = ast.parse(text, filename=SRC)
+    module = _module_bound(tree)
+    regions = {}
+    for node in ast.walk(tree):
+        if _is_regression_branch(node) and "run-regression" not in regions:
+            regions["run-regression"] = node.body
+        elif isinstance(node, ast.FunctionDef) and node.name in CHAIN_FUNCTIONS:
+            regions[node.name] = node.body
+    used_by, missing, errors = {}, {}, []
+    if "run-regression" not in regions:
+        errors.append("run-regression 분기를 찾지 못했습니다")
+    for name, nodes in regions.items():
+        bound, used = _region_names(nodes)
+        used_by[name] = used
+        lacking = sorted(used - bound - module)
+        if lacking:
+            missing[name] = lacking
+    if not any(used_by.values()):
+        errors.append("쓰는 이름이 0개다. 검사가 아무것도 확인하지 못하고 있다.")
+    return {"regions": list(regions), "used": used_by, "missing": missing, "errors": errors}
+
+
+def main():
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+    report = check(io.open(SRC, encoding="utf-8").read())
+    for name in report["regions"]:
+        print(f"검사 영역 {name}: 쓰는 이름 {len(report['used'][name])}개")
+    for error in report["errors"]:
+        print(f"\n*** {error} ***")
+    if report["errors"]:
+        print("회귀 블록 추출 규칙이나 이름 패턴이 코드와 어긋났는지 확인하십시오.")
+        return 1
+    if report["missing"]:
+        for name, names in report["missing"].items():
+            print(f"\n{name} 안에서 import/대입되지 않은 이름:")
+            for item in names:
+                print(f"  {item}")
+        print("\n이 상태로 회귀를 돌리면 UnboundLocalError 로 죽는다.")
+        return 1
+    print("이상 없음. 회귀 분기와 사슬 함수가 쓰는 이름이 모두 그 안에서 묶여 있다.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

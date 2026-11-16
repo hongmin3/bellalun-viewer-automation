@@ -78,6 +78,7 @@
     "tests/test_qa_runs.py",
     "tests/test_qc_wait_diagnostics.py",
     "tests/test_recover_preservation_cli.py",
+    "tests/test_regression_names_check.py",
     "tests/test_release_gate.py",
     "tests/test_release_note_baseline.py",
     "tests/test_release_zip.py",
