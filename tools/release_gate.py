@@ -123,6 +123,11 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
         _check(checks, reasons, "기본기능 전체 회귀", not missing,
                f"전체 회귀 {len(results)} TC" if not missing else
                f"전체 회귀가 아닙니다(개별 실행 또는 조기 종료) — 표식 누락 {', '.join(missing)}")
+        # 선택 회귀(REQ-SPEEDUP-002)는 표식 TC를 모두 담아도 전체 회귀로 세지 않는다.
+        selected = ((report.get("meta") or {}).get("run_scope") == "selected")
+        _check(checks, reasons, "기본기능 전체 실행", not selected,
+               "선택 실행이 아님" if not selected else
+               "선택 회귀(영향 TC+smoke) 결과는 전체 회귀로 세지 않습니다")
     blocked, real, tolerated, unverified, manual = [], [], [], [], []
     skipped, stray_skip = [], []
     for row in results:

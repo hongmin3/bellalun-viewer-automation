@@ -774,6 +774,18 @@ def write_txt(results, path, env=None, checklist=None, command=None,
     return path
 
 
+SELECTED_SCOPE_LABEL = "선택 실행(영향 TC+smoke) — 전체 회귀 아님"
+
+
+def scope_label(meta):
+    """선택 회귀(REQ-SPEEDUP-002) 리포트의 범위 표시. 다른 실행은 None."""
+    meta = meta or {}
+    if meta.get("run_scope") != "selected":
+        return None
+    executed = (meta.get("selection") or {}).get("executed") or []
+    return SELECTED_SCOPE_LABEL + (f": {', '.join(executed)}" if executed else "")
+
+
 def write_reports(results, out_dir, run_name=None, meta=None):
     """CSV / JSON / HTML / TXT 리포트를 out_dir에 생성하고 경로를 반환한다.
 
@@ -795,6 +807,8 @@ def write_reports(results, out_dir, run_name=None, meta=None):
     # CSV — Excel에서 열어도 시험 환경과 실행 명령을 잃지 않도록 데이터 표 위에
     # 메타 행을 둔다.
     report_title_short = meta.get("report_title_short", "Bellalun Viewer 기본기능 자동화 결과")
+    if scope_label(meta):
+        report_title_short += f" [{SELECTED_SCOPE_LABEL}]"
     csv_path = base + ".csv"
     with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
@@ -906,6 +920,8 @@ def _render_html(results, meta, siblings=None):
          f"{datetime.now():%Y-%m-%d %H:%M:%S}"
          + (f" &nbsp;|&nbsp; 실행 명령 <code>{e(meta['command'])}</code>"
             if meta.get("command") else "") + "</div>"]
+    if scope_label(meta):
+        P.append(f"<div class='meta'><b>{e(scope_label(meta))}</b></div>")
 
     identity_rows = [
         ("실행 번호", meta.get("run_id")),
@@ -920,6 +936,7 @@ def _render_html(results, meta, siblings=None):
         ("Viewer 신원", meta.get("viewer_identity")),
         ("자료 신원", meta.get("baseline_identity")),
         ("복원 상태", meta.get("restoration")),
+        *([("실행 범위", scope_label(meta))] if scope_label(meta) else []),
     ]
     if any(meta.get(key) is not None for key in (
             "run_id", "automation_version", "source_commit", "source_identity_origin",

@@ -130,10 +130,11 @@ def worker_command(layout, arguments, stop_file=None):
     return child_command(options + ['--worker'] + list(arguments))
 
 
-def completed_report(reports_dir, command, since):
+def completed_report(reports_dir, command, since, scope=None):
+    """완료 리포트. `scope='selected'`면 선택 회귀(REQ-SPEEDUP-002)를 끝까지 마친 리포트를 찾는다."""
     from core import automation_health as health
     if command == 'run-regression':
-        return health.latest_full_regression(str(reports_dir), since=since)
+        return health.latest_full_regression(str(reports_dir), since=since, scope=scope)
     if command != 'run-winupdate':
         return None
     candidates = sorted(Path(reports_dir).glob('Result_WindowsUpdate_*.json'),
@@ -464,7 +465,9 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
             code = child.returncode
             reader.join(timeout=10)
             if command in {'run-regression', 'run-winupdate'} and not historical_conversion(arguments):
-                report = completed_report(layout.workspace/'Reports', command, started - 1)
+                from core.selection import scope_of_arguments
+                report = completed_report(layout.workspace/'Reports', command, started - 1,
+                                          scope=scope_of_arguments(arguments))
                 if not report:
                     from run import shutdown_viewer
                     cleanup = shutdown_viewer('BellalunAuto 리포트 없는 종료')
@@ -642,6 +645,11 @@ def main(argv=None):
                 from bellalunauto.runplan import build_plan
                 config = bundled_config(load_config(layout), layout.resource_dir)
                 combined = {'combined': True} if '--with-basic' in arguments else {}
+                # 선택 회귀(REQ-SPEEDUP-002)는 엔진과 같은 선택 목록으로 계획 지문을 만든다.
+                from core.selection import from_arguments
+                picked = from_arguments(arguments) if arguments[0] == 'run-regression' else None
+                if picked:
+                    combined['selected'] = picked['executed']
                 record = RunRecord.create(layout.workspace, arguments[0],
                                           build_plan(layout, config, arguments[0], **combined))
                 os.environ['BELLALUN_QA_RUN'] = record.data['run_id']

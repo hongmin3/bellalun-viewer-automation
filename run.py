@@ -115,6 +115,7 @@ def _execution_meta(ctx):
             'restoration': getattr(ctx, 'restoration', {'status': 'pending'}),
             'execution_block': getattr(ctx, 'execution_block', None),
             **({'run_scope': ctx.run_scope} if getattr(ctx, 'run_scope', None) else {}),
+            **({'selection': ctx.selection} if getattr(ctx, 'selection', None) else {}),
             'performance': (ctx.performance_recorder.snapshot()
                             if hasattr(ctx, 'performance_recorder') else []),
             **getattr(ctx, 'execution_error', {})}
@@ -1066,6 +1067,22 @@ def _basic_chain_stages():
     ]
 
 
+def _selected_chain_stages(stages, selection):
+    """선택 회귀(REQ-SPEEDUP-002): 기본 사슬에서 선택·smoke·전제·선행 단계만 같은 순서로 남긴다."""
+    executed = set(selection["executed"])
+    return [stage for stage in stages if stage[1] in executed]
+
+
+def _regression_scope_skips(ctx, results, selection):
+    """기본 전체에만 사람 전용 SKIP 행을 더한다. 선택 실행은 실행한 TC만 남긴다."""
+    if selection:
+        return []
+    from core.scope_results import regression_skips
+    with open(os.path.join(getattr(ctx, "resource_root", ctx.root),
+                           "automation_scope.json"), encoding="utf-8") as source:
+        return regression_skips(json.load(source), results)
+
+
 def _wu_chain_stages():
     """WU 체인 단계 목록 (함수, 단계 ID, 제목). 이 순서가 저장점의 체인 구성이 된다."""
     from tests.install import install_01, install_02
@@ -1614,7 +1631,12 @@ def _main():
     sub.add_parser("run-xipl-07",
                    help="촬영 모드별 3D Default Recon Parameter TC07만 실행")
     sub.add_parser("run-sys3d", help="System 연동 3D-Narrow/3D-Wide 촬영 TC03/04 실행")
-    sub.add_parser("run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
+    regression_parser = sub.add_parser(
+        "run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
+    regression_parser.add_argument(
+        "--select", default=None, metavar="TC[,TC...]",
+        help="영향받은 TC와 smoke·선행 TC만 실행하는 선택 회귀(REQ-SPEEDUP-002). "
+             "예: wf08,xipl. 개발 중 확인용이며 전체 회귀로 세지 않는다.")
     winupdate_parser = sub.add_parser(
         "run-winupdate",
         help="Windows Update 호환성 검증 체크리스트(TC_WindowsUpdate_01~13) 자동화. "
@@ -1684,6 +1706,14 @@ def _main():
     args = ap.parse_args()
     if getattr(args, "with_basic", False) and getattr(args, "from_regression", None):
         ap.error("--with-basic은 이번 실행의 실시간 결과만 씁니다. --from-regression과 함께 쓸 수 없습니다.")
+    args.selection = None
+    if getattr(args, "select", None) is not None:
+        from core import selection as regression_selection
+        try:
+            args.selection = regression_selection.resolve(args.select.split(","))
+        except ValueError as error:
+            print(f"[FAIL] {error}")
+            return 2
 
     # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
     if args.cmd == "sync-knowledge":
@@ -1729,7 +1759,8 @@ def _execute_preserved(ctx, args):
     from bellalunauto.runplan import build_plan
     ctx.execution_plan = build_plan(SimpleNamespace(workspace=Path(ctx.root),
         resource_dir=Path(ctx.resource_root)), ctx.cfg, args.cmd,
-        **({'combined': True} if getattr(args, 'with_basic', False) else {}))
+        **({'combined': True} if getattr(args, 'with_basic', False) else {}),
+        **({'selected': args.selection['executed']} if getattr(args, 'selection', None) else {}))
     ctx.execution_fingerprint = ctx.execution_plan['execution_fingerprint']
     choice = getattr(args, 'restore_after', None)
     if choice is not None:
@@ -1862,7 +1893,9 @@ def _finish_generated_image_cleanup(ctx, args, session, code, started, reports, 
     primary_meta = {}
     primary_data = None
     try:
-        primary = completed_report(ctx.reports_root, args.cmd, int(started)) if reports_saved else None
+        scope = 'selected' if getattr(ctx, 'run_scope', None) == 'selected' else None
+        primary = (completed_report(ctx.reports_root, args.cmd, int(started), scope=scope)
+                   if reports_saved else None)
         if primary:
             primary_data = json.loads(Path(primary['path']).read_text(encoding='utf-8'))
             primary_meta = primary_data.get('meta') or {}
@@ -2137,6 +2170,13 @@ def _dispatch(ctx, args):
         # `except` 가 없는데 **회귀의 첫 단계**라, 거기서 죽으면 나머지 25개 TC 가
         # 아예 수행되지 않았다(2026-08-24 정적 감사).
         chain = _basic_chain_stages()
+        selection = getattr(args, "selection", None)
+        if selection:
+            # 선택 회귀(REQ-SPEEDUP-002): 실행 기록·리포트에 범위를 남기고 고른 단계만 돈다.
+            ctx.run_scope, ctx.selection = "selected", selection
+            chain = _selected_chain_stages(chain, selection)
+            print("  선택 실행(영향 TC+smoke) — 전체 회귀 아님: "
+                  + ", ".join(selection["executed"]))
         # **전제 게이트** (2026-08-25 사용자 지시)
         #   "전제 준비부터 뻑나면 그냥 바로 전체 회귀를 종료해주라. 서버들이
         #    정상적으로 등록이 안되면 테스트의 의미가 없어."
@@ -2176,10 +2216,7 @@ def _dispatch(ctx, args):
                 if broken:
                     aborted_precondition = broken[0]
                     break
-        from core.scope_results import regression_skips
-        with open(os.path.join(getattr(ctx, "resource_root", ctx.root),
-                               "automation_scope.json"), encoding="utf-8") as source:
-            results.extend(regression_skips(json.load(source), results))
+        results.extend(_regression_scope_skips(ctx, results, selection))
         if aborted_precondition is None:
             # 환경 복원 결과도 전제다(사슬보다 앞에서 만들어진다).
             if any(x.tc_id == "AUTOMATION_ENVIRONMENT_RESET"

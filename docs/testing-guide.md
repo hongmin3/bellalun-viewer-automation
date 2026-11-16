@@ -43,10 +43,13 @@
 | WU만 | `--suites run-winupdate --restore-after --prepared` |
 | 두 묶음 전체 | `--suites run-regression,run-winupdate --restore-after --prepared` |
 | 개발 중 두 묶음 결합 실행(REQ-SPEEDUP-001, 약 2시간) | `--suites run-combined --restore-after --prepared` (릴리스 게이트는 세지 않는다) |
+| 개발 중 선택 회귀(REQ-SPEEDUP-002) | `--suites run-selected --expected-tc TC_Basic_WorkFlow_14 --restore-after` (smoke·선행 TC 자동 추가, 릴리스 게이트는 세지 않는다) |
 | WF14 단독 예시 | `--suites run-wf14 --expected-tc TC_Basic_WorkFlow_14` |
 | XIPL04 단독 예시 | `--suites run-xipl-04 --expected-tc TC_XIPL_compatibility_04` |
 
 전체 묶음은 원상복원 선택(`--restore-after` 또는 사전 백업만 남기는 `--no-restore-after`)이 필수다. USB 묶음은 실행 전 준비 체크리스트(다른 조작 없음, 백업, USB 연결, `BellalunWU09` 백업)를 확인한 뒤 `--prepared`를 준다. 빠지면 도구가 제품 실행 전에 거부한다(REQ-DIST-004).
+
+자동화를 고친 뒤 범위를 정할 때는 `python tools/impact_scope.py`(기준 `origin/main`)가 변경 파일로 `none`·`selected`·`wu`·`full`과 명령을 추천한다. 추천은 판단 자료이고 UI 회귀 전 사용자 확인을 대신하지 않는다.
 
 단독 지원 명령은 `run-wf01`~`run-wf16`, `run-xipl-01`~`run-xipl-07`이다. 단독 실행에도 대상 검사·영상·DICOM 설정 등 TC의 선행조건이 필요하다. 별도 단독 진입점이 없는 WU TC나 준비되지 않은 TC는 필요한 묶음과 이유를 제안하고 승인받는다. 임의로 DB를 복원하거나 전체 실행으로 바꾸지 않는다.
 

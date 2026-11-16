@@ -143,6 +143,7 @@ class WinRMExecutor:
                 meta = report.get("meta") or {}
                 if (meta.get("run_id") != run_id or meta.get("execution_mode") != "live"
                         or meta.get("chain_completed") is not True or meta.get("presentation_only")
+                        or meta.get("run_scope") == "selected"
                         or meta.get("report_role") == "presentation"):
                     continue
                 ids = {r.get("tc_id") for r in report.get("results", []) if isinstance(r, dict)}

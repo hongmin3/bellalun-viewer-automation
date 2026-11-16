@@ -955,9 +955,21 @@ def open_group_page(ui, group, page, wait=2.5):
     if page not in pages:
         raise FlowError(f"알 수 없는 {group} 설정 페이지: {page}")
     open_setting(ui, wait=3.0)
-    open_setting_group(ui, group, wait=2.0)
+    # 페이지 버튼이 이미 보이면 그 그룹이 열려 있다. 그룹을 다시 누르지 않는다(REQ-SPEEDUP-004).
+    if not _setting_rail_shows(ui, pages[page]):
+        open_setting_group(ui, group, wait=2.0)
     return _click_setting_control(ui, pages[page],
                                   f"{group} 설정 '{page}'", wait)
+
+
+def _setting_rail_shows(ui, ctrl_id):
+    """Setting 레일에 그 버튼이 지금 보이는지. 확인할 수 없으면 False(그룹을 누르는 기존 동작)."""
+    from core import setting_values
+    window = setting_values.setting_window(ui)
+    if window is None:
+        return False
+    return any(c.ctrl_id == ctrl_id and c.visible and c.rect[2] - c.rect[0] > 20
+               for c in setting_values.shallow(ui, window))
 
 
 # Setting > Patient > Patient List > List Show Item. 2026-09-08 실측

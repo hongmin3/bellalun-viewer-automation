@@ -136,7 +136,9 @@ class RunRecord:
             report_stamps[str(path)] = stat.st_mtime_ns
         from .app import completed_report
         # 엔진은 전체 시험을 마쳐도 FAIL TC가 있으면 1을 반환한다.
-        primary = completed_report(self.workspace / 'Reports', self.data['action'], int(self.data['started_epoch']))
+        scope = 'selected' if (self.data.get('plan') or {}).get('run_scope') == 'selected' else None
+        primary = completed_report(self.workspace / 'Reports', self.data['action'],
+                                   int(self.data['started_epoch']), scope=scope)
         complete = bool(primary and str(Path(primary['path'])) in reports)
         if primary:
             report_meta = (_read(primary['path']).get('meta') or {})

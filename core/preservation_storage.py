@@ -364,40 +364,62 @@ def _restore_error_detail(run, error):
 
 
 def finalize_shared(run):
+    from core.phase_timer import PhaseTimer
     result = {"run_id": run.run_id, "manifest": str(run.run_dir / "manifest.json"),
               "backup": str(run.data_dir), "archive_manifest": str(run.run_dir / "archive_manifest.json"),
-              "roots": {}, "db": {"status": "no_prior_copy"}}
+              "roots": {}, "db": {"status": "no_prior_copy"}, "phases": []}
+    # 단계별 소요(REQ-SPEEDUP-003). 실패해도 그때까지의 구간이 결과·journal에 남는다.
+    timer = PhaseTimer(result["phases"])
     try:
         run._validate()
-        if not run._verify_backups():
+        with timer.phase("verify_backups"):
+            backups_ok = run._verify_backups()
+        if not backups_ok:
             result["status"] = "mismatch"
             run._save("mismatch", result=result)
             return result
-        _archive(run)
+        with timer.phase("archive"):
+            _archive(run)
         if run.restore_after:
-            _restore_operations(run)
+            with timer.phase("restore_files"):
+                _restore_operations(run)
             db = run.manifest.get("db")
             if db:
-                _verify_archive(run)
-                directory = _check_path(run.data_dir / "database")
-                if snapshot(directory) != db["files"] or not run.db_adapter.verify_backup(directory, db["metadata"]):
-                    raise PreservationError("복원 직전 DB 사전 사본 검증 실패")
+                with timer.phase("db_precheck"):
+                    _verify_archive(run)
+                    directory = _check_path(run.data_dir / "database")
+                    if snapshot(directory) != db["files"] or not run.db_adapter.verify_backup(directory, db["metadata"]):
+                        raise PreservationError("복원 직전 DB 사전 사본 검증 실패")
                 phase = run.journal.get("db_restore_phase")
                 if phase != "verified":
-                    if phase != "restore" or not run.db_adapter.verify_restored(directory, db["metadata"]):
-                        run._save("restoring", db_restore_phase="restore")
-                        run.db_adapter.restore(directory, db["metadata"])
-                    if not run.db_adapter.verify_restored(directory, db["metadata"]):
+                    try:
+                        with timer.phase("db_restore"):
+                            if phase != "restore" or not run.db_adapter.verify_restored(directory, db["metadata"]):
+                                run._save("restoring", db_restore_phase="restore")
+                                run.db_adapter.restore(directory, db["metadata"])
+                    finally:
+                        # DB별 시간은 복원이 중간에 실패해도 그때까지 남긴다.
+                        timer.rows.extend(getattr(run.db_adapter, "restore_phases", None) or [])
+                    with timer.phase("db_verify"):
+                        restored = run.db_adapter.verify_restored(directory, db["metadata"])
+                    if not restored:
                         raise PreservationError("DB 복원 검증 실패")
                     run._save("restoring", db_restore_phase="verified")
-                elif not run.db_adapter.verify_restored(directory, db["metadata"]):
-                    raise PreservationError("복원 후 DB가 변경되었습니다")
+                else:
+                    with timer.phase("db_verify"):
+                        unchanged = run.db_adapter.verify_restored(directory, db["metadata"])
+                    if not unchanged:
+                        raise PreservationError("복원 후 DB가 변경되었습니다")
                 result["db"] = {"status": "verified", "scope": db["metadata"]["scope"]}
-            if any(snapshot(run.roots[name]) != expected for name, expected in run.manifest["roots"].items()):
+            with timer.phase("final_check"):
+                changed = any(snapshot(run.roots[name]) != expected
+                              for name, expected in run.manifest["roots"].items())
+            if changed:
                 result["status"] = "mismatch"
                 run._save("mismatch", result=result)
                 return result
-        _verify_archive(run)
+        with timer.phase("archive_verify"):
+            _verify_archive(run)
         for name, before in run.manifest["roots"].items():
             status = ("verified" if run.restore_after else "preserved") if before["exists"] else "no_prior_copy"
             result["roots"][name] = {"status": status,

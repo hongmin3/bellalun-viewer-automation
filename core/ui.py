@@ -583,6 +583,17 @@ def _is_shell_window(front):
         return False
 
 
+def _sweep_new_dialogs(ui, may_appear):
+    """기동·로그인 직후처럼 팝업이 새로 뜰 수 있으면 최대 8초 기다려 닫는다(REQ-SPEEDUP-004).
+
+    그 밖에는 지금 떠 있는 팝업만 닫는다. 이미 로그인된 Viewer에는 새로 뜰 기동·로그인
+    팝업이 없어서, 없는 팝업을 8초씩 기다리지 않는다.
+    """
+    if may_appear or ui.dialog():
+        return ui.sweep_dialogs(timeout=8)
+    return []
+
+
 class ViewerUi:
     """Viewer 프로세스 1개를 대상으로 하는 드라이버."""
 
@@ -1375,7 +1386,7 @@ class ViewerUi:
         # **순서가 중요하다.** 기동 팝업을 먼저 걷어내야 로그인 화면이 보인다.
         # 화면을 먼저 기다리면 `Running in demo mode.` 모달에 가려 시간 초과된다.
         if dismiss_demo:
-            closed = self.sweep_dialogs(timeout=8)
+            closed = _sweep_new_dialogs(self, launched)
             if closed:
                 notes.append("로그인 전 팝업 닫음: " + "; ".join(closed))
         if launched:
@@ -1387,6 +1398,8 @@ class ViewerUi:
                     "표시하지 않았습니다. 기동 실패를 로그인 완료로 간주하지 않고 "
                     "안전하게 중단합니다.")
         if user_id and password:
+            # 이번 호출에서 실제로 로그인하는지. 로그인 뒤 Demo 안내를 기다릴지 정한다.
+            logging_in = launched or self.at_login_screen()
             # **재시도는 타이핑이 아니라 로그인 단위로 한다.** PW 필드를 읽을 수
             # 없어 타이핑 성공 여부를 확인할 수 없으므로(`fill_password` 주석),
             # "로그인 화면을 벗어났는가" 라는 확실한 신호로 판단하고 그때만 다시
@@ -1438,7 +1451,7 @@ class ViewerUi:
             # 이후 모든 클릭을 삼켰고, 15초 뒤 `open_main_menu` 가 "메인 메뉴
             # 버튼(2015)을 찾지 못했습니다" 로 죽었다 — 원인과 무관한 메시지였다.
             if dismiss_demo:
-                closed = self.sweep_dialogs(timeout=8)
+                closed = _sweep_new_dialogs(self, logging_in)
                 if closed:
                     notes.append("로그인 후 팝업 닫음: " + "; ".join(closed))
             # 팝업을 걷어낸 뒤 **실제로 Viewer 화면이 올라왔는지** 확인한다.

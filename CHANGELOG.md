@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기
+
+- REQ-SPEEDUP-002: `run-regression --select <TC,...>`로 영향받은 기본 TC와 smoke(`TC_Basic_Install_02`·`TC_Basic_WorkFlow_01`)만 실행한다. 기준 상태 복원·`DICOM_Server_Setup`과 선행 TC(WF_03~15·XIPL은 WF_01·02, WF_08·15는 WF_03)를 자동으로 더하고 체크리스트 순서로 돈다. 보존·복원·정리는 기본 전체와 같다.
+- REQ-SPEEDUP-002: 선택 실행의 리포트·실행 기록은 `run_scope: selected`와 실행 목록을 남기고 "선택 실행(영향 TC+smoke) — 전체 회귀 아님"을 표시한다. 완료 전체 회귀 판정·경과일·설치판 릴리스 게이트는 선택 실행을 세지 않는다. 선택하지 않은 TC와 사람 전용 SKIP 행은 결과에 넣지 않는다.
+- REQ-SPEEDUP-002: 빌드 릴리스 게이트(`tools/release_gate.py`)와 원격 실행 완료 판정도 선택 실행을 전체 회귀로 세지 않는다. 선택 실행이 전체 회귀 표식 TC(WF14·XIPL_07 등)를 모두 담아도 같다.
+- REQ-SPEEDUP-002: 선택 실행 자체의 완료(실행 기록 상태, 정상완주 증거와 생성 이미지 정리, 중단 뒤 정리 재개)는 `run_scope: selected`·`chain_completed: true` 리포트로 판정한다.
+- REQ-SPEEDUP-002: `tools/impact_scope.py`가 변경 파일의 import 관계를 거슬러 따라가(TC 진입 파일을 다른 TC·WU·공용 계층이 쓰면 그 영향까지 더한다) UI 회귀 범위(`none`·`selected`·`wu`·`full`)와 명령을 추천한다. 설치판 실행 도구는 `--suites run-selected --expected-tc <TC>`를 받는다.
+- REQ-SPEEDUP-003: 공용 보존의 복원 결과(`restoration.json`, 리포트 meta `restoration`)에 단계별 소요 `phases`(사전 사본 검증·시험 후 보관·파일 복원·DB 사전 검증·DB 복원·DB별 복원·DB 대조·파일 재대조·보관본 검증)를, 실행 경계에 `timings`(제품 종료·복원 전체·서비스 재기동)를 남긴다. 복원 순서·판정은 그대로다.
+- REQ-SPEEDUP-004: 설정 페이지 이동은 가려는 페이지 버튼이 레일에 이미 보이면 그룹 버튼을 다시 누르지 않는다(회당 그룹 클릭 1초+대기 2초 생략). `ensure_ready`는 이번 호출에서 Viewer를 실행했거나 실제로 로그인했을 때만 팝업을 최대 8초 기다리고, 이미 로그인된 Viewer에서는 떠 있는 팝업만 닫는다(로그인 전·후 8초씩 생략). 판정 기준·Expected·시간 상한은 바꾸지 않았다.
+
 ## 1.0.22 후보 — 기본+WU 결합 실행과 회귀 시간 측정
 
 - REQ-DIST-004: 설치판 실행 도구 `tools/run_installed_suites.py`가 전체 묶음에 원상복원 선택(`--restore-after`/`--no-restore-after`)을, USB 묶음(`run-winupdate`·`run-combined`)에 준비 확인(`--prepared`)을 받아 EXE에 넘긴다. 빠지면 제품 실행 전에 거부한다. 이전에는 두 값을 넘기지 않아 CLI 전체 실행이 EXE에서 바로 거부됐다.

@@ -8,6 +8,11 @@ def combined_report(report):
     return ((report or {}).get("meta") or {}).get("run_scope") == "combined"
 
 
+def selected_report(report):
+    """선택 회귀(REQ-SPEEDUP-002)의 리포트인지. 릴리스 수용 전체 회귀로 세지 않는다."""
+    return ((report or {}).get("meta") or {}).get("run_scope") == "selected"
+
+
 def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
     from tools import release_gate as gate
     from tools.run_installed_suites import sha256, validate_selection, verify_install
@@ -63,6 +68,8 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
             gate._identity(command, report, expected_commit, checks, reasons)
             check(f"{command} 단독 묶음 실행", not combined_report(report),
                   "기본+WU 결합 실행 결과는 릴리스 수용 전체 회귀로 세지 않습니다")
+            check(f"{command} 전체 실행", not selected_report(report),
+                  "선택 회귀 결과는 릴리스 수용 전체 회귀로 세지 않습니다")
             check(f"{command} 설치판 출처", meta.get("source_identity_origin") == "build-info",
                   "리포트 출처가 build-info여야 합니다")
             actual_command = str(meta.get("command") or "").split()

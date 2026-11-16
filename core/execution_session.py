@@ -95,21 +95,26 @@ class DatabasePreservation:
 
     def restore(self, destination, metadata):
         from core import dbreset
+        from core.phase_timer import PhaseTimer
         stage = Path(dbreset.staging_dir(self.ctx)) / ('restore-' + uuid.uuid4().hex)
         stage.mkdir()
+        # DB마다 사본 복사·해시 확인·RESTORE 시간을 남긴다(REQ-SPEEDUP-003).
+        timer = PhaseTimer()
+        self.restore_phases = timer.rows
         for name in dbreset.DATABASES:
-            source = destination / (name + '.bak')
-            path = stage / source.name
-            shutil.copy2(source, path)
-            if _sha(path) != metadata['files'][name]:
-                raise OSError('DB 복원 사본 무결성 실패')
-            clauses = dbreset._move_clauses(self.ctx, name, str(path))
-            db = dbreset._bracket(name)
-            self.ctx.db.query('master', f'ALTER DATABASE {db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE')
-            try:
-                self.ctx.db.query('master', dbreset._restore_sql(name, str(path), clauses))
-            finally:
-                self.ctx.db.query('master', f'ALTER DATABASE {db} SET MULTI_USER')
+            with timer.phase('db_restore:' + name):
+                source = destination / (name + '.bak')
+                path = stage / source.name
+                shutil.copy2(source, path)
+                if _sha(path) != metadata['files'][name]:
+                    raise OSError('DB 복원 사본 무결성 실패')
+                clauses = dbreset._move_clauses(self.ctx, name, str(path))
+                db = dbreset._bracket(name)
+                self.ctx.db.query('master', f'ALTER DATABASE {db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE')
+                try:
+                    self.ctx.db.query('master', dbreset._restore_sql(name, str(path), clauses))
+                finally:
+                    self.ctx.db.query('master', f'ALTER DATABASE {db} SET MULTI_USER')
 
     def verify_restored(self, destination, metadata):
         from core import snapshot
@@ -193,13 +198,21 @@ def execution_session(ctx, action):
         start_services()
         yield session
     finally:
+        from core import phase_timer
         ctx.restoration = {'status': 'error', 'run_id': run_id,
                            'note': '복원/서비스 마무리를 아직 확인하지 못했습니다.'}
+        # 실행 경계의 마무리 시간(REQ-SPEEDUP-003). 기록만 하며 순서·판정은 그대로다.
+        timings = {}
         try:
             if prepared:
+                started = phase_timer._now()
                 stop_product(ctx)
+                timings['stop_product'] = phase_timer.since(started)
+                started = phase_timer._now()
                 ctx.restoration = session.finalize()
+                timings['finalize'] = phase_timer.since(started)
         finally:
+            started = phase_timer._now()
             try:
                 ctx.restoration['services'] = start_services()
             except Exception as error:
@@ -207,6 +220,8 @@ def execution_session(ctx, action):
                 ctx.restoration['service_error'] = type(error).__name__
                 raise
             finally:
+                timings['start_services'] = phase_timer.since(started)
+                ctx.restoration['timings'] = timings
                 if prepared:
                     result_path = session.run_dir / 'restoration.json'
                     try:

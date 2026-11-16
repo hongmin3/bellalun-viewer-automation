@@ -793,6 +793,82 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 - 결합 실행은 개발 중 반복 확인용이다. 릴리스 수용의 최종 전체 회귀는 지금처럼 `run-regression`과 `run-winupdate`를 따로 실행한다. 설치판 릴리스 게이트(REQ-DIST-005)는 결합 실행 결과를 기본 전체 실행으로 세지 않는다.
 - 기존 `run-regression`·`run-winupdate`의 단계 구성과 순서는 바꾸지 않는다.
 
+### REQ-SPEEDUP-002 영향 기반 선택 회귀
+
+#### 하는 일
+자동화를 고친 뒤 개발 중 확인에서 영향받은 기본 TC와 짧은 smoke만 실행한다. 전체 회귀는 릴리스 수용 때 한 번 실행한다.
+명령은 `run-regression --select <TC,...>`다. 실행 기록의 action은 `run-regression`으로 남아 사전 보존·복원·정리(REQ-FOLLOWUP-004)를 기본 전체와 똑같이 적용한다.
+
+> **근거(2026-11-16, `docs/regression-timing.md` 5절)** 개발 중 수정 1회의 확인에 기본+WU 약 206분, 결합 실행으로도 약 126분이 든다. 영향 TC와 smoke만 돌리면 15~30분으로 줄 것으로 예상한다.
+
+#### 실행 단계
+1. 기준 상태 복원(`AUTOMATION_ENVIRONMENT_RESET`)과 `DICOM_Server_Setup`을 언제나 먼저 실행한다. 둘은 `run-regression`의 전제 게이트이며 FAIL이면 멈춘다.
+2. smoke는 `TC_Basic_Install_02`와 `TC_Basic_WorkFlow_01`이다. 언제나 실행한다.
+3. 선택한 TC의 선행 TC를 함께 실행한다. 선행 관계는 `run-regression` 주석과 각 TC의 사전조건을 따른다.
+   - `TC_Basic_WorkFlow_03`~`15`와 XIPL(`TC_XIPL_compatibility`): `DATA_FLOW_MWL_01` 검사를 만드는 `TC_Basic_WorkFlow_01`·`02`
+   - `TC_Basic_WorkFlow_08`(Print Overlay)·`TC_Basic_WorkFlow_15`(Image Overlay): 그 Overlay를 설정하는 `TC_Basic_WorkFlow_03`
+4. 실행 순서는 기본 전체와 같은 개정 체크리스트 순서다. 각 TC의 진입 함수·판정·감시(`guarded`)는 기본 전체와 같은 것을 쓴다.
+5. XIPL은 기본 전체와 같이 01~07을 한 단계(`TC_XIPL_compatibility`)로 실행한다. `TC_XIPL_compatibility_0N`을 지정해도 이 단계 전체를 실행한다.
+6. 선택하지 않은 TC는 결과에 넣지 않는다. 사람 전용 SKIP 행(REQ-TCUP-001)도 넣지 않는다. 실행하지 않은 TC를 SKIP이나 PASS로 적지 않는다.
+
+#### 입력 검사
+- TC ID는 정식 ID나 짧은 이름(`wf08`, `install02`, `xipl`)으로 받는다. 모르는 이름은 제품을 조작하기 전에 거부한다(종료 코드 2).
+- 선택 결과가 기본 전체의 모든 단계와 같으면 거부하고 `run-regression`(전체)을 쓰라고 안내한다.
+- `--select`는 `run-regression`에만 쓴다.
+
+#### 표시와 집계
+- 리포트와 실행 기록의 `run_scope`는 `selected`다. meta `selection`에 요청 TC, 추가된 선행 TC, smoke, 실제 실행 순서를 남긴다.
+- 리포트 첫 줄과 실행 신원 표에 "선택 실행(영향 TC+smoke) — 전체 회귀 아님"을 표시한다.
+- 실행 계획 이름은 `기본기능 선택 수행(영향 TC+smoke)`이다. 계획 지문에 선택 목록을 넣는다.
+- 완료 전체 회귀 판정(`completed_report_data`, 마지막 전체 회귀 경과일, 설치판·빌드 릴리스 게이트, 원격 실행 완료 판정)은 선택 실행을 기본 전체로 세지 않는다. 선택 실행이 전체 회귀 표식 TC를 모두 담아도 같다.
+- 선택 실행 자체의 완료는 `run_scope: selected`와 `chain_completed: true`인 이번 실행의 리포트로 판정한다. 실행 기록 상태, 정상완주 증거와 생성 이미지 정리(REQ-FOLLOWUP-004), 중단 뒤 정리 재개가 이 기준을 쓴다.
+
+#### 영향 범위 추천
+`python tools/impact_scope.py [--base <ref>]`가 변경 파일로 REQ-REGRESSION-002의 범위를 추천한다. 제품을 조작하지 않는다.
+- 문서·단위시험(이름이 `test_`로 시작하는 시험 파일)·운영 도구만 바뀌면 `none`(UI 회귀 없음)이다.
+- TC 구현 파일 지도 `core/tc_modules.py`의 `TC_MODULES`로 바뀐 파일이 한정된 기본 TC에만 속하면 `selected`와 그 TC 목록이다.
+- TC·WU 진입 파일에 닿아도 추적을 멈추지 않는다. 그 파일을 다른 TC·WU·공용 계층이 가져다 쓰면 그 영향도 더한다. 진입 파일을 사슬로 부르기만 하는 `run.py`는 이때 공용으로 세지 않는다.
+- WU에서만 쓰는 파일(WU 리포트·업데이트 근거 등)만 바뀌면 `wu`다. WU 체인처럼 화면 프로그램도 쓰는 파일은 `full`이다.
+- 실행 진입점·공용 UI/OCR·DB 복원·DICOM 전제·판정/결과·패키징처럼 공용 파일이거나, 지도에 없는 동작 파일이거나, 기본과 WU 전용 파일이 함께 바뀌면 `full`이다.
+- 추천은 사람의 판단을 돕는 자료다. UI 회귀 시작 전 사용자 확인(REQ-REGRESSION-002)을 대신하지 않는다.
+
+#### 지킬 것
+- 판정 기준·Expected·입력 안전 가드를 바꾸지 않는다. 선택 실행의 결과를 전체 회귀 PASS로 합산하지 않는다.
+- 릴리스 수용은 지금처럼 기본과 WU 전체를 따로 실행한다.
+- 기존 `run-regression`(인자 없음)의 단계 구성과 순서는 바꾸지 않는다.
+
+### REQ-SPEEDUP-003 복원 단계 안의 시간 기록
+
+#### 하는 일
+실행 뒤 마무리(제품 종료 → 시험 후 보관 → 파일 복원 → DB 복원·검증 → 서비스 재기동)의 단계별 소요를 기록한다. 결합 실행 복원 14.9분의 원인처럼 어느 단계가 긴지 다음 실측으로 바로 나눠 보기 위해서다.
+
+#### 기록 위치와 형식
+- 보존 결과(`preservation/<실행 번호>/restoration.json`, 리포트 meta `restoration`)에 `phases` 목록을 둔다. 각 항목은 `{"phase": 이름, "seconds": 소요(초, 소수 1자리)}`다.
+- 공용 보존(`shared_delta`)의 단계 이름: `verify_backups`(사전 사본 검증), `archive`(시험 후 보관), `restore_files`(파일 차이 복원), `db_precheck`(DB 사전 사본 재검증), `db_restore`(DB 4개 복원), `db_verify`(복원 후 DB 대조), `final_check`(복원 파일 재대조), `archive_verify`(보관본 검증).
+- DB 복원은 DB마다 `db_restore:<DB 이름>` 항목을 더 남긴다(사본 복사·해시 확인·RESTORE 포함).
+- 실행 경계에서 `stop_product`(제품 종료), `finalize`(위 전체), `start_services`(서비스 재기동)를 `restoration.timings`에 초 단위로 남긴다.
+- 기록은 측정용이다. 실패한 단계도 그때까지의 시간을 남긴다. 시간 기록이 실패해도 복원 판정·순서를 바꾸지 않는다.
+
+#### 지킬 것
+- 복원 순서·검증 조건·실패 처리는 바꾸지 않는다. 시간만 더 기록한다.
+
+### REQ-SPEEDUP-004 고정 대기를 상태 기반 대기로 바꾸기
+
+#### 하는 일
+화면 상태로 판단할 수 있는 고정 대기를 상태 확인으로 바꾼다. 대기 숫자만 줄이지 않는다.
+
+#### 바꾸는 곳
+1. **설정 페이지 이동(`flows.open_group_page`)**: 가려는 페이지 버튼이 Setting 레일에 이미 보이면 그 그룹은 이미 열린 것이므로 그룹 버튼을 다시 누르지 않는다(그룹 클릭 1초+대기 2초 생략). 페이지 버튼이 보이지 않으면 지금처럼 그룹을 누른다. 페이지 컨트롤 ID는 그룹마다 겹치지 않는다(56개, 2026-11-16 확인).
+2. **Viewer 준비(`ViewerUi.ensure_ready`)**: 팝업이 새로 뜰 수 있는 때만 최대 8초 기다린다.
+   - 로그인 전: 이번 호출에서 Viewer를 실행했을 때만 기다린다.
+   - 로그인 후: 이번 호출에서 실행했거나 로그인 화면에서 실제로 로그인했을 때만 기다린다. Demo 안내는 로그인 뒤에 뜬다(2026-08-24 실측).
+   - 그 밖에는 지금 떠 있는 팝업이 있을 때만 닫는다. 이미 로그인된 Viewer에는 새로 뜰 기동·로그인 팝업이 없기 때문이다.
+
+#### 지킬 것
+- 시간 상한·응답 없음 감지(REQ-WU-002)·판정 기준·Expected를 바꾸지 않는다.
+- 상태를 확인할 수 없으면 기존 동작(그룹 클릭과 고정 대기)으로 돌아간다.
+- 설치판 UI에서 해당 TC가 같은 판정인지 확인한 뒤 수용으로 기록한다.
+
 ### REQ-KNOW-001 지식 폴더 서버 동기화
 
 #### 목적
@@ -1186,6 +1262,27 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_combined_run.py`가 결합 단계 목록(기준 상태 복원 → 기본 TC 체크리스트 순서, DICOM 설정 뒤 화면 계약, XIPL 01~07 한 단계, 끝에 USB 왕복·WU_10), 기존 `run-regression`·WU 체인 단계 목록 불변, XIPL 전체 단계의 시간 상한과 BLOCKED 출력 7건, 기본 리포트에서 WU 결과 제외, `--with-basic`과 `--from-regression` 동시 사용 거부, 실행 계획 이름·XIPL 정책, 릴리스 게이트가 결합 실행을 기본 전체 실행으로 세지 않음을 확인한다.
 - Expected Result: 단계 구성·표시·거부가 REQ-SPEEDUP-001과 같다. 실제 소요 비교는 승인받은 설치판 UI 실행으로 따로 기록한다.
 
+### TEST-SPEEDUP-002 선택 회귀 구성과 영향 범위 추천
+
+- 검증 대상: REQ-SPEEDUP-002.
+- 절차 1: `tests/test_selected_run.py`가 선택 해석을 확인한다. 짧은 이름, smoke·전제·선행 TC 추가, 체크리스트 순서, XIPL 개별 ID의 단계 대응이다.
+- 절차 2: 같은 시험이 거부와 표시를 확인한다. 모르는 이름·전체와 같은 선택·다른 명령의 `--select`를 거부하고, 선택하지 않은 TC와 사람 전용 SKIP 행을 넣지 않으며, meta `run_scope`·`selection`, 계획 이름·지문을 남긴다.
+- 절차 3: 같은 시험이 집계를 확인한다. 완료 전체 회귀·릴리스 게이트가 선택 실행을 세지 않고, 선택 실행 완료는 선택 기준으로만 찾으며, 설치판 실행 도구가 `run-selected`를 받는다. CLI 보존 경로로 선택 실행을 끝까지 돌려 복원·정상완주 증거·생성 이미지 정리를 확인한다.
+- 절차 4: `tests/test_impact_scope.py`가 범위 추천을 확인한다. 문서·단위시험만은 `none`, TC 전용 파일은 `selected`, WU 전용 파일은 `wu`, 공용·지도 밖 동작 파일과 기본+WU 혼합은 `full`이다.
+- Expected Result: 선택·거부·표시·집계가 REQ-SPEEDUP-002와 같다. 실제 소요는 승인받은 설치판 UI 실행으로 따로 기록한다.
+
+### TEST-SPEEDUP-003 복원 단계 시간 기록
+
+- 검증 대상: REQ-SPEEDUP-003.
+- 절차: `tests/test_restore_timing.py`가 가짜 시계로 공용 보존 복원의 `phases` 이름·순서·초 값, DB별 `db_restore:<DB>` 항목, 실패한 단계까지의 기록, 실행 경계의 `timings`(stop_product·finalize·start_services)를 확인한다. 기존 `tests/test_shared_preservation.py`·`tests/test_execution_session.py`가 복원 판정이 바뀌지 않았음을 확인한다.
+- Expected Result: 기록 형식이 REQ-SPEEDUP-003과 같고 복원 결과·상태는 그대로다.
+
+### TEST-SPEEDUP-004 상태 기반 대기
+
+- 검증 대상: REQ-SPEEDUP-004.
+- 절차: `tests/test_state_waits.py`가 가짜 UI로 페이지 버튼이 이미 보이면 그룹을 누르지 않고, 보이지 않으면 지금처럼 그룹을 누르는지, Setting 창을 찾지 못하면 기존 동작으로 돌아가는지 확인한다. `ensure_ready`가 이미 실행 중인 Viewer에서는 떠 있는 팝업이 없을 때 기동 팝업을 기다리지 않고, 떠 있으면 닫으며, 이번에 실행했을 때는 지금처럼 최대 8초 기다리는지 확인한다.
+- Expected Result: 대기 판단이 REQ-SPEEDUP-004와 같다. 제품 화면 수용은 설치판 UI 실행으로 따로 기록한다.
+
 ### TEST-TRACE-002 WU 추적성과 정적 자체검사
 
 - 검증 대상: REQ-TRACE-002.
@@ -1356,6 +1453,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | verified |
 | REQ-WU-006 | `core/failure_evidence.py`, `core/setting_values.py`, `tools/wu_flake_stats.py`, `tests/winupdate.py`, `tests/workflow14.py`, `run.py` | TEST-WU-006; `tests/test_failure_evidence.py`, `tests/test_wu_flake_stats.py`, `tests/test_workflow14_evidence.py` | verified |
 | REQ-SPEEDUP-001 | `run.py`, `core/wu_chain.py`, `bellalunauto/runplan.py`, `bellalunauto/app.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py` | TEST-SPEEDUP-001; `tests/test_combined_run.py` | verified |
+| REQ-SPEEDUP-002 | `run.py`, `core/selection.py`, `core/automation_health.py`, `core/result.py`, `bellalunauto/runplan.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/impact_scope.py`, `tools/installed_release_gate.py`, `tools/release_gate.py`, `tools/run_installed_suites.py`, `tools/recover_preservation.py`, `remote/winrm_executor.py` | TEST-SPEEDUP-002; `tests/test_selected_run.py`, `tests/test_impact_scope.py` | verified |
+| REQ-SPEEDUP-003 | `core/preservation_storage.py`, `core/execution_session.py`, `core/phase_timer.py` | TEST-SPEEDUP-003; `tests/test_restore_timing.py` | verified |
+| REQ-SPEEDUP-004 | `core/flows.py`, `core/ui.py` | TEST-SPEEDUP-004; `tests/test_state_waits.py` | verified |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
@@ -1400,5 +1500,5 @@ NFR-BOUNDARY-001은 수동 절차(TEST-BOUNDARY-001)만 있어 implemented로 �
 ## 14. 향후 개선 후보
 
 Hub/Worker 진행률 소비 측 확인과 기존 우선순위는 `NEXT_WORK.md`를 따른다.
-회귀 시간 단축의 다음 후보(영향 기반 선택 회귀, 복원 단계 시간 세분화, 고정 대기의 상태 기반 전환, 불필요한 Viewer 재시작 제거)와 측정 근거는 `docs/regression-timing.md` 5절에 있다. 각 후보는 SPEC 요구사항을 먼저 정한 뒤 구현한다.
+회귀 시간 단축의 남은 후보(`close_examine` 고정 대기, WF13 숨김 확인, 불필요한 Viewer 재시작 제거, 복원 단계 단축)와 측정 근거는 `docs/regression-timing.md` 5절에 있다. 각 후보는 SPEC 요구사항을 먼저 정한 뒤 구현한다.
 배포 작업을 이유로 새로운 TC·판정 완화·Viewer 제품 변경을 추가하지 않는다.

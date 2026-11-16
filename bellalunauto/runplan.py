@@ -69,7 +69,7 @@ def _backup_identity(path, database):
     return row
 
 
-def build_plan(layout, config, action, combined=False):
+def build_plan(layout, config, action, combined=False, selected=None):
     """실제 선택 경로의 자료와 설정을 읽어 JSON으로 저장 가능한 계획을 만든다.
 
     파일 날짜는 UTC, sha256은 실제 파일 전체의 해시다. 누락/조회 실패는
@@ -82,6 +82,8 @@ def build_plan(layout, config, action, combined=False):
         raise ValueError('실행 계획은 기본기능 전체 또는 Windows Update 전체에만 제공됩니다.')
     # 기본+WU 결합 실행(REQ-SPEEDUP-001)은 WU로 실행하고 기본 전체의 기준 상태 복원을 쓴다.
     combined = bool(combined) and action == 'run-winupdate'
+    # 선택 회귀(REQ-SPEEDUP-002)는 기본 전체와 같은 보존·복원을 쓰고 실행 단계만 줄인다.
+    selected = list(selected) if selected and action == 'run-regression' else None
     cfg = bundled_config(config, layout.resource_dir)
     baseline = Path(source_dir(SimpleNamespace(cfg=cfg, root=str(layout.workspace))))
     asset_version = None
@@ -102,7 +104,8 @@ def build_plan(layout, config, action, combined=False):
     display = cfg.get('display') or {}
     plan = {
         'action': action,
-        'label': '기본기능+Windows Update 결합 수행' if combined else labels[action],
+        'label': ('기본기능+Windows Update 결합 수행' if combined else
+                  '기본기능 선택 수행(영향 TC+smoke)' if selected else labels[action]),
         'viewer': {'path': viewer, 'version': version},
         'sql': {'instance': cfg.get('sql_server', '.\\BELLALUN'),
                 'service': cfg.get('sql_service_name', 'MSSQL$BELLALUN')},
@@ -134,6 +137,8 @@ def build_plan(layout, config, action, combined=False):
     }
     if combined:
         plan['run_scope'] = 'combined'
+    if selected:
+        plan['run_scope'], plan['selection'] = 'selected', selected
     viewer_file = _backup_identity(Path(viewer), 'Viewer') if viewer else {
         'status': 'missing', 'sha256': None}
     plan['viewer'].update(status=viewer_file['status'], sha256=viewer_file['sha256'])
@@ -142,6 +147,7 @@ def build_plan(layout, config, action, combined=False):
     plan['source_fingerprint'] = _source_content_identity(layout.resource_dir)
     plan['plan_id'] = _digest({
         'action': action, **({'run_scope': 'combined'} if combined else {}),
+        **({'run_scope': 'selected', 'selection': selected} if selected else {}),
         'config_fingerprint': plan['config_fingerprint'],
         'viewer': plan['viewer'], 'source_identity': plan['source_identity'],
         'source_fingerprint': plan['source_fingerprint'],

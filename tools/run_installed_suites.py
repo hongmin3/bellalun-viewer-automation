@@ -39,6 +39,8 @@ SNAPSHOT_DIRS = ("Reports", "Evidence", "Log")
 #: 기본+WU 결합 실행(REQ-SPEEDUP-001). 개발 중 확인용이며 릴리스 게이트는 이 실행을 세지 않는다.
 COMBINED_COMMAND = "run-combined"
 COMBINED_ARGS = ("run-winupdate", "--with-basic")
+#: 영향 기반 선택 회귀(REQ-SPEEDUP-002). `--expected-tc`가 선택 TC다. 릴리스 게이트는 세지 않는다.
+SELECTED_COMMAND = "run-selected"
 SINGLE_COMMANDS = {
     **{f"run-wf{i:02}": f"TC_Basic_WorkFlow_{i:02}" for i in range(1, 17)},
     **{f"run-xipl-{i:02}": f"TC_XIPL_compatibility_{i:02}" for i in range(1, 8)},
@@ -54,6 +56,10 @@ def validate_selection(suites, expected_tcs):
             return commands
     if commands == [COMBINED_COMMAND] and not expected_tcs:
         return commands
+    if commands == [SELECTED_COMMAND] and expected_tcs:
+        from core import selection
+        selection.resolve(expected_tcs)  # 모르는 이름은 제품 실행 전에 ValueError로 거부한다
+        return commands
     if (len(commands) == 1 and commands[0] in SINGLE_COMMANDS
             and list(expected_tcs) == [SINGLE_COMMANDS[commands[0]]]):
         return commands
@@ -61,7 +67,7 @@ def validate_selection(suites, expected_tcs):
 
 
 #: 원상복원 선택이 필요한 전체 묶음. EXE의 `_execute_preserved` 경로와 같다.
-FULL_COMMANDS = {"run-regression", "run-winupdate", COMBINED_COMMAND}
+FULL_COMMANDS = {"run-regression", "run-winupdate", COMBINED_COMMAND, SELECTED_COMMAND}
 #: 실행 전 준비 확인(USB 포함, REQ-TCUP-004)이 필요한 묶음.
 USB_COMMANDS = {"run-winupdate", COMBINED_COMMAND}
 
@@ -74,9 +80,12 @@ def check_preparation(commands, prepared):
         raise ValueError("USB를 쓰는 묶음은 준비 체크리스트를 확인한 뒤 --prepared를 지정하세요")
 
 
-def command_args(command, restore_after, prepared=False):
+def command_args(command, restore_after, prepared=False, expected_tcs=()):
     """EXE에 넘길 명령 인수. 전체 묶음은 원상복원 선택을 반드시 붙인다 (REQ-DIST-004)."""
-    args = list(COMBINED_ARGS) if command == COMBINED_COMMAND else [command]
+    if command == SELECTED_COMMAND:
+        args = ["run-regression", "--select", ",".join(expected_tcs)]
+    else:
+        args = list(COMBINED_ARGS) if command == COMBINED_COMMAND else [command]
     if command in FULL_COMMANDS:
         if not isinstance(restore_after, bool):
             raise ValueError("전체 묶음은 --restore-after 또는 --no-restore-after를 지정하세요")
@@ -108,6 +117,31 @@ def selected_report(reports_dir, command, since, expected_tcs):
             verdict = row.get("verdict", "UNKNOWN")
             verdicts[verdict] = verdicts.get(verdict, 0) + 1
         return {"path": str(path), "verdicts": verdicts, "tc_count": len(rows)}
+    return None
+
+def selected_run_report(reports_dir, since, requested):
+    """선택 회귀(REQ-SPEEDUP-002)를 끝까지 마친 새 리포트. 요청 TC가 모두 실행 목록에 있어야 한다."""
+    from core import selection
+    wanted = {selection.normalize(name) for name in requested}
+    for path in sorted(Path(reports_dir).glob("Result_*.json"),
+                       key=lambda p: p.stat().st_mtime, reverse=True):
+        if path.stat().st_mtime < since:
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        meta = data.get("meta") or {}
+        executed = set((meta.get("selection") or {}).get("executed") or [])
+        if (meta.get("run_scope") != "selected" or meta.get("chain_completed") is not True
+                or not wanted <= executed):
+            continue
+        verdicts = {}
+        for row in data.get("results") or []:
+            verdict = row.get("verdict", "UNKNOWN")
+            verdicts[verdict] = verdicts.get(verdict, 0) + 1
+        return {"path": str(path), "verdicts": verdicts,
+                "tc_count": len(data.get("results") or []), "selection": meta.get("selection")}
     return None
 
 #: `--clean-env` 에서 Windows 기본값 외에 남기는 환경 변수.
@@ -229,7 +263,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     args = [str(exe), "--workspace", str(workspace)]
     if config:
         args += ["--config", str(config)]
-    args.extend(command_args(command, restore_after, prepared))
+    args.extend(command_args(command, restore_after, prepared, expected_tcs))
     started = time.time()
     started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     env = suite_environment(clean_environment() if clean_env else os.environ)
@@ -244,6 +278,8 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
         report = health.latest_full_regression(str(reports), since=started - 1)
     elif command in ("run-winupdate", COMBINED_COMMAND):
         report = completed_report(reports, "run-winupdate", started - 1)
+    elif command == SELECTED_COMMAND:
+        report = selected_run_report(reports, started - 1, expected_tcs)
     else:
         report = selected_report(reports, command, started - 1, expected_tcs)
     result = {"command": command, "args": args, "cwd": str(cwd), "exit_code": proc.returncode,
@@ -302,7 +338,7 @@ def main(argv=None):
     try:
         commands = validate_selection(args.suites, args.expected_tc)
         for command in commands:
-            command_args(command, args.restore_after, args.prepared)
+            command_args(command, args.restore_after, args.prepared, args.expected_tc)
         check_preparation(commands, args.prepared)
     except ValueError as error:
         parser.error(str(error))

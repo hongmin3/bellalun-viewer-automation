@@ -96,10 +96,25 @@ def _report_time(data, path):
     return os.path.getmtime(path)
 
 
-def completed_report_data(data, command):
-    """메모리의 보고서가 해당 전체 실행을 완료했는지 같은 기준으로 판정한다."""
+def report_scope(data):
+    """선택 회귀(REQ-SPEEDUP-002) 리포트면 'selected', 아니면 None."""
+    meta = (data or {}).get('meta') if isinstance(data, dict) else None
+    return 'selected' if isinstance(meta, dict) and meta.get('run_scope') == 'selected' else None
+
+
+def completed_report_data(data, command, scope=None):
+    """메모리의 보고서가 해당 실행을 완료했는지 같은 기준으로 판정한다.
+
+    `scope='selected'`는 선택 회귀를 끝까지 마친 보고서만, 기본값은 전체 실행만 인정한다.
+    선택 회귀는 전체 회귀로 세지 않는다(REQ-SPEEDUP-002).
+    """
     if not isinstance(data, dict) or command not in {'run-regression', 'run-winupdate'}:
         return False
+    if scope == 'selected' or report_scope(data) == 'selected':
+        meta = data.get('meta')
+        return (scope == 'selected' and command == 'run-regression' and report_scope(data) == 'selected'
+                and meta.get('chain_completed') is True and isinstance(data.get('results'), list)
+                and bool((meta.get('selection') or {}).get('executed')))
     raw_meta = data.get('meta')
     meta = {} if raw_meta is None else raw_meta
     rows = data.get('results', [])
@@ -116,11 +131,11 @@ def completed_report_data(data, command):
             and {f'TC_WindowsUpdate_{i:02}' for i in range(1, 14)} <= ids)
 
 
-def _is_full_regression(data):
-    return completed_report_data(data, 'run-regression')
+def _is_full_regression(data, scope=None):
+    return completed_report_data(data, 'run-regression', scope)
 
 
-def latest_full_regression(reports_dir, since=None):
+def latest_full_regression(reports_dir, since=None, scope=None):
     """가장 최근의 **끝까지 완료된 전체 회귀** JSON 정보.
 
     파일명만 보지 않고 TC ID 표식을 대조한다. 개별 실행과 전제 실패 조기 종료도
@@ -135,7 +150,7 @@ def latest_full_regression(reports_dir, since=None):
                 data = json.load(stream)
         except (OSError, ValueError):
             continue
-        if not _is_full_regression(data):
+        if not _is_full_regression(data, scope):
             continue
         stamp = _report_time(data, path)
         if since is not None and stamp < since:

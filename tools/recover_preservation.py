@@ -62,7 +62,7 @@ def _finish_interrupted_recovery(args, result, adapter, services):
 
 
 def _resume_image_cleanup(args):
-    from core.automation_health import completed_report_data
+    from core.automation_health import completed_report_data, report_scope
     from core.run_preservation import _check_path, _hash, _write_json
     from core.execution_session import start_services
     from core.dbreset import APP_SERVICES
@@ -83,7 +83,8 @@ def _resume_image_cleanup(args):
             or not locator.get('sha256') or _hash(proof_path) != locator['sha256']):
         raise ValueError('정리 전 정상완주 증거의 위치·실행 번호·해시를 확인하지 못했습니다.')
     proof = json.loads(proof_path.read_text(encoding='utf-8'))
-    if not completed_report_data(proof, command):
+    # 선택 회귀(REQ-SPEEDUP-002)의 고정 증거는 선택 실행 완료 기준으로 확인한다.
+    if not completed_report_data(proof, command, report_scope(proof)):
         raise ValueError('원래 실행의 전체 기본기능/WU 정상완주를 확인하지 못했습니다.')
     meta = proof.get('meta') or {}
     if meta.get('run_id') != args.run_id or meta.get('chain_completed') is not True:
