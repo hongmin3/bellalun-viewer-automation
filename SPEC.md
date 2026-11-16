@@ -807,6 +807,7 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 3. 선택한 TC의 선행 TC를 함께 실행한다. 선행 관계는 `run-regression` 주석과 각 TC의 사전조건을 따른다.
    - `TC_Basic_WorkFlow_03`~`15`와 XIPL(`TC_XIPL_compatibility`): `DATA_FLOW_MWL_01` 검사를 만드는 `TC_Basic_WorkFlow_01`·`02`
    - `TC_Basic_WorkFlow_08`(Print Overlay)·`TC_Basic_WorkFlow_15`(Image Overlay): 그 Overlay를 설정하는 `TC_Basic_WorkFlow_03`
+   - `TC_Basic_WorkFlow_14`(설정 Export/Import): Step 7이 Print Overlay 목록(`dicom.print_overlay`)의 행을 열거해 대조하므로 그 행과 Image Overlay(`display.overlay`) 행을 만드는 `TC_Basic_WorkFlow_03`. 기준 상태에는 Print Overlay 행이 없어 WF03 없이 돌리면 목록이 비어 Step 7이 FAIL한다(2026-11-16 설치판 1.0.23 선택 실행 `20261116-191248-48515288` 실측)
 4. 실행 순서는 기본 전체와 같은 개정 체크리스트 순서다. 각 TC의 진입 함수·판정·감시(`guarded`)는 기본 전체와 같은 것을 쓴다.
 5. XIPL은 기본 전체와 같이 01~07을 한 단계(`TC_XIPL_compatibility`)로 실행한다. `TC_XIPL_compatibility_0N`을 지정해도 이 단계 전체를 실행한다.
 6. 선택하지 않은 TC는 결과에 넣지 않는다. 사람 전용 SKIP 행(REQ-TCUP-001)도 넣지 않는다. 실행하지 않은 TC를 SKIP이나 PASS로 적지 않는다.

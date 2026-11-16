@@ -42,6 +42,13 @@ class ResolveTests(unittest.TestCase):
             "TC_Basic_WorkFlow_02", "TC_Basic_WorkFlow_03",
             "TC_Basic_WorkFlow_08", "TC_Basic_WorkFlow_15"])
 
+    def test_wf14_settings_list_pulls_in_wf03(self):
+        picked = selection.resolve(["wf14"])
+        self.assertEqual(picked["dependencies"], [
+            "TC_Basic_WorkFlow_02", "TC_Basic_WorkFlow_03"])
+        self.assertEqual(picked["executed"][-3:], [
+            "TC_Basic_WorkFlow_02", "TC_Basic_WorkFlow_03", "TC_Basic_WorkFlow_14"])
+
     def test_xipl_individual_id_maps_to_whole_stage(self):
         for name in ("TC_XIPL_compatibility_04", "xipl", "xipl-04", "XIPL04"):
             picked = selection.resolve([name])

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.24 후보 — 선택 회귀의 WF14 선행 TC 보완
+
+- REQ-SPEEDUP-002: 선택 회귀에서 `TC_Basic_WorkFlow_14`를 고르면 `TC_Basic_WorkFlow_03`도 함께 실행한다. WF14 Step 7은 Print Overlay 목록 행을 열거해 DB와 대조하는데, 기준 상태에는 그 행이 없고 WF03이 만든다. 설치판 1.0.23 선택 실행 `20261116-191248-48515288`(WF14+XIPL)에서 WF03 없이 돌린 WF14가 "Overlay 이름 목록에 행이 없다"로 FAIL했다(같은 TC는 1.0.22 기본 전체에서 PASS). 판정 기준은 바꾸지 않았다.
+- REQ-SPEEDUP-002·003·004: 같은 선택 실행에서 선택 실행 표시·`run_scope: selected`·전체 회귀 제외, 복원 단계 시간 기록(`phases`·`timings`), XIPL 01~07 PASS를 설치판으로 확인했다. XIPL 묶음은 1629초 → 1286초로 줄었다(`docs/regression-timing.md` 6.2절).
+
 ## 1.0.23 후보 — 선택 회귀, 복원 단계 시간 기록, 상태 기반 대기
 
 - REQ-SPEEDUP-002: `run-regression --select <TC,...>`로 영향받은 기본 TC와 smoke(`TC_Basic_Install_02`·`TC_Basic_WorkFlow_01`)만 실행한다. 기준 상태 복원·`DICOM_Server_Setup`과 선행 TC(WF_03~15·XIPL은 WF_01·02, WF_08·15는 WF_03)를 자동으로 더하고 체크리스트 순서로 돈다. 보존·복원·정리는 기본 전체와 같다.

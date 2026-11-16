@@ -23,14 +23,17 @@ _OVERLAY = ("TC_Basic_WorkFlow_03",)
 
 
 def dependencies(stage_id):
-    """선행 TC. WF_03~15·XIPL은 WF_01·02가 만든 DATA_FLOW_MWL_01을, WF_08·15는 WF_03의 Overlay를 쓴다."""
+    """선행 TC. WF_03~15·XIPL은 WF_01·02가 만든 DATA_FLOW_MWL_01을, WF_08·14·15는 WF_03의 Overlay를 쓴다.
+
+    WF_14는 Step 7에서 Print Overlay 목록 행을 열거한다. 기준 상태에는 그 행이 없다.
+    """
     if stage_id == XIPL_STAGE:
         return _FIXTURE
     match = re.fullmatch(r"TC_Basic_WorkFlow_(\d\d)", stage_id)
     if not match:
         return ()
     number = int(match.group(1))
-    if number in (8, 15):
+    if number in (8, 14, 15):
         return _FIXTURE + _OVERLAY
     if 3 <= number <= 15:
         return _FIXTURE
