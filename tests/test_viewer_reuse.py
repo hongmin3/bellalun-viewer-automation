@@ -28,13 +28,17 @@ class FakeDb:
         return {"n": self.examining}
 
 
-def fake_ui(pid=100, login=False, dialog=False):
+def fake_ui(pid=100, login=False, dialog=False, patient=True, examined=False):
+    def by_id(ctrl_id):
+        return [object()] if patient and ctrl_id == flows.PATIENT["tab_new_patient"] else []
+    windows = [SimpleNamespace(visible=True, text="Examined")] if examined else []
     return SimpleNamespace(pid=pid, at_login_screen=lambda: login,
-                           dialog=lambda: object() if dialog else None)
+                           dialog=lambda: object() if dialog else None,
+                           by_id=by_id, windows=lambda: windows)
 
 
 class StartCleanViewerTests(unittest.TestCase):
-    def start(self, ui, db, *, patient=True, force=False):
+    def start(self, ui, db, *, force=False):
         calls = []
 
         def cold_start(cfg, db_, on_event=None, force_restart=None):
@@ -43,7 +47,8 @@ class StartCleanViewerTests(unittest.TestCase):
         cfg = {"viewer": {"force_restart": force}}
         with patch.object(flows, "ViewerUi", return_value=ui), \
                 patch.object(flows, "cold_start", side_effect=cold_start), \
-                patch.object(flows, "ensure_patient_screen", return_value=patient), \
+                patch.object(flows, "ensure_patient_screen",
+                             side_effect=AssertionError("재사용 확인은 화면을 옮기지 않는다")), \
                 patch.object(flows, "known_screen", return_value=["examine"]):
             result_ui, log = flows.start_clean_viewer(cfg, db)
         self.assertEqual(result_ui, "UI")
@@ -63,7 +68,8 @@ class StartCleanViewerTests(unittest.TestCase):
             "DB": (fake_ui(), FakeDb(ping=False), {}),
             "팝업": (fake_ui(dialog=True), FakeDb(), {}),
             "Examine": (fake_ui(), FakeDb(examining=1), {}),
-            "Patient": (fake_ui(), FakeDb(), {"patient": False}),
+            "Patient 화면 아님(View·Examine)": (fake_ui(patient=False), FakeDb(), {}),
+            "Examined 창": (fake_ui(examined=True), FakeDb(), {}),
             "설정": (fake_ui(), FakeDb(), {"force": True}),
             "예외": (fake_ui(), FakeDb(fail=True), {}),
         }

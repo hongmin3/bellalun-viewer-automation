@@ -885,9 +885,9 @@ TC 시작의 강제 재시작(약 40~60초) 가운데 근거가 기록되지 않
 1. Viewer가 실행 중이고 로그인 화면이 아니며 DB에 접속된다.
 2. 떠 있는 팝업이 없다.
 3. DB에 Examine 중(`STUDY.StudyStatus=1`)인 검사가 없다.
-4. `ensure_patient_screen`으로 Patient 화면(New Patient 탭)에 들어갈 수 있다.
+4. 앞 TC가 Patient 화면에 두고 끝났다. 화면을 옮기지 않은 상태에서 New Patient 탭(2285)이 보이고 `Examined` 창이 없어야 한다. 다른 화면이면 탐색으로 맞추지 않고 재시작한다. View로 연 검사는 Patient 화면으로 옮겨도 남아, 다음 View 메뉴가 Examined 검색 대신 그 검사로 돌아가기 때문이다(2026-11-17 설치판 1.0.25 선택 실행 `TC_Basic_WorkFlow_12` 실측: WF11이 View 화면으로 끝난 뒤 이동해서 재사용하자 Examined 검색 컨트롤 2177~2179가 없었다).
 5. 설정 `viewer.force_restart`가 켜져 있지 않다.
-하나라도 아니거나 확인 중 예외가 나면 지금처럼 강제 재시작한다. 판단과 이유를 기동 로그 첫 줄에 남긴다.
+확인은 화면을 조작하지 않고 읽기만 한다. 하나라도 아니거나 확인 중 예외가 나면 지금처럼 강제 재시작한다. 판단과 이유를 기동 로그 첫 줄에 남긴다.
 
 #### 적용 범위
 - 재사용으로 바꾸는 곳: `TC_Basic_WorkFlow_02`·`10`·`11`·`12`의 시작, `TC_Basic_WorkFlow_13`의 시작(시험 계정 로그인·원래 계정 복구 재시작은 유지), `viewer_processing.open_test_study`(WF03·05·09). 코드와 이력에 재시작 이유가 적혀 있지 않은 곳이다.
@@ -1326,7 +1326,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 ### TEST-SPEEDUP-005 Viewer 재시작 줄이기
 
 - 검증 대상: REQ-SPEEDUP-005.
-- 절차: `tests/test_viewer_reuse.py`가 가짜 UI·DB로 다섯 조건을 모두 만족하면 재시작하지 않고, 조건 하나씩 어기거나 확인 중 예외가 나면 강제 재시작하며, 판단 이유를 기동 로그 첫 줄에 남기는지 확인한다. 적용 범위 TC 파일이 `start_clean_viewer`를 쓰고 그대로 두는 TC가 강제 재시작을 유지하는지 정적으로 확인한다.
+- 절차: `tests/test_viewer_reuse.py`가 가짜 UI·DB로 다섯 조건을 모두 만족하면 재시작하지 않고, 조건 하나씩 어기거나(Patient 화면이 아니거나 Examined 창이 열린 경우 포함) 확인 중 예외가 나면 강제 재시작하며, 확인 중 화면을 조작하지 않고, 판단 이유를 기동 로그 첫 줄에 남기는지 확인한다. 적용 범위 TC 파일이 `start_clean_viewer`를 쓰고 그대로 두는 TC가 강제 재시작을 유지하는지 정적으로 확인한다.
 - Expected Result: 재시작 판단이 REQ-SPEEDUP-005와 같다. 판정이 같은지는 설치판 UI 실행으로 기록한다.
 
 ### TEST-SPEEDUP-006 보관본 재검증 횟수

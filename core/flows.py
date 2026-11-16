@@ -1727,8 +1727,13 @@ def viewer_reuse_check(cfg, db, ui=None):
                  {"s": STUDY_STATUS_EXAMINING})
     if row is None or int(row.get("n") or 0):
         return False, "Examine 중인 검사가 있음"
-    if not ensure_patient_screen(ui, wait=5, settle_timeout=5):
-        return False, f"Patient 화면 진입 실패(화면 표지 {known_screen(ui)})"
+    # 화면을 옮겨서 맞추지 않는다. View로 연 검사는 Patient 화면으로 옮겨도 남아
+    # 다음 View 메뉴가 Examined 검색 대신 그 검사로 돌아간다(2026-11-17 1.0.25
+    # 선택 실행 WF12 실측). 앞 TC가 Patient 화면에 두고 끝났을 때만 재사용한다.
+    if not _patient_screen_shown(ui):
+        return False, f"Patient 화면이 아님(화면 표지 {known_screen(ui)})"
+    if any(w.visible and w.text == "Examined" for w in ui.windows()):
+        return False, "Examined 창이 열려 있음"
     return True, "열린 검사·팝업 없음, Patient 화면"
 
 
