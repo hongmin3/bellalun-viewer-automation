@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="deceb0d2b488fc5463fb2c2bc1bf6a74511c650be05da12273b4abc344887ad9">
+<meta name="spec-source-sha256" content="d8ab713f40506fbe007e319492fba41fefd63291ff2d35add0877940e8678996">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>49</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>38</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>1</b><span>implemented</span></div><div class="stat st-verified"><b>48</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>52</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>4</b><span>implemented</span></div><div class="stat st-verified"><b>48</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -143,6 +143,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004 <span>고정 대기를 상태 기반 대기로 바꾸기</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-SPEEDUP-005">REQ-SPEEDUP-005 <span>필요 없는 Viewer 재시작 줄이기</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006 <span>파일 복원의 보관본 재검증 줄이기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007 <span>보관·복원에서 같은 파일을 다시 해시하지 않기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008 <span>시간 변화의 원인을 나눠 볼 진단 기록</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009 <span>Setting 화면 이동과 Viewer 종료의 고정 대기를 상태 확인으로</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-KNOW-001">REQ-KNOW-001 <span>지식 폴더 서버 동기화</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001 <span>실행 보존·자원·결과 안정화</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002 <span>준비·설치·효율·원격 실행</span></a></li>
@@ -181,6 +184,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004 <span>상태 기반 대기</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-SPEEDUP-005">TEST-SPEEDUP-005 <span>Viewer 재시작 줄이기</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-SPEEDUP-006">TEST-SPEEDUP-006 <span>보관본 재검증 횟수</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-SPEEDUP-007">TEST-SPEEDUP-007 <span>보관·복원 해시 횟수</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-SPEEDUP-008">TEST-SPEEDUP-008 <span>진단 시간 기록</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009 <span>Setting 레일·Viewer 종료 대기</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-TRACE-002">TEST-TRACE-002 <span>WU 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-005">TEST-DIST-005 <span>릴리스 게이트</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-007">TEST-DIST-007 <span>구성품 자동 준비</span></a></li>
@@ -258,6 +264,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a></td><td data-label="이름">고정 대기를 상태 기반 대기로 바꾸기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/flows.py</code>, <code>core/ui.py</code>, <code>tests/workflow13.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a>; <code>tests/test_state_waits.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-005">REQ-SPEEDUP-005</a></td><td data-label="이름">필요 없는 Viewer 재시작 줄이기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/flows.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow10.py</code>, <code>tests/workflow11.py</code>, <code>tests/workflow12.py</code>, <code>tests/workflow13.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-005">TEST-SPEEDUP-005</a>; <code>tests/test_viewer_reuse.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a></td><td data-label="이름">파일 복원의 보관본 재검증 줄이기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/preservation_storage.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-006">TEST-SPEEDUP-006</a>; <code>tests/test_restore_archive_verify.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a></td><td data-label="이름">보관·복원에서 같은 파일을 다시 해시하지 않기</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/preservation_storage.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-007">TEST-SPEEDUP-007</a>; <code>tests/test_archive_hash_once.py</code>, <code>tests/test_restore_archive_verify.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a></td><td data-label="이름">시간 변화의 원인을 나눠 볼 진단 기록</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-008">TEST-SPEEDUP-008</a>; <code>tests/test_flow_timings.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a></td><td data-label="이름">Setting 화면 이동과 Viewer 종료의 고정 대기를 상태 확인으로</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/flows.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009</a>; <code>tests/test_setting_rail_waits.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">KNOW</span> 지식 폴더 서버 동기화</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="이름">지식 폴더 서버 동기화</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">FOLLOWUP</span></th></tr>
@@ -1344,7 +1353,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 </section>
 <section class="card kind-req" id="REQ-WU-002">
 <h3><span class="idtag">REQ-WU-002</span> 실시간 WU 체인의 시간 상한·응답 없음 감지·재개</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/wu_chain.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>, <a class="idref" href="#TEST-WU-002">TEST-WU-002</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/wu_chain.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>, <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>, <a class="idref" href="#TEST-WU-002">TEST-WU-002</a></span></div>
 <details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-13 실제 GUI 전체 검증과 실행 차단 수정</span> <a class="idref" href="#REQ-WU-002">REQ-WU-002</a>: 실제 GUI WU 실행을 중단시킨 저장점 원자 교체 WinError 5에 대응했다. Windows 5·32·33만 최대 8회, 총 대기 1.95초 이내로 재시도한다. 지속 실패·다른 오류는 숨기지 않고 기존 저장점과 판정을 보존한다. 실제 Windows 읽기 핸들로 교체 차단과 해제 후 저장을 검증했다.</li>
@@ -1664,7 +1673,7 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 </section>
 <section class="card kind-req" id="REQ-SPEEDUP-004">
 <h3><span class="idtag">REQ-SPEEDUP-004</span> 고정 대기를 상태 기반 대기로 바꾸기</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/flows.py</code>, <code>core/ui.py</code>, <code>tests/workflow13.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a>; <code>tests/test_state_waits.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/flows.py</code>, <code>core/ui.py</code>, <code>tests/workflow13.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a>; <code>tests/test_state_waits.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>, <a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a></span></div>
 <details class="history"><summary>변경 이력 3</summary>
 <ul>
 <li><span class="hist">1.0.25 후보 — 남은 회귀 시간 단축과 선택 실행 문구</span> <a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>: <code>close_examine</code>의 고정 대기 세 곳(저장 확인 6초, 옵션 뒤 <code>wait</code> 6~10초, 삭제 확인 4초)을 화면 신호로 끝낸다. 종료 옵션 팝업이 보이면 저장 확인 대기를, Patient 화면의 New Patient 탭이 나타나면 옵션 뒤 대기를 끝내고 삭제 확인은 1초만 본다. 신호가 없으면 이전과 같은 상한까지 기다린다. 반환값 <code>settle</code>에 신호와 기다린 초를 남긴다.</li>
@@ -1757,6 +1766,91 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 <li>복원을 중단 뒤 다시 시작하면 그 실행의 첫 격리 직전에 다시 한 번 검증한다. 끝의 <code>archive_verify</code>도 그대로 한다.</li>
 <li>복원 순서·실패 처리·<a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>의 보존 정책은 바꾸지 않는다.</li>
 <li>설치판 UI에서 해당 TC가 같은 판정인지 확인한 뒤 수용으로 기록한다.</li>
+</ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-SPEEDUP-007">
+<h3><span class="idtag">REQ-SPEEDUP-007</span> 보관·복원에서 같은 파일을 다시 해시하지 않기</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/preservation_storage.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-007">TEST-SPEEDUP-007</a>; <code>tests/test_archive_hash_once.py</code>, <code>tests/test_restore_archive_verify.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-SPEEDUP-007">TEST-SPEEDUP-007</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.27 후보 — 마무리 해시 줄이기, Setting 이동 대기, 진단 시간 기록</span> <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>(신규): 공용 보존 마무리에서 같은 파일을 다시 해시하지 않는다. 보관본 전체 검증은 보관 파일을 한 번만 읽고, 복사 전 원본 해시를 빼며(복사 뒤 사본·원본 대조는 유지), 같은 마무리 호출에서 해시로 검증한 보관본·원본은 목록·크기·수정 시각이 그대로면 첫 격리 직전·DB 복원 전·복원 계획에서 다시 해시하지 않는다. 끝의 <code>archive_verify</code>, 격리 직전 대상 대조, 복원 파일 대조, 재개 때 재검증은 그대로다. 작은 시험에서 생성 원본 읽기 7 → 4회, 보관 사본 6 → 2회.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>실행 뒤 마무리(공용 보존 <code>shared_delta</code>)에서 내용이 그대로인 것이 확인된 파일을 다시 읽어 해시하지 않는다.</p>
+<blockquote>
+<p><strong>근거(2026-11-17 실측, <code>docs/regression-timing.md</code> 6.5절)</strong> 1.0.26 결합 실행 마무리 542.6초 가운데 보관 263.9초, 파일 복원 130.7초, DB 사전 검증 44.4초, 보관본 검증 44.2초였다. 보관본(생성 이미지 약 4.2GB)의 전체 검증이 한 번의 마무리에서 네 번 돌았고, 한 번마다 보관 파일을 두 번씩 읽었다. 같은 원본도 복사 전·복사 뒤·보관 끝·복원 계획·계획 목록 작성·격리 직전에 거듭 해시했다(작은 시험에서 생성 원본 7회, 보관 사본 6회).</p>
+</blockquote>
+</div></section>
+<section class="field"><h4>바꾸는 것</h4><div class="field-body">
+<ol>
+<li>보관본 전체 검증(<code>_verify_archive</code>)은 보관 파일을 한 번만 읽는다. 폴더 목록 대조(<code>snapshot</code>)가 파일마다 크기·SHA-256을 함께 대조하므로 같은 파일을 따로 한 번 더 해시하지 않는다. 사전 사본을 가리키는 항목(<code>before</code>)은 지금처럼 따로 해시한다.</li>
+<li>공용 사본 복사(<code>_file_copy</code>)는 복사 전 원본 해시를 하지 않는다. 복사 뒤 임시 사본과 원본을 둘 다 기대 해시와 대조하는 것은 그대로다. 원본이 달랐으면 교체 전에 같은 오류로 멈춘다.</li>
+<li>한 번의 마무리 호출 안에서 보관본을 해시로 검증했으면 그 보관본의 파일·폴더 목록, 크기, 수정 시각(ns)을 기억한다. 첫 격리 직전과 DB 복원 전 확인(<code>db_precheck</code>)은 이 값이 그대로면 해시를 다시 하지 않는다. 하나라도 다르면 지금처럼 전체를 해시로 검증한다.</li>
+<li>같은 마무리 호출의 보관 단계가 원본을 해시로 대조한 직후에도 같은 방식으로 원본 목록·크기·수정 시각을 기억한다. 복원 계획은 이 값이 그대로면 원본을 다시 해시하지 않고, 격리 계획의 기대값은 방금 대조한 시험 후 목록에서 만든다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>끝의 <code>archive_verify</code>는 언제나 전체 해시로 검증한다. 격리 직전의 대상 대조(<code>_entry</code>)와 복원 파일의 사전 사본·임시 사본·교체 결과 해시 대조는 작업마다 그대로 한다.</li>
+<li>기억은 그 마무리 호출의 객체에만 있다. 중단 뒤 재개(<code>recover</code>)는 기억이 없어 처음 확인에서 다시 해시로 검증한다.</li>
+<li>복원 순서·실패 처리·공용 저장소 식별자 확인·<a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>의 보존 정책은 바꾸지 않는다.</li>
+</ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-SPEEDUP-008">
+<h3><span class="idtag">REQ-SPEEDUP-008</span> 시간 변화의 원인을 나눠 볼 진단 기록</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/flows.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-008">TEST-SPEEDUP-008</a>; <code>tests/test_flow_timings.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-SPEEDUP-008">TEST-SPEEDUP-008</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.27 후보 — 마무리 해시 줄이기, Setting 이동 대기, 진단 시간 기록</span> <a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a>(신규): 판정마다 기록 시각 <code>recorded_at</code>을 리포트 JSON에만 남긴다(화면·문서 리포트의 Step 소요 표시는 하지 않는다). Viewer 시작의 재사용·재시작 판단·이유·시간과 Setting 레일 대기 합계를 TC 결과 <code>timings</code>에 남긴다. 1.0.22 → 1.0.26 WF09 210 → 247초처럼 한 번의 비교로 원인을 못 가린 변화를 다음 실측에서 나눠 보기 위해서다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>한 번의 비교로 원인을 확정하지 못한 TC 시간 변화(예: 1.0.22 → 1.0.26 WF09 210 → 247초)를 다음 실측에서 나눠 볼 수 있게 진단 시간을 남긴다. 판정에 쓰지 않는다.</p>
+</div></section>
+<section class="field"><h4>기록</h4><div class="field-body">
+<ol>
+<li>판정 하나(<code>Check</code>)마다 기록 시각 <code>recorded_at</code>(밀리초 ISO)을 리포트 JSON에만 남긴다. 화면·문서 리포트에는 Step 소요를 표시하지 않는다(2026-09-08 사용자 요청을 유지한다).</li>
+<li><code>flows.start_clean_viewer</code>는 재사용·재시작 판단, 이유, 걸린 시간을 TC 결과 <code>timings</code>에 <code>kind: viewer</code>로 남긴다.</li>
+<li>Setting 그룹·페이지 클릭 뒤 대기(<a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>)는 TC마다 종류·신호별 횟수와 합계 초를 <code>kind: setting_wait</code> 한 줄씩으로 남긴다.</li>
+<li>2와 3은 <code>run.guarded</code>가 그 단계(TC·XIPL 묶음·WU 단계)의 첫 결과에 붙인다. 앞 단계 밖에서 쌓인 기록은 버린다. 단계가 예외로 끝나도 그때까지의 기록을 붙인다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>기록 실패는 TC 실행·판정을 막지 않는다. 판정 기준·Expected를 바꾸지 않는다.</li>
+</ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-SPEEDUP-009">
+<h3><span class="idtag">REQ-SPEEDUP-009</span> Setting 화면 이동과 Viewer 종료의 고정 대기를 상태 확인으로</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/flows.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009</a>; <code>tests/test_setting_rail_waits.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a>, <a class="idref" href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">1.0.27 후보 — 마무리 해시 줄이기, Setting 이동 대기, 진단 시간 기록</span> <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>(신규): Setting 그룹 클릭은 그 그룹 페이지 버튼이 보이면, 페이지 클릭은 새 콘텐츠 패널이 그려지고 안정되면 대기를 끝낸다. 이미 열린 그룹은 다시 누르지 않는다. 강제 종료 뒤 3초 고정 대기는 Viewer 프로세스가 사라지면 끝낸다. 신호가 없으면 이전 대기를 다 채운다. Update 버튼 뒤 대기는 그대로다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p><a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>에 이어, 남은 Setting 레일 클릭과 Viewer 강제 종료 뒤의 고정 대기를 화면·프로세스 신호로 끝낸다. 상한은 지금 값 그대로다.</p>
+<blockquote>
+<p><strong>근거(2026-11-17 코드 분석, <code>docs/regression-timing.md</code> 7절)</strong> <code>_click_setting_control</code>은 레일 클릭마다 클릭 1.0초 + <code>wait</code>(1.2~3초)를 고정으로 기다렸다. WF14 한 번에 그룹 클릭 약 26회·페이지 클릭 약 50회, XIPL_07은 Procedure 설정 이동 약 9회다. <code>cold_start</code>는 강제 종료 뒤 3초를 고정으로 기다렸다(기본 전체 약 20회).</p>
+</blockquote>
+</div></section>
+<section class="field"><h4>바꾸는 것</h4><div class="field-body">
+<ol>
+<li><strong>그룹 열기(<code>flows.open_setting_group</code>)</strong>: 그 그룹의 페이지 버튼이 레일에 이미 보이면 그룹을 다시 누르지 않는다. 누른 뒤에는 그 그룹의 페이지 버튼이 보이면 끝낸다. 페이지 컨트롤 ID는 그룹마다 겹치지 않는다(<a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>).</li>
+<li><strong>페이지 열기(<code>flows._click_setting_control</code>의 페이지 레일 버튼)</strong>: 누르기 전에 있던 콘텐츠 패널(<code>#32770</code>)의 hwnd를 기억한다. 누른 뒤 그 목록에 없던 패널이 콘텐츠 패널로 잡히고 패널 안 컨트롤 수가 두 번 연속 같으면 끝낸다. 제품은 페이지마다 패널을 새로 만든다(2026-08-25 실측). <code>setting_values.read_all</code>이 이미 쓰는 판단이다.</li>
+<li>신호가 없거나 확인 중 예외가 나면 예전 고정 대기(클릭 1.0초 + <code>wait</code>)를 다 채운다.</li>
+<li><strong>Update 버튼과 레일이 아닌 컨트롤</strong>은 지금처럼 고정 대기한다. Update 결과 팝업 일부(UPS)는 OCR로만 보이는 인라인 팝업이라 신호를 싸게 확인할 수 없다.</li>
+<li><strong>강제 종료 뒤(<code>flows.cold_start</code>)</strong>: 종료한 Viewer 프로세스가 사라지면 0.3초 뒤 넘어간다. 상한은 예전 3초다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>시간 상한·응답 없음 감지(<a class="idref" href="#REQ-WU-002">REQ-WU-002</a>)·판정 기준·Expected를 바꾸지 않는다.</li>
+<li>설치판 UI 실행에서 기준 실행과 TC별 판정이 같은지 확인한 뒤 수용으로 기록한다.</li>
 </ul>
 </div></section>
 </section>
@@ -1880,7 +1974,7 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-004">
 <h3><span class="idtag">REQ-FOLLOWUP-004</span> 공용 보존과 볼륨별 용량 기준</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/runs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>, <a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a>, <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/runs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>, <a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a>, <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>, <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
 <details class="history"><summary>변경 이력 8</summary>
 <ul>
 <li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
@@ -2320,6 +2414,30 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <li>Expected Result: 검증 횟수와 실패 처리가 <a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a>과 같다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-SPEEDUP-007">
+<h3><span class="idtag">TEST-SPEEDUP-007</span> 보관·복원 해시 횟수</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>.</li>
+<li>절차: <code>tests/test_archive_hash_once.py</code>가 생성 파일이 있는 공용 보존 마무리에서 보관 사본과 생성 원본을 읽는 횟수가 줄었는지(보관 사본 2회, 생성 원본 4회), 격리 계획의 기대값이 해시로 만든 값과 같은지, 검증 뒤 보관본이 바뀌거나(크기·같은 크기 다른 내용과 수정 시각) 원본에 파일이 생기면 격리 전에 멈추는지, 원본이 달라진 복사가 사본을 남기지 않는지, 재개 객체에 기억이 없는지 확인한다. <code>tests/test_restore_archive_verify.py</code>가 전체 해시 검증 횟수(새 실행 1회+끝, 재개 2회)를, 기존 <code>tests/test_shared_preservation.py</code>가 복원 결과를 확인한다.</li>
+<li>Expected Result: 해시 횟수와 실패 처리가 <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>과 같다. 실제 소요는 설치판 실행으로 따로 기록한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-SPEEDUP-008">
+<h3><span class="idtag">TEST-SPEEDUP-008</span> 진단 시간 기록</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a>.</li>
+<li>절차: <code>tests/test_flow_timings.py</code>가 판정 JSON의 <code>recorded_at</code>, Viewer 시작 판단 기록, Setting 대기 합계 접기, <code>run.guarded</code>가 첫 결과에만 붙이고 앞 기록을 버리며 예외에도 붙이는지 확인한다.</li>
+<li>Expected Result: 기록 형식과 위치가 <a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a>과 같고 판정은 그대로다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-SPEEDUP-009">
+<h3><span class="idtag">TEST-SPEEDUP-009</span> Setting 레일·Viewer 종료 대기</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>.</li>
+<li>절차: <code>tests/test_setting_rail_waits.py</code>가 가짜 화면·시계로 열린 그룹을 다시 누르지 않는지, 그룹 페이지가 나타나면 바로 끝내고 다른 그룹 페이지는 신호로 보지 않는지, 새 패널이 그려지고 안정되면 끝내고 같은 패널이거나 안정되지 않으면 예전 대기를 다 채우는지, Update 버튼은 고정 대기인지, 종료한 프로세스가 사라지면 바로 넘어가고 살아 있으면 3초를 기다리는지 확인한다.</li>
+<li>Expected Result: 대기 판단이 <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>와 같다. 제품 화면 수용은 설치판 UI 실행으로 따로 기록한다.</li>
+</ul>
+</section>
 <section class="card kind-test" id="TEST-TRACE-002">
 <h3><span class="idtag">TEST-TRACE-002</span> WU 추적성과 정적 자체검사</h3>
 <ul>
@@ -2548,6 +2666,9 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a></td><td data-label="Implementation"><code>core/flows.py</code>, <code>core/ui.py</code>, <code>tests/workflow13.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-004">TEST-SPEEDUP-004</a>; <code>tests/test_state_waits.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-005">REQ-SPEEDUP-005</a></td><td data-label="Implementation"><code>core/flows.py</code>, <code>core/viewer_processing.py</code>, <code>tests/workflow02.py</code>, <code>tests/workflow10.py</code>, <code>tests/workflow11.py</code>, <code>tests/workflow12.py</code>, <code>tests/workflow13.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-005">TEST-SPEEDUP-005</a>; <code>tests/test_viewer_reuse.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a></td><td data-label="Implementation"><code>core/preservation_storage.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-006">TEST-SPEEDUP-006</a>; <code>tests/test_restore_archive_verify.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a></td><td data-label="Implementation"><code>core/preservation_storage.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-007">TEST-SPEEDUP-007</a>; <code>tests/test_archive_hash_once.py</code>, <code>tests/test_restore_archive_verify.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-008">REQ-SPEEDUP-008</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-008">TEST-SPEEDUP-008</a>; <code>tests/test_flow_timings.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a></td><td data-label="Implementation"><code>core/flows.py</code></td><td data-label="Test"><a class="idref" href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009</a>; <code>tests/test_setting_rail_waits.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-WU-001">REQ-WU-001</a></td><td data-label="Implementation"><code>core/usb_media.py</code>, <code>core/usb_evidence.py</code>, <code>core/usb_verification.py</code>, <code>core/usb_paths.py</code>, <code>core/setting_values.py</code>, <code>core/export_manager.py</code>, <code>core/flows.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-WU-001">TEST-WU-001</a>; <code>tests/test_winupdate_usb.py</code>, <code>tests/test_export_manager_leftover.py</code>, <code>tests/test_setting_render.py</code>, <code>tests/test_usb_evidence.py</code>, <code>tests/test_usb_import_completion.py</code>, <code>tests/test_usb_paths.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-001">REQ-SPECSYNC-001</a></td><td data-label="Implementation"><code>tools/spec_sync_check.py</code>, <code>tools/install_git_hooks.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_sync_check.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a></td><td data-label="Implementation"><code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>

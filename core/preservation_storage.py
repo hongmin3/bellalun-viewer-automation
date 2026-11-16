@@ -71,8 +71,8 @@ def _file_copy(source, destination, expected, temporary_dir=None):
         if _matches(destination, expected):
             return  # journal에 고정한 중단 사본만 다시 사용한다.
         raise PreservationError("기존 보존 사본을 덮어쓰지 않습니다")
-    if not _matches(source, expected):
-        raise PreservationError("보관 전에 원본 파일이 변경되었습니다")
+    # 복사 전 원본 해시는 하지 않는다(REQ-SPEEDUP-007). 복사 뒤 임시 사본과 원본을
+    # 둘 다 기대 해시와 대조하므로, 원본이 달랐으면 교체 전에 같은 오류로 멈춘다.
     destination.parent.mkdir(parents=True, exist_ok=True)
     if temporary_dir is None:
         temporary = _check_path(destination.with_name(destination.name + ".bellalun-copying"))
@@ -94,7 +94,7 @@ def _file_copy(source, destination, expected, temporary_dir=None):
         os.fsync(copied.fileno())
     temporary.chmod(mode)
     if not _matches(temporary, expected) or not _matches(source, expected):
-        raise PreservationError("공용 파일 사본의 해시 검증 실패")
+        raise PreservationError("공용 파일 사본의 해시 검증 실패: 보관 전에 원본 파일이 변경되었거나 사본이 다릅니다")
     if destination.exists():
         raise PreservationError("기존 보존 사본을 덮어쓰지 않습니다")
     os.replace(temporary, destination)
@@ -134,6 +134,9 @@ def _archive(run):
                                temporary_dir=run.data_dir / "copying")
             if _current_snapshot(run.roots[name]) != current:
                 raise PreservationError("시험 후 보관 중 원본이 변경되었습니다")
+            # 방금 해시로 대조한 원본의 목록·크기·수정 시각(REQ-SPEEDUP-007, `_plan` 참고).
+            run._verified_roots = getattr(run, "_verified_roots", {})
+            run._verified_roots[name] = _stat_fingerprint([run.roots[name]])
         if run.manifest.get("db") and archive.get("db") is None:
             # backup() 도중 중단된 폴더도 지우거나 재사용하지 않는다.
             sequence = journal.get("db_archive_attempt", -1) + 1
@@ -158,7 +161,39 @@ def _archive(run):
     return archive
 
 
+def _stat_fingerprint(paths):
+    """파일·폴더의 경로·크기·수정 시각. 해시 검증 뒤 그대로인지 싸게 다시 확인할 때 쓴다."""
+    out = {}
+    for root in paths:
+        root = _check_path(root)
+        if not root.exists():
+            out[str(root)] = None
+            continue
+        if root.is_file():
+            info = root.stat()
+            out[str(root)] = (info.st_size, info.st_mtime_ns)
+            continue
+        for current, directories, files in os.walk(root):
+            out[current] = ("dir", tuple(sorted(directories)), tuple(sorted(files)))
+            for name in files:
+                info = os.lstat(os.path.join(current, name))
+                out[os.path.join(current, name)] = (info.st_size, info.st_mtime_ns)
+    return out
+
+
+def _archive_paths(run):
+    archive = run.journal["archive"]
+    paths = [run.data_dir / "archive" / name for name in archive["roots"]]
+    for name, item in archive["roots"].items():
+        paths.extend(run.data_dir / "before" / name / _relative_path(relative)
+                     for relative, origin in item["references"].items() if origin == "before")
+    if archive.get("db"):
+        paths.append(run.data_dir / archive["db"]["path"])
+    return paths
+
+
 def _verify_archive(run):
+    """보관본 전체를 해시로 검증한다. 보관 파일은 한 번만 읽는다(REQ-SPEEDUP-007)."""
     verify_store(run.journal["storage"])
     archive = run.journal["archive"]
     for name, item in archive["roots"].items():
@@ -171,10 +206,11 @@ def _verify_archive(run):
             if origin not in {"before", "archive"}:
                 raise PreservationError("잘못된 archive 참조")
             expected = item["snapshot"]["files"][relative]
-            if not _matches(run.data_dir / origin / name / relative, expected):
-                raise PreservationError("공용 시험 후 자료 검증 실패")
             if origin == "archive":
+                # 아래 snapshot()이 이 파일의 크기·SHA-256을 함께 대조한다.
                 expected_archive["files"][relative] = expected
+            elif not _matches(run.data_dir / origin / name / relative, expected):
+                raise PreservationError("공용 시험 후 자료 검증 실패")
         if snapshot(run.data_dir / "archive" / name) != expected_archive:
             raise PreservationError("공용 시험 후 보관 목록 불일치")
     db = archive.get("db")
@@ -183,6 +219,22 @@ def _verify_archive(run):
         if (snapshot(directory) != db["files"]
                 or not run.db_adapter.verify_backup(directory, db["metadata"])):
             raise PreservationError("공용 시험 후 DB 사본 검증 실패")
+    # 이 호출에서 해시로 검증한 보관본의 목록·크기·수정 시각을 기억한다.
+    # 새 RunPreservation(중단 뒤 재개)에는 없으므로 재개는 다시 해시로 검증한다.
+    run._verified_archive = _stat_fingerprint(_archive_paths(run))
+
+
+def _ensure_archive(run):
+    """같은 마무리 호출에서 해시 검증한 보관본이 그대로면 해시를 다시 하지 않는다.
+
+    반환: "unchanged"(목록·크기·수정 시각 그대로) 또는 "hashed"(전체 해시 검증).
+    """
+    verify_store(run.journal["storage"])
+    remembered = getattr(run, "_verified_archive", None)
+    if remembered and _stat_fingerprint(_archive_paths(run)) == remembered:
+        return "unchanged"
+    _verify_archive(run)
+    return "hashed"
 
 
 def _entry(path):
@@ -194,6 +246,26 @@ def _entry(path):
     return {"kind": "file", "size": path.stat().st_size, "sha256": _hash(path)}
 
 
+def _entry_from_snapshot(current, relative):
+    """방금 대조한 시험 후 목록에서 `_entry()`와 같은 형식을 만든다. 만들 수 없으면 None.
+
+    격리 계획은 원본이 그 목록과 같음을 확인한 직후에 만든다. 같은 파일을 다시 해시하지
+    않기 위해서다(REQ-SPEEDUP-007). 격리 직전의 `_entry()` 대조는 그대로 한다.
+    """
+    if current.get("root_file") or not current.get("exists") or not relative:
+        return None
+    if relative in current["files"]:
+        metadata = current["files"][relative]
+        return {"kind": "file", "size": metadata["size"], "sha256": metadata["sha256"]}
+    if relative not in current["directories"]:
+        return None
+    prefix = relative + "/"
+    return {"kind": "directory", "snapshot": {
+        "exists": True,
+        "directories": sorted(d[len(prefix):] for d in current["directories"] if d.startswith(prefix)),
+        "files": {f[len(prefix):]: dict(m) for f, m in current["files"].items() if f.startswith(prefix)}}}
+
+
 def _plan(run):
     if "delta_operations" in run.journal:
         return run.journal["delta_operations"]
@@ -201,7 +273,11 @@ def _plan(run):
     for name, source in run.roots.items():
         before = run.manifest["roots"][name]
         current = run.journal["archive"]["roots"][name]["snapshot"]
-        if _current_snapshot(source) != current:
+        # 같은 마무리 호출의 보관 단계가 해시로 대조한 원본이 목록·크기·수정 시각까지
+        # 그대로면 다시 해시하지 않는다(REQ-SPEEDUP-007). 재개 호출에는 기억이 없어 해시한다.
+        remembered = getattr(run, "_verified_roots", {}).get(name)
+        unchanged = remembered is not None and _stat_fingerprint([source]) == remembered
+        if not unchanged and _current_snapshot(source) != current:
             raise PreservationError("복원 계획 전에 원본이 변경되었습니다")
         quarantine = source.with_name(f".{source.name}.bellalun-{run.run_id}-quarantine")
         stage = source.with_name(f".{source.name}.bellalun-{run.run_id}-stage")
@@ -229,7 +305,8 @@ def _plan(run):
             target = source / relative if relative else source
             operations.append({"kind": "quarantine", "root": name, "relative": relative,
                                "destination": str(quarantine / str(len(operations))),
-                               "expected": _entry(target), "phase": "planned"})
+                               "expected": _entry_from_snapshot(current, relative) or _entry(target),
+                               "phase": "planned"})
         if before["exists"]:
             for relative in ["", *before["directories"]]:
                 operations.append({"kind": "mkdir", "root": name, "relative": relative,
@@ -262,6 +339,8 @@ def _safe_current(run, operation, target):
 def _restore_operations(run):
     # 보관본 전체 검증은 이번 복원 실행의 첫 격리 직전에 한 번만 한다(REQ-SPEEDUP-006).
     # 격리마다 반복하면 생성 이미지 수 × 보관본 전체 해시가 된다(1.0.23 실측 413.8초).
+    # 같은 호출의 보관 단계가 해시 검증한 뒤 목록·크기·수정 시각이 그대로면 해시를
+    # 다시 하지 않는다(REQ-SPEEDUP-007).
     archive_checked = False
     for operation in _plan(run):
         if operation["phase"] == "verified":
@@ -283,7 +362,7 @@ def _restore_operations(run):
                 if _entry(target) != operation["expected"]:
                     raise PreservationError("보관 후 격리 대상이 변경되었습니다")
                 if not archive_checked:
-                    _verify_archive(run)
+                    _ensure_archive(run)
                     archive_checked = True
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(target, destination)
@@ -391,7 +470,7 @@ def finalize_shared(run):
             db = run.manifest.get("db")
             if db:
                 with timer.phase("db_precheck"):
-                    _verify_archive(run)
+                    _ensure_archive(run)
                     directory = _check_path(run.data_dir / "database")
                     if snapshot(directory) != db["files"] or not run.db_adapter.verify_backup(directory, db["metadata"]):
                         raise PreservationError("복원 직전 DB 사전 사본 검증 실패")

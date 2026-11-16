@@ -50,9 +50,10 @@ def test_archive_is_verified_once_before_first_quarantine(tmp_path):
     assert snapshot(source) == before
     quarantines = [op for op in run.journal["delta_operations"] if op["kind"] == "quarantine"]
     assert len(quarantines) == 4
-    # 복원 계획 뒤 호출: 첫 격리 직전 1회 + 끝의 archive_verify 1회(보관 직후 검증은 계획 전이라 False).
-    # 격리마다 검증하던 이전 구현은 5회였다.
-    assert calls.count(True) == 2
+    # 복원 계획 뒤 전체 해시 검증은 끝의 archive_verify 1회다. 첫 격리 직전 확인은 같은 호출의
+    # 보관 직후 해시 검증 뒤 목록·크기·수정 시각이 그대로라 해시를 다시 하지 않는다(REQ-SPEEDUP-007).
+    # 격리마다 검증하던 1.0.24 이전 구현은 5회, 1.0.26은 2회였다.
+    assert calls.count(True) == 1
 
 
 def test_damaged_archive_stops_before_any_quarantine(tmp_path):
@@ -97,6 +98,7 @@ def test_resume_verifies_again_once(tmp_path):
         result = RunPreservation.recover(run.workspace, "verify-1")
     assert result["status"] == "verified"
     assert snapshot(source) == before
-    # 재개의 보관 단계 재확인 1회 + 남은 격리 2개 중 첫 격리 직전 1회 + 끝의 archive_verify 1회.
-    # 격리마다 검증하던 이전 구현은 4회였다.
-    assert calls.count(True) == 3
+    # 재개 호출에는 앞 호출의 기억이 없어 보관 단계 재확인에서 전체 해시 검증 1회를 하고,
+    # 첫 격리 직전 확인은 그 뒤 그대로인 보관본이라 해시를 다시 하지 않는다(REQ-SPEEDUP-007).
+    # 끝의 archive_verify 1회를 더해 2회다. 격리마다 검증하던 이전 구현은 4회, 1.0.26은 3회였다.
+    assert calls.count(True) == 2

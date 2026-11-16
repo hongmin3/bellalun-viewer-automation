@@ -7,6 +7,7 @@
 
 import os
 import time
+from datetime import datetime
 
 from core.ui import ForegroundError, ViewerUi, children
 
@@ -286,14 +287,138 @@ def _click_setting_control(ui, ctrl_id, what, wait=1.5, timeout=15):
     if not hits:
         raise FlowError(f"{what}(ID {ctrl_id})을 {timeout}초 동안 찾지 "
                         f"못했습니다. 현재 화면을 ui-probe로 확인하십시오.")
-    ui.click(hits[0], settle=1.0)
-    time.sleep(wait)
+    target = _setting_rail_target(ctrl_id)
+    if target is None:
+        # Update 버튼 등: 결과 팝업 일부가 OCR 로만 보이는 인라인 팝업이라 고정 대기를 둔다.
+        ui.click(hits[0], settle=1.0)
+        time.sleep(wait)
+        return hits[0]
+    # 그룹·페이지 레일 클릭은 화면 신호가 오면 끝낸다. 상한은 예전 고정 대기(1.0 + wait)다
+    # (REQ-SPEEDUP-009).
+    baseline = _setting_pane_ids(ui, hits[0]) if target[0] == "page" else None
+    ui.click(hits[0], settle=0.1)
+    _wait_setting_rail_signal(ui, target, hits[0], baseline, 0.9 + wait)
     return hits[0]
+
+
+#: 마지막 레일 클릭의 대기 결과(시험·진단용). {"kind", "signal", "seconds"}
+last_setting_wait = None
+#: TC 하나 동안의 레일 대기 합계 {(kind, signal): [횟수, 초]}. `drain_timings()`가 비운다.
+_rail_wait_stats = {}
+#: TC 결과에 붙일 진단 시간 기록. `run.guarded`가 TC마다 `drain_timings()`로 가져간다.
+_timings = []
+
+
+def note_timing(kind, name, started_wall, seconds, outcome, detail=""):
+    """TC 결과의 `timings`와 같은 형식으로 진단 시간을 모은다. 판정에 쓰지 않는다."""
+    _timings.append({
+        "kind": kind, "name": name,
+        "started": started_wall.isoformat(timespec="milliseconds"),
+        "ended": datetime.now().isoformat(timespec="milliseconds"),
+        "duration_seconds": round(seconds, 3), "outcome": outcome, "detail": str(detail)})
+
+
+def drain_timings():
+    """모은 진단 시간을 돌려주고 비운다. 레일 대기는 신호별 합계 한 줄씩으로 접는다."""
+    rows = list(_timings)
+    _timings.clear()
+    now = datetime.now().isoformat(timespec="milliseconds")
+    for (kind, signal), (count, seconds) in sorted(_rail_wait_stats.items()):
+        rows.append({"kind": "setting_wait", "name": f"Setting {kind} 클릭 뒤 대기 {count}회",
+                     "started": now, "ended": now, "duration_seconds": round(seconds, 2),
+                     "outcome": signal, "detail": f"count={count}"})
+    _rail_wait_stats.clear()
+    return rows
+
+
+def _setting_rail_target(ctrl_id):
+    """레일 버튼이면 ("group", 그룹) 또는 ("page", 그룹), 아니면 None."""
+    for group, group_id in SETTING_GROUPS.items():
+        if ctrl_id == group_id:
+            return ("group", group)
+    for group in SETTING_GROUPS:
+        if ctrl_id in setting_pages(group).values():
+            return ("page", group)
+    return None
+
+
+def _setting_pane_ids(ui, rail_ctrl):
+    """지금 있는 콘텐츠 패널 후보의 hwnd. 확인할 수 없으면 None."""
+    from core import setting_values
+    try:
+        window = setting_values.setting_window(ui)
+        if window is None:
+            return None
+        return {c.hwnd for c in setting_values.shallow(ui, window)
+                if c.cls == "#32770" and c.visible and c.rect[0] >= rail_ctrl.rect[2]}
+    except Exception:                                      # noqa: BLE001
+        return None
+
+
+def _wait_setting_rail_signal(ui, target, rail_ctrl, baseline, limit):
+    """그룹·페이지 클릭 뒤 화면 신호까지 기다린다. 신호가 없으면 `limit`까지 기다린다.
+
+    - 그룹: 그 그룹의 페이지 버튼이 레일에 보인다. 페이지 ID는 그룹마다 겹치지 않는다.
+    - 페이지: 클릭 전에 없던 콘텐츠 패널(hwnd)이 그려지고 패널 안 컨트롤 수가 두 번 연속
+      같다. 제품은 페이지마다 패널을 새로 만든다(2026-08-25 실측). `setting_values.read_all`
+      이 56페이지 × 두 회차에 이미 쓰는 판단이다.
+    """
+    global last_setting_wait
+    from core import setting_values
+    kind, group = target
+    started = time.time()
+    end = started + limit
+    signal = "timeout"
+    while time.time() < end:
+        try:
+            if kind == "group":
+                if _setting_group_open(ui, group):
+                    signal = "rail"
+                    break
+            elif baseline is not None:
+                window = setting_values.setting_window(ui)
+                pane = setting_values.pane_control(ui, rail_ctrl, window=window) if window else None
+                if pane is not None and pane.hwnd not in baseline:
+                    _, settled = setting_values._wait_page_settled(
+                        ui, pane, setting_values.pane_controls(pane))
+                    if settled:
+                        signal = "pane"
+                        break
+        except Exception:                                  # noqa: BLE001
+            pass  # 확인할 수 없으면 상한까지 기다리는 예전 동작
+        time.sleep(0.15)
+    remaining = end - time.time()
+    if signal == "timeout" and remaining > 0:
+        time.sleep(remaining)
+    last_setting_wait = {"kind": kind, "signal": signal,
+                         "seconds": round(time.time() - started, 2)}
+    total = _rail_wait_stats.setdefault((kind, signal), [0, 0.0])
+    total[0] += 1
+    total[1] += last_setting_wait["seconds"]
+    return last_setting_wait
+
+
+def _setting_group_open(ui, group):
+    """그 그룹의 페이지 버튼이 Setting 레일에 지금 보이는지. 확인할 수 없으면 False."""
+    from core import setting_values
+    window = setting_values.setting_window(ui)
+    if window is None:
+        return False
+    ids = set(setting_pages(group).values())
+    return any(c.ctrl_id in ids and c.visible and c.rect[2] - c.rect[0] > 20
+               for c in setting_values.shallow(ui, window))
 
 
 def open_setting_group(ui, group, wait=2.0):
     if group not in SETTING_GROUPS:
         raise FlowError(f"알 수 없는 Setting 그룹: {group}")
+    # 그 그룹의 페이지 버튼이 이미 보이면 그룹이 열려 있다. 다시 누르지 않는다(REQ-SPEEDUP-009).
+    # 확인할 수 없거나 보이지 않으면 예전처럼 누른다.
+    try:
+        if _setting_group_open(ui, group):
+            return None
+    except Exception:                                      # noqa: BLE001
+        pass
     return _click_setting_control(ui, SETTING_GROUPS[group],
                                   f"Setting 그룹 '{group}'", wait)
 
@@ -1573,8 +1698,10 @@ def cold_start(cfg, db, on_event=None, force_restart=None):
                 close_examine(ui, option="suspend", wait=6)
         except Exception as exc:
             say(f"  검사 종료 시도 실패({exc}) — 강제 종료로 전환")
-        _kill_viewer(ui.pid)
-        time.sleep(3)
+        old_pid = ui.pid
+        _kill_viewer(old_pid)
+        # 예전 고정 3초를 상한으로 두고, 종료한 프로세스가 사라지면 바로 넘어간다(REQ-SPEEDUP-009).
+        wait_process_exit(old_pid, limit=3.0)
         ui._pid = None
 
     if not ui.pid:
@@ -1743,12 +1870,16 @@ def start_clean_viewer(cfg, db, on_event=None):
     재시작 이유가 코드·이력에 남지 않은 TC 시작에만 쓴다(REQ-SPEEDUP-005 적용 범위).
     판단과 이유를 기동 로그 첫 줄에 남긴다.
     """
+    started_wall, started = datetime.now(), time.time()
     try:
         reuse, why = viewer_reuse_check(cfg, db)
     except Exception as exc:                           # noqa: BLE001
         reuse, why = False, f"재사용 확인 실패({type(exc).__name__}: {exc})"
     ui, log = cold_start(cfg, db, on_event=on_event, force_restart=not reuse)
     log.insert(0, ("재시작 생략: " if reuse else "강제 재시작: ") + why)
+    # TC 결과의 단계별 소요 표에 판단·이유·시간을 남긴다(REQ-SPEEDUP-008).
+    note_timing("viewer", "Viewer 시작(start_clean_viewer)", started_wall,
+                time.time() - started, "reuse" if reuse else "restart", why)
     if on_event:
         on_event(log[0])
     return ui, log
@@ -1771,6 +1902,23 @@ def close_leftover_export_manager(say):
         say(f"남은 Export Manager(PID {pid}) 정리")
         _kill_viewer(pid)
         time.sleep(1)
+
+
+def wait_process_exit(pid, limit=3.0, alive=None):
+    """`pid` 프로세스가 사라질 때까지 최대 `limit`초 기다린다. 사라졌으면 True.
+
+    프로세스가 사라진 뒤에도 0.3초는 둔다. 창·파일 핸들 정리가 프로세스 종료 직후에
+    끝나는지 따로 재지 않았기 때문이다.
+    """
+    from core.ui import ViewerUi
+    alive = alive or ViewerUi._alive
+    end = time.time() + limit
+    while time.time() < end:
+        if not alive(pid):
+            time.sleep(min(0.3, max(0.0, end - time.time())))
+            return True
+        time.sleep(0.1)
+    return not alive(pid)
 
 
 def _kill_viewer(pid):

@@ -134,6 +134,9 @@ class Check:
         #: 중단 기록일 때 자동화가 수행 중이던 기준 체크리스트 Step(`run.pad_aborted_steps`).
         #: 판정 Step(`step`)은 바꾸지 않는다. WU 변환과 게이트가 그 번호를 쓴다.
         self.interrupted_step = None
+        #: 판정을 기록한 시각(REQ-SPEEDUP-008). 리포트 JSON에만 남기고 화면·문서
+        #: 리포트에는 표시하지 않는다(2026-09-08 사용자 요청: Step 소요 표시 제거).
+        self.recorded_at = datetime.now().isoformat(timespec="milliseconds")
 
     def as_dict(self):
         data = {
@@ -149,6 +152,7 @@ class Check:
             data["blocks_verdict"] = bool(self.blocks_verdict)
         if self.interrupted_step is not None:
             data["interrupted_step"] = self.interrupted_step
+        data["recorded_at"] = self.recorded_at
         return data
 
     @property

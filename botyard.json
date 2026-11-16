@@ -6,6 +6,7 @@
     "python -m pytest tests -q -p no:cacheprovider"
   ],
   "verifyTests": [
+    "tests/test_archive_hash_once.py",
     "tests/test_artifact_archive.py",
     "tests/test_atomic_metadata.py",
     "tests/test_auto_close.py",
@@ -41,6 +42,7 @@
     "tests/test_export_manager_leftover.py",
     "tests/test_failure_evidence.py",
     "tests/test_first_run.py",
+    "tests/test_flow_timings.py",
     "tests/test_focus_recovery.py",
     "tests/test_human_only_skip.py",
     "tests/test_image_cleanup.py",
@@ -105,6 +107,7 @@
     "tests/test_setting_dialog.py",
     "tests/test_setting_list_rewind.py",
     "tests/test_setting_lists.py",
+    "tests/test_setting_rail_waits.py",
     "tests/test_setting_render.py",
     "tests/test_share_package.py",
     "tests/test_shared_preservation.py",

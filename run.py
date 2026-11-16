@@ -281,6 +281,15 @@ def _stage_causes(ctx, tc_id, started, log_path, log_offset):
         return []
 
 
+def _drain_flow_timings():
+    """`core.flows`가 모은 진단 시간. 가져오지 못해도 TC 실행을 막지 않는다."""
+    try:
+        from core import flows
+        return flows.drain_timings()
+    except Exception:                                  # noqa: BLE001
+        return []
+
+
 def guarded(fn, ctx, tc_id, title):
     """개별 TC 예외를 기록하고, 입력 안전성이 깨졌으면 후속 TC를 차단한다.
 
@@ -314,6 +323,7 @@ def guarded(fn, ctx, tc_id, title):
         return False
 
     started = time.time()
+    _drain_flow_timings()  # 앞 TC 밖에서 쌓인 진단 시간은 이 TC에 붙이지 않는다.
     log_path, log_offset = None, 0
     try:
         log_path = _viewer_log_path(ctx)
@@ -348,10 +358,15 @@ def guarded(fn, ctx, tc_id, title):
                      + traceback.format_exc(limit=8))
         print(f"  [guard] {tc_id} 예외로 중단 — {action}: "
               f"{type(exc).__name__}: {exc}")
+        r.timings.extend(_drain_flow_timings())
         return [r]
     if out is None:
+        _drain_flow_timings()
         return []
     rows = list(out) if isinstance(out, (list, tuple)) else [out]
+    # Viewer 시작 판단·Setting 대기 합계(REQ-SPEEDUP-008)를 이 단계의 첫 결과에 붙인다.
+    if rows and isinstance(getattr(rows[0], 'timings', None), list):
+        rows[0].timings.extend(_drain_flow_timings())
     failed = [r for r in rows if getattr(r, 'verdict', None) in {'FAIL', 'BLOCKED'}]
     if failed:
         causes = _stage_causes(ctx, tc_id, started, log_path, log_offset)

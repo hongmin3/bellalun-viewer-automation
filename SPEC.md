@@ -909,6 +909,56 @@ TC 시작의 강제 재시작(약 40~60초) 가운데 근거가 기록되지 않
 - 복원 순서·실패 처리·REQ-FOLLOWUP-004의 보존 정책은 바꾸지 않는다.
 - 설치판 UI에서 해당 TC가 같은 판정인지 확인한 뒤 수용으로 기록한다.
 
+### REQ-SPEEDUP-007 보관·복원에서 같은 파일을 다시 해시하지 않기
+
+#### 하는 일
+실행 뒤 마무리(공용 보존 `shared_delta`)에서 내용이 그대로인 것이 확인된 파일을 다시 읽어 해시하지 않는다.
+
+> **근거(2026-11-17 실측, `docs/regression-timing.md` 6.5절)** 1.0.26 결합 실행 마무리 542.6초 가운데 보관 263.9초, 파일 복원 130.7초, DB 사전 검증 44.4초, 보관본 검증 44.2초였다. 보관본(생성 이미지 약 4.2GB)의 전체 검증이 한 번의 마무리에서 네 번 돌았고, 한 번마다 보관 파일을 두 번씩 읽었다. 같은 원본도 복사 전·복사 뒤·보관 끝·복원 계획·계획 목록 작성·격리 직전에 거듭 해시했다(작은 시험에서 생성 원본 7회, 보관 사본 6회).
+
+#### 바꾸는 것
+1. 보관본 전체 검증(`_verify_archive`)은 보관 파일을 한 번만 읽는다. 폴더 목록 대조(`snapshot`)가 파일마다 크기·SHA-256을 함께 대조하므로 같은 파일을 따로 한 번 더 해시하지 않는다. 사전 사본을 가리키는 항목(`before`)은 지금처럼 따로 해시한다.
+2. 공용 사본 복사(`_file_copy`)는 복사 전 원본 해시를 하지 않는다. 복사 뒤 임시 사본과 원본을 둘 다 기대 해시와 대조하는 것은 그대로다. 원본이 달랐으면 교체 전에 같은 오류로 멈춘다.
+3. 한 번의 마무리 호출 안에서 보관본을 해시로 검증했으면 그 보관본의 파일·폴더 목록, 크기, 수정 시각(ns)을 기억한다. 첫 격리 직전과 DB 복원 전 확인(`db_precheck`)은 이 값이 그대로면 해시를 다시 하지 않는다. 하나라도 다르면 지금처럼 전체를 해시로 검증한다.
+4. 같은 마무리 호출의 보관 단계가 원본을 해시로 대조한 직후에도 같은 방식으로 원본 목록·크기·수정 시각을 기억한다. 복원 계획은 이 값이 그대로면 원본을 다시 해시하지 않고, 격리 계획의 기대값은 방금 대조한 시험 후 목록에서 만든다.
+
+#### 지킬 것
+- 끝의 `archive_verify`는 언제나 전체 해시로 검증한다. 격리 직전의 대상 대조(`_entry`)와 복원 파일의 사전 사본·임시 사본·교체 결과 해시 대조는 작업마다 그대로 한다.
+- 기억은 그 마무리 호출의 객체에만 있다. 중단 뒤 재개(`recover`)는 기억이 없어 처음 확인에서 다시 해시로 검증한다.
+- 복원 순서·실패 처리·공용 저장소 식별자 확인·REQ-FOLLOWUP-004의 보존 정책은 바꾸지 않는다.
+
+### REQ-SPEEDUP-008 시간 변화의 원인을 나눠 볼 진단 기록
+
+#### 하는 일
+한 번의 비교로 원인을 확정하지 못한 TC 시간 변화(예: 1.0.22 → 1.0.26 WF09 210 → 247초)를 다음 실측에서 나눠 볼 수 있게 진단 시간을 남긴다. 판정에 쓰지 않는다.
+
+#### 기록
+1. 판정 하나(`Check`)마다 기록 시각 `recorded_at`(밀리초 ISO)을 리포트 JSON에만 남긴다. 화면·문서 리포트에는 Step 소요를 표시하지 않는다(2026-09-08 사용자 요청을 유지한다).
+2. `flows.start_clean_viewer`는 재사용·재시작 판단, 이유, 걸린 시간을 TC 결과 `timings`에 `kind: viewer`로 남긴다.
+3. Setting 그룹·페이지 클릭 뒤 대기(REQ-SPEEDUP-009)는 TC마다 종류·신호별 횟수와 합계 초를 `kind: setting_wait` 한 줄씩으로 남긴다.
+4. 2와 3은 `run.guarded`가 그 단계(TC·XIPL 묶음·WU 단계)의 첫 결과에 붙인다. 앞 단계 밖에서 쌓인 기록은 버린다. 단계가 예외로 끝나도 그때까지의 기록을 붙인다.
+
+#### 지킬 것
+- 기록 실패는 TC 실행·판정을 막지 않는다. 판정 기준·Expected를 바꾸지 않는다.
+
+### REQ-SPEEDUP-009 Setting 화면 이동과 Viewer 종료의 고정 대기를 상태 확인으로
+
+#### 하는 일
+REQ-SPEEDUP-004에 이어, 남은 Setting 레일 클릭과 Viewer 강제 종료 뒤의 고정 대기를 화면·프로세스 신호로 끝낸다. 상한은 지금 값 그대로다.
+
+> **근거(2026-11-17 코드 분석, `docs/regression-timing.md` 7절)** `_click_setting_control`은 레일 클릭마다 클릭 1.0초 + `wait`(1.2~3초)를 고정으로 기다렸다. WF14 한 번에 그룹 클릭 약 26회·페이지 클릭 약 50회, XIPL_07은 Procedure 설정 이동 약 9회다. `cold_start`는 강제 종료 뒤 3초를 고정으로 기다렸다(기본 전체 약 20회).
+
+#### 바꾸는 것
+1. **그룹 열기(`flows.open_setting_group`)**: 그 그룹의 페이지 버튼이 레일에 이미 보이면 그룹을 다시 누르지 않는다. 누른 뒤에는 그 그룹의 페이지 버튼이 보이면 끝낸다. 페이지 컨트롤 ID는 그룹마다 겹치지 않는다(REQ-SPEEDUP-004).
+2. **페이지 열기(`flows._click_setting_control`의 페이지 레일 버튼)**: 누르기 전에 있던 콘텐츠 패널(`#32770`)의 hwnd를 기억한다. 누른 뒤 그 목록에 없던 패널이 콘텐츠 패널로 잡히고 패널 안 컨트롤 수가 두 번 연속 같으면 끝낸다. 제품은 페이지마다 패널을 새로 만든다(2026-08-25 실측). `setting_values.read_all`이 이미 쓰는 판단이다.
+3. 신호가 없거나 확인 중 예외가 나면 예전 고정 대기(클릭 1.0초 + `wait`)를 다 채운다.
+4. **Update 버튼과 레일이 아닌 컨트롤**은 지금처럼 고정 대기한다. Update 결과 팝업 일부(UPS)는 OCR로만 보이는 인라인 팝업이라 신호를 싸게 확인할 수 없다.
+5. **강제 종료 뒤(`flows.cold_start`)**: 종료한 Viewer 프로세스가 사라지면 0.3초 뒤 넘어간다. 상한은 예전 3초다.
+
+#### 지킬 것
+- 시간 상한·응답 없음 감지(REQ-WU-002)·판정 기준·Expected를 바꾸지 않는다.
+- 설치판 UI 실행에서 기준 실행과 TC별 판정이 같은지 확인한 뒤 수용으로 기록한다.
+
 ### REQ-KNOW-001 지식 폴더 서버 동기화
 
 #### 목적
@@ -1335,6 +1385,24 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_restore_archive_verify.py`가 격리 작업이 여러 개인 공용 보존 복원에서 보관본 전체 검증이 복원 실행마다 한 번(첫 격리 직전)인지, 보관본이 손상되면 지금처럼 첫 격리 전에 멈추는지, 중단 뒤 재개하면 다시 한 번 검증하는지 확인한다. 기존 `tests/test_shared_preservation.py`가 복원 결과가 바뀌지 않았음을 확인한다.
 - Expected Result: 검증 횟수와 실패 처리가 REQ-SPEEDUP-006과 같다.
 
+### TEST-SPEEDUP-007 보관·복원 해시 횟수
+
+- 검증 대상: REQ-SPEEDUP-007.
+- 절차: `tests/test_archive_hash_once.py`가 생성 파일이 있는 공용 보존 마무리에서 보관 사본과 생성 원본을 읽는 횟수가 줄었는지(보관 사본 2회, 생성 원본 4회), 격리 계획의 기대값이 해시로 만든 값과 같은지, 검증 뒤 보관본이 바뀌거나(크기·같은 크기 다른 내용과 수정 시각) 원본에 파일이 생기면 격리 전에 멈추는지, 원본이 달라진 복사가 사본을 남기지 않는지, 재개 객체에 기억이 없는지 확인한다. `tests/test_restore_archive_verify.py`가 전체 해시 검증 횟수(새 실행 1회+끝, 재개 2회)를, 기존 `tests/test_shared_preservation.py`가 복원 결과를 확인한다.
+- Expected Result: 해시 횟수와 실패 처리가 REQ-SPEEDUP-007과 같다. 실제 소요는 설치판 실행으로 따로 기록한다.
+
+### TEST-SPEEDUP-008 진단 시간 기록
+
+- 검증 대상: REQ-SPEEDUP-008.
+- 절차: `tests/test_flow_timings.py`가 판정 JSON의 `recorded_at`, Viewer 시작 판단 기록, Setting 대기 합계 접기, `run.guarded`가 첫 결과에만 붙이고 앞 기록을 버리며 예외에도 붙이는지 확인한다.
+- Expected Result: 기록 형식과 위치가 REQ-SPEEDUP-008과 같고 판정은 그대로다.
+
+### TEST-SPEEDUP-009 Setting 레일·Viewer 종료 대기
+
+- 검증 대상: REQ-SPEEDUP-009.
+- 절차: `tests/test_setting_rail_waits.py`가 가짜 화면·시계로 열린 그룹을 다시 누르지 않는지, 그룹 페이지가 나타나면 바로 끝내고 다른 그룹 페이지는 신호로 보지 않는지, 새 패널이 그려지고 안정되면 끝내고 같은 패널이거나 안정되지 않으면 예전 대기를 다 채우는지, Update 버튼은 고정 대기인지, 종료한 프로세스가 사라지면 바로 넘어가고 살아 있으면 3초를 기다리는지 확인한다.
+- Expected Result: 대기 판단이 REQ-SPEEDUP-009와 같다. 제품 화면 수용은 설치판 UI 실행으로 따로 기록한다.
+
 ### TEST-TRACE-002 WU 추적성과 정적 자체검사
 
 - 검증 대상: REQ-TRACE-002.
@@ -1510,6 +1578,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPEEDUP-004 | `core/flows.py`, `core/ui.py`, `tests/workflow13.py` | TEST-SPEEDUP-004; `tests/test_state_waits.py` | verified |
 | REQ-SPEEDUP-005 | `core/flows.py`, `core/viewer_processing.py`, `tests/workflow02.py`, `tests/workflow10.py`, `tests/workflow11.py`, `tests/workflow12.py`, `tests/workflow13.py` | TEST-SPEEDUP-005; `tests/test_viewer_reuse.py` | verified |
 | REQ-SPEEDUP-006 | `core/preservation_storage.py` | TEST-SPEEDUP-006; `tests/test_restore_archive_verify.py` | verified |
+| REQ-SPEEDUP-007 | `core/preservation_storage.py` | TEST-SPEEDUP-007; `tests/test_archive_hash_once.py`, `tests/test_restore_archive_verify.py` | implemented |
+| REQ-SPEEDUP-008 | `core/result.py`, `core/flows.py`, `run.py` | TEST-SPEEDUP-008; `tests/test_flow_timings.py` | implemented |
+| REQ-SPEEDUP-009 | `core/flows.py` | TEST-SPEEDUP-009; `tests/test_setting_rail_waits.py` | implemented |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
