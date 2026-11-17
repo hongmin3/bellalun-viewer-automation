@@ -937,6 +937,7 @@ TC 시작의 강제 재시작(약 40~60초) 가운데 근거가 기록되지 않
 2. `flows.start_clean_viewer`는 재사용·재시작 판단, 이유, 걸린 시간을 TC 결과 `timings`에 `kind: viewer`로 남긴다.
 3. Setting 그룹·페이지 클릭 뒤 대기(REQ-SPEEDUP-009)는 TC마다 종류·신호별 횟수와 합계 초를 `kind: setting_wait` 한 줄씩으로 남긴다.
 4. 2와 3은 `run.guarded`가 그 단계(TC·XIPL 묶음·WU 단계)의 첫 결과에 붙인다. 앞 단계 밖에서 쌓인 기록은 버린다. 단계가 예외로 끝나도 그때까지의 기록을 붙인다.
+5. 저장점에서 결과를 다시 읽어 리포트를 만들 때(`wu_chain.result_from_dict`, 결합·WU 실행) 처음 기록한 `recorded_at`을 유지한다. 설치판 1.0.27 결합 실행에서는 다시 읽을 때 새로 찍어 모든 판정이 리포트 작성 시각으로 남았다(저장점 원본에는 바른 시각이 있었다).
 
 #### 지킬 것
 - 기록 실패는 TC 실행·판정을 막지 않는다. 판정 기준·Expected를 바꾸지 않는다.
@@ -1394,7 +1395,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 ### TEST-SPEEDUP-008 진단 시간 기록
 
 - 검증 대상: REQ-SPEEDUP-008.
-- 절차: `tests/test_flow_timings.py`가 판정 JSON의 `recorded_at`, Viewer 시작 판단 기록, Setting 대기 합계 접기, `run.guarded`가 첫 결과에만 붙이고 앞 기록을 버리며 예외에도 붙이는지 확인한다.
+- 절차: `tests/test_flow_timings.py`가 판정 JSON의 `recorded_at`, Viewer 시작 판단 기록, Setting 대기 합계 접기, `run.guarded`가 첫 결과에만 붙이고 앞 기록을 버리며 예외에도 붙이는지, 저장점에서 다시 읽은 결과가 처음 기록 시각을 유지하는지 확인한다.
 - Expected Result: 기록 형식과 위치가 REQ-SPEEDUP-008과 같고 판정은 그대로다.
 
 ### TEST-SPEEDUP-009 Setting 레일·Viewer 종료 대기
@@ -1578,9 +1579,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPEEDUP-004 | `core/flows.py`, `core/ui.py`, `tests/workflow13.py` | TEST-SPEEDUP-004; `tests/test_state_waits.py` | verified |
 | REQ-SPEEDUP-005 | `core/flows.py`, `core/viewer_processing.py`, `tests/workflow02.py`, `tests/workflow10.py`, `tests/workflow11.py`, `tests/workflow12.py`, `tests/workflow13.py` | TEST-SPEEDUP-005; `tests/test_viewer_reuse.py` | verified |
 | REQ-SPEEDUP-006 | `core/preservation_storage.py` | TEST-SPEEDUP-006; `tests/test_restore_archive_verify.py` | verified |
-| REQ-SPEEDUP-007 | `core/preservation_storage.py` | TEST-SPEEDUP-007; `tests/test_archive_hash_once.py`, `tests/test_restore_archive_verify.py` | implemented |
-| REQ-SPEEDUP-008 | `core/result.py`, `core/flows.py`, `run.py` | TEST-SPEEDUP-008; `tests/test_flow_timings.py` | implemented |
-| REQ-SPEEDUP-009 | `core/flows.py` | TEST-SPEEDUP-009; `tests/test_setting_rail_waits.py` | implemented |
+| REQ-SPEEDUP-007 | `core/preservation_storage.py` | TEST-SPEEDUP-007; `tests/test_archive_hash_once.py`, `tests/test_restore_archive_verify.py` | verified |
+| REQ-SPEEDUP-008 | `core/result.py`, `core/flows.py`, `core/wu_chain.py`, `run.py` | TEST-SPEEDUP-008; `tests/test_flow_timings.py` | implemented |
+| REQ-SPEEDUP-009 | `core/flows.py` | TEST-SPEEDUP-009; `tests/test_setting_rail_waits.py` | verified |
 | REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |

@@ -525,6 +525,10 @@ def result_from_dict(data):
                               item.get("actual_data", item.get("actual", "")),
                               item.get("note", ""),
                               blocks_verdict=item.get("blocks_verdict")))
+        # 기록 시각은 처음 판정한 시각을 유지한다(REQ-SPEEDUP-008). 저장점에서 다시
+        # 읽을 때 새로 찍으면 결합·WU 리포트의 모든 판정이 리포트 작성 시각이 된다.
+        if item.get("recorded_at"):
+            r.checks[-1].recorded_at = item["recorded_at"]
     r.evidence = list(data.get("evidence") or [])
     if data.get('cause_evidence'):
         r.cause_evidence = list(data['cause_evidence'])

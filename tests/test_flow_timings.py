@@ -73,3 +73,13 @@ def test_guarded_exception_keeps_timings():
             patch.object(run, "_stage_causes", return_value=[]):
         rows = run.guarded(tc, ctx, "TC_A", "a")
     assert rows[0].timings and rows[0].timings[0]["outcome"] == "restart"
+
+
+def test_checkpoint_reload_keeps_recorded_at():
+    from core.wu_chain import result_from_dict
+    r = TCResult("TC_X", "x")
+    r.add(1, "step", PASS)
+    data = r.as_dict()
+    data["checks"][0]["recorded_at"] = "2026-11-17T07:50:01.123"
+    restored = result_from_dict(data)
+    assert restored.checks[0].as_dict()["recorded_at"] == "2026-11-17T07:50:01.123"
