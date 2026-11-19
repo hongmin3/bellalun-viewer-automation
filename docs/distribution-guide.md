@@ -98,7 +98,7 @@ python tools/release_gate.py --installed-verification <verification.json> --scop
 - EXE·설치 파일·build-info가 시험 때와 같고 컴파일·소스 시험을 생략하지 않았다. 선택한 실행이 완료됐으며 새 리포트의 해시·명령이 기록과 같다.
 - 선택한 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`, 출처가 `build-info`다. 소스 실행 결과를 설치판 결과로 받지 않는다.
 - WU를 선택했으면 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13)이다.
-- 기본기능을 선택했으면 전체 회귀이며 `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없다. 단독 TC는 지정 TC를 모두 수행했는지와 같은 FAIL·BLOCKED·사람 전용 SKIP 기준을 확인한다.
+- 기본기능을 선택했으면 전체 회귀이며 `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없다. SKIP은 `automation_scope.json`의 승인 기본기능 SKIP만 허용한다. 단독 TC에서도 지정 TC의 수행 범위와 같은 판정 기준을 확인한다.
 
 선택하지 않은 묶음의 리포트는 요구하지 않는다. 시험 범위·미수행 범위와 선택 이유를 승인 기록과 함께 전달한다. 통과한 EXE·설치 파일을 다시 빌드하거나 build-info를 고치지 않는다. 후보 파일명은 그대로 두고 `--output`으로 만든 배포 판정 기록을 함께 전달한다. `build-info.release_gate`는 빌드 당시의 상태이며 최종 설치판 검증은 별도 기록으로 확인한다.
 

@@ -340,6 +340,7 @@ TEST-VERDICT-001, `tests/test_primary_monitor_guard.py`, `tests/test_result_repo
 #### 하는 일
 사람이 직접 수행해야 해서 자동화하지 않는 TC는 MANUAL이 아니라 SKIP으로 기록한다(2026-11-05 사용자 결정).
 대상은 `tests/winupdate.py`의 `HUMAN_ONLY_TCS`다: WU_01(OS Update·패키지 설치), WU_12(OS User 계정), WU_13(KIOSK), 기본기능 WF_16(Kiosk·System Launcher).
+추가 기본기능 사람 전용 TC는 REQ-TCUP-001의 승인 범위표를 따른다.
 #### 규칙
 - 확인 항목 하나를 `blocks_verdict=false`인 SKIP으로 남기므로 TC 판정은 SKIP이다. note 첫 줄은 "사람이 직접 수행하는 TC — 자동화 대상 아님(SKIP)"이다.
 - WU 체크리스트 사본은 Skip 판정의 사유도 Result 옆 L열에 적는다.
@@ -532,7 +533,7 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 
    - WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
 3. WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
-4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
+4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 승인 범위표 `automation_scope.json`에 SKIP으로 지정된 기본기능 TC(REQ-TCUP-001)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
 5. 선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.
 #### 결과
 `python tools/release_gate.py --installed-verification <기록> --scope <범위>`가 항목별 통과·실패와 거부 사유를 보여 준다. 통과 후 같은 EXE를 배포하며 다시 컴파일하지 않는다. 후보 파일명과 build-info는 보존하고 별도 배포 승인 기록으로 검증을 연결한다. 기존 `--wu --basic`과 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다.
@@ -1301,8 +1302,8 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 ### TEST-VERDICT-002
 
 - 검증 대상: REQ-VERDICT-002.
-- 절차: `tests/test_human_only_skip.py`로 WU_01·12·13과 WF_16이 SKIP이고 사유가 note와 체크리스트 사본 L열에 남는지, `tests/test_release_gate.py`로 게이트가 PASS 10 / SKIP 3만 통과시키고 사람 전용 TC의 MANUAL·다른 TC의 SKIP을 거부하는지 확인한다.
-- Expected Result: 사람이 할 TC는 SKIP과 사유로 보이고 게이트 목표가 그 셋으로 고정된다.
+- 절차: `tests/test_human_only_skip.py`로 WU_01·12·13과 WF_16이 SKIP이고 사유가 note와 체크리스트 사본 L열에 남는지 확인한다. `tests/test_release_gate.py`로 WU PASS 10 / SKIP 3, 기본기능 승인 SKIP 허용과 미승인 SKIP 거부를 확인한다.
+- Expected Result: 사람이 할 TC는 SKIP과 사유로 보인다. WU의 사람 전용 TC 3개와 승인 범위표의 기본기능 SKIP만 게이트에서 SKIP으로 인정한다.
 
 ### TEST-REPORT-001
 
@@ -1594,7 +1595,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
-| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
+| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `core/scope_results.py`, `automation_scope.json`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py`, `tests/test_wu_tool_missing.py` | verified |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | verified |

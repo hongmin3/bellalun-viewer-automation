@@ -4,7 +4,7 @@
 Bellalun 정책은 VXvue 의 "전 항목 PASS·flake 0" 정책과 **다르다.**
 
 * 사람이 직접 하는 TC 는 SKIP 이다. WU 는 사람 전용 TC(WU_01·12·13)만 SKIP 을 허용하고,
-  기본기능 회귀는 사람 전용 TC(WF_16)만 SKIP 을 허용하고, MANUAL TC 는 그대로 허용하고 목록만 보고한다.
+  기본기능 회귀는 승인 범위표에 지정된 SKIP 을 허용한다. 기본기능 MANUAL 은 목록으로 보고한다.
 * FAIL 은 `tests/winupdate.py::KNOWN_DEFECT_EXCLUDE` 에 등록된 (tc_id, check
   title) 기존 알려진 제품 결함만 허용한다. 그 결함 때문에 TC 가 중단되며 생긴
   연쇄 기록도 허용한다(아래 `classify_fail`). 그 밖의 FAIL·BLOCKED 는 거부한다.
@@ -35,6 +35,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.automation_health import FULL_REGRESSION_MARKERS  # noqa: E402
+from core.scope_results import basic_skip_rows  # noqa: E402
 from tests.winupdate import HUMAN_ONLY_TCS, KNOWN_DEFECT_EXCLUDE  # noqa: E402
 
 WU_IDS = tuple(f"TC_WindowsUpdate_{i:02}" for i in range(1, 14))
@@ -116,6 +117,8 @@ def _evaluate_wu(report, checks, reasons):
 
 
 def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True):
+    with (ROOT / "automation_scope.json").open(encoding="utf-8") as source:
+        human_only = {row["tc_id"] for row in basic_skip_rows(json.load(source))}
     results = report.get("results") or []
     ids = {row.get("tc_id") for row in results}
     missing = sorted(FULL_REGRESSION_MARKERS - ids)
@@ -134,7 +137,7 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
         tc_id = row.get("tc_id")
         rows = row.get("checks") or []
         if row.get("verdict") == "SKIP":
-            (skipped if tc_id in HUMAN_ONLY_TCS else stray_skip).append(tc_id)
+            (skipped if tc_id in human_only else stray_skip).append(tc_id)
         if row.get("verdict") == "BLOCKED" or any(c.get("status") == "BLOCKED" for c in rows):
             blocked.append(tc_id)
         if row.get("verdict") == "MANUAL":

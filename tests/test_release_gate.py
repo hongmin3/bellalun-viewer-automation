@@ -121,13 +121,19 @@ class EvaluateTests(unittest.TestCase):
         self.assertFalse(self._run(wu=wu)["passed"])
 
     def test_basic_skip_only_for_human_only_tcs_and_reported(self):
-        ok = self._run(basic=basic_report([_tc("TC_Basic_WorkFlow_16", "SKIP")]))
+        approved = ["TC_Basic_WorkFlow_16",
+                    *(f"TC_Basic_Install_{n:02}" for n in range(3, 7)),
+                    "TC_Basic_QC_01", "TC_Basic_QC_02",
+                    *(f"TC_Basic_Performance_{n:02}" for n in range(1, 4))]
+        ok = self._run(basic=basic_report([_tc(tc, "SKIP") for tc in approved]))
         self.assertTrue(ok["passed"], ok["reasons"])
-        listed = [c for c in ok["checks"] if "SKIP" in c["name"]]
-        self.assertTrue(listed and "TC_Basic_WorkFlow_16" in listed[0]["detail"])
-        bad = self._run(basic=basic_report([_tc("TC_Basic_WorkFlow_07", "SKIP")]))
-        self.assertFalse(bad["passed"])
-        self.assertTrue(any("TC_Basic_WorkFlow_07" in r for r in bad["reasons"]))
+        listed = next(c for c in ok["checks"] if c["name"].startswith("기본기능 SKIP"))
+        self.assertEqual(set(listed["detail"].split(", ")), set(approved))
+        for unapproved in ("TC_Basic_WorkFlow_07", "TC_Basic_Install_07", "TC_WindowsUpdate_01"):
+            with self.subTest(tc=unapproved):
+                bad = self._run(basic=basic_report([_tc(unapproved, "SKIP")]))
+                self.assertFalse(bad["passed"])
+                self.assertTrue(any(unapproved in r for r in bad["reasons"]))
 
     def test_single_tc_basic_report_is_not_full_regression(self):
         single = {"meta": _identity(), "results": [_tc("TC_Basic_WorkFlow_03", "PASS")]}
