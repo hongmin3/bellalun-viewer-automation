@@ -1,5 +1,6 @@
 """정상 완주 후 해당 실행 Image 격리 파일만 삭제하는 안전 경계."""
 import json
+import os
 from pathlib import Path
 from unittest import mock
 
@@ -35,6 +36,56 @@ def quarantine_file(run, leaf):
             if path.exists():
                 return path
     raise AssertionError(leaf)
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows 파일 이동 오류만 재시도')
+@pytest.mark.parametrize('conflict', [None, 'before_check', 'after_check'])
+def test_quarantine_rechecks_destination_after_transient_windows_error(tmp_path, monkeypatch, conflict):
+    image = tmp_path / 'product' / 'Image'
+    image.mkdir(parents=True)
+    share = tmp_path / 'share'
+    share.mkdir()
+    run = RunPreservation(tmp_path / 'work', 'retry', {'Image': image},
+                          restore_after=True, storage_dir=share)
+    run.prepare()
+    generated = image / 'generated'
+    if conflict == 'after_check':
+        original = generated
+    else:
+        generated.mkdir()
+        original = generated / 'one.dcm'
+    original.write_bytes(b'generated')
+    actual_rename = os.rename
+    attempts = []
+
+    def rename(source, destination):
+        if Path(source) == generated:
+            attempts.append(Path(destination))
+            if len(attempts) == 1:
+                if conflict == 'before_check':
+                    Path(destination).mkdir()
+                raise PermissionError(13, 'Access is denied', source, 5)
+            if len(attempts) == 2 and conflict == 'after_check':
+                Path(destination).write_bytes(b'other')
+        return actual_rename(source, destination)
+
+    monkeypatch.setattr(os, 'rename', rename)
+    result = run.finalize()
+    if conflict:
+        assert result['status'] == 'error'
+        assert original.read_bytes() == b'generated'
+        if conflict == 'before_check':
+            assert result['error_type'] == 'PreservationError'
+            assert len(attempts) == 1
+            assert list(attempts[0].iterdir()) == []
+        else:
+            assert len(attempts) == 2
+            assert attempts[0].read_bytes() == b'other'
+    else:
+        assert result['status'] == 'verified'
+        assert len(attempts) == 2
+        assert not (generated / 'one.dcm').exists()
+        assert (attempts[0] / 'one.dcm').read_bytes() == b'generated'
 
 
 def test_cleanup_removes_only_generated_image_quarantine_and_keeps_every_copy(tmp_path):

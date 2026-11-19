@@ -96,7 +96,7 @@ def test_new_tc_requires_trace_and_full_implementation_before_grading(project, k
     item["module"] = entrypoint
     trace_path.write_text(json.dumps(trace), encoding="utf-8")
     basis = tc_basis.capture(project, kind)
-    meta = {**run._tc_report_meta(project, kind), "execution_mode": "single"}
+    meta = {**run._tc_report_meta(project, kind), "execution_mode": "single", "run_id": "current"}
     assert meta["modules"][tc_id][0] == entrypoint
     tc = TCResult(tc_id, "신규 시험")
     tc.add(1, "확인", PASS, expected="기록", actual="기록")
@@ -107,7 +107,7 @@ def test_new_tc_requires_trace_and_full_implementation_before_grading(project, k
                      "expected_cell": "D3", "implementation": entrypoint},
         "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
     }
-    assert evidence_evaluation.grade(evidence_evaluation.reference(basis, tc_id, report), claim)["passed"]
+    assert evidence_evaluation.grade(evidence_evaluation.reference(basis, tc_id, report, expected_run_id="current"), claim)["passed"]
     assert not evidence_evaluation.grade(evidence_evaluation.reference(basis, tc_id), claim)["passed"]
 
 
@@ -139,7 +139,7 @@ def test_scope_only_tc_and_missing_wu_trace_are_detected(project, monkeypatch):
 ])
 def test_report_and_grader_use_displayed_cell_function_and_actual_run(project, kind, tc_id, entrypoint):
     meta = {**run._tc_report_meta(project, kind),
-            "execution_mode": "live", "chain_completed": True}
+            "execution_mode": "live", "chain_completed": True, "run_id": "current"}
     assert meta["modules"][tc_id][0] == entrypoint
     tc = TCResult(tc_id, "fixture")
     tc.add(1, "Send", PASS, expected="receipt", actual="receipt")
@@ -154,13 +154,13 @@ def test_report_and_grader_use_displayed_cell_function_and_actual_run(project, k
         "report_sha256": hashlib.sha256(Path(paths["json"]).read_bytes()).hexdigest(),
     }
     basis = tc_basis.capture(project, kind)
-    assert evidence_evaluation.reference(basis, tc_id, paths["json"]) == expected
+    assert evidence_evaluation.reference(basis, tc_id, paths["json"], expected_run_id="current") == expected
     static_only = evidence_evaluation.reference(basis, tc_id)
     assert static_only["verdict"] == "UNVERIFIED"  # 이전 회차의 XLSX Pass 열만 있음
     assert not evidence_evaluation.grade(static_only, expected)["passed"]
     assert evidence_evaluation.grade(expected, dict(expected, citation={}))["mismatched_fields"] == ["citation"]
     historical = write_reports([tc], project.root, "historical", meta={**meta, "execution_mode": "historical"})
-    assert evidence_evaluation.reference(basis, tc_id, historical["json"]) == static_only
+    assert evidence_evaluation.reference(basis, tc_id, historical["json"], expected_run_id="current") == static_only
 
 
 def test_normal_cli_grades_independent_claim_without_product_context(project, monkeypatch):
@@ -178,3 +178,36 @@ def test_normal_cli_grades_independent_claim_without_product_context(project, mo
                                 env=os.environ | {"PYTHONIOENCODING": "utf-8"})
         assert result.returncode == exit_code, result.stderr
         assert json.loads(result.stdout)["passed"] == (exit_code == 0)
+
+
+@pytest.mark.parametrize(("report_run_id", "expected_run_id", "exit_code"), [
+    ("current", "current", 0),
+    ("previous", "current", 2),
+    (None, "current", 2),
+    ("previous", None, 2),
+])
+def test_cli_grades_only_the_expected_run(project, monkeypatch, report_run_id, expected_run_id, exit_code):
+    monkeypatch.setenv("BELLALUN_RESOURCE_DIR", str(project.root))
+    config, claim = project.root / "config.json", project.root / "claim.json"
+    config.write_text(json.dumps(project.cfg), encoding="utf-8")
+    tc = TCResult(WF04, "fixture")
+    tc.add(1, "Send", PASS, expected="receipt", actual="receipt")
+    meta = {**run._tc_report_meta(project, "basic"), "execution_mode": "live",
+            "chain_completed": True}
+    if report_run_id:
+        meta["run_id"] = report_run_id
+    report = Path(write_reports([tc], project.root, "fixture", meta=meta)["json"])
+    claim.write_text(json.dumps({
+        "tc_id": WF04, "basis_status": "verified", "verdict": "PASS",
+        "citation": {"sha256": project.sha, "sheet": "개정 TC", "id_cell": "A2",
+                     "expected_cell": "D2", "implementation": "tests/workflow04.py::run"},
+        "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+    }), encoding="utf-8")
+    command = [sys.executable, str(Path(run.__file__)), "--config", str(config),
+               "evidence-basis", "--tc", WF04, "--claim", str(claim), "--report", str(report)]
+    if expected_run_id is not None:
+        command += ["--expected-run-id", expected_run_id]
+    result = subprocess.run(command, capture_output=True, encoding="utf-8",
+                            env=os.environ | {"PYTHONIOENCODING": "utf-8"})
+    assert result.returncode == exit_code, (result.stdout, result.stderr)
+    assert json.loads(result.stdout).get("passed", False) == (exit_code == 0)

@@ -15,6 +15,7 @@ import shutil
 import stat
 import uuid
 
+from core.atomic_metadata import retry_windows_file_operation
 from core.run_preservation import (PreservationError, _absolute, _check_path, _hash,
                                    _relative_path, _write_json, snapshot)
 
@@ -336,12 +337,20 @@ def _safe_current(run, operation, target):
         raise PreservationError("복원 중 예상하지 못한 파일이 생겼습니다")
 
 
+def _recheck_quarantine(run, target, destination, expected):
+    _ensure_archive(run)
+    if _check_path(destination).exists() or _entry(_check_path(target)) != expected:
+        raise PreservationError("재시도 전 격리 대상 또는 목적지가 변경되었습니다")
+
+
 def _restore_operations(run):
     # 보관본 전체 검증은 이번 복원 실행의 첫 격리 직전에 한 번만 한다(REQ-SPEEDUP-006).
     # 격리마다 반복하면 생성 이미지 수 × 보관본 전체 해시가 된다(1.0.23 실측 413.8초).
     # 같은 호출의 보관 단계가 해시 검증한 뒤 목록·크기·수정 시각이 그대로면 해시를
     # 다시 하지 않는다(REQ-SPEEDUP-007).
     archive_checked = False
+    # Windows rename은 검사 직후 다른 프로세스가 만든 목적지도 덮어쓰지 않는다.
+    move_to_quarantine = os.rename if os.name == 'nt' else os.replace
     for operation in _plan(run):
         if operation["phase"] == "verified":
             continue
@@ -365,7 +374,9 @@ def _restore_operations(run):
                     _ensure_archive(run)
                     archive_checked = True
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(target, destination)
+                retry_windows_file_operation(
+                    lambda: move_to_quarantine(target, destination),
+                    before_retry=lambda: _recheck_quarantine(run, target, destination, operation["expected"]))
         elif kind == "mkdir":
             operation["phase"] = "mkdir"
             run._save("restoring")

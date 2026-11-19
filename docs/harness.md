@@ -32,13 +32,18 @@ python run.py --config config.json evidence-basis --kind basic --tc TC_Basic_Wor
 python run.py --config config.json evidence-basis --kind windows_update --tc TC_WindowsUpdate_02
 ```
 
-에이전트는 원문과 이번 보고서를 읽어 독립적으로 제출 JSON을 작성한다. 정본을 확인하면 해시·시트·ID 셀·Expected 셀·구현 함수를 `citation`에 넣는다. 이번 실행의 제품 판정을 제출하려면 해당 JSON의 `report_sha256`도 적는다. [구판 충돌 제출 예시](examples/conflict-claim.json)는 WF04의 해시가 다르고 유효한 제품 근거가 없는 경우다. 이전 XLSX의 Pass 열이나 저장점에서 재사용한 결과로 이번 실행의 PASS를 주장하면 채점에서 거부한다.
+에이전트는 원문과 이번 보고서를 읽어 독립적으로 제출 JSON을 작성한다. 정본을 확인하면 해시·시트·ID 셀·Expected 셀·구현 함수를 `citation`에 넣는다. 이번 실행의 제품 판정을 제출하려면 해당 JSON의 `report_sha256`도 적는다. 실행 감독 기록인
+`Runs/<실행 번호>/run.json`에서 확인한 번호를 `--expected-run-id`에 넣는다. 소스 CLI 단독 실행에서는
+`preservation/<실행 번호>/journal.json`을 확인한다. 제출 보고서와 별도로 확보한 번호를 써야 이번 회차와
+대조할 수 있다. [구판 충돌 제출 예시](examples/conflict-claim.json)는
+WF04의 해시가 다르고 유효한 제품 근거가 없는 경우다. 이전 XLSX의 Pass 열, 다른 회차 보고서,
+저장점에서 재사용한 결과로 이번 실행의 PASS를 주장하면 채점에서 거부한다.
 
 ```powershell
-python run.py --config config.json evidence-basis --kind basic --tc TC_Basic_WorkFlow_04 --claim claim.json --report result.json
+python run.py --config config.json evidence-basis --kind basic --tc TC_Basic_WorkFlow_04 --claim claim.json --report result.json --expected-run-id <실행번호>
 ```
 
-보고서가 없으면 `--report`를 생략한다. 종료 코드 0은 제출 내용의 일치를 뜻하며, 예시처럼 `UNVERIFIED`도 올바른 답일 수 있다. 종료 코드 2이면 출력의 불일치 필드 또는 입력 오류를 확인한다.
+보고서가 없으면 `--report`와 `--expected-run-id`를 생략한다. 종료 코드 0은 제출 내용의 일치를 뜻하며, 예시처럼 `UNVERIFIED`도 올바른 답일 수 있다. 종료 코드 2이면 출력의 불일치 필드 또는 입력 오류를 확인한다.
 
 인수인계에는 검사한 커밋, 제품·기준서 판본, TC와 원문 위치, 구현 함수, 실행한 검사와 보고서 위치, 미수행 범위를 남긴다. 전체 소스 검증은 [저장소 검증 명령](../botyard.json), 실제 설치판 수용 범위와 승인 절차는 [시험 안내](testing-guide.md)를 따른다.
 

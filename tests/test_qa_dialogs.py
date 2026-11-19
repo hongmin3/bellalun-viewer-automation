@@ -669,3 +669,47 @@ def test_real_gui_input_on_log_cancels_unattended_countdown(sequence, options, m
     assert gui.launch(layout, unattended='option') == 0
     assert observed == [True, True, True] and destroyed == [600.0]
     assert json.loads(records[0].read_text(encoding='utf-8'))['result_seen'] is True
+
+
+def test_standalone_diagnostics_summary_tracks_failures_after_retry(monkeypatch, tk_root, tmp_path):
+    from types import SimpleNamespace
+    from bellalunauto import app, qa_dialogs
+
+    warning = {'name': 'OCR', 'ok': True, 'warning': True, 'detail': '버전 차이', 'fix': '환경 확인'}
+    notice = {'name': '관리자 권한', 'ok': True, 'notice': True, 'detail': '실행 시 요청', 'fix': ''}
+    failure = {'name': 'MWL', 'ok': False, 'detail': '미설정', 'fix': '주소 입력'}
+    rows = [warning, notice]
+    def diagnostics(layout):
+        if rows is None:
+            raise OSError('연결 확인 실패')
+        return rows
+
+    from tkinter import messagebox
+    monkeypatch.setattr(messagebox, 'showerror', lambda *args, **kwargs: None)
+    monkeypatch.setattr(app, 'diagnostics', diagnostics)
+    dialog = qa_dialogs.show_diagnostics(tk_root, SimpleNamespace(workspace=tmp_path), lambda: None)
+    try:
+        assert dialog.title() == '준비 점검'
+        labels = [w for w in widgets(dialog) if isinstance(w, ttk.Label)]
+        summary = labels[0]
+        assert '시험을 시작할 수 있습니다' in summary.cget('text')
+        assert '보존' in summary.cget('text')
+        retry = next(w for w in widgets(dialog) if isinstance(w, ttk.Button) and w.cget('text') == '다시 점검')
+        rows.append(failure)
+        retry.invoke()
+        assert summary.cget('text') == '시작 전에 해결할 문제 1개'
+        rows.pop()
+        retry.invoke()
+        assert '시험을 시작할 수 있습니다' in summary.cget('text')
+        tree = next(w for w in widgets(dialog) if isinstance(w, ttk.Treeview))
+        rows = None
+        retry.invoke()
+        assert summary.cget('text') == '준비 점검을 완료하지 못했습니다.'
+        assert not tree.get_children()
+        assert not labels[1].cget('text')
+        rows = []
+        retry.invoke()
+        assert summary.cget('text') == '준비 점검 결과가 없습니다. 다시 점검하세요.'
+        assert not labels[1].cget('text')
+    finally:
+        dialog.destroy()

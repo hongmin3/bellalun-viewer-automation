@@ -275,7 +275,9 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 
 `python run.py --config <config> evidence-basis --kind basic --tc <TC ID>`로 원문 위치와 구현 함수를 조회한다.
 `--claim <제출 JSON>`으로 에이전트의 판정과 인용을 검사한다. 새 제품 판정에는 `--report <이번 실행 JSON>`에서
-검증한 기준서·TC·관찰값이 필요하다. 과거 변환, 저장점 재사용, 불완전한 회차에는 이번 실행 판정을 만들지 않는다.
+검증한 기준서·TC·관찰값이 필요하다. 보고서를 채점할 때는 이번 실행의 별도 기록에서 얻은
+번호를 `--expected-run-id`로 지정한다. 보고서에 번호가 없거나 지정한 번호와 다르면 제품 판정은
+`UNVERIFIED`다. 과거 변환, 저장점 재사용, 불완전한 회차에도 이번 실행 판정을 만들지 않는다.
 제출 필드는 `tc_id`, `basis_status`, `verdict`다. 정본을 확인했으면 `citation`에 `sha256`,
 `sheet`, `id_cell`, `expected_cell`, `implementation`을 포함한다. 검증한 이번 실행 판정에는
 `report_sha256`을 포함한다. 제품 관찰이 없으면 `verdict`에 `UNVERIFIED`를 쓴다.
@@ -573,8 +575,11 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
    - 서버 주소·시험 계정: 사내 배포본의 팀 공통 설정(`resources/team-settings.json`)을 먼저 넣고, 이 PC에 있던 BellalunAuto 설정(기억한 작업 폴더, 기본 작업 폴더)이 있으면 그 값을 쓴다. 추측하지 않는다.
 
    - 찾지 못한 값은 준비 점검에 [FAIL]로 보이고 [PC별 설정]에서 채운다.
-5. 준비 점검의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
-   일반 권한으로 연 화면의 권한 행은 실패가 아니라 안내로 표시하고 종료 코드에 넣지 않는다.
+5. 준비 점검 창의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
+   경고와 안내는 실패 건수에서 뺀다. "다시 점검"을 누르면 새 결과로 첫 줄을 바꾼다.
+   재점검에 실패하거나 결과가 비면 이전 항목과 설명을 지우고 현재 상태를 알린다.
+   통과 시에도 실행 전 확인에서 보존 저장소와 용량을 점검한다고 알린다.
+   일반 권한으로 연 화면의 권한 행은 안내로 표시하고 종료 코드에 넣지 않는다.
 6. 점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 "미설정", 적힌 위치에 파일이 없으면 "위치에 없음"으로 나눈다.
    Tesseract가 없으면 설치를 안내한다. `XIPL_PATH`가 실패하면 XIPL 하위 행에 그 원인을 먼저 해결하라고 적는다.
 #### 결과
@@ -1067,6 +1072,8 @@ TEST-KNOW-001
 
 PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검증해 보존한다. 로컬 journal은 공유 연결이 끊겨도 미완료 실행을 발견해야 한다. 공유 사본을 검증한 뒤 변경 파일만 순차 복원하며 변경 없는 파일은 다시 복사하지 않는다. 이전 사본과 archive를 덮어쓰거나 자동 삭제하지 않는다. 기존 로컬 기록도 복구할 수 있어야 한다.
 
+Windows 오류 5·32·33으로 격리 이동이 막히면 최대 2초 동안 재시도한다. 다시 시도하기 전에 저장소, 보관본, 격리 대상의 내용과 목적지가 비어 있는지 확인한다. 목적지가 이동 직전에 생겨도 덮어쓰지 않는다. 확인에 실패하거나 이동이 계속 막히면 복원 오류를 기록한다.
+
 제품 볼륨·USB의 여유와 시험 생성량을 구분하고, 공용 저장소 및 최대 단일 파일 복원 임시량·DB staging을 각각 계산한다. 기본 여유는 제품 볼륨 2GiB, USB 256MiB이며 USB 생성량은 별도 512MiB다. 조회 실패와 실제 부족은 차단한다. 설정값은 조정할 수 있으나 검증해야 할 자료 범위를 줄여 용량을 맞추지 않는다.
 
 회귀 완료 후 파일·DB 복원과 서비스 복구, 공용 사본 검증이 성공하면 이번 실행의 Image 격리 경로에 남은 생성 이미지를 로컬에서 정리한다. 기존 시험 전 이미지와 공용 사전/시험 후 사본은 지우지 않는다. 복원하지 않았거나 중단·복원 실패·공유 사본 미확인인 실행은 삭제하지 않고 사유를 기록한다. 정리 실패는 완료 자동 닫기를 시작하지 않고 재개 조건을 남긴다.
@@ -1277,6 +1284,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - 검증 대상: REQ-TRACE-001.
 - 선행 조건: 리포트 단위 검사에는 합성 체크리스트, 원문 검증에는 권한 있는 원본 환경.
 - 절차: `tests/test_result_reports.py`에서 기준 절차·expected 전달을 검증한다.
+  `tests/test_evidence_basis.py`에서 이번 실행의 번호가 같은 보고서는 채점하고 다른 회차 또는 번호가 없는 보고서의 PASS 제출은 거부한다.
   원문 환경에서는 `python tools/traceability.py`로 인용·쪽·모듈·명령·Step 연결을 대조한다.
 - Expected Result: 기준과 TC 연결을 따라갈 수 있고 원본 부재/미확정 근거를 정상 검증으로 숨기지 않는다.
   비공개 원본 대조는 권한 있는 환경에서 별도로 수행한다.
@@ -1445,6 +1453,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 검증 대상: REQ-DIST-006, REQ-DIST-002.
 - 단위시험: `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`로 다음을 확인한다.
   - 준비 점검의 요약 줄, 권한 안내 행, 미설정과 위치에 없음의 구분, XIPL 원인 표시
+  - `tests/test_qa_dialogs.py`에서 준비 점검 창을 열고 경고만 있는 경우, 필수 항목 실패와 재점검 후 통과 문구를 확인한다.
   - 손상 파일 보존과 UAC 취소 문구, 레지스트리 후보가 하나일 때만 Viewer 위치를 채우는지
   - Setup 스크립트의 관리자 확인·`runasoriginaluser` 완료 후 실행·`resources` 교체 항목
 - 실측: 빌드한 Setup으로 관리자 설치, 일반 권한 시작과 UAC 취소, 완료 후 열기, 시작 메뉴·바탕화면·직접 실행, 기존 설치 위 업데이트와 작업 폴더 보존을 확인한다.
@@ -1571,7 +1580,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
-| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
+| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `run.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
 | REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |
@@ -1583,7 +1592,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | verified |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
-| REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py` | verified |
+| REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
 | REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |

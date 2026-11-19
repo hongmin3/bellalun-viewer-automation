@@ -6,7 +6,7 @@ from pathlib import Path
 from core import tc_basis
 
 
-def reference(basis, tc_id, report_path=None):
+def reference(basis, tc_id, report_path=None, *, expected_run_id=None):
     """기준서와 지정된 이번 실행 JSON에서 채점에 사용할 값을 얻는다."""
     meta = tc_basis.report_meta(basis)
     source = meta["checklist_basis"]
@@ -19,13 +19,14 @@ def reference(basis, tc_id, report_path=None):
         "id_cell": row["cells"]["tc_id"], "expected_cell": row["cells"]["expected"],
         "implementation": row["implementation"],
     }
-    if report_path is None:
+    if report_path is None or not expected_run_id:
         return expected
     data = Path(report_path).read_bytes()
     report = json.loads(data)
     run = report["meta"]
     saved = run.get("checklist_basis") or {}
-    if (run.get("execution_mode") not in ("live", "single")
+    if (run.get("run_id") != expected_run_id
+            or run.get("execution_mode") not in ("live", "single")
             or (run.get("execution_mode") == "live" and run.get("chain_completed") is not True)
             or any(saved.get(key) != source[key] for key in ("kind", "status", "sha256", "sheet"))):
         return expected

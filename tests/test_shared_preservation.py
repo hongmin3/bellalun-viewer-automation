@@ -220,18 +220,19 @@ def test_shared_crash_after_atomic_move_recovers_without_moving_twice(tmp_path, 
     run.prepare()
     (source / "original").write_bytes(b"after")
     (source / "added").write_bytes(b"new evidence")
-    real_replace = os.replace
+    move_name = 'rename' if destination_kind == 'quarantine' and os.name == 'nt' else 'replace'
+    real_move = getattr(os, move_name)
     stopped = False
-    def interrupted_replace(src, dst):
+    def interrupted_move(src, dst):
         nonlocal stopped
-        result = real_replace(src, dst)
+        result = real_move(src, dst)
         selected = (Path(dst) == source / "original" if destination_kind == "product"
                     else "quarantine" in str(dst))
         if selected and not stopped:
             stopped = True
             raise KeyboardInterrupt("lost power after move")
         return result
-    with mock.patch("core.run_preservation.os.replace", side_effect=interrupted_replace):
+    with mock.patch.object(os, move_name, side_effect=interrupted_move):
         with pytest.raises(KeyboardInterrupt):
             run.finalize()
     assert stopped
@@ -299,12 +300,13 @@ def test_shared_restore_error_records_codes_and_first_unverified_operation(tmp_p
     locked.write_bytes(b"second generated file")
     error = PermissionError(errno.EACCES, "private exception text", str(locked))
     error.winerror = winerror
-    replace = os.replace
+    move_name = 'rename' if os.name == 'nt' else 'replace'
+    move = getattr(os, move_name)
     def fail_locked_file(src, dst):
         if Path(src) == locked:
             raise error
-        return replace(src, dst)
-    monkeypatch.setattr(os, "replace", fail_locked_file)
+        return move(src, dst)
+    monkeypatch.setattr(os, move_name, fail_locked_file)
 
     result = run.finalize()
 

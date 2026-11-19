@@ -169,12 +169,15 @@ def confirm_plan(root, plan, *, layout=None, open_config=None):
     return accepted[0]
 
 
-def _diagnostics_panel(parent, layout, open_config, *, height=14):
+def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=False):
     import tkinter as tk
     from tkinter import ttk, messagebox
     from .app import diagnostics
     dialog = ttk.Frame(parent)
     dialog.pack(fill='both', expand=True)
+    summary = tk.StringVar(value='준비 상태를 확인하고 있습니다.')
+    if show_summary:
+        ttk.Label(dialog, textvariable=summary, wraplength=900).pack(fill='x', padx=12, pady=(10, 0))
     tree = ttk.Treeview(dialog, columns=('state', 'name', 'detail'), show='headings', height=height)
     for key, label, width in (('state', '결과', 65), ('name', '항목', 200), ('detail', '현재 상태', 620)):
         tree.heading(key, text=label)
@@ -194,21 +197,29 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14):
             explanation.set(f"{row['name']}: {row['detail']}\n해결 방법: {row['fix']}")
 
     def refresh():
+        tree.delete(*tree.get_children())
+        rows.clear()
+        explanation.set('')
         try:
             result = diagnostics(layout)
         except (OSError, ValueError) as error:
+            summary.set('준비 점검을 완료하지 못했습니다.')
             messagebox.showerror('점검 실패', diagnostics_error_report(error, layout.workspace), parent=dialog)
             return
-        tree.delete(*tree.get_children())
-        rows.clear()
         for row in result:
             key = tree.insert('', 'end', values=(diagnostic_state(row), row['name'], row['detail']))
             rows[key] = row
-        failures = [key for key, row in rows.items() if not row['ok'] and not row.get('notice')]
-        if not failures:
-            failures = [key for key, row in rows.items() if row.get('warning')]
+        if not rows:
+            summary.set('준비 점검 결과가 없습니다. 다시 점검하세요.')
+            return
+        failures = [key for key, row in rows.items() if diagnostic_state(row) == 'FAIL']
         if failures:
-            tree.selection_set(failures[0])
+            summary.set(f'시작 전에 해결할 문제 {len(failures)}개')
+        else:
+            summary.set('시험을 시작할 수 있습니다\n실행 전 확인에서 보존 저장소와 용량을 점검합니다.')
+        noteworthy = failures or [key for key, row in rows.items() if row.get('warning')]
+        if noteworthy:
+            tree.selection_set(noteworthy[0])
             select()
         else:
             explanation.set('기본 설치·연결 점검을 통과했습니다. 보존 저장소 연결·용량 예산은 시험 준비에서 별도로 확인합니다. '
@@ -249,9 +260,9 @@ def show_diagnostics(root, layout, open_config):
     import tkinter as tk
     from tkinter import ttk
     dialog = tk.Toplevel(root)
-    dialog.title('준비 점검 — 실패 해결 후 다시 점검')
+    dialog.title('준비 점검')
     dialog.geometry('940x600')
-    _diagnostics_panel(dialog, layout, open_config)
+    _diagnostics_panel(dialog, layout, open_config, show_summary=True)
     ttk.Button(dialog, text='닫기', command=dialog.destroy).pack(anchor='e', padx=12, pady=10)
     return dialog
 

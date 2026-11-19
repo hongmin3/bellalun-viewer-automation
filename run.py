@@ -224,7 +224,10 @@ def _evidence_command(args):
                               root=os.environ.get("BELLALUN_WORKSPACE") or config.parent)
         basis = tc_basis.resolve(ctx, args.kind)
         if args.claim:
-            reference = evidence_evaluation.reference(basis, args.tc, args.report)
+            if args.report and not args.expected_run_id:
+                raise ValueError("보고서를 채점하려면 이번 실행 기록의 --expected-run-id를 지정하세요.")
+            reference = evidence_evaluation.reference(
+                basis, args.tc, args.report, expected_run_id=args.expected_run_id)
             result = evidence_evaluation.grade(reference, json.loads(
                 Path(args.claim).read_text(encoding="utf-8-sig")))
             print(json.dumps(result, ensure_ascii=False))
@@ -1727,6 +1730,7 @@ def _main():
     evidence_parser.add_argument("--kind", choices=("basic", "windows_update"), default="basic")
     evidence_parser.add_argument("--tc", required=True)
     evidence_parser.add_argument("--report", help="채점에 사용할 이번 실행의 JSON 보고서")
+    evidence_parser.add_argument("--expected-run-id", help="보고서와 별도로 확보한 이번 실행의 번호")
     evidence_parser.add_argument("--claim", help="채점할 에이전트 제출 JSON")
     sync_parser = sub.add_parser(
         "sync-knowledge", help="상위 지식 폴더를 검증 자료 관리 서버의 최신 판으로 맞춘다(REQ-KNOW-001)")
