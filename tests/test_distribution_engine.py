@@ -62,10 +62,9 @@ class DistributionEngineTests(unittest.TestCase):
 
     def test_wu_report_marks_historical_and_aborted_live_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
-            ctx = SimpleNamespace(reports_root=tmp)
+            ctx = SimpleNamespace(reports_root=tmp, root=tmp, cfg={})
             for mode in ('historical', 'live'):
                 with self.subTest(mode=mode), \
-                     patch.object(run, '_winupdate_source_path', return_value=''), \
                      patch.object(run, '_winupdate_env', return_value={}), \
                      patch.object(run, 'write_reports', return_value={}) as write, \
                      patch.object(run, 'announce_done'):

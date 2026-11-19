@@ -144,14 +144,15 @@ class EngineIntegrationExtraTests(unittest.TestCase):
 
     def test_wu_mode_and_abort_state_are_visible_in_console_and_report_environment(self):
         with tempfile.TemporaryDirectory() as folder:
-            ctx = SimpleNamespace(reports_root=folder)
+            basis = {"path": "fixture.xlsx", "data": b"stub", "rows": {}, "trace": {},
+                     "source": {"file": "fixture.xlsx", "sheet": "Checklist"}}
+            ctx = SimpleNamespace(reports_root=folder, checklist_bases={"windows_update": basis})
             for mode, completed, expected_mode, expected_state in (
                     ('historical', False, '과거 결과 변환', '해당 없음'),
                     ('live', False, '실시간 제품 시험', '조기 중단'),
                     ('live', True, '실시간 제품 시험', '완료')):
                 output = io.StringIO()
                 with self.subTest(mode=mode, completed=completed), \
-                     patch.object(run, '_winupdate_source_path', return_value='fixture.xlsx'), \
                      patch.object(run, '_winupdate_env', return_value={'os':'fixture OS'}), \
                      patch.object(winupdate_report, 'write_results', return_value={
                          'path':'output.xlsx', 'written':[], 'unmatched':[], 'issues':0}) as xlsx, \

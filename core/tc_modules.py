@@ -76,7 +76,14 @@ def modules_for(tc_id):
     return TC_MODULES.get(tc_id, [])
 
 
-def as_map(tc_ids=None):
+def as_map(tc_ids=None, trace=None):
+    modules = dict(TC_MODULES)
+    for tc_id, item in (trace or {}).items():
+        implementation = item.get("module")
+        if implementation and item.get("level") != "SKIP":
+            primary = implementation.partition("::")[0]
+            modules[tc_id] = [implementation, *(path for path in modules.get(tc_id, [])
+                                                if path != primary)]
     if tc_ids is None:
-        return dict(TC_MODULES)
-    return {t: TC_MODULES[t] for t in tc_ids if t in TC_MODULES}
+        return modules
+    return {tc_id: modules[tc_id] for tc_id in tc_ids if tc_id in modules}

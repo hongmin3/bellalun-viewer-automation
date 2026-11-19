@@ -21,7 +21,8 @@ from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
-CHECKLIST_SHEET = "Checklist"
+from core.checklist import WU_SHEET as CHECKLIST_SHEET
+
 TC_ID_HEADER = "TC ID"
 HEADER_ROW = 5
 FIRST_TC_ROW = 6
@@ -91,7 +92,7 @@ def _find_header_row(ws):
 
 
 def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None,
-                  issues=None, update_rows=None):
+                  issues=None, update_rows=None, *, source_bytes=None):
     """WU 판정을 체크리스트 사본에 기록한다.
 
     results: `TCResult` 리스트(`tc_id`가 `TC_WindowsUpdate_01`.. 형식). 각
@@ -107,14 +108,18 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
     env의 "환경 대조"는 OS Build 실측값 옆(L열)에 적는다(REQ-WU-004).
     결과 객체의 `wu_flags`(예: "USB 왕복 미확인")는 PASS여도 L열에 적는다(REQ-WU-003).
     """
-    if not os.path.isfile(source_xlsx):
+    if source_bytes is None and not os.path.isfile(source_xlsx):
         raise FileNotFoundError(source_xlsx)
 
     out_path = out_path or os.path.join(
         os.path.dirname(source_xlsx) or ".",
         f"WindowsUpdate_Checklist_Result_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    shutil.copyfile(source_xlsx, out_path)
+    if source_bytes is None:
+        shutil.copyfile(source_xlsx, out_path)
+    else:
+        with open(out_path, "wb") as output:
+            output.write(source_bytes)
 
     wb = load_workbook(out_path)
     ws = wb[sheet_name] if sheet_name else (

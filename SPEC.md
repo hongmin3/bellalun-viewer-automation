@@ -262,9 +262,23 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 #### 동작
 `traceability.json`에 TC·모듈·명령과 사양 근거를 연결하고 `automation_scope.json`에
 자동화 범위·제약을 유지한다. 근거가 없는 항목은 미확정 이유를 드러낸다.
-사양서는 `지식` 폴더의 통합본(`사양서(YYMMDD).pdf`) 가운데 가장 늦은 판을 쓰고, 예전 분권 파일은 쓰지 않는다.
+사양 추적성의 승인 대상은 `지식` 폴더의 통합본(`사양서(YYMMDD).pdf`)이다.
+새 판의 적용 범위를 확인한 뒤 추적표의 파일명·SHA256과 인용 위치를 함께 갱신한다.
 같은 문장이 변경 메모와 요구사항 본문에 함께 있으면 SRS ID가 붙은 쪽(추적성은 기록된 쪽)을 인용한다.
 리포트에도 해당 기준 수행 절차와 기대 결과를 전달한다.
+기본·WU 기준서는 패키지 자료 매니페스트 또는 추적표에 핀한 SHA256으로 확인한다.
+승인된 해시, 기준 시트, TC ID 집합과 Title이 맞을 때 같은 원본 바이트에서 Step·Expected 셀 위치를 읽는다.
+지식 폴더의 동명 또는 동일 ID 구판은 해시가 다르면 기준으로 채택하지 않는다.
+원본이 없거나 불일치하면 원문·결과 XLSX 연결을 보류하고 보고서에 이유를 기록한다.
+사양·매뉴얼 근거는 추적표에 기록된 판본·해시와 쪽·SRS·재사용 TC를 연결한다.
+
+`python run.py --config <config> evidence-basis --kind basic --tc <TC ID>`로 원문 위치와 구현 함수를 조회한다.
+`--claim <제출 JSON>`으로 에이전트의 판정과 인용을 검사한다. 새 제품 판정에는 `--report <이번 실행 JSON>`에서
+검증한 기준서·TC·관찰값이 필요하다. 과거 변환, 저장점 재사용, 불완전한 회차에는 이번 실행 판정을 만들지 않는다.
+제출 필드는 `tc_id`, `basis_status`, `verdict`다. 정본을 확인했으면 `citation`에 `sha256`,
+`sheet`, `id_cell`, `expected_cell`, `implementation`을 포함한다. 검증한 이번 실행 판정에는
+`report_sha256`을 포함한다. 제품 관찰이 없으면 `verdict`에 `UNVERIFIED`를 쓴다.
+`python tools/traceability.py --config <config>`는 같은 기준서 검증과 지식 폴더의 PDF·매뉴얼 원문을 대조한다.
 #### 기대 결과
 검토자가 어떤 체크리스트/사양을 판정 근거로 삼았는지 추적할 수 있다.
 #### 예외 처리
@@ -1553,7 +1567,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
-| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py` | verified |
+| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
 | REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |

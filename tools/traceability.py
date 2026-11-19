@@ -32,20 +32,23 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 
 
 import _paths  # noqa: F401 — 저장소 루트를 sys.path 와 cwd 에 맞춘다
+import argparse
+import hashlib
 import io
 import json
 import os
 import re
 import sys
+from pathlib import Path
+from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 
-from core import checklist, specs
+from core import specs, tc_basis
 
 TRACE_PATH = "traceability.json"
 SCOPE_PATH = "automation_scope.json"
 WU_CHECKLIST = "windows_update"
-WU_CHECKLIST_NAME = "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx"
-WU_SHEET = "Checklist"
 
 #: 위반은 아니지만 알릴 것(WU 원본 없음, WU 약칭 사용 등). `check()` 가 채운다.
 NOTES = []
@@ -63,6 +66,7 @@ class _Ctx:
 
     root = "."
     cfg = {}
+    documents = {}
 
 
 def squash(text):
@@ -100,6 +104,18 @@ _manual_cache = {}
 
 def manual_text(ctx, name):
     if name not in _manual_cache:
+        if name in ctx.documents:
+            path = _verified_document(ctx, name)
+            if path is None:
+                _manual_cache[name] = None
+            else:
+                ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+                with ZipFile(path) as docx:
+                    root = ET.fromstring(docx.read("word/document.xml"))
+                _manual_cache[name] = "\n".join(
+                    "".join(t.text or "" for t in par.iter(ns + "t"))
+                    for par in root.iter(ns + "p"))
+            return _manual_cache[name]
         path = os.path.join(specs.knowledge_dir(ctx), MANUALS[name])
         if not os.path.isfile(path):
             _manual_cache[name] = None
@@ -112,11 +128,26 @@ def manual_text(ctx, name):
 _spec_cache = {}
 
 
+def _verified_document(ctx, source):
+    ref = ctx.documents[source]
+    directory = specs.knowledge_dir(ctx)
+    if not directory:
+        return None
+    path = Path(directory) / ref["file"]
+    try:
+        with path.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() == ref["sha256"]:
+                return path
+    except OSError:
+        return None
+    return None
+
+
 def spec_pages(ctx, source):
     if source not in _spec_cache:
-        paths = specs.spec_paths(ctx)
-        _spec_cache[source] = (specs.extract(paths[source])
-                               if source in paths else None)
+        path = (_verified_document(ctx, source) if source in ctx.documents
+                else specs.spec_paths(ctx).get(source))
+        _spec_cache[source] = specs.extract(path) if path else None
     return _spec_cache[source]
 
 
@@ -151,17 +182,6 @@ def locate_in_spec(ctx, source, quote, prefer=None):
     return None, None
 
 
-def wu_source_path():
-    """WU 체크리스트 원본. `run.py::_winupdate_source_path` 와 같이 상위 폴더를 찾는다."""
-    here = os.path.abspath(".")
-    for _ in range(4):
-        here = os.path.dirname(here)
-        candidate = os.path.join(here, WU_CHECKLIST_NAME)
-        if os.path.isfile(candidate):
-            return candidate
-    return ""
-
-
 def _check_wu(item, wu_rows, basic_ids, problems):
     """WU 항목의 체크리스트 대조. 기본기능 체크리스트와는 대조하지 않는다."""
     tc_id = item["tc_id"]
@@ -190,17 +210,23 @@ def _step_count(text):
     return max(numbers) if numbers else 0
 
 
-def check():
+def check(config=None):
     ctx = _Ctx()
+    if config:
+        ctx.cfg = _load(config)
+        ctx.root = os.path.dirname(os.path.abspath(config))
     trace = _load(TRACE_PATH)
+    ctx.documents = trace.get("_sources", {})
+    _manual_cache.clear()
+    _spec_cache.clear()
     scope = {x["tc_id"]: x for x in _load(SCOPE_PATH)}
-    source_xlsx = checklist.source_path(ctx)
-    rows = checklist.read_tc_rows(source_xlsx) if source_xlsx else {}
+    basic = tc_basis.resolve(ctx, "basic")
+    rows = basic["rows"]
     commands = _run_commands()
     problems = []
 
     if not rows:
-        problems.append("기준 체크리스트를 읽지 못했다: %r" % source_xlsx)
+        problems.append(f"기본 기준서 {basic['source']['status']}: {basic['source']['reason']}")
 
     listed = [item["tc_id"] for item in trace["tc"]]
     if len(listed) != len(set(listed)):
@@ -214,15 +240,10 @@ def check():
     basic_ids = {x["tc_id"] for x in trace["tc"] if x.get("checklist") != WU_CHECKLIST}
     wu_rows = {}
     if wu_items:
-        wu_xlsx = wu_source_path()
-        if wu_xlsx:
-            wu_rows = checklist.read_tc_rows(wu_xlsx, WU_SHEET)
-            for tc_id in wu_rows:
-                if tc_id not in listed:
-                    problems.append(f"WU 체크리스트에 있으나 추적성에 없다: {tc_id}")
-        else:
-            NOTES.append(f"WU 체크리스트 원본({WU_CHECKLIST_NAME})이 없어 WU "
-                         f"{len(wu_items)}건의 행·Title 대조를 건너뛰었다")
+        wu = tc_basis.resolve(ctx, WU_CHECKLIST)
+        wu_rows = wu["rows"]
+        if not wu_rows:
+            problems.append(f"WU 기준서 {wu['source']['status']}: {wu['source']['reason']}")
 
     for item in trace["tc"]:
         tc_id = item["tc_id"]
@@ -231,8 +252,7 @@ def check():
         if is_wu:
             _check_wu(item, wu_rows, basic_ids, problems)
         elif row is None:
-            problems.append(f"체크리스트에 없는 tc_id: {tc_id}")
-            continue
+            row = {}
         if item.get("title") and row.get("title") and \
                 squash(item["title"]) != squash(row["title"]):
             problems.append(f"{tc_id}: Title 불일치 — 추적성 {item['title']!r} / "
@@ -304,14 +324,18 @@ def main():
     # (`run.py` 와 같은 처리).
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    trace, problems = check()
+    parser = argparse.ArgumentParser(description="승인 기준서와 사양 추적성 검사")
+    parser.add_argument("--config", help="기준서·지식 폴더의 경로를 지정한 설정 JSON")
+    parser.add_argument("--reverse", action="store_true")
+    args = parser.parse_args()
+    trace, problems = check(args.config)
     total = sum(len(x.get("requirements", [])) for x in trace["tc"])
     covered = [x for x in trace["tc"] if x.get("requirements")]
     wu_count = sum(1 for x in trace["tc"] if x.get("checklist") == WU_CHECKLIST)
     print(f"TC {len(trace['tc']) - wu_count}건 / 인용 있는 TC {len(covered)}건 / "
           f"인용 {total}건" + (f" (+ Windows Update TC {wu_count}건)" if wu_count else ""))
 
-    if "--reverse" in sys.argv:
+    if args.reverse:
         print()
         print("=== 사양 → TC ===")
         for key, tcs in sorted(reverse_index(trace).items()):

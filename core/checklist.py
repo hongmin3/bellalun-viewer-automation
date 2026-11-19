@@ -8,6 +8,7 @@
 import os
 import shutil
 from datetime import datetime
+from openpyxl.utils import get_column_letter
 
 # 기본기능 체크리스트 **개정본**. 이 저장소의 판정 기준 문서다.
 #
@@ -18,6 +19,7 @@ from datetime import datetime
 # **판정 결과를 기록하는 원본은 개정본이고, 판정 근거도 개정본에서 확인한다.**
 CHECKLIST_NAME = "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx"
 CHECKLIST_SHEET = "개정 TC"
+WU_SHEET = "Checklist"
 
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -82,7 +84,7 @@ TC_TEXT_COLUMNS = {
 }
 
 
-def read_tc_rows(source_xlsx, sheet_name=None):
+def read_tc_rows(source_xlsx, sheet_name=None, *, strict=False):
     """체크리스트에서 TC 원문을 읽어 `{TC ID: {precondition, steps, ...}}` 로 준다.
 
     HTML 리포트가 "이 TC 가 무엇을 검증하는가"를 **기준 문서 원문으로** 보여주기
@@ -92,7 +94,7 @@ def read_tc_rows(source_xlsx, sheet_name=None):
     열은 **헤더 문구로 찾는다** — 열 순서를 박으면 체크리스트가 개정될 때 조용히
     엉뚱한 열을 읽는다.
     """
-    if not source_xlsx or not os.path.isfile(source_xlsx):
+    if not source_xlsx or (not hasattr(source_xlsx, "read") and not os.path.isfile(source_xlsx)):
         return {}
     wb = load_workbook(source_xlsx, data_only=True, read_only=True)
     try:
@@ -119,16 +121,26 @@ def read_tc_rows(source_xlsx, sheet_name=None):
         return {}
     col_of = {key: (header.index(name) if name in header else None)
               for key, name in TC_TEXT_COLUMNS.items()}
+    if strict and any(header.count(name) != 1 for name in
+                      ("TC ID", "Title", "Step Description", "Expected Result")):
+        raise ValueError("TC ID·Title·Step Description·Expected Result 열을 확인할 수 없습니다.")
 
     out = {}
-    for row in rows[hdr_index + 1:]:
+    for row_number, row in enumerate(rows[hdr_index + 1:], hdr_index + 2):
         tc_id = str(row[tc_col] or "").strip() if tc_col < len(row) else ""
         if not tc_id:
             continue
+        if strict and tc_id in out:
+            raise ValueError(f"중복 TC ID ({tc_id})")
         entry = {}
         for key, col in col_of.items():
             entry[key] = ("" if col is None or col >= len(row)
                           else str(row[col] or "").strip())
+        if strict:
+            entry["cells"] = {
+                key: f"{get_column_letter(col + 1)}{row_number}"
+                for key, col in {"tc_id": tc_col, **col_of}.items() if col is not None
+            }
         out[tc_id] = entry
     return out
 
@@ -141,20 +153,24 @@ def _find_header_row(ws, tc_col_name="TC ID"):
     raise ValueError(f"'{tc_col_name}' 헤더를 찾지 못했습니다.")
 
 
-def write_results(source_xlsx, results, out_path=None, sheet_name=None):
+def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, source_bytes=None):
     """판정 결과를 체크리스트에 기록하고 저장 경로를 반환한다.
 
     results: TCResult 리스트. TC ID로 행을 매칭한다.
     체크리스트에 없는 TC ID는 시트 끝에 '자동화 추가 항목'으로 덧붙인다.
     """
-    if not os.path.isfile(source_xlsx):
+    if source_bytes is None and not os.path.isfile(source_xlsx):
         raise FileNotFoundError(source_xlsx)
 
     out_path = out_path or os.path.join(
         os.path.dirname(source_xlsx) or ".",
         f"Checklist_Result_{datetime.now():%Y%m%d_%H%M%S}.xlsx")
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    shutil.copyfile(source_xlsx, out_path)
+    if source_bytes is None:
+        shutil.copyfile(source_xlsx, out_path)
+    else:
+        with open(out_path, "wb") as output:
+            output.write(source_bytes)
 
     wb = load_workbook(out_path)
     ws = wb[sheet_name] if sheet_name else (

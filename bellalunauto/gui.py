@@ -135,7 +135,10 @@ def _validate_storage_directory(value) -> None:
     if not isinstance(value, str):
         raise ValueError("보존 저장소 경로: 문자열 또는 빈 값이 필요합니다.")
     value = value.strip()
-    if value and (any(ord(char) < 32 for char in value) or not PureWindowsPath(value).is_absolute()):
+    path = PureWindowsPath(value)
+    unc_drive = path.drive.removeprefix("\\\\?\\UNC\\").strip("\\")
+    missing_share = path.drive.startswith("\\\\") and "\\" not in unc_drive
+    if value and (any(ord(char) < 32 for char in value) or not path.is_absolute() or missing_share):
         raise ValueError("보존 저장소 경로: 절대 폴더 경로나 UNC 공유 경로를 입력하세요.")
 
 

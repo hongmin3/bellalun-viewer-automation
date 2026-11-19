@@ -127,12 +127,10 @@ def _report_meta(ctx, results):
     실패해도 리포트 생성 자체는 살린다 — 대신 **조용히 넘기지 않고** 이유를
     출력한다(체크리스트 기록이 죽은 코드였던 2026-08-18 사례와 같은 처리).
     """
-    meta = {"command": _command_line(), **_source_identity_meta(ctx), **_execution_meta(ctx)}
+    meta = {"command": _command_line(), **_source_identity_meta(ctx), **_execution_meta(ctx),
+            **_tc_report_meta(ctx, "basic")}
     try:
-        from core import checklist, sysinfo, tc_modules
-        source = checklist.source_path(ctx)
-        meta["checklist"] = checklist.read_tc_rows(source) if source else {}
-        meta["modules"] = tc_modules.as_map()
+        from core import sysinfo
         try:
             with open(os.path.join(getattr(ctx, "resource_root", ctx.root), "automation_scope.json"),
                       encoding="utf-8") as f:
@@ -193,7 +191,7 @@ def _report_meta(ctx, results):
             "XIPL Studio": xipl_cfg.get("studio_exe"),
             "XIPL Parameter": xipl_cfg.get("parameter_dir"),
             "Tesseract": _tesseract_version(xipl_cfg.get("tesseract_exe")),
-            "기준 체크리스트": source or "(찾지 못함)",
+            "기준 체크리스트": meta["checklist_basis"]["file"],
             "설정 파일": ctx.config_path,
             # 제품 로그. 판정 근거로 로그를 인용한 단계(파라미터 적용 등)를
             # 리포트만 보고 되짚을 수 있게 경로를 함께 남긴다.
@@ -204,6 +202,40 @@ def _report_meta(ctx, results):
     except Exception as exc:                           # noqa: BLE001
         print(f"  report-meta: 수집 실패 — {exc}")
     return meta
+
+
+def _tc_report_meta(ctx, kind):
+    from core import tc_basis, tc_modules
+    basis = tc_basis.capture(ctx, kind)
+    return {**tc_basis.report_meta(basis), "modules": tc_modules.as_map(trace=basis["trace"])}
+
+
+def _evidence_command(args):
+    from pathlib import Path
+    from types import SimpleNamespace
+    from bellalunauto.resources import bundled_config
+    from core import evidence_evaluation, tc_basis
+
+    config = Path(args.config).resolve()
+    resources = Path(os.environ.get("BELLALUN_RESOURCE_DIR") or Path(__file__).resolve().parent)
+    try:
+        cfg = json.loads(config.read_text(encoding="utf-8-sig")) if config.is_file() else {}
+        ctx = SimpleNamespace(cfg=bundled_config(cfg, resources), resource_root=resources,
+                              root=os.environ.get("BELLALUN_WORKSPACE") or config.parent)
+        basis = tc_basis.resolve(ctx, args.kind)
+        if args.claim:
+            reference = evidence_evaluation.reference(basis, args.tc, args.report)
+            result = evidence_evaluation.grade(reference, json.loads(
+                Path(args.claim).read_text(encoding="utf-8-sig")))
+            print(json.dumps(result, ensure_ascii=False))
+            return 0 if result["passed"] else 2
+        tc = tc_basis.report_meta(basis)["tc_basis"].get(args.tc)
+        print(json.dumps({"source": basis["source"], "tc_id": args.tc, "basis": tc,
+                          "checklist_row": basis["rows"].get(args.tc)}, ensure_ascii=False))
+        return 0 if tc else 2
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 2
 
 
 def _display_summary(ctx):
@@ -406,10 +438,9 @@ def pad_aborted_steps(ctx, results):
     단계 수는 **기준 체크리스트**에서 읽는다(`AGENTS.md` 0절). 자동화가 임의로
     정하지 않는다.
     """
-    from core import checklist
+    from core import tc_basis
     from core.result import FAIL
-    source = checklist.source_path(ctx)
-    rows = checklist.read_tc_rows(source) if source else {}
+    rows = tc_basis.capture(ctx, "basic")["rows"]
     if not rows:
         return 0
     added = 0
@@ -611,17 +642,15 @@ def finish(ctx, results):
     # 생성되지 않았다(2026-08-18 확인). 실패해도 리포트 생성 자체는 살린다 —
     # 대신 **조용히 넘기지 않고** 이유를 출력한다.
     try:
-        from core import checklist
-        source = checklist.source_path(ctx)
-        if not source:
-            expected = os.path.join("..", checklist.KNOWLEDGE_DIR,
-                                    checklist.CHECKLIST_NAME)
-            print("  checklist: 원본 xlsx를 찾지 못해 기록을 건너뜁니다 "
-                  f"(config.json > checklist_xlsx 또는 {expected}).")
+        from core import checklist, tc_basis
+        basis = tc_basis.capture(ctx, "basic")
+        if "data" not in basis:
+            print(f"  checklist: 기록 보류 — {basis['source']['reason']}")
         else:
             out = os.path.join(ctx.reports_root,
                                f"Checklist_Result_{stamp}.xlsx")
-            info = checklist.write_results(source, results, out_path=out)
+            info = checklist.write_results(basis["path"], results, out_path=out,
+                                           sheet_name=basis["source"]["sheet"], source_bytes=basis["data"])
             paths["checklist"] = info["path"]
     except Exception as exc:
         print(f"  checklist: 기록 실패 — {exc}")
@@ -723,22 +752,6 @@ def _probe_preset3d(ctx):
 WINUPDATE_CHECKLIST_NAME = "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx"
 
 
-def _winupdate_source_path(ctx):
-    """WU 체크리스트 원본을 PC 독립적으로 찾는다(`core/checklist.source_path`와 같은 방식)."""
-    override = (ctx.cfg.get("winupdate_checklist_xlsx") or "").strip()
-    if override and os.path.isfile(override):
-        return override
-    here = os.path.abspath(ctx.root)
-    for _ in range(4):
-        here = os.path.dirname(here)
-        if not here:
-            break
-        candidate = os.path.join(here, WINUPDATE_CHECKLIST_NAME)
-        if os.path.isfile(candidate):
-            return candidate
-    return ""
-
-
 def _winupdate_env(ctx):
     """WU 체크리스트 상단 1~4행(OS/OS Version/OS Build Version/Viewer Version)에 실을 실측값."""
     from core import sysinfo
@@ -762,7 +775,7 @@ def _winupdate_env(ctx):
 def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
                       *, execution_mode="live", chain_completed=False, extra_meta=None):
     """WU 판정을 xlsx(K열 삽입 + Issues 탭)와 JSON/CSV/HTML 리포트로 남긴다."""
-    from core import winupdate_report
+    from core import tc_basis, winupdate_report
     for r in wu_results:
         r.finalize()
     env = dict(_winupdate_env(ctx))
@@ -791,17 +804,16 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     result_paths = {}
-    source = _winupdate_source_path(ctx)
-    if not source:
-        expected = os.path.join("..", WINUPDATE_CHECKLIST_NAME)
-        print(f"  winupdate: 원본 xlsx를 찾지 못해 기록을 건너뜁니다 "
-              f"(config.json > winupdate_checklist_xlsx 또는 {expected}).")
+    basis = tc_basis.capture(ctx, "windows_update")
+    if "data" not in basis:
+        print(f"  winupdate: 체크리스트 기록 보류 — {basis['source']['reason']}")
     else:
         out = os.path.join(ctx.reports_root,
                            f"WindowsUpdate_Checklist_Result_{stamp}.xlsx")
         try:
-            info = winupdate_report.write_results(source, wu_results, env=env, out_path=out,
-                                                  update_rows=update_rows)
+            info = winupdate_report.write_results(basis["path"], wu_results, env=env, out_path=out,
+                                                  sheet_name=basis["source"]["sheet"],
+                                                  update_rows=update_rows, source_bytes=basis["data"])
             result_paths["xlsx"] = info["path"]
             print(f"  winupdate xlsx: {info['path']} "
                   f"(기록 {len(info['written'])}건, 미매칭 {len(info['unmatched'])}건, "
@@ -809,7 +821,6 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
         except Exception as exc:
             print(f"  winupdate: xlsx 기록 실패 — {exc}")
 
-    from core.winupdate_report import CHECKLIST_SHEET as _WU_SHEET
     json_paths = write_reports(wu_results, ctx.reports_root, f"WindowsUpdate_{stamp}",
                               meta={"command": _command_line(), "env": env,
                                     **_source_identity_meta(ctx), **_execution_meta(ctx),
@@ -821,10 +832,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
                                         "Bellalun Viewer Windows Update 호환성 검증 자동화 상세 리포트",
                                     "report_title_short":
                                         "Bellalun Viewer Windows Update 호환성 검증 자동화 결과",
-                                    "source_doc": WINUPDATE_CHECKLIST_NAME,
-                                    "source_sheet": _WU_SHEET,
                                     **{k: v for k, v in (extra_meta or {}).items()
-                                       if k != "chain_completed"}})
+                                       if k != "chain_completed"},
+                                    **_tc_report_meta(ctx, "windows_update")})
     result_paths.update(json_paths)
 
     for r in wu_results:
@@ -1713,6 +1723,11 @@ def _main():
         help="드롭다운 항목을 **전부 눌러 보며** 목록 전문을 사양과 대조한다"
              "(느리다. 기본은 한 번만 열어 개수·화면으로 확인)")
     sub.add_parser("list", help="자동화 범위와 제외 사유 표시")
+    evidence_parser = sub.add_parser("evidence-basis", help="기준서와 TC 근거 조회 또는 제출한 판정 채점")
+    evidence_parser.add_argument("--kind", choices=("basic", "windows_update"), default="basic")
+    evidence_parser.add_argument("--tc", required=True)
+    evidence_parser.add_argument("--report", help="채점에 사용할 이번 실행의 JSON 보고서")
+    evidence_parser.add_argument("--claim", help="채점할 에이전트 제출 JSON")
     sync_parser = sub.add_parser(
         "sync-knowledge", help="상위 지식 폴더를 검증 자료 관리 서버의 최신 판으로 맞춘다(REQ-KNOW-001)")
     sync_parser.add_argument("--dry-run", action="store_true",
@@ -1738,6 +1753,8 @@ def _main():
     # 지식 폴더 동기화는 제품·DB를 건드리지 않으므로 Context(BellalunData 필요) 이전에 처리한다.
     if args.cmd == "sync-knowledge":
         return cmd_sync_knowledge(args)
+    if args.cmd == "evidence-basis":
+        return _evidence_command(args)
     if args.cmd == "update-watch":
         return cmd_update_watch(args)
 
@@ -1767,6 +1784,12 @@ def _main():
         args.preparation_confirmed = True
         if args.cmd == 'run-wu09' and _wu_preflight(ctx)['blocked']:
             return 2
+    if args.cmd.startswith("run-"):
+        from core import tc_basis
+        wu = args.cmd in {"run-winupdate", "run-wu09"}
+        tc_basis.capture(ctx, "windows_update" if wu else "basic")
+        if wu and getattr(args, "with_basic", False):
+            tc_basis.capture(ctx, "basic")
     if args.cmd in {'run-regression', 'run-winupdate', 'run-wu09'} and not getattr(args, 'from_regression', None):
         return _execute_preserved(ctx, args)
     return _dispatch(ctx, args)

@@ -96,6 +96,8 @@ def _results_payload(results, meta):
     payload = []
     for result in results:
         item = result.as_dict()
+        if basis := (meta.get("tc_basis") or {}).get(result.tc_id):
+            item["tc_basis"] = basis
         for check in item["checks"]:
             check.update(_step_context(meta, result.tc_id, check.get("step")))
         payload.append(item)
@@ -910,6 +912,7 @@ def _render_html(results, meta, siblings=None):
     report_title = meta.get("report_title", "Bellalun Viewer 기본기능 자동화 상세 리포트")
     source_doc = meta.get("source_doc", "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx")
     source_sheet = meta.get("source_sheet", "개정 TC")
+    document = meta.get("checklist_basis") or {}
 
     keys, seen_ids = [], {}
     for result in results:
@@ -927,6 +930,8 @@ def _render_html(results, meta, siblings=None):
     if scope_label(meta):
         P.append(f"<div class='meta'><b>{e(scope_label(meta))}</b></div>")
 
+    if document.get("reason"):
+        P.append("<p><strong>기준서 확인 보류</strong> · " + e(document["reason"]) + "</p>")
     identity_rows = [
         ("실행 번호", meta.get("run_id")),
         ("자동화 버전", meta.get("automation_version")),
@@ -1211,6 +1216,7 @@ def _render_html(results, meta, siblings=None):
     for index, r in enumerate(results):
         spec = cl.get(r.tc_id) or {}
         sc = scope.get(r.tc_id) or {}
+        basis = (meta.get("tc_basis") or {}).get(r.tc_id)
         end = r.completed or datetime.now()
         detail_start = len(P)
         P.append(f"<div class='meta'>시작 {r.started:%Y-%m-%d %H:%M:%S}"
@@ -1237,6 +1243,20 @@ def _render_html(results, meta, siblings=None):
                          + e(str(timing.get('outcome', ''))) + '</td></tr>')
             P.append('</table>')
         cells = []
+        if basis:
+            positions = ", ".join(basis["cells"][key] for key in ("tc_id", "steps", "expected"))
+            P.append("<p>검증 기준서 " + e(
+                f"{document['file']} · {document['sheet']} · {positions} · SHA256 {document['sha256']}"
+            ) + "</p>")
+            references = [
+                " · ".join(str(value) for value in
+                           (req.get("file", req.get("doc")), req.get("srs"),
+                            f"PDF {req['page']}쪽" if "page" in req else None) if value)
+                for req in basis["requirements"]
+            ]
+            references.extend(basis["reuses"])
+            if references:
+                P.append("<p>사양 및 재사용 근거 " + e(" / ".join(dict.fromkeys(references))) + "</p>")
         if spec.get("precondition"):
             cells.append(("사전 조건 (Precondition)", spec["precondition"]))
         if spec.get("steps"):

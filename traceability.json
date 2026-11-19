@@ -1,17 +1,29 @@
 {
   "_about": "사양→TC / TC→사양 추적성 인덱스. TC 는 `Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`(시트 `개정 TC`) 기준이고, 요구사항은 `지식` 폴더의 사양서·매뉴얼 원문 인용이다. 쪽 번호와 SRS ID 는 손으로 적지 않고 문서 검색으로 실측한 값이다. `python tools/traceability.py` 가 이 파일의 모든 인용을 원문과 다시 대조하고 역방향(사양→TC) 인덱스를 만든다.",
   "_baseline": {
+    "sha256": "e8ca7251df01309783b82821c8d95dd81106f29d8f977517b04af4f4a83ab456",
     "checklist": "Bellalun_Viewer_기본기능_Checklist_개정본.xlsx",
     "sheet": "개정 TC",
     "documents": "..\\지식"
   },
   "_baseline_windows_update": {
+    "sha256": "2d859f008c0f7cb83260207417beae33b039a8aa267260151be8f6573280d3d4",
     "checklist": "Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx",
     "sheet": "Checklist",
     "rows": "6~18",
     "note": "WU 항목(checklist=windows_update)은 사양을 직접 인용하지 않고 `reuses` 의 기본 TC 추적성을 따른다. 원본 xlsx 는 저장소 밖(프로젝트 루트)에 두며 없으면 tools/traceability.py 가 WU 행 대조를 건너뛴다."
   },
-  "_measured": "2026-08-24",
+  "_sources": {
+    "사양서": {
+      "file": "(사양서) Bellalun Viewer 사양서(261030).pdf",
+      "sha256": "e256ddaf1423f2c97b811b385c1eb66f840f2b9370591c6e7cee1f0b2b673036"
+    },
+    "Service Manual": {
+      "file": "(매뉴얼) Bellalun Viewer Service Manual.V1.0.12W1_KO_완료.docx",
+      "sha256": "f5049eef0c6f16c0ffa9619762f35ca3f3f88c860078b9cc2cf7c115caabe9b9"
+    }
+  },
+  "_measured": "2026-11-19",
   "tc": [
     {
       "tc_id": "TC_Basic_Install_01",
@@ -173,7 +185,7 @@
       "requirements": [
         {
           "doc": "사양서",
-          "page": 786,
+          "page": 787,
           "srs": "SRS 04-10-20",
           "quote": "Header에는 9개까지, Top 및 Bottom에는 각각 10개까지 항목을 추가할 수 있다.",
           "steps": [

@@ -31,7 +31,6 @@ UNTRACED_BASELINE = {
     "core/snapshot.py",
     "core/statusbar.py",
     "core/storagescp.py",
-    "core/tc_modules.py",
     "core/uitext.py",
     "core/viewer_tools.py",
     "core/watchdog.py",

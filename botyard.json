@@ -36,6 +36,7 @@
     "tests/test_distribution_runtime.py",
     "tests/test_environment_failure_gate.py",
     "tests/test_environment_match.py",
+    "tests/test_evidence_basis.py",
     "tests/test_examined_empty_notice.py",
     "tests/test_execution_session.py",
     "tests/test_export_completion_wait.py",

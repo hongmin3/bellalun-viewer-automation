@@ -7,7 +7,7 @@ from unittest import mock
 from openpyxl import Workbook, load_workbook
 
 import run
-from core import checklist
+from core import checklist, tc_basis
 from core.result import FAIL, MANUAL, PASS, TCResult, user_actions, write_reports
 
 STEPS = "1. Image Overlay 를 추가한다.\n2. Print Overlay 를 추가한다.\n3. Overlay 를 선택한다."
@@ -25,8 +25,7 @@ def aborted_result():
 def padded():
     result = aborted_result()
     ctx = SimpleNamespace()
-    with mock.patch.object(checklist, 'source_path', return_value='x.xlsx'), \
-         mock.patch.object(checklist, 'read_tc_rows', return_value=ROWS):
+    with mock.patch.object(tc_basis, 'capture', return_value={'rows': ROWS}):
         run.pad_aborted_steps(ctx, [result])
     result.finalize()
     return result
