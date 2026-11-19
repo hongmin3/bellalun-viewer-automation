@@ -109,6 +109,17 @@ def behavior_files():
 
 
 class TraceCoverageTests(unittest.TestCase):
+    def test_harness_guide_is_reachable_and_its_local_links_resolve(self):
+        guide = ROOT / "docs/harness.md"
+        self.assertIn("@AGENTS.md", (ROOT / "CLAUDE.md").read_text(encoding="utf-8").splitlines())
+        for entry in ("AGENTS.md", "README.md"):
+            self.assertIn("](docs/harness.md)", (ROOT / entry).read_text(encoding="utf-8"), entry)
+        links = re.findall(r"\]\(([^)]+)\)", guide.read_text(encoding="utf-8"))
+        self.assertIn("examples/conflict-claim.json", links)
+        for link in links:
+            if "://" not in link:
+                self.assertTrue((guide.parent / link.split("#")[0]).exists(), link)
+
     @classmethod
     def setUpClass(cls):
         cls.spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")

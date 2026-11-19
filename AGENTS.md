@@ -4,12 +4,13 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 
 ## 새 세션 시작
 
-**구현 전 `SPEC.md`의 해당 REQ와 12절을 먼저 읽는다.** 자동화 구현·판정 로직은 `SPEC.md`와 측정 근거(실측 Evidence·리포트)만 근거로 쓴다. 문서에 없는 동작·컨트롤·문구는 추측하지 말고 `SPEC / CODE MISMATCH` 또는 SPEC 13절 `(TBD)`로 남긴다.
+**구현 전 `SPEC.md`의 해당 REQ와 12절을 먼저 읽는다.** 자동화 동작은 REQ를 따르고 제품의 Expected는 승인된 체크리스트와 적용 가능한 사양·매뉴얼에서 확인한다. Actual은 해당 실행에서 수집한 증거와 보고서에서 읽는다. 확인할 수 없는 동작·컨트롤·문구는 `SPEC / CODE MISMATCH` 또는 SPEC 13절 `(TBD)`로 남긴다.
 
 1. `git fetch` 뒤 `git rev-list --left-right --count HEAD...origin/main`으로 앞섬·뒤처짐을 확인한다.
    뒤처졌으면 `git pull --ff-only`로 맞춘 뒤 읽는다. 낡은 SPEC으로 구현하지 않는다.
    `python tools/install_git_hooks.py --check`가 실패하면 `python tools/install_git_hooks.py`로 commit-msg hook을 설치한다(clone마다 한 번).
 2. 코드 작업이면 `SPEC.md`에서 대상 REQ 본문, 12절의 구현·테스트 경로, 대상 TC의 기준 문서를 읽는다.
+   TC 추가·판본 교체·보고서 변경은 [변경 작업과 TC 판정](docs/harness.md)에서 해당 자료와 검증 명령을 찾는다.
 3. 이전 작업을 잇는 경우 전체 탐색보다 `progress.md`를 읽는다. 진행 기록은 사양이 아니다.
 4. 이 파일에서 관련 경로를 찾고 필요한 `docs/` 문서만 읽는다.
 5. 제품/자동화 현재 상태가 필요할 때만 `NEXT_WORK.md`의 관련 절을 읽는다.
@@ -27,13 +28,13 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 
 `SPEC.md` 12절은 자동화 요구사항(REQ)이 어느 코드와 단위시험으로 구현·검증되는지 잇는다. 자동화를 고칠 때 볼 곳이다.
 `traceability.json`은 체크리스트 TC가 제품 사양서·매뉴얼의 어느 쪽·조항을 근거로 하는지 잇는다. 판정 기준과 인용을 확인할 때 볼 곳이며 `python tools/traceability.py`로 원문 대조를 검사한다.
-두 파일은 서로를 대신하지 않는다. 제품 근거 인용은 12절에, 코드 경로는 `traceability.json`에 적지 않는다.
+12절에는 REQ별 구현·검증 경로를 유지한다. `traceability.json`의 TC 행에는 제품 근거와 해당 시나리오의 `module`·명령을 연결한다.
 
 ## 목적과 경계
 
 - Windows용 Bellalun Viewer의 QA 체크리스트를 실제 UI로 수행하고 PASS/FAIL 근거를 남기는 Python 자동화다.
 - 상위 `Bellalun Viewer/`는 프로젝트 루트, 이 `auto/`가 Git 저장소다.
-- 유일한 TC 기준은 `../Bellalun_Viewer_기본기능_Checklist_개정본.xlsx`의 `개정 TC` 시트다.
+- 기본기능 TC는 개정 체크리스트의 `개정 TC` 시트, Windows Update TC는 전용 체크리스트의 `Checklist` 시트에서 읽는다. 적용 판본은 REQ-TRACE-001에 따라 확인한다.
 - `../지식/`의 비슷한 TC 파일은 번호 매핑이 다를 수 있어 판정 기준으로 대체하지 않는다.
 - 제품 근거는 `../지식/`의 Operation/Service Manual, DICOM Conformance Statement, 사양서다.
 - `verify-install-package`는 체크리스트 회귀 밖의 독립 설치 패키지 점검이다.

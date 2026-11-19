@@ -81,7 +81,12 @@ def resolve(ctx, kind):
         if not rows or rows.keys() != basis["trace"].keys():
             raise ValueError("기준 시트와 추적표의 TC ID가 다릅니다.")
         for tc_id, row in rows.items():
-            expected = basis["trace"][tc_id]["title"]
+            item = basis["trace"][tc_id]
+            expected = item["title"]
+            if item.get("level") == "FULL":
+                module, _, function = (item.get("module") or "").partition("::")
+                if not module.endswith(".py") or not function.isidentifier():
+                    raise ValueError(f"FULL TC의 구현 파일::함수를 확인할 수 없습니다 ({tc_id}).")
             titles = [row["title"]]
             if kind == "windows_update":
                 titles.append(row["function"])

@@ -1,6 +1,8 @@
-# Bellalun Viewer 기본기능 QA 자동화
+# Bellalun Viewer 기본기능·Windows Update QA 자동화
 
-현재 소스는 **1.0.21 후보**(결과 창 자동 닫기를 무인 실행에만 적용)이고, 설치판 1.0.20은 기본·WU 전체 수용을 마쳤습니다. 1.0.21은 사람이 연 화면의 결과 창을 남기고, 무인 실행이 자동으로 닫힐 때 알림 센터에 결과를 남깁니다([안내](docs/followup-reliability.md)). 1.0.19부터 Windows 알림 배너가 Viewer를 가리면 알림 센터로 옮기고, 입력이 가려질 때 가린 창의 프로그램 정보를 남깁니다. 1.0.20은 XIPL PIM 편집기(XIPL이 띄운 보조 프로세스 창) 클릭이 막히던 XIPL06 문제를 고칩니다. 설치판1.0.18·1.0.19 기본 전체는 각각 PASS23/FAIL1(XIPL06)/MANUAL1/SKIP10이었고 복원을 확인했습니다.
+개발·검증을 시작할 때는 [변경 작업과 TC 판정](docs/harness.md)에서 기준서 판본, 구현 함수, 보고서와 검증 명령을 찾으세요. 현재 설치판의 실제 수용 결과와 남은 작업은 [진행 상태](progress.md)에서 확인하세요.
+
+1.0.21 후보에서는 결과 창 자동 닫기를 무인 실행에만 적용했고, 설치판 1.0.20은 기본·WU 전체 수용을 마쳤습니다. 1.0.21은 사람이 연 화면의 결과 창을 남기고, 무인 실행이 자동으로 닫힐 때 알림 센터에 결과를 남깁니다([안내](docs/followup-reliability.md)). 1.0.19부터 Windows 알림 배너가 Viewer를 가리면 알림 센터로 옮기고, 입력이 가려질 때 가린 창의 프로그램 정보를 남깁니다. 1.0.20은 XIPL PIM 편집기(XIPL이 띄운 보조 프로세스 창) 클릭이 막히던 XIPL06 문제를 고칩니다. 설치판1.0.18·1.0.19 기본 전체는 각각 PASS23/FAIL1(XIPL06)/MANUAL1/SKIP10이었고 복원을 확인했습니다.
 
 P1–P14와 공용 보존·판정 수정의 기능, 구현·시험 연결, 버전별 실제 확인 범위와 남은 작업은 [후속 구현 정리](docs/issue137-implementation-summary.md)를 참고하세요. 설치판1.0.17의 기본 PASS25·WU PASS10을1.0.18 수용으로 대신하지 않습니다. 화면 녹화·편집·업로드는 포함하지 않습니다.
 
@@ -12,7 +14,7 @@ P1–P14와 공용 보존·판정 수정의 기능, 구현·시험 연결, 버�
 기본기능과 Windows Update 시험을 실행하고 화면·DB·파일 근거를 함께 남깁니다.
 팀원 PC용 BellalunAuto 실행·설정 화면과 내부 설치 패키지 빌드 계층을 구현했습니다.
 
-현재 설치판은 **1.0.20 후보**입니다. 최신 후속 개선(P1~P14와 무인 실행의 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 설치판의 실제 수용 검증은 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
+1.0.20 후보 당시의 후속 개선(P1~P14와 무인 실행의 완료 60초 자동 닫기)은 [실행 보존 안내](docs/followup-reliability.md)를 따릅니다. 소스 단위·통합시험과 설치판의 실제 수용 검증은 구분합니다. 현재 진행과 남은 확인은 [progress.md](progress.md), TC 고도화 범위와 VXvue 비교는 [구현·검증 기록](docs/tc-upgrade-2026-11-12.md)을 참고하세요.
 
 이전 1.0.12 후보는 빌드·CLI만 검증했으며, 이후 1.0.13 후보를 설치했습니다. 기본기능·WU 실물 수용을 통과하기 전까지 후보로 표시합니다. [이전 로컬 검증과 후보 정보](docs/followup-validation.md), [원격 실행 설정과 제한](remote/README.md)을 확인하세요.
 
@@ -94,23 +96,16 @@ BellalunAuto.exe run-winupdate
 | 무엇 | 한 줄 |
 |---|---|
 | **목적** | 의료영상 진단 SW의 QA 체크리스트를 **실제 UI로 자동 수행하고 Pass/Fail을 스스로 판정**한다. 사람이 하루씩 돌리던 회귀를 명령 한 줄로 돌리고 판정 근거까지 남긴다 |
-| **기준 문서** | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` 시트 `개정 TC`. **여기에 없는 TC는 이 저장소의 시험 대상이 아니다** — 지식 폴더의 다른 체크리스트는 번호 매핑이 다르다 |
-| **자동화 범위** | 개정본 **37 TC** = 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4건, 그중 2건은 회귀 제외). 회귀 1회가 수행하는 것은 **27 TC**. 등급·사유·해제 조건의 원본은 `automation_scope.json` 하나뿐이다 |
+| **기준 문서** | 기본기능은 개정본의 `개정 TC` 시트, Windows Update는 전용 체크리스트의 `Checklist` 시트를 쓴다. 판본과 TC·사양 인용은 [추적표](traceability.json)에서 확인한다. |
+| **자동화 범위** | 기본기능과 WU의 TC별 등급, 제외 사유와 해제 조건은 [범위 원장](automation_scope.json)에서 확인한다. |
 | **실행 1줄** | `python run.py run-regression` — 그 전에 `python run.py portability-check`로 **`관리자 권한`이 True**인지 먼저 본다(False면 UI 자동화가 전부 막힌다) |
 | **필수 조건** | 관리자 권한(High Integrity) · 1920×1080 @100%(96 DPI) · Tesseract-OCR · SQL Server 인스턴스 · XIPL Studio |
 
-**문서 읽는 순서** — 신규 세션·신규 인원 공통.
+**작업에 따라 읽을 문서**
 
-1. **이 README** (5분) — 무엇을 왜 어떻게 검증하는가.
-2. **`AGENTS.md`** — 저장소 작업 규칙. 기준 문서·작업 순서·긴 실행 전 사전 검사·Git 규약.
-3. **`NEXT_WORK.md`** — **지금 상태와 다음에 할 일.** 최신 회귀 결과, 남은 FAIL,
-   P0/P1/P2, 사용자 판단이 필요한 항목.
-4. **`..\지식\[자동화 운영 지침] ...md`** — 영구 구현 규칙과 사고 이력. 상단의
-   **"증상 → 원인 → 조치" 빠른 색인**부터 본다.
-
-> 1~3만 읽으면 "무엇을 하는 저장소이고 지금 무엇이 문제인가"까지 파악됩니다.
-> 4는 코드를 실제로 고칠 때 엽니다. 과거에 실측으로 확정한 사실(컨트롤 ID,
-> 제품 동작)은 **코드 주석·상수**에 있고, 그 경위는 `git log`로 찾습니다.
+- 처음 개발하거나 TC를 고칠 때는 [작업 규칙](AGENTS.md)과 [변경 작업 안내](docs/harness.md)에서 해당 REQ, 원문과 실행 함수를 찾는다.
+- 이전 작업을 이을 때는 [진행 상태](progress.md)와 [후속 작업](NEXT_WORK.md)에서 대상 빌드·회차와 남은 검증을 확인한다.
+- 과거 장애를 조사할 때는 지식 폴더의 자동화 운영 지침에서 증상·원인·조치 색인을 확인한 뒤 당시 보고서와 커밋을 대조한다.
 
 ---
 
@@ -122,7 +117,8 @@ BellalunAuto.exe run-winupdate
 ```
 Bellalun Viewer\
 ├─ (운영 상세 문서)          ← 사내 정보가 섞여 저장소 밖에 둔다. tools/render_docs.py 가 관리
-├─ Bellalun_Viewer_기본기능_Checklist_개정본.xlsx   ← 시험 대상의 유일한 기준
+├─ Bellalun_Viewer_기본기능_Checklist_개정본.xlsx   ← 기본기능 기준
+├─ Windows Update 호환성 검증 Checklist_Bellalun Viewer_R-25-782.xlsx   ← WU 기준
 ├─ Baseline\                 회귀 기준 DB 스냅샷 4종(.bak)
 ├─ 지식\                     판정 근거 원본 — 사양서, Operation·Service Manual,
 │                            DICOM Conformance Statement, 영구 지침 3종
@@ -174,11 +170,11 @@ Bellalun Viewer\
 | 항목 | 내용 |
 |---|---|
 | 대상 | Bellalun Viewer 1.0.12 (Windows 데스크톱 의료영상 SW) |
-| 기준 문서 | `..\Bellalun_Viewer_기본기능_Checklist_개정본.xlsx` (시트 `개정 TC`) |
+| 기준 문서 | 기본기능과 WU에 해당하는 승인 판본은 [TC 판정 절차](docs/harness.md)에 따라 확인한다. |
 | 규모 | Python **32,700줄** / 모듈 86개 — core 15,925(37) · tests 14,139(36) · `run.py` 1,089(1) · `tools/` 1,547(12). 2026-09-03 재실측 |
-| 시험 범위 | 개정본 **37개 TC 전수 등록** — 완전자동 **20** / 부분자동 7 / 수동 10 (+ 자동화 보조 4, 그중 2건은 회귀 제외) |
+| 시험 범위 | [범위 원장](automation_scope.json)에서 해당 TC의 등급과 조건을 확인한다. |
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
-| 최신 설치판 전체 회귀 | 1.0.4 — 기본27 TC: PASS 19 / FAIL 6 / MANUAL 1 / SKIP 1, 실시간WU13 TC: PASS 9 / FAIL 1 / SKIP 3. 배포 게이트 거부. 1.0.5 소스 단독 WF05·XIPL02는 PASS이며 새 후보 EXE 검증은 미완료 |
+| 1.0.4 설치판 전체 회귀 기록 | 1.0.4 — 기본27 TC: PASS 19 / FAIL 6 / MANUAL 1 / SKIP 1, 실시간WU13 TC: PASS 9 / FAIL 1 / SKIP 3. 배포 게이트 거부. 1.0.5 소스 단독 WF05·XIPL02는 PASS이며 새 후보 EXE 검증은 미완료 |
 | 과거 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. 당시 OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정하고 후속 전체 실행을 준비했음 |
 | 남은 검증 | 실제 LTSC·Windows 10·개발 도구 없는 PC·다른 관리자 계정·한글 계정 설치판 검증(후보11 최소 환경 실행과 USB 연결 WU는 2026-10-21 완료). 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
 | 과거 기준 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건: PASS 23 / FAIL 2 / MANUAL 2 (119.9분), 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1. 당시 남은 FAIL은 문서화한 UPS 복원과 XIPL_03 기본값 복귀였음 |
@@ -295,7 +291,7 @@ specs.cite(ctx, r"3D Viewposition은 촬영 모드")
 
 ```bash
 python tools/traceability.py --reverse
-# TC 37건 / 인용 있는 TC 24건 / 인용 68건
+# 출력에는 검사한 TC 수와 원문에 대조한 인용 수가 표시됩니다.
 # === 사양 → TC ===
 #   사양서 SRS 03-10-110   TC_Basic_WorkFlow_02(Step 1),
 #                           TC_XIPL_compatibility_04(Step 1,6,7,8),
@@ -384,7 +380,7 @@ SRS 03-50-230이 *"Apply를 누르게 되면 해당 img 파일에 영상 조정 
 **기준 문서를 잘못 골라 정상 구현을 결함으로 판정한 일.** 파일명이 비슷한 다른
 체크리스트를 기준으로 착각해 정상 구현된 `WF_02`를 "범위 불일치"로 강등했습니다.
 같은 형태의 TC ID에 다른 내용이 붙어 있었고, 어긋난 것은 하나가 아니라 10개였습니다.
-그래서 기준 문서를 `AGENTS.md` 0절에 못박고 혼동 주의를 함께 적었습니다.
+현재는 [TC 판정 절차](docs/harness.md)에 따라 승인 판본과 해당 시트의 원문 셀을 함께 확인합니다.
 
 **세 번 만에 잡은 것 — 회귀에서만 실패하던 TC.** `XIPL_04`가 3회 연속 같은 지점에서
 실패했습니다. 원인은 **저장 확인 팝업**이었고(직전 TC가 파라미터를 바꿔 "변경사항"이

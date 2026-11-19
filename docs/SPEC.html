@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="fa12836c8d4719384fa1afd3cc612f977629cba4c04bc1500ff0fa2ab36df3f0">
+<meta name="spec-source-sha256" content="11a8adb2d643ec3f4ae5e82a5b5ce740e803ea875380d3b36a75f34ab583a2ca">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -639,8 +639,9 @@ USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목�
 <section class="card kind-req" id="REQ-TRACE-001">
 <h3><span class="idtag">REQ-TRACE-001</span> 사양 근거 추적</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code>, <code>core/tc_basis.py</code>, <code>core/tc_modules.py</code>, <code>core/evidence_evaluation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code>, <code>tests/test_evidence_basis.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a></span></div>
-<details class="history"><summary>변경 이력 4</summary>
+<details class="history"><summary>변경 이력 5</summary>
 <ul>
+<li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: 새 기본기능·WU 항목도 승인 판본에서 확인한다. 완전자동 항목의 구현 함수가 빠지면 근거를 보류한다. 합성 신규 TC로 추적표 누락부터 보고서·채점까지 시험한다.</li>
 <li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a> / <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 승인된 기본·WU 체크리스트 해시에서 셀 위치와 구현 함수를 연결한다. 원본 충돌을 HTML·JSON에 기록하고 에이전트 판정의 인용과 관찰 근거를 채점한다.</li>
 <li><span class="hist">2026-11-04 · Changed</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: 사양 근거를 분권(사양서1·사양서2, 260710판)에서 서버의 통합 사양서로 옮겼다. <code>core/specs.py</code>는 <code>사양서(YYMMDD).pdf</code> 가운데 가장 늦은 판을 쓴다. <code>traceability.json</code>의 사양 인용 63건은 문구로 통합본의 쪽과 SRS를 다시 찾았고, 코드 주석·판정 문구·문서의 쪽 번호도 통합본 기준으로 바꿨다(예: Print Overlay Header 297쪽 → 787쪽).</li>
 <li><span class="hist">2026-11-04 · Changed</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a>: 통합본에는 같은 문장이 SRS 없는 변경 메모와 요구사항 본문에 함께 있다. 판정 문구 인용(<code>specs.cite</code>)은 SRS ID가 붙은 쪽을 고르고, 추적성 검사는 기록된 쪽에 문장이 있으면 그 쪽을 쓴다. 실측: &quot;설정 가능한 3D Viewposition&quot;이 294쪽 메모와 678쪽 SRS 03-30-20에 함께 있어, 고치기 전에는 294쪽(SRS 없음)을 인용했다.</li>
@@ -665,6 +666,7 @@ USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목�
 리포트에도 해당 기준 수행 절차와 기대 결과를 전달한다.
 기본·WU 기준서는 패키지 자료 매니페스트 또는 추적표에 핀한 SHA256으로 확인한다.
 승인된 해시, 기준 시트, TC ID 집합과 Title이 맞을 때 같은 원본 바이트에서 Step·Expected 셀 위치를 읽는다.
+새 TC도 같은 방식으로 연결한다. 완전자동(<code>FULL</code>) TC에는 <code>파일.py::함수</code>가 있어야 하며, 빠지면 해당 기준서의 상태를 <code>invalid</code>로 기록한다. 추적성 검사에서 등록된 함수가 파일에 존재하는지도 확인한다.
 지식 폴더의 동명 또는 동일 ID 구판은 해시가 다르면 기준으로 채택하지 않는다.
 원본이 없거나 불일치하면 원문·결과 XLSX 연결을 보류하고 보고서에 이유를 기록한다.
 사양·매뉴얼 근거는 추적표에 기록된 판본·해시와 쪽·SRS·재사용 TC를 연결한다.</p>
@@ -703,6 +705,7 @@ USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목�
 </div></section>
 <section class="field"><h4>동작</h4><div class="field-body">
 <p><code>automation_scope.json</code>과 <code>traceability.json</code>에 TC_WindowsUpdate_01~13을 <code>&quot;checklist&quot;: &quot;windows_update&quot;</code>로 둔다.
+승인된 다음 판에 TC가 추가되면 같은 두 파일에 등록한다. 원문 검사에서는 지원 작업(<code>SUPPORT</code>)을 제외하고 범위 원장과 추적표의 TC ID를 양방향으로 대조한다. WU 추적 행 전체가 빠져도 전용 기준서와의 대조를 수행한다.
 항목마다 등급, 재사용하는 기본 TC(<code>reuses</code>), 판정 제외 결함(<code>known_defect_exclude</code>), MANUAL 사유를 적는다.
 <code>python run.py list</code>는 WU 13건을 기본기능 합계와 따로 보여 준다. 기본기능 리포트의 커버리지 집계에는 넣지 않는다.</p>
 <p><code>python tools/wu_selfcheck.py</code>는 다음을 검사한다.</p>
@@ -2129,11 +2132,13 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 <section class="card kind-req" id="REQ-SPECSYNC-002">
 <h3><span class="idtag">REQ-SPECSYNC-002</span> 동작 파일의 12절 추적 범위</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a>: 기본기능과 WU의 기준서 선택, 보고서 판정, 변경 후 시험을 작업 안내에서 연결한다. 단위시험에서 안내의 링크와 구판 충돌 제출 예시를 확인한다.</li>
 <li><span class="hist">2026-11-16 소스 — 동작 변경과 SPEC 동기화 검사</span> <a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a>: 동작 파일이 12절 추적표에 나오는지 단위시험으로 확인한다. 도입 때 근거 없이 매핑할 수 없던 52개는 줄이기만 하는 목록에 남겼다. <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a> 본문이 정의한 원격 실행 모듈 5개와 그 시험, <code>Validates:</code> 표기가 있는 시험 1개는 12절에 넣었다.</li>
 </ul>
 </details>
+<p>소스 시험에서는 README와 AGENTS에서 <a href="../docs/harness.md">변경 작업 안내</a>로 갈 수 있는지, 안내가 연결한 저장소 경로가 존재하는지도 확인한다.</p>
 <p>하는 일: 동작 파일마다 <code>SPEC.md</code> 12절 추적표에 한 번 이상 나오는지 단위시험으로 확인한다.
 어느 REQ가 그 파일을 설명하는지 찾을 수 있어야 구현 세션이 사양을 기준으로 읽는다.</p>
 <p>순서:</p>

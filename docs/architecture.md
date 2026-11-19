@@ -16,6 +16,8 @@
 전체 회귀는 기준 DB 복원과 사전 설정을 포함하므로 명령 순서를 임의로 바꾸지 않는다.
 Python 프로세스 외부 종료 감시가 필요한 권장 진입점은 `tools/run_regression.py`다.
 
+읽기 전용 `evidence-basis` 명령은 제품 Context를 만들기 전에 실행된다. 기준서 선택부터 TC별 보고서와 제출 판정까지의 경로는 [변경 작업과 TC 판정](harness.md)을 따른다.
+
 ## 책임 구분
 
 - `run.py`: 명령 등록, dispatch, 전체 회귀 orchestration.

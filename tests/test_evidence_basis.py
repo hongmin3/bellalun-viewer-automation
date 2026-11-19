@@ -8,7 +8,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 import run
 from core import evidence_evaluation, tc_basis
@@ -57,15 +57,80 @@ def test_same_id_in_older_sheet_cannot_supply_expected_or_claim_pass(project):
     assert basis["source"]["status"] == "conflict"
     assert basis["rows"] == {}
     expected = evidence_evaluation.reference(basis, WF04)
-    assert evidence_evaluation.grade(expected, {
-        "tc_id": WF04, "basis_status": "conflict", "verdict": "UNVERIFIED",
-    })["passed"]
+    example = Path(__file__).resolve().parents[1] / "docs/examples/conflict-claim.json"
+    claim = json.loads(example.read_text(encoding="utf-8"))
+    assert evidence_evaluation.grade(expected, claim)["passed"]
     bad = dict(expected, verdict="PASS")
     assert evidence_evaluation.grade(expected, bad)["mismatched_fields"] == ["verdict"]
     report = write_reports([TCResult(WF04, "fixture")], project.root, "conflict",
                            meta=run._tc_report_meta(project, "basic"))
     assert "기준서 확인 보류" in Path(report["html"]).read_text(encoding="utf-8")
     assert "기대 결과 (Expected Result)" not in Path(report["html"]).read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(("kind", "tc_id", "entrypoint"), [
+    ("basic", "TC_Basic_WorkFlow_99", "tests/workflow04.py::run"),
+    ("windows_update", "TC_WindowsUpdate_99", "tests/winupdate.py::_wu_02"),
+])
+def test_new_tc_requires_trace_and_full_implementation_before_grading(project, kind, tc_id, entrypoint):
+    key, _, _, sheet = tc_basis.SOURCES[kind]
+    path = Path(project.cfg[key])
+    book = load_workbook(path)
+    book[sheet].append([tc_id, "신규 시험", "1. 확인", "1. 기록", None])
+    book.save(path)
+    book.close()
+    trace_path = project.root / "traceability.json"
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    baseline = "_baseline" if kind == "basic" else "_baseline_windows_update"
+    trace[baseline]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    trace_path.write_text(json.dumps(trace), encoding="utf-8")
+    assert tc_basis.resolve(project, kind)["source"]["status"] == "invalid"
+
+    item = {"tc_id": tc_id, "title": "신규 시험", "checklist": kind, "level": "FULL"}
+    trace["tc"].append(item)
+    trace_path.write_text(json.dumps(trace), encoding="utf-8")
+    incomplete = tc_basis.resolve(project, kind)
+    assert incomplete["source"]["status"] == "invalid"
+    assert tc_id in incomplete["source"]["reason"]
+
+    item["module"] = entrypoint
+    trace_path.write_text(json.dumps(trace), encoding="utf-8")
+    basis = tc_basis.capture(project, kind)
+    meta = {**run._tc_report_meta(project, kind), "execution_mode": "single"}
+    assert meta["modules"][tc_id][0] == entrypoint
+    tc = TCResult(tc_id, "신규 시험")
+    tc.add(1, "확인", PASS, expected="기록", actual="기록")
+    report = Path(write_reports([tc], project.root, "new-tc", meta=meta)["json"])
+    claim = {
+        "tc_id": tc_id, "verdict": "PASS", "basis_status": "verified",
+        "citation": {"sha256": trace[baseline]["sha256"], "sheet": sheet, "id_cell": "A3",
+                     "expected_cell": "D3", "implementation": entrypoint},
+        "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+    }
+    assert evidence_evaluation.grade(evidence_evaluation.reference(basis, tc_id, report), claim)["passed"]
+    assert not evidence_evaluation.grade(evidence_evaluation.reference(basis, tc_id), claim)["passed"]
+
+
+def test_scope_only_tc_and_missing_wu_trace_are_detected(project, monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(run.__file__).parent / "tools"))
+    from tools import traceability
+
+    monkeypatch.chdir(project.root)
+    monkeypatch.setattr(traceability._Ctx, "resource_root", project.root, raising=False)
+    trace_path = project.root / "traceability.json"
+    trace = json.loads(trace_path.read_text(encoding="utf-8"))
+    trace["tc"] = [row for row in trace["tc"] if row["tc_id"] != WU02]
+    trace_path.write_text(json.dumps(trace), encoding="utf-8")
+    scope = [{"tc_id": WU02, "level": "FULL"}, {"tc_id": "helper", "level": "SUPPORT"}]
+    (project.root / "automation_scope.json").write_text(json.dumps(scope), encoding="utf-8")
+    (project.root / "run.py").write_text("", encoding="utf-8")
+    config_path = project.root / "config.json"
+    config_path.write_text(json.dumps(project.cfg), encoding="utf-8")
+    _, problems = traceability.check(config_path)
+    assert f"범위 원장에 있으나 추적성에 없다: {WU02}" in problems
+    assert f"{WF04}: 범위 원장에 없다" in problems
+    assert any("WU 기준서 invalid" in problem for problem in problems)
+    assert not any("helper" in problem for problem in problems)
 
 
 @pytest.mark.parametrize(("kind", "tc_id", "entrypoint"), [

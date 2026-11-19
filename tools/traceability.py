@@ -11,7 +11,7 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 
 1. `tc_id` 가 기준 체크리스트(`개정 TC` 시트)에 실제로 있는가
 2. 체크리스트의 모든 TC 가 이 파일에 있는가(빠진 TC 없음)
-3. `level` 이 `automation_scope.json` 과 일치하는가
+3. TC가 범위 원장과 추적표 양쪽에 있고 등급이 일치하는가. 지원 작업(SUPPORT)은 별도로 둔다.
 4. `module` 의 파일과 함수가 실제로 있는가
 5. `command` 가 `run.py` 의 서브명령에 있는가
 6. 인용한 `quote` 가 그 문서 원문에 **실제로 있는가**(공백 무시 비교)
@@ -19,7 +19,7 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 8. `steps` 번호가 체크리스트 Step Description 의 범위 안인가
 9. Windows Update 항목(`checklist: windows_update`)은 기본기능 체크리스트가 아니라
    WU 체크리스트(`Checklist` 시트)와 대조하고, `reuses` 의 기본 TC 가 이 파일에
-   있는가. WU 원본 xlsx 는 저장소 밖이라 없으면 WU 행 대조만 건너뛰고 알린다.
+   있는가. WU 원본 또는 추적 행이 없으면 기준서 검사를 실패로 기록한다.
 
 ## 출력
 
@@ -27,7 +27,7 @@ r"""`traceability.json` 을 원문·저장소와 다시 대조하고 양방향 �
 - **사양→TC** 역방향 인덱스: SRS ID 별로 어떤 TC 가 그것을 검증하는가
 - **TC→사양** 요약: TC 별 인용 수와 미확정 사유
 
-실행: `python tools_traceability.py` / `python tools_traceability.py --reverse`
+실행: `python tools/traceability.py --config config.json` (역방향 목록은 `--reverse`)
 """
 
 
@@ -231,19 +231,20 @@ def check(config=None):
     listed = [item["tc_id"] for item in trace["tc"]]
     if len(listed) != len(set(listed)):
         problems.append("traceability.json 에 중복 tc_id 가 있다")
+    traced_ids = set(listed)
+    for tc_id, item in scope.items():
+        if item.get("level") != "SUPPORT" and tc_id not in traced_ids:
+            problems.append(f"범위 원장에 있으나 추적성에 없다: {tc_id}")
     for tc_id in rows:
         if tc_id not in listed:
             problems.append(f"체크리스트에 있으나 추적성에 없다: {tc_id}")
 
     NOTES.clear()
-    wu_items = [x for x in trace["tc"] if x.get("checklist") == WU_CHECKLIST]
     basic_ids = {x["tc_id"] for x in trace["tc"] if x.get("checklist") != WU_CHECKLIST}
-    wu_rows = {}
-    if wu_items:
-        wu = tc_basis.resolve(ctx, WU_CHECKLIST)
-        wu_rows = wu["rows"]
-        if not wu_rows:
-            problems.append(f"WU 기준서 {wu['source']['status']}: {wu['source']['reason']}")
+    wu = tc_basis.resolve(ctx, WU_CHECKLIST)
+    wu_rows = wu["rows"]
+    if not wu_rows:
+        problems.append(f"WU 기준서 {wu['source']['status']}: {wu['source']['reason']}")
 
     for item in trace["tc"]:
         tc_id = item["tc_id"]
@@ -257,8 +258,10 @@ def check(config=None):
                 squash(item["title"]) != squash(row["title"]):
             problems.append(f"{tc_id}: Title 불일치 — 추적성 {item['title']!r} / "
                             f"체크리스트 {row['title']!r}")
-        expected_level = scope.get(tc_id, {}).get("level", "")
-        if item.get("level", "") != expected_level:
+        expected_level = scope.get(tc_id, {}).get("level")
+        if tc_id not in scope:
+            problems.append(f"{tc_id}: 범위 원장에 없다")
+        elif item.get("level") != expected_level:
             problems.append(f"{tc_id}: level 불일치 — 추적성 "
                             f"{item.get('level')!r} / scope {expected_level!r}")
         if item.get("module"):

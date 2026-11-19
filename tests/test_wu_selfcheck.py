@@ -36,10 +36,11 @@ class MappingCheckTests(unittest.TestCase):
     def test_current_repo_passes(self):
         self.assertEqual(sc.repo_mapping_problems(), [])
 
-    def test_repo_lists_thirteen_wu_entries_in_both_files(self):
+    def test_initial_wu_cases_remain_covered_as_the_checklist_grows(self):
+        initial = {f"TC_WindowsUpdate_{number:02d}" for number in range(1, 14)}
         for rows in (self.scope, self.trace["tc"]):
-            wu = [r for r in rows if r.get("checklist") == sc.WU_CHECKLIST]
-            self.assertEqual(len(wu), 13)
+            wu = {r["tc_id"] for r in rows if r.get("checklist") == sc.WU_CHECKLIST}
+            self.assertTrue(initial.issubset(wu), sorted(initial - wu))
 
     def test_missing_reused_tc_in_json_is_detected(self):
         scope = copy.deepcopy(self.scope)
