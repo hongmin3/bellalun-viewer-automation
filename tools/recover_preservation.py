@@ -54,7 +54,8 @@ def _finish_interrupted_recovery(args, result, adapter, services):
     for key in ('run_id', 'status', 'exit_code', 'action'):
         if current.get(key) != record.get(key):
             raise ValueError('복구 영수증 저장 전 원래 실행 상태가 변경되었습니다.')
-    current.update(restoration=restored, interrupted_recovery={'receipt': str(proof), 'sha256': _hash(proof)})
+    current.update(restoration=restored, interrupted_recovery={'receipt': str(proof), 'sha256': _hash(proof)},
+                   next_action='준비 점검에서 복원 대기가 해소됐는지 다시 확인하세요.')
     _write_json(receipt, current)
     session._save('verified', result=restored)
     session.finish_execution_finalization()

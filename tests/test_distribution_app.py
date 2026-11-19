@@ -198,6 +198,31 @@ class DistributionAppTests(unittest.TestCase):
             self.assertFalse(next(row for row in rows if row['name']=='Viewer')['ok'])
             self.assertFalse(next(row for row in rows if row['name']=='Tesseract OCR')['ok'])
 
+    def test_diagnostics_reports_pending_recovery_and_clears_after_restore(self):
+        app = self.app()
+        from bellalunauto.runtime import Layout
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            config = root / 'config.json'
+            config.write_text('{}', encoding='utf-8')
+            journal = root / 'preservation' / '20261120-070252-1369e6de' / 'journal.json'
+            journal.parent.mkdir(parents=True)
+            journal.write_text('{"state":"prepared","execution_finalization_pending":true}', encoding='utf-8')
+            layout = Layout(root, root, config)
+            def recovery_row():
+                return next(row for row in app.diagnostics(layout, check_connections=False)
+                            if row['name'] == '복원 대기')
+            blocked = recovery_row()
+            self.assertFalse(blocked['ok'])
+            self.assertIn(journal.parent.name, blocked['detail'])
+            self.assertIn('시험 담당자', blocked['fix'])
+            journal.write_text('{"state":"verified","execution_finalization_pending":false}', encoding='utf-8')
+            self.assertTrue(recovery_row()['ok'])
+            journal.write_text('[]', encoding='utf-8')
+            unreadable = recovery_row()
+            self.assertFalse(unreadable['ok'])
+            self.assertIn('읽지 못했습니다', unreadable['detail'])
+
     def test_diagnostics_reports_workspace_path_too_long_for_evidence(self):
         """작업 폴더가 깊으면 Viewer Export 증거 경로가 Windows 260자 한도를 넘는다.
 

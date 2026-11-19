@@ -67,6 +67,19 @@ def test_run_terminal_states(tmp_path, code, stop, want):
         record.save_review('담당자', {}, complete=True)
 
 
+def test_stopped_run_with_pending_recovery_guides_operator_before_rerun(tmp_path):
+    from bellalunauto.runs import RunRecord
+    record = RunRecord.create(tmp_path, 'run-regression', {'restore_after': True})
+    journal = tmp_path / 'preservation' / record.data['run_id'] / 'journal.json'
+    journal.parent.mkdir(parents=True)
+    journal.write_text('{"state":"prepared","execution_finalization_pending":true}', encoding='utf-8')
+    record.request_stop()
+    record.finish(130)
+    assert record.data['status'] == 'stopped'
+    assert '복원 대기' in record.data['next_action']
+    assert '준비 점검' in record.data['next_action']
+
+
 def test_progress_ignores_stale_state_and_reports_completed_count(tmp_path):
     from bellalunauto.runs import RunRecord
     record = RunRecord.create(tmp_path, 'run-regression', {})
@@ -109,6 +122,7 @@ def test_diagnostic_resolution_keeps_only_safe_settings_destinations():
     from bellalunauto.qa_dialogs import remediation_target
     assert remediation_target('화면 해상도') == 'ms-settings:display'
     assert remediation_target('SQL 서비스') == 'services.msc'
+    assert remediation_target('복원 대기') == 'recovery_guidance'
     assert remediation_target('OCR 실행파일') == 'config'
     assert remediation_target('http://untrusted') == 'config'
 

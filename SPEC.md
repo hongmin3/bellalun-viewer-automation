@@ -579,6 +579,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 5. 준비 점검 창의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
    경고와 안내는 실패 건수에서 뺀다. "다시 점검"을 누르면 새 결과로 첫 줄을 바꾼다.
    재점검에 실패하거나 결과가 비면 이전 항목과 설명을 지우고 현재 상태를 알린다.
+   미완료 복원이나 읽을 수 없는 보존 기록은 [복원 대기] 실패로 표시한다. 실행 번호와 복원 요청 방법을 확인할 수 있다.
    통과 시에도 실행 전 확인에서 보존 저장소와 용량을 점검한다고 알린다.
    일반 권한으로 연 화면의 권한 행은 안내로 표시하고 종료 코드에 넣지 않는다.
 6. 점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 "미설정", 적힌 위치에 파일이 없으면 "위치에 없음"으로 나눈다.
@@ -1080,6 +1081,7 @@ Windows 오류 5·32·33으로 격리 이동이 막히면 최대 2초 동안 재
 회귀 완료 후 파일·DB 복원과 서비스 복구, 공용 사본 검증이 성공하면 이번 실행의 Image 격리 경로에 남은 생성 이미지를 로컬에서 정리한다. 기존 시험 전 이미지와 공용 사전/시험 후 사본은 지우지 않는다. 복원하지 않았거나 중단·복원 실패·공유 사본 미확인인 실행은 삭제하지 않고 사유를 기록한다. 정리 실패는 완료 자동 닫기를 시작하지 않고 재개 조건을 남긴다.
 
 공유 보존·복원·전체 회귀의 마무리 대기를 제품 시작 전에 내구성 있게 기록한다.
+중단이나 비정상 종료 뒤 복원 대기가 있으면 준비 점검에서 복원을 먼저 확인하라고 안내한다. 중단 복원을 검증하면 다음 행동을 다시 준비 점검하는 것으로 갱신한다.
 복원 verified만으로 서비스·원본 완료 증명·정리·최종 보고서 미완료를 terminal로 취급하지 않는다.
 마무리 대기가 남으면 다음 실행을 차단하고, 원본 완료 증명 없는 정리 재개는 거부한다.
 중단 실행은 공유 사본·복원 파일·DB·서비스를 다시 확인하고 별도 복구 영수증을 저장한 뒤 마무리 대기를 해제할 수 있다.
@@ -1564,7 +1566,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py`, `tests/test_report_identity_followup.py` | verified |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `remote/bundles.py`, `remote/interlock.py`, `remote/service.py`, `remote/result_views.py`, `remote/winrm_executor.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_remote_result_paths.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | verified |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/completion_notice.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/launch_gui.py`, `tools/run_installed_suites.py`, `remote/winrm_executor.py` | `tests/test_auto_close.py`, `tests/test_completion_notice.py`, `tests/test_qa_runs.py`, `tests/test_installed_suites.py`, `tests/test_remote_execution.py` | verified |
-| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | verified |
+| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py`, `tests/test_qa_runs.py`, `tests/test_distribution_app.py`, `tests/test_interrupted_recovery_finalization.py` | verified |
 | REQ-FOLLOWUP-005 | `core/system_toasts.py`, `core/ui.py`, `run.py` | `tests/test_system_toasts.py`, `tests/test_focus_recovery.py` | verified |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | verified |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | verified |

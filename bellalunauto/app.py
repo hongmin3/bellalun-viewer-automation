@@ -180,6 +180,8 @@ def workspace_path_problem(workspace):
 
 def diagnostics(layout, check_connections=True):
     """조회만 수행한다. 화면 해상도·서비스·DB·설정을 바꾸지 않는다."""
+    from .runs import pending_recovery_detail
+
     items = []
 
     def add(name, ok, detail, fix, notice=False):
@@ -190,6 +192,9 @@ def diagnostics(layout, check_connections=True):
 
     add('설정 파일', layout.config_path.is_file(), layout.config_path,
         '실행 화면의 PC별 설정에서 경로와 시험 계정을 저장하세요.')
+    pending = pending_recovery_detail(layout.workspace)
+    add('복원 대기', pending is None, pending or '없음',
+        '시험 담당자에게 실행 번호와 작업 폴더를 전달하세요. 복원을 확인한 뒤 다시 점검하세요.')
     try:
         config = bundled_config(load_config(layout), layout.resource_dir)
     except (OSError, ValueError) as exc:

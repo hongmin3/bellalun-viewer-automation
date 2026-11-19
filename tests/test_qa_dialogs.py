@@ -171,7 +171,7 @@ def test_consent_shows_diagnostics_and_records_each_run_restoration(restore, mon
         tree.selection_set(row)
         tree.event_generate('<<TreeviewSelect>>')
         settings = next(w for w in controls if isinstance(w, ttk.Button)
-                        and w.cget('text') == '선택 항목 설정 화면 열기')
+                        and w.cget('text') == '선택 항목 조치 열기')
         settings.invoke()
         boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
         restoration = next(w for w in boxes if '실행 전 상태로 복원' in w.cget('text'))

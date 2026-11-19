@@ -14,6 +14,21 @@ import uuid
 from core.atomic_metadata import replace_metadata
 
 
+RECOVERY_ACTION = '준비 점검에서 복원 대기를 확인하고 시험 담당자에게 복원을 요청하세요.'
+
+
+def pending_recovery_detail(workspace):
+    from core.run_preservation import PreservationError, RunPreservation
+
+    try:
+        pending = sorted(RunPreservation.pending(workspace))
+    except (OSError, ValueError, TypeError, PreservationError):
+        return '보존 기록을 읽지 못했습니다.'
+    if not pending:
+        return None
+    return f"미완료 {len(pending)}건 · 실행 번호: {', '.join(pending[:3])}"
+
+
 def _now():
     return datetime.now().astimezone().isoformat(timespec='seconds')
 
@@ -177,6 +192,8 @@ class RunRecord:
         self.data['next_action'] = ('준비 점검 후 재실행' if status != 'completed' or counts.get('BLOCKED')
                                     else 'TC 상세와 증거를 열어 수동 검토' if self.review_targets()
                                     else '보고서와 증거를 확인하고 검토자 이름으로 검수 완료를 기록하세요.')
+        if status in {'stopped', 'abnormal'} and pending_recovery_detail(self.workspace):
+            self.data['next_action'] = RECOVERY_ACTION
         self.save()
 
     def result_rows(self):

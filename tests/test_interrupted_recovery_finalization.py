@@ -60,6 +60,8 @@ def test_interrupted_recovery_finalizes_only_after_verified_persisted_recovery(t
         assert code==0
         assert RunPreservation.pending(workspace)==[]
         assert record['restoration']['status']=='verified'
+        assert '준비 점검' in record['next_action']
+        assert '복원 대기가 해소됐는지' in record['next_action']
         proof=json.loads((session.run_dir/'interrupted-recovery.json').read_text(encoding='utf-8'))
         assert proof['normal_completion'] is False
         assert proof['restoration']['image_cleanup']['status']=='skipped'

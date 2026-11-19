@@ -67,6 +67,8 @@ def recent_ocr_failure(workspace):
 
 
 def remediation_target(name):
+    if name == '복원 대기':
+        return 'recovery_guidance'
     if any(word in name for word in ('화면', '해상도', '배율', 'DPI')):
         return 'ms-settings:display'
     if 'SQL' in name or '서비스' in name:
@@ -231,7 +233,10 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
             return
         target = remediation_target(row['name'])
         try:
-            if target == 'config':
+            if target == 'recovery_guidance':
+                messagebox.showinfo('복원 대기', f"{row['detail']}\n작업 폴더: {layout.workspace}\n\n{row['fix']}",
+                                    parent=dialog)
+            elif target == 'config':
                 open_config()
             elif target == 'services.msc':
                 subprocess.Popen(['mmc.exe', 'services.msc'])
@@ -249,7 +254,7 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
 
     actions = ttk.Frame(dialog)
     actions.pack(fill='x')
-    ttk.Button(actions, text='선택 항목 설정 화면 열기', command=resolve).pack(side='left', padx=12, pady=10)
+    ttk.Button(actions, text='선택 항목 조치 열기', command=resolve).pack(side='left', padx=12, pady=10)
     ttk.Button(actions, text='OCR 실패 증거 폴더 열기', command=open_evidence).pack(side='left', padx=6)
     ttk.Button(actions, text='다시 점검', command=refresh).pack(side='left', padx=12)
     refresh()
