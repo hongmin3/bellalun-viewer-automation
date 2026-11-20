@@ -528,6 +528,15 @@ _k32p.CreateToolhelp32Snapshot.restype = w.HANDLE
 _k32p.Process32FirstW.argtypes = (w.HANDLE, ctypes.POINTER(_PROCESSENTRY32W))
 _k32p.Process32NextW.argtypes = (w.HANDLE, ctypes.POINTER(_PROCESSENTRY32W))
 _k32p.CloseHandle.argtypes = (w.HANDLE,)
+_k32p.OpenProcess.argtypes = (w.DWORD, w.BOOL, w.DWORD)
+_k32p.OpenProcess.restype = w.HANDLE
+_k32p.WaitForSingleObject.argtypes = (w.HANDLE, w.DWORD)
+_k32p.WaitForSingleObject.restype = w.DWORD
+
+SYNCHRONIZE = 0x00100000
+ERROR_INVALID_PARAMETER = 87
+WAIT_OBJECT_0 = 0
+WAIT_TIMEOUT = 0x00000102
 
 
 def child_pids(parent_pid, exe_name):
@@ -622,11 +631,22 @@ class ViewerUi:
 
     @staticmethod
     def _alive(pid):
-        h = k32.OpenProcess(0x1000, False, pid)
-        if h:
-            k32.CloseHandle(h)
-            return True
-        return False
+        handle = _k32p.OpenProcess(SYNCHRONIZE, False, pid)
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == ERROR_INVALID_PARAMETER:
+                return False
+            raise ctypes.WinError(error)
+        try:
+            # Other handles can keep the process object open after execution ends.
+            state = _k32p.WaitForSingleObject(handle, 0)
+            if state == WAIT_TIMEOUT:
+                return True
+            if state == WAIT_OBJECT_0:
+                return False
+            raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            _k32p.CloseHandle(handle)
 
     @timed('ui.launch')
     def launch(self, exe_path, wait=15):

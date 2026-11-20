@@ -15,7 +15,7 @@ def selected_report(report):
 
 def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
     from tools import release_gate as gate
-    from tools.run_installed_suites import sha256, validate_selection, verify_install
+    from tools.run_installed_suites import SINGLE_COMMANDS, recorded_subcommand, sha256, validate_selection, verify_install
 
     checks, reasons = [], []
     result = {"passed": False, "scope": scope, "source_commit": expected_commit,
@@ -36,7 +36,7 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
                     "basic": {"run-regression"}, "wu": {"run-winupdate"}}
         if scope == "tc":
             valid = bool(expected_tcs) and set(expected_tcs) == set(record.get("expected_tcs") or [])
-            valid = valid and not set(commands) & {"run-regression", "run-winupdate"}
+            valid = valid and len(commands) == 1 and commands[0] in SINGLE_COMMANDS
         else:
             valid = scope in required and set(commands) == required.get(scope) and not expected_tcs
         check("선택 범위", valid, f"요청 {scope}, 기록 {commands}, TC {list(expected_tcs)}")
@@ -72,8 +72,8 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
                   "선택 회귀 결과는 릴리스 수용 전체 회귀로 세지 않습니다")
             check(f"{command} 설치판 출처", meta.get("source_identity_origin") == "build-info",
                   "리포트 출처가 build-info여야 합니다")
-            actual_command = str(meta.get("command") or "").split()
-            check(f"{command} 명령 일치", bool(actual_command) and actual_command[-1] == command,
+            actual_command = recorded_subcommand(meta.get("command"))
+            check(f"{command} 명령 일치", actual_command == command,
                   "실행 기록과 리포트 명령 대조")
             rows = report.get("results") or []
             ids = [r.get("tc_id") for r in rows]

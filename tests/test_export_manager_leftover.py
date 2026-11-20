@@ -6,11 +6,13 @@
 WU_10·WU_11의 Viewer 재기동 로그인이 `최전면 창이 Viewer가 아닙니다: 'Export Manager'`로
 연달아 실패했다.
 """
+import subprocess
+import sys
 import unittest
 from unittest import mock
 
 from core import export_manager as em
-from core import flows
+from core import flows, ui
 
 
 class AttachTimeoutTests(unittest.TestCase):
@@ -18,6 +20,22 @@ class AttachTimeoutTests(unittest.TestCase):
         import inspect
         default = inspect.signature(em.attach).parameters["timeout"].default
         self.assertGreaterEqual(default, 60)
+
+    def test_exit_wait_distinguishes_running_and_exited_process_with_open_handle(self):
+        with subprocess.Popen(
+                [sys.executable, "-c", "import sys; sys.stdin.buffer.read(); sys.exit(259)"],
+                stdin=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW) as process:
+            self.assertFalse(em._wait_exit(process.pid, 0))
+            process.stdin.close()
+            self.assertEqual(process.wait(timeout=10), 259)
+            # Popen retains its process handle here, even after the child exited.
+            self.assertTrue(em._wait_exit(process.pid, 0))
+
+    def test_process_access_denial_does_not_report_exit(self):
+        with mock.patch.object(ui._k32p, "OpenProcess", return_value=None), \
+                mock.patch.object(ui.ctypes, "get_last_error", return_value=5):
+            with self.assertRaises(OSError):
+                em._wait_exit(1234, 0)
 
 
 class LeftoverExportManagerTests(unittest.TestCase):

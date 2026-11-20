@@ -18,9 +18,12 @@ REQ-DIST-004 의 최종 실행 검증 도구다. 하는 일:
         --out "D:/실행 기록/run-01" --suites run-winupdate
 """
 import argparse
+import ctypes
+import ctypes.wintypes as w
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -97,6 +100,55 @@ def command_args(command, restore_after, prepared=False, expected_tcs=()):
     return args
 
 
+def _recorded_argv(command_line):
+    if not command_line:
+        return []
+    if os.name != "nt":
+        return [token.strip('"') for token in shlex.split(command_line, posix=False)]
+    split = ctypes.WinDLL("shell32", use_last_error=True).CommandLineToArgvW
+    split.argtypes = (w.LPCWSTR, ctypes.POINTER(ctypes.c_int))
+    split.restype = ctypes.POINTER(w.LPWSTR)
+    free = ctypes.WinDLL("kernel32", use_last_error=True).LocalFree
+    free.argtypes = (w.HANDLE,)
+    free.restype = w.HANDLE
+    count = ctypes.c_int()
+    argv = split(command_line, ctypes.byref(count))
+    if not argv:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return argv[:count.value]
+    finally:
+        free(ctypes.cast(argv, w.HANDLE))
+
+
+def recorded_subcommand(command_line):
+    """Return the report's positional command after the launcher and its options."""
+    try:
+        tokens = _recorded_argv(str(command_line or "").strip())
+    except (OSError, ValueError):
+        return None
+    args = tokens[1:]
+    if args and args[0].lower().endswith(".py"):
+        args = args[1:]
+    value_options = {"--workspace", "--config", "--stop-file", "--elevation-log", "--run-id"}
+    flag_options = {"--worker", "--elevated", "--unattended"}
+    pending = iter(args)
+    for token in pending:
+        option, equals, _ = token.partition("=")
+        if option in value_options:
+            if not equals:
+                next(pending, None)
+        elif token not in flag_options:
+            if token == "run-winupdate" and any(arg.startswith("--w") and "--with-basic".startswith(arg)
+                                                for arg in pending):
+                return COMBINED_COMMAND
+            if token == "run-regression" and any(arg.startswith("--s") and "--select".startswith(arg.partition("=")[0])
+                                                 for arg in pending):
+                return SELECTED_COMMAND
+            return token
+    return None
+
+
 def selected_report(reports_dir, command, since, expected_tcs):
     """선택 TC와 실행 명령이 일치하는 새 리포트만 찾는다."""
     for path in sorted(Path(reports_dir).glob("Result_*.json"),
@@ -107,10 +159,10 @@ def selected_report(reports_dir, command, since, expected_tcs):
             data = json.loads(path.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
-        recorded_command = str((data.get("meta") or {}).get("command") or "").split()
+        recorded_command = recorded_subcommand((data.get("meta") or {}).get("command"))
         rows = data.get("results") or []
         ids = {row.get("tc_id") for row in rows if str(row.get("tc_id", "")).startswith("TC_")}
-        if not recorded_command or recorded_command[-1] != command or ids != set(expected_tcs):
+        if recorded_command != command or ids != set(expected_tcs):
             continue
         verdicts = {}
         for row in rows:

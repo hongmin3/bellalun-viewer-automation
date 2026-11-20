@@ -146,7 +146,12 @@ class InstalledGateTests(unittest.TestCase):
     def test_wu_only_and_basic_only_do_not_require_other_suite(self):
         for scope, command in (("wu", "run-winupdate"), ("basic", "run-regression")):
             with self.subTest(scope=scope):
-                self.data["meta"].update(command=f"exe {command}", execution_mode="live", chain_completed=True)
+                recorded = (
+                    r'"C:\Program Files\BellalunAuto\BellalunAuto.exe"'
+                    r' --workspace "C:\QA Workspace" --config "C:\QA Workspace\config.json"'
+                    f" {command}" + (" --prepared --restore-after" if scope == "wu" else "")
+                )
+                self.data["meta"].update(command=recorded, execution_mode="live", chain_completed=True)
                 if scope == "wu":
                     ids = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
                 else:
@@ -162,6 +167,36 @@ class InstalledGateTests(unittest.TestCase):
                     "report_sha256": digest(self.report)}]
                 result = self.evaluate_record(scope, [])
                 self.assertTrue(result["passed"], result["reasons"])
+                narrowed_options = ((" --with-basic", " --with") if scope == "wu" else
+                                    (" --select=TC_Basic_WorkFlow_14", " --sel TC_Basic_WorkFlow_14"))
+                for narrowed in narrowed_options:
+                    self.data["meta"]["command"] = recorded + narrowed
+                    self.report.write_text(json.dumps(self.data), encoding="utf-8")
+                    self.record["runs"][0]["report_sha256"] = digest(self.report)
+                    result = self.evaluate_record(scope, [])
+                    self.assertFalse(result["passed"])
+                    self.assertTrue(any("명령 일치" in reason for reason in result["reasons"]))
+
+    def test_report_command_in_option_value_cannot_match_different_execution(self):
+        self.data["meta"]["command"] = 'exe --config "run-wf14" run-wf13 --select run-wf14'
+        result = self.evaluate()
+        self.assertFalse(result["passed"])
+        self.assertTrue(any("명령 일치" in reason for reason in result["reasons"]))
+
+    def test_windows_argv_preserves_apostrophe_in_config_path(self):
+        self.data["meta"]["command"] = subprocess.list2cmdline(
+            ["BellalunAuto.exe", "--config", "'qa.json", "run-wf14"])
+        result = self.evaluate()
+        self.assertTrue(result["passed"], result["reasons"])
+
+    def test_selected_run_without_scope_marker_is_not_a_single_tc_run(self):
+        self.data["meta"]["command"] = "exe run-regression --select=TC_Basic_WorkFlow_14 --restore-after"
+        self.evaluate()
+        self.record["selected_commands"] = ["run-selected"]
+        self.record["runs"][0]["command"] = "run-selected"
+        result = self.evaluate_record()
+        self.assertFalse(result["passed"])
+        self.assertTrue(any("선택 범위" in reason for reason in result["reasons"]))
 
     def test_cli_reads_record_and_writes_scoped_verdict_without_product_execution(self):
         root = Path(__file__).resolve().parents[1]

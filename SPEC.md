@@ -526,7 +526,7 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 #### 하는 일
 소스의 단위시험·정적 검사 뒤 검증용 빌드를 만들고, 설치판으로 승인받은 범위를 시험한 결과가 배포 기준을 채웠는지 확인한다. 소스 UI 회귀와 설치판 UI 회귀를 연달아 반복하도록 요구하지 않는다.
 #### 순서
-1. 설치판 실행 기록의 EXE·build-info·리포트를 다시 읽고 해시, 시험 시작 이후 생성 여부, 선택한 명령과 범위가 맞는지 본다. 설치 파일 검증이 끝났고 모든 선택 실행이 완료돼야 한다. 리포트의 출처는 `build-info`여야 한다.
+1. 설치판 실행 기록의 EXE·build-info·리포트를 다시 읽고 해시, 시험 시작 이후 생성 여부, 선택한 명령과 범위가 맞는지 본다. 명령은 실행 파일 및 전역 옵션 뒤의 명령 이름으로 확인한다. `--prepared` 같은 후행 옵션이 있어도 같은 명령으로 읽는다. 설치 파일 검증이 끝났고 모든 선택 실행이 완료돼야 한다. 리포트의 출처는 `build-info`여야 한다.
 2. 리포트 meta의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`인지 본다. 리포트는 실행할 때 이 값을 남긴다(소스 실행은 Git, 설치판은 build-info).
 
    - 실행 시작 때 값도 함께 읽는다. 시작 때 커밋(`source_commit_at_start`)이 리포트 때와 다르거나 시작 때부터 수정이 있었으면 `source_dirty`를 참으로 남긴다.
@@ -670,6 +670,7 @@ UI 회귀를 시작하기 전에 실행할 빌드/EXE, 대상 TC·묶음, 선택
 ### REQ-WU-001 USB 왕복과 설정 전수 검사
 
 WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.
+Export 성공 안내를 확인한 뒤 Windows의 프로세스 종료 신호를 확인하고 Import를 시작한다.
 Import 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색 등 독립 근거를 대조한다.
 기존 검사 검색이나 Import 클릭만으로 PASS를 주지 않는다. USB 부재·예외·수행 실패를 구분한다.
 드라이브 루트/지원하지 않는 경로 선택과 창 범위를 벗어나는 1102 사용을 금지한다.
@@ -1597,7 +1598,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
-| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `core/scope_results.py`, `automation_scope.json`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
+| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `core/source_identity.py`, `core/scope_results.py`, `automation_scope.json`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py`, `tests/test_wu_tool_missing.py` | verified |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | verified |
@@ -1612,7 +1613,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPEEDUP-007 | `core/preservation_storage.py` | TEST-SPEEDUP-007; `tests/test_archive_hash_once.py`, `tests/test_restore_archive_verify.py` | verified |
 | REQ-SPEEDUP-008 | `core/result.py`, `core/flows.py`, `core/wu_chain.py`, `run.py` | TEST-SPEEDUP-008; `tests/test_flow_timings.py` | implemented |
 | REQ-SPEEDUP-009 | `core/flows.py` | TEST-SPEEDUP-009; `tests/test_setting_rail_waits.py` | verified |
-| REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
+| REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/ui.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
