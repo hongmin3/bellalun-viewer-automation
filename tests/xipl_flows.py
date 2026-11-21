@@ -650,6 +650,65 @@ def compatibility_01(ctx, session):
     return r
 
 
+def _cancel_2d_state(ctx, study, action_paths):
+    rows = ctx.db.query(
+        "DATA", "SELECT [Key],ImageInstanceUID,ContentDate,ContentTime "
+        "FROM INSTANCE WHERE StudyKey=@study AND InstanceType=0 ORDER BY [Key]",
+        {"study": study})
+    image = (imginfo.instance_image_path(ctx.cfg["data_dir"], study, rows[0]["Key"])
+             if len(rows) == 1 and rows[0].get("ImageInstanceUID") else None)
+    directory = os.path.join(ctx.cfg["data_dir"], "Image", "ImageAction")
+    listing = _directory_state(directory)
+    return {"rows": rows, "image": _file_digest(image) if image else None,
+            "listing": listing, "applied": {path: _file_digest(path) for path in action_paths
+                                            if path in listing}}
+
+
+def _verify_cancel_2d(ctx, session, result, applied_values, action_paths):
+    ui = session["ui"]
+    before = _cancel_2d_state(ctx, session["study_key"], action_paths)
+    result.assert_true(
+        10, "Cancel 대조용 대상 영상과 Apply 결과 확인",
+        bool(before["image"]) and bool(before["applied"])
+        and len(before["applied"]) == len(action_paths),
+        expected="단일 2D 원본과 이번 Apply가 만든 ImageAction 파일",
+        actual={"image": before["image"], "applied": before["applied"], "rows": before["rows"]})
+    selected = _ev(ctx, "TC_XIPL_compatibility_02_cancel_before.png")
+    vp.capture(selected)
+    result.attach(selected)
+    direction = "-" if applied_values["Contrast"] >= 10 else "+"
+    vp.shift_slider(ui, 2057, direction, 8)
+    edited = _read_state_retry(vp.read_2d_parameter_state, ui)
+    result.assert_true(
+        10, "Cancel 전 Preview 대비값 변경",
+        edited.get("Contrast") is not None and edited["Contrast"] != applied_values["Contrast"],
+        expected="Apply로 저장한 Contrast와 다른 Preview 값",
+        actual={"applied": applied_values, "preview": edited})
+    mark = _viewer_log_mark(ctx)
+    ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible][0], settle=1)
+    preview = _wait_2d_preview(result, ui, mark, edited, selected,
+                               _ev(ctx, "TC_XIPL_compatibility_02_cancel_preview.png"),
+                               float((ctx.cfg.get("xipl") or {}).get("preview_2d_wait", 20)))
+    result.assert_true(
+        10, "Cancel 직전 Preview 완료와 영상 변화 확인",
+        preview["delta"]["changed_ratio"] >= .005 and preview["cancel_enabled"],
+        expected="처리 pane 변화율 >= 0.005 및 Cancel 활성", actual=preview)
+
+    closed = vp.cancel_window(ui, require_visible=True)
+    after = _cancel_2d_state(ctx, session["study_key"], action_paths)
+    changed = sorted(path for path in before["listing"].keys() | after["listing"].keys()
+                     if before["listing"].get(path) != after["listing"].get(path))
+    result.assert_true(
+        10, "2D Preview Cancel 후 영상 저장 상태 보존",
+        closed is True and before == after,
+        expected="처리 창 닫힘과 2D 원본 DB·파일 및 Apply 결과 파일 불변",
+        actual={"window_closed": closed, "rows_before": before["rows"], "rows_after": after["rows"],
+                "image_before": before["image"], "image_after": after["image"],
+                "applied_before": before["applied"], "applied_after": after["applied"],
+                "changed_image_actions": changed},
+        note="R-23-2346 K30:L30 및 R-25-782 H9:I9의 Cancel 분기.")
+
+
 def compatibility_02(ctx, session):
     r = TCResult("TC_XIPL_compatibility_02", "Viewer 2D Image Processing")
     ui = session["ui"]
@@ -736,7 +795,7 @@ def compatibility_02(ctx, session):
             expected={"parameter": name, "values": changed_state}, actual=actual,
             note=("콤보 UIA text는 폭에 따라 접미사가 잘릴 수 있어 prefix를 확인하고, "
                   "전체 파일명은 Viewer 처리 로그에서 정확히 대조"))
-        vp.cancel_window(ui)
+        _verify_cancel_2d(ctx, session, r, reopened_state, action_delta)
     except Exception as exc:
         vp.cancel_window(ui)
         r.abort(2, "2D Image Processing 자동 수행", exc)

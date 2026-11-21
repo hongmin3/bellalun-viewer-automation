@@ -25,7 +25,6 @@ UNTRACED_BASELINE = {
     "core/installer_ui.py",
     "core/mwl.py",
     "core/net.py",
-    "core/send_verify.py",
     "core/setting_changes.py",
     "core/setting_transfer.py",
     "core/snapshot.py",
@@ -50,7 +49,6 @@ UNTRACED_BASELINE = {
     "tests/test_module_attr_check.py",
     "tests/test_non_ui_improvements.py",
     "tests/test_performance_waits.py",
-    "tests/test_process_window_wait.py",
     "tests/test_qc_wait_diagnostics.py",
     "tests/test_scope_summary.py",
     "tests/test_setting_changes.py",
@@ -62,7 +60,6 @@ UNTRACED_BASELINE = {
     "tests/test_xipl_startup.py",
     "tests/ui_flows.py",
     "tests/workflow04.py",
-    "tests/workflow05.py",
     "tests/workflow06.py",
     "tests/workflow07.py",
 }

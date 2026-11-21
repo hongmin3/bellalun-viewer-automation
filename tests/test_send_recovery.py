@@ -314,12 +314,22 @@ class WorkflowDb(MultiStudyDb):
         return super().one(database, sql, params)
 
 
-def workflow_context(monkeypatch, *, historical=True):
+def workflow_context(monkeypatch, *, historical=True, unexpected_raw=None, previous=None):
     from core import flows, viewer_processing as vp
     from tests import workflow05 as wf05, workflow06 as wf06
     from tests import workflow02 as wf02
     timer = clock(monkeypatch)
     db = WorkflowDb(timer)
+    if unexpected_raw == 'queue':
+        original_query = db.query
+
+        def query(database, sql, params=None):
+            rows = original_query(database, sql, params)
+            if db.started and 'FROM DICOM_STORAGE_QUEUE' in sql:
+                rows.append(dict(Key=18, State=7, InstanceUID='1.2.4', DataType=0))
+            return rows
+
+        db.query = query
     ctx = SimpleNamespace(db=db, cfg={'xipl': {'test_patient_id': 'TEST'}, 'data_dir': 'offline'})
     ui = SimpleNamespace(click=lambda *args, **kwargs: None)
     monkeypatch.setattr(flows, 'cold_start', lambda *args, **kwargs: (ui, None))
@@ -343,10 +353,20 @@ def workflow_context(monkeypatch, *, historical=True):
     def download(uid, timeout=180):
         if uid != '1.2':
             raise AssertionError('선택하지 않은 Study 다운로드')
-        return archive(dicom_blob(sop='1.2.1'), dicom_blob(sop='1.2.2'),
-                       dicom_blob(sop='1.2.3'),
-                       dicom_blob(sop='1.2.10', sop_class=sv.SOP_CLASS_RDSR))
+        objects = [dicom_blob(sop='1.2.1'), dicom_blob(sop='1.2.2'),
+                   dicom_blob(sop='1.2.3'), dicom_blob(sop='1.2.10', sop_class=sv.SOP_CLASS_RDSR)]
+        if not db.started:
+            objects = [dicom_blob(sop=uid) for uid in (previous or [])]
+            if not objects:
+                raise AssertionError('전송 전 수신 0건인 경우 ZIP을 받지 않는다')
+        elif unexpected_raw == 'received':
+            objects.append(dicom_blob(sop='1.2.4'))
+        elif previous and '1.2.4' in previous:
+            objects.append(dicom_blob(sop='1.2.4'))
+        return archive(*objects)
     monkeypatch.setattr(srv, 'download', download)
+    monkeypatch.setattr(srv, 'studies', lambda: studies if db.started or previous
+                        else [row for row in studies if row['study_instance_uid'] != '1.2'])
     return ctx
 
 
@@ -356,6 +376,31 @@ def test_workflow05_keeps_identity_queue_and_direct_receive_in_one_confirmed_stu
     assert result.verdict == 'PASS'
     queue = next(c for c in result.checks if c.title == 'DICOM 창 Queue 모드에서 전송 상태 확인')
     assert queue.actual['observation']['queue_expected_images'] == 3
+
+
+@pytest.mark.parametrize("unexpected_raw", ["queue", "received"])
+def test_workflow05_rejects_raw_even_when_all_recon_arrives(monkeypatch, unexpected_raw):
+    from tests import workflow05
+    result = workflow05.workflow_05(workflow_context(monkeypatch, unexpected_raw=unexpected_raw))
+    assert result.verdict == 'FAIL'
+    check = next(check for check in result.checks if check.actual
+                 and isinstance(check.actual, dict) and "unexpected_3d" in check.actual)
+    assert check.actual["unexpected_3d"][unexpected_raw] == ["1.2.4"]
+    assert check.actual["declared_missing"] == []
+
+
+def test_workflow05_does_not_attribute_historical_raw_to_current_transfer(monkeypatch):
+    from tests import workflow05
+    result = workflow05.workflow_05(workflow_context(monkeypatch, previous=['1.2.4']))
+    assert result.verdict == 'PASS'
+
+
+def test_workflow05_refuses_preexisting_recon_as_fresh_positive(monkeypatch):
+    from tests import workflow05
+    ctx = workflow_context(monkeypatch, previous=['1.2.2'])
+    result = workflow05.workflow_05(ctx)
+    assert result.verdict == 'BLOCKED'
+    assert ctx.db.started is False
 
 
 def test_workflow06_uses_fresh_selected_card_study_without_historical_download(monkeypatch):

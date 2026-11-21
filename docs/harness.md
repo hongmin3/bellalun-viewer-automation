@@ -23,6 +23,27 @@ python tools/traceability.py --config config.json
 python -m pytest tests/test_evidence_basis.py -q
 ```
 
+## 공식 체크리스트 단계 원장
+
+[단계 원장 생성기](../tools/official_checklist_ledger.py)에 공용 QA 원본 WF·WU와 #191에서 보관한
+`coverage-evidence-index-212.json`을 지정한다. 원장에는 원문과 사내 증거 위치가 있으므로 PC1의
+비공개 작업 폴더에 생성한다.
+
+```powershell
+python tools/official_checklist_ledger.py --wf $wf --wu $wu --baseline-index $prior --output $ledger
+```
+
+원본 SHA-256, 시트·행·셀·줄과 취소선 상태를 고정한다. 번호가 같은 Expected는 조작 후보를 제시한다.
+같은 번호가 여러 번 나오거나 번호가 없으면 근거 리뷰로 연결한다. 각 줄의 실제 실행 증거는 비어
+있는 상태에서 시작한다. #191 보고서는 행 단위 비교 기준으로 참조한다.
+
+| 우선 단계 | 공식 원본 위치 | 구현·판정과 남은 증거 |
+|---|---|---|
+| 3D DICOM 전송 | WF Basic Function Checklist K16:L16, WU Checklist G12:I12 | [WF05](../tests/workflow05.py)에서 Queue와 받은 SOP를 대조한다. Raw/Syn 등록·수신과 Recon 누락은 실패다. 화면과 범위마다 새 조작·수신 증거가 필요하다. Recon 없는 시험 검사는 UI로 만들거나 승인된 비식별 픽스처를 가져온 뒤, DB로 Raw와 Recon 부재를 확인하고 Queue·SCP를 각각 관측한다. |
+| 2D·3D 처리 취소 | WF K30:L31, WU H9:I10 | [XIPL02](../tests/xipl_flows.py)는 Apply 결과를 기준으로 새 Preview를 취소한 뒤 2D 원본과 DB 식별, ImageAction 파일을 비교한다. 3D Recon/Syn 파일·DB의 Cancel 경로는 후속 구현 대상이다. |
+| 매체별 왕복 | WF K20:L20, Screening Test C18:D18, WU G14:I14 | [WU09](../tests/winupdate.py)와 [USB 검증](../core/usb_verification.py)을 기반으로 매체의 원본 파일·영상 검증과 가져오기를 연결한다. USB와 CD는 별도 실행 증거 및 사전 자원 확인이 필요하다. |
+| Windows 전후·계정·Kiosk | WU G6:I6, G17:J18 | 승인 격리 환경에서 빌드·KB, Viewer 설치와 실행, OS 권한, 장비·Launcher, 재시작 전후 상태를 읽는다. 본 환경을 바꾸기 전에 복원 경로를 검증한다. |
+
 ## 제품 판정의 근거를 제출할 때
 
 자료와 구현 위치만 확인하려면 다음과 같이 조회한다.

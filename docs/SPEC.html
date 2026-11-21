@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="46a5f1bc3d09f3dd5af0a638ffcf5dc8ebeeef2457ee122c65a2544762bb6a79">
+<meta name="spec-source-sha256" content="23b1879fd675b47a871394404aead70e323e9b6a9fe8ac8f4577915cc512b162">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>52</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>50</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>56</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>6</b><span>implemented</span></div><div class="stat st-verified"><b>50</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -113,6 +113,10 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-TCUP-003">REQ-TCUP-003 <span>WF15 Overlay OCR 보강</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TCUP-004">REQ-TCUP-004 <span>WU09 실행 전 준비 체크리스트</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TRACE-001">REQ-TRACE-001 <span>사양 근거 추적</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-OFFICIAL-001">REQ-OFFICIAL-001 <span>공식 체크리스트 단계 원장</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-OFFICIAL-002">REQ-OFFICIAL-002 <span>3D DICOM Send의 Recon 판정</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-OFFICIAL-003">REQ-OFFICIAL-003 <span>개발 검증판 버전 식별</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004 <span>2D Preview 취소 검증</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TRACE-002">REQ-TRACE-002 <span>Windows Update 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-002">REQ-VERDICT-002 <span>사람이 직접 하는 TC는 SKIP</span></a></li>
@@ -238,6 +242,11 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr class="group"><th colspan="5"><span class="gcode">TRACE</span> 사양 근거 추적</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="이름">사양 근거 추적</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>run.py</code>, <code>core/result.py</code>, <code>core/specs.py</code>, <code>core/tc_basis.py</code>, <code>core/tc_modules.py</code>, <code>core/evidence_evaluation.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code>, <code>tests/test_evidence_basis.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="이름">Windows Update 추적성과 정적 자체검사</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td></tr>
+<tr class="group"><th colspan="5"><span class="gcode">OFFICIAL</span></th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-001">REQ-OFFICIAL-001</a></td><td data-label="이름">공식 체크리스트 단계 원장</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tools/official_checklist_ledger.py</code></td><td data-label="테스트"><code>tests/test_official_checklist_ledger.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-002">REQ-OFFICIAL-002</a></td><td data-label="이름">3D DICOM Send의 Recon 판정</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>core/send_verify.py</code>, <code>tests/workflow05.py</code></td><td data-label="테스트"><code>tests/test_send_recovery.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-003">REQ-OFFICIAL-003</a></td><td data-label="이름">개발 검증판 버전 식별</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>bellalunauto/versioning.py</code>, <code>run.py</code>, <code>tools/build_distribution.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code>, <code>tools/release_zip.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="테스트"><code>tests/test_distribution_build.py</code>, <code>tests/test_release_zip.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_installed_suites.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a></td><td data-label="이름">2D Preview 취소 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="테스트"><code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
@@ -693,6 +702,80 @@ USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목�
 <section class="field"><h4>관련 테스트</h4><div class="field-body">
 <p><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>, <code>tests/test_result_reports.py</code>.</p>
 </div></section>
+</section>
+<section class="card kind-req" id="REQ-OFFICIAL-001">
+<h3><span class="idtag">REQ-OFFICIAL-001</span> 공식 체크리스트 단계 원장</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tools/official_checklist_ledger.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_official_checklist_ledger.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">개발 — 공식 체크리스트 추적 및 전송 판정 (2026-11-21)</span> <a class="idref" href="#REQ-OFFICIAL-001">REQ-OFFICIAL-001</a>: R-23-2346 두 시트와 R-25-782 본문을 원본 해시·행·셀 줄 위치로 추적하는 단계 원장을 추가했다.</li>
+</ul>
+</details>
+<p>공용 QA의 유효한 R-23-2346 기본기능과 R-25-782 Windows Update 호환성 원본을
+파일명·SHA-256·시트·행·셀·셀 내부 줄 번호로 식별한다. 공식 WF는 Basic Function Checklist
+2~70행과 Screening Test 11~20행, WU는 Checklist 6~18행을 대상으로 한다. 숨김 행은
+적용 범위에 넣고, 명시적 취소선과 그 밖의 적용 미확정은 원문 위치에서 판별한다.
+이전 결과 열과 WU Summary의 문서 식별 정보는 현재 시험 단계에서 제외한다.</p>
+<p>원장은 TC ID 또는 시트·행, 선행조건, 조작, 기대 결과, 분기·보충 줄을 남긴다.
+원문 번호가 다르거나 번호가 없는 Expected는 해석 대기로 남겨 근거 없이 Step과 짝짓지 않는다.
+#191의 행 단위 대조와 연결할 때 원본의 판·행·숨김 상태를 확인한다. 기준선과 새 판정은 서로 다른
+필드에 저장한다. 각 적용 단계의 실제 조작, 관찰, 실패 대조, 판정과 원상복원 증거를 새 실행에 연결한다.
+근거가 없는 단계는 미검증이며, 부분·수동·SKIP 및 과거 결과는 신규 완전 검증 집계에서 제외한다.</p>
+<p>1.0.0 공식 범위의 수용에는 이번 설치판의 버전·커밋과 감독 실행 ID, 원본 보고서 SHA-256,
+모든 적용 단계의 판정 및 원상복원 증거를 대조한다. 개정본 TC의 같은 번호나 전체 PASS 수로
+공식 원장의 빈 증거를 채우지 않는다. 자료 생성 도구는 시험을 시작하거나 결과를 변경하지 않는다.</p>
+<p>관련 구현과 정적 시험은 12절에 둔다. 설치판 실측과 독립 수용 시험은 구현 진척에 따라 연결한다.</p>
+</section>
+<section class="card kind-req" id="REQ-OFFICIAL-002">
+<h3><span class="idtag">REQ-OFFICIAL-002</span> 3D DICOM Send의 Recon 판정</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>core/send_verify.py</code>, <code>tests/workflow05.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_send_recovery.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">개발 — 공식 체크리스트 추적 및 전송 판정 (2026-11-21)</span> <a class="idref" href="#REQ-OFFICIAL-002">REQ-OFFICIAL-002</a>: 3D Send에서 Recon이 도착해도 대상 검사의 Raw/Syn이 신규 Queue에 들어가거나 SCP에 새로 도착하면 FAIL로 판정한다. 기존 Recon과 이번 수신을 구분할 수 없는 경우 시험을 차단한다.</li>
+</ul>
+</details>
+<p>R-23-2346 Basic Function Checklist K16:L16과 R-25-782 Checklist G12:I12의
+3D 영상 전송 기준은 Recon이다. 이 검사에 연결된 3D 원본 SOP 중 Recon은 모두
+수신해야 한다. Raw 또는 Syn이 이번 Queue에 등록되거나 새로 수신되면 FAIL이다.
+전송 전 해당 Recon이 이미 SCP에 있으면 새 수신을 구별할 수 없어 시험을 차단한다.
+기존 2D와 Dose SR의 판정 및 다른 검사 범위는 각각 보존한다.
+현행 개정본 WF05의 실제 Queue 신규 Key 및 같은 SCP 수신 스캔에서 판정한다.</p>
+<p>Examine·View·Examined 각각의 Selected/All 전송과 Recon이 없는 시험 검사의
+미전송은 별도 증거가 필요하다. 이 요구의 단위시험은 제품 실측을 대신하지 않는다.</p>
+</section>
+<section class="card kind-req" id="REQ-OFFICIAL-003">
+<h3><span class="idtag">REQ-OFFICIAL-003</span> 개발 검증판 버전 식별</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>bellalunauto/versioning.py</code>, <code>run.py</code>, <code>tools/build_distribution.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code>, <code>tools/release_zip.py</code>, <code>packaging/BellalunAuto.iss</code></span><span class="meta"><b>테스트</b> <code>tests/test_distribution_build.py</code>, <code>tests/test_release_zip.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_installed_suites.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">개발 — 공식 체크리스트 추적 및 전송 판정 (2026-11-21)</span> <a class="idref" href="#REQ-OFFICIAL-003">REQ-OFFICIAL-003</a>: 첫 개발 검증판의 표시 버전과 Windows 숫자형 버전을 Setup, EXE, 빌드 정보와 보고서에 연결한다.</li>
+</ul>
+</details>
+<p>첫 개발 검증판의 표시 버전은 <code>1.0.0.(001)</code>, Windows 파일·제품 숫자형 버전은
+<code>1.0.0.1</code>이다. 개발 번호는 001~999이며 같은 표시 버전의 기존 산출물을 덮어쓰지
+않는다. Setup 표시, EXE GUI/CLI, build-info와 실시간 보고서에 동일한 표시 버전을
+반영한다. build-info와 실시간 보고서는 숫자형 버전도 기록한다. 설치판 게이트는 이
+두 값이 일치하는지 확인한다. 단독 전체 WF·WU는 실행 로그의 감독 번호와
+완료 기록 해시, 계획 ID, 커밋, 실행 시각 및 원본 보고서 번호·해시를 함께 대조한다.
+원상복원 증거는 감독과 보고서에서 일치해야 한다. 파일·DB·서비스와 WU의 USB 복원을 확인하고
+검증 일지가 완료돼 있으며 복원 대기가 없을 때 통과한다.
+이전 정식 형식의 ZIP과 보관 기록도 계속 읽는다.
+검증판 이름은 내부 후보를 가리킨다. 정식 배포 승인과 공식 단계 수용은 기존 승인 절차를 따른다.</p>
+</section>
+<section class="card kind-req" id="REQ-OFFICIAL-004">
+<h3><span class="idtag">REQ-OFFICIAL-004</span> 2D Preview 취소 검증</h3>
+<div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">개발 — 공식 체크리스트 추적 및 전송 판정 (2026-11-21)</span> <a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a>: 2D Preview 취소 후 같은 영상의 DB 식별과 파일·적용 결과의 불변을 확인한다.</li>
+</ul>
+</details>
+<p>공식 R-23-2346 Basic Function Checklist K30:L30과 R-25-782 Checklist H9:I9의
+Cancel 분기를 XIPL02의 2D Image Processing에 추가한다. 동일 시험 영상에 Apply가 만든
+저장 결과를 기준으로 잡고, 한 파라미터를 다시 바꿔 Preview 완료와 영상 변화를 확인한다.
+Cancel을 조작한 후 처리 창 닫힘·동일 영상 DB 식별·원본 영상과 ImageAction 파일의
+목록·내용이 이전과 같아야 한다. 저장 결과나 관찰값을 확보하지 못하면 PASS를 기록하지 않는다.
+Apply가 생성한 결과와 Cancel이 보존한 결과는 별도 판정으로 남긴다. 3D는 별개의 분기다.</p>
 </section>
 <section class="card kind-req" id="REQ-TRACE-002">
 <h3><span class="idtag">REQ-TRACE-002</span> Windows Update 추적성과 정적 자체검사</h3>
@@ -2695,6 +2778,10 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="Implementation"><code>tools/build_distribution.py</code>, <code>tools/check_regression_names.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code>, <code>tests/test_regression_names_check.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-KNOW-001">REQ-KNOW-001</a></td><td data-label="Implementation"><code>core/knowledge_sync.py</code>, <code>run.py</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-KNOW-001">TEST-KNOW-001</a>; <code>tests/test_knowledge_sync.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-001">REQ-OFFICIAL-001</a></td><td data-label="Implementation"><code>tools/official_checklist_ledger.py</code></td><td data-label="Test"><code>tests/test_official_checklist_ledger.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-002">REQ-OFFICIAL-002</a></td><td data-label="Implementation"><code>core/send_verify.py</code>, <code>tests/workflow05.py</code></td><td data-label="Test"><code>tests/test_send_recovery.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-003">REQ-OFFICIAL-003</a></td><td data-label="Implementation"><code>bellalunauto/versioning.py</code>, <code>run.py</code>, <code>tools/build_distribution.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code>, <code>tools/release_zip.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="Test"><code>tests/test_distribution_build.py</code>, <code>tests/test_release_zip.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_installed_suites.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a></td><td data-label="Implementation"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="Test"><code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="Implementation"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a></td><td data-label="Implementation"><code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/qa_dialogs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code>, <code>tests/test_qa_dialogs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a></td><td data-label="Implementation"><code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>

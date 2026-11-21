@@ -22,6 +22,28 @@ def _wu_rows(verdicts):
             for i, v in enumerate(verdicts, start=1)]
 
 
+class SupervisedReceiptTests(unittest.TestCase):
+    def test_stdout_registers_one_complete_run_and_pins_receipt_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            run_id = '20261121-145000-fa123456'
+            log = workspace / 'run.log'
+            log.write_text(f'실행 번호: {run_id} · 화면 동의 없음(CLI)\n', encoding='utf-8')
+            receipt = workspace / 'Runs' / run_id / 'run.json'
+            receipt.parent.mkdir(parents=True)
+            payload = {'run_id': run_id, 'action': 'run-regression', 'status': 'completed',
+                       'exit_code': 0, 'started_epoch': 1795239900.1, 'ended': '2026-11-21T15:00:00+09:00'}
+            receipt.write_text(json.dumps(payload), encoding='utf-8')
+            actual = runner.supervised_receipt(workspace, log, 'run-regression', 0)
+            self.assertEqual(actual['run_id'], run_id)
+            self.assertEqual(actual['sha256'], hashlib.sha256(receipt.read_bytes()).hexdigest())
+            self.assertIsNone(runner.supervised_receipt(workspace, log, 'run-winupdate', 0))
+            self.assertIsNone(runner.supervised_receipt(workspace, log, 'run-regression', 1))
+            with log.open('a', encoding='utf-8') as stream:
+                stream.write('실행 번호: 20261121-150000-ab123456 · 화면 동의 없음(CLI)\n')
+            self.assertIsNone(runner.supervised_receipt(workspace, log, 'run-regression', 0))
+
+
 class WuTargetTests(unittest.TestCase):
     def test_all_ten_pass_meets_target(self):
         rows = _wu_rows(["SKIP"] + ["PASS"] * 10 + ["SKIP", "SKIP"])

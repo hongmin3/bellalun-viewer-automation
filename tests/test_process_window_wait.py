@@ -80,6 +80,11 @@ class CancelWindowTests(unittest.TestCase):
             self.assertTrue(vp.cancel_window(ui))
         self.assertEqual(ui.clicks, [])
 
+    def test_required_cancel_refuses_already_closed_window(self):
+        ui = _FakeUi({})
+        self.assertFalse(vp.cancel_window(ui, require_visible=True))
+        self.assertEqual(ui.clicks, [])
+
 
 class PostReconstructionTests(unittest.TestCase):
     def test_waits_for_both_window_controls_without_second_click(self):

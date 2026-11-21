@@ -1341,9 +1341,11 @@ def change_all_3d_parameters(ui):
 # 으로 고쳤다 — 그 두 키는 아무도 읽지 않아 조정해도 아무 일이 없었다.
 
 
-def cancel_window(ui, timeout=15):
+def cancel_window(ui, timeout=15, *, require_visible=False):
     """Cancel을 누르고 처리 창이 닫힐 때까지 기다린다. 닫혔으면 True."""
     hits = _visible(ui, CANCEL)
+    if require_visible and (len(hits) != 1 or not hits[0].enabled):
+        return False
     if hits:
         ui.click(hits[0], settle=1)
     end = time.time() + timeout

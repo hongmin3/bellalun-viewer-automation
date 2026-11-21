@@ -1,5 +1,6 @@
 """선택한 설치판 회귀의 기록·해시·기존 판정 기준을 읽기 전용으로 확인한다."""
 from datetime import datetime
+import json
 from pathlib import Path
 
 
@@ -13,9 +14,35 @@ def selected_report(report):
     return ((report or {}).get("meta") or {}).get("run_scope") == "selected"
 
 
+def _verified_restoration(workspace, command, product, meta):
+    from core.run_preservation import PreservationError, RunPreservation
+    restored = meta.get("restoration") or {}
+    roots = restored.get("roots") or {}
+    required = {"Config", "Image", "ImageTemp", "Export", "ExportSettingTemp", "xipl"}
+    if command == "run-winupdate":
+        required.add("usb")
+    if not (restored == product.get("restoration") and restored.get("status") == "verified"
+            and restored.get("run_id") == product["run_id"]
+            and required <= roots.keys()
+            and all(value.get("status") == "verified"
+                    or (value.get("status") == "no_prior_copy" and value.get("restoration_status") == "verified")
+                    for value in roots.values())
+            and (restored.get("db") or {}).get("status") == "verified"
+            and restored.get("services")):
+        return False
+    journal_path = workspace / "preservation" / product["run_id"] / "journal.json"
+    try:
+        pending = RunPreservation.pending(workspace)
+        journal = json.loads(journal_path.read_text(encoding="utf-8"))
+        return journal.get("state") == "verified" and not pending
+    except (OSError, ValueError, PreservationError):
+        return False
+
+
 def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
     from tools import release_gate as gate
-    from tools.run_installed_suites import SINGLE_COMMANDS, recorded_subcommand, sha256, validate_selection, verify_install
+    from tools.run_installed_suites import (SINGLE_COMMANDS, recorded_subcommand, sha256, supervised_receipt,
+                                            validate_selection, verify_install)
 
     checks, reasons = [], []
     result = {"passed": False, "scope": scope, "source_commit": expected_commit,
@@ -52,6 +79,12 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
               and installed["exe_sha256"] == record["install"].get("exe_sha256")
               and sha256(info_path) == record.get("build_info_sha256"), "EXE·설치 파일·build-info 해시 대조")
         gate._identity("빌드", {"meta": info}, expected_commit, checks, reasons)
+        version = info.get("version")
+        from bellalunauto.versioning import windows_version
+        versioned = "windows_version" in info or (isinstance(version, str) and ".(" in version)
+        numeric = windows_version(version) if versioned else None
+        if versioned:
+            check("빌드 숫자형 버전", info.get("windows_version") == numeric, version)
         runs = record.get("runs") or []
         check("선택 실행 완료", bool(record.get("finished")) and len(runs) == len(commands)
               and [r.get("command") for r in runs] == commands
@@ -66,6 +99,41 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
             report = gate.load_report(report_path)
             meta = report.get("meta") or {}
             gate._identity(command, report, expected_commit, checks, reasons)
+            report_version = meta.get("automation_version")
+            if (versioned or "windows_version" in meta
+                    or (isinstance(report_version, str) and ".(" in report_version)):
+                check(f"{command} 빌드와 보고서 버전",
+                      versioned and report_version == version and meta.get("windows_version") == numeric,
+                      "build-info 표시 및 숫자형 버전과 보고서 대조")
+            if versioned and command in {"run-regression", "run-winupdate"}:
+                log = Path(run["log"]).resolve()
+                workspace = Path(record["workspace"]).resolve()
+                supervisor = supervised_receipt(workspace, log, command, run["exit_code"])
+                logged = run.get("supervisor") or {}
+                valid_supervisor = False
+                if supervisor and sha256(log) == run.get("log_sha256"):
+                    product = supervisor["record"]
+                    plan = product.get("plan") or {}
+                    started_epoch = product.get("started_epoch")
+                    ended = datetime.fromisoformat(product["ended"])
+                    valid_supervisor = (
+                        supervisor["run_id"] == logged.get("run_id") == meta.get("run_id")
+                        and supervisor["sha256"] == logged.get("sha256")
+                        and type(started_epoch) in (int, float)
+                        and ended.utcoffset() is not None
+                        and started <= started_epoch <= report_path.stat().st_mtime < ended.timestamp() + 1
+                        and log.parent == Path(path).resolve().parent
+                        and report_path.resolve().parent == workspace / "Reports"
+                        and str(report_path.resolve()) in product.get("reports", [])
+                        and bool(plan.get("plan_id")) and plan["plan_id"] == meta.get("plan_id")
+                        and (plan.get("source_identity") or {}).get("source_commit") == expected_commit
+                    )
+                check(f"{command} 감독 실행 기록", valid_supervisor,
+                      "실행 로그의 번호, 감독 기록 해시·계획·기간과 원본 리포트 대조")
+                restoration_ok = (valid_supervisor and record.get("restore_after") is True
+                                  and _verified_restoration(workspace, command, supervisor["record"], meta))
+                check(f"{command} 원상복원", restoration_ok,
+                      "감독과 보고서의 원상복원, 완료 일지와 남은 복원 대기 대조")
             check(f"{command} 단독 묶음 실행", not combined_report(report),
                   "기본+WU 결합 실행 결과는 릴리스 수용 전체 회귀로 세지 않습니다")
             check(f"{command} 전체 실행", not selected_report(report),

@@ -1,4 +1,5 @@
 """설치판 기록으로 선택한 범위를 검증한다. 제품 UI/DB는 사용하지 않는다."""
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -61,6 +62,22 @@ class InstalledGateTests(unittest.TestCase):
         self.assertTrue(result["passed"], result["reasons"])
         self.assertEqual(result["scope"], "tc")
         self.assertEqual(result["exe_sha256"], digest(self.exe))
+
+    def test_development_report_must_match_both_build_versions(self):
+        info = json.loads(self.info.read_text(encoding="utf-8"))
+        info.update(version="1.0.0.(001)", windows_version="1.0.0.1")
+        self.info.write_text(json.dumps(info), encoding="utf-8")
+        self.record["build_info_sha256"] = digest(self.info)
+        self.assertFalse(self.evaluate()["passed"])
+        self.data["meta"].update(automation_version="1.0.0.(001)", windows_version="1.0.0.1")
+        result = self.evaluate()
+        self.assertTrue(result["passed"], result["reasons"])
+        self.data["meta"]["windows_version"] = "1.0.0.2"
+        self.assertFalse(self.evaluate()["passed"])
+
+    def test_development_report_cannot_fall_back_to_legacy_build_info(self):
+        self.data["meta"].update(automation_version="1.0.0.(001)", windows_version="1.0.0.1")
+        self.assertFalse(self.evaluate()["passed"])
 
     def test_wrong_expected_tc_or_empty_scope_cannot_pass(self):
         self.assertFalse(self.evaluate(expected_tcs=["TC_Basic_WorkFlow_03"])["passed"])
@@ -176,6 +193,61 @@ class InstalledGateTests(unittest.TestCase):
                     result = self.evaluate_record(scope, [])
                     self.assertFalse(result["passed"])
                     self.assertTrue(any("명령 일치" in reason for reason in result["reasons"]))
+
+    def test_versioned_full_wu_requires_same_supervisor_and_raw_report(self):
+        command = "run-winupdate"
+        run_id = "20261121-150000-fa123456"
+        info = json.loads(self.info.read_text(encoding="utf-8"))
+        info.update(version="1.0.0.(001)", windows_version="1.0.0.1")
+        self.info.write_text(json.dumps(info), encoding="utf-8")
+        reports = self.root / "Reports"
+        reports.mkdir()
+        self.report = reports / "Result_WindowsUpdate_now.json"
+        self.data["meta"].update(command=f"exe {command} --prepared", execution_mode="live",
+                                 chain_completed=True, automation_version=info["version"],
+                                 windows_version=info["windows_version"], run_id=run_id, plan_id="test-plan")
+        self.data["results"] = [{"tc_id": f"TC_WindowsUpdate_{i:02}",
+                                 "verdict": "SKIP" if i in (1, 12, 13) else "PASS",
+                                 "checks": [{"status": "PASS", "actual": "확인"}]}
+                                for i in range(1, 14)]
+        restoration = {"run_id": run_id, "status": "verified", "db": {"status": "verified"},
+                       "roots": {name: {"status": "verified"} for name in
+                                 ("Config", "Image", "ImageTemp", "Export", "ExportSettingTemp", "xipl", "usb")},
+                       "services": {"Bellalun Service": "RUNNING"}}
+        restoration["roots"]["usb"] = {"status": "no_prior_copy", "restoration_status": "verified"}
+        self.data["meta"]["restoration"] = restoration
+        self.report.write_text(json.dumps(self.data), encoding="utf-8")
+        report_time = datetime.fromtimestamp(self.report.stat().st_mtime, timezone.utc)
+        receipt_path = self.root / "Runs" / run_id / "run.json"
+        receipt_path.parent.mkdir(parents=True)
+        receipt = {"run_id": run_id, "action": command, "status": "completed", "exit_code": 0,
+                   "started_epoch": (report_time - timedelta(seconds=1)).timestamp(),
+                   "ended": (report_time + timedelta(seconds=1)).isoformat(),
+                   "plan": {"plan_id": "test-plan", "source_identity": {"source_commit": SHA}},
+                   "reports": [str(self.report)], "restoration": restoration}
+        journal = self.root / "preservation" / run_id / "journal.json"
+        journal.parent.mkdir(parents=True)
+        journal.write_text('{"state": "verified"}', encoding="utf-8")
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        log = self.root / "run-winupdate.log"
+        log.write_text(f"실행 번호: {run_id} · 화면 동의 없음(CLI)\n", encoding="utf-8")
+        self.record.update(selected_commands=[command], expected_tcs=[], workspace=str(self.root),
+                           restore_after=True, build_info_sha256=digest(self.info))
+        run = {"command": command, "completed": True, "exit_code": 0,
+               "started": (report_time - timedelta(seconds=2)).isoformat(),
+               "report": {"path": str(self.report)}, "report_sha256": digest(self.report),
+               "log": str(log), "log_sha256": digest(log),
+               "supervisor": {"run_id": run_id, "sha256": digest(receipt_path)}}
+        self.record["runs"] = [run]
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(result["passed"], result["reasons"])
+        journal.write_text('{"state": "restore_pending"}', encoding="utf-8")
+        self.assertFalse(self.evaluate_record("wu", [])["passed"])
+        journal.write_text('{"state": "verified"}', encoding="utf-8")
+        self.data["meta"]["run_id"] = "20261121-144900-deadbeef"
+        self.report.write_text(json.dumps(self.data), encoding="utf-8")
+        run["report_sha256"] = digest(self.report)
+        self.assertFalse(self.evaluate_record("wu", [])["passed"])
 
     def test_report_command_in_option_value_cannot_match_different_execution(self):
         self.data["meta"]["command"] = 'exe --config "run-wf14" run-wf13 --select run-wf14'

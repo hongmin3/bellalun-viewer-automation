@@ -23,6 +23,7 @@ import ctypes.wintypes as w
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -305,6 +306,29 @@ def suite_environment(base):
     return dict(base, PYTHONIOENCODING="utf-8", **{UNATTENDED_ENV: "1"})
 
 
+def supervised_receipt(workspace, log_path, action, exit_code):
+    """Identify the product run from this launch's stdout before reading run.json."""
+    try:
+        matches = re.findall(r"^실행 번호:[ \t]+([0-9]{8}-[0-9]{6}-[0-9a-f]{8})\b",
+                             Path(log_path).read_text(encoding="utf-8"), re.MULTILINE)
+        if len(matches) != 1 or exit_code not in (0, 1):
+            return None
+        run_id = matches[0]
+        path = Path(workspace).resolve() / "Runs" / run_id / "run.json"
+        if path.resolve(strict=True) != path:
+            return None
+        content = path.read_bytes()
+        record = json.loads(content)
+        if (record.get("run_id") != run_id or record.get("action") != action
+                or record.get("status") != "completed" or type(record.get("exit_code")) is not int
+                or record["exit_code"] != exit_code or not record.get("ended")):
+            return None
+        return {"run_id": run_id, "sha256": hashlib.sha256(content).hexdigest(),
+                "record": record}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return None
+
+
 def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, expected_tcs=(),
               restore_after=None, prepared=False):
     """설치판 EXE 로 한 전체 실행을 수행하고 결과 근거를 모은다."""
@@ -339,6 +363,12 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
               "minutes": round((time.time() - started) / 60, 1),
               "log": str(log_path), "log_sha256": sha256(log_path),
               "report": report, "completed": bool(report)}
+    if command in ("run-regression", "run-winupdate", COMBINED_COMMAND, SELECTED_COMMAND):
+        action = "run-winupdate" if command == COMBINED_COMMAND else (
+            "run-regression" if command == SELECTED_COMMAND else command)
+        receipt = supervised_receipt(workspace, log_path, action, proc.returncode)
+        if receipt:
+            result["supervisor"] = {"run_id": receipt["run_id"], "sha256": receipt["sha256"]}
     if report:
         result["report_sha256"] = sha256(report["path"])
         meta, rows = _report_rows(report["path"])

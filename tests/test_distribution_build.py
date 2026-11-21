@@ -141,6 +141,16 @@ class DistributionBuildTests(unittest.TestCase):
                 with self.subTest(kind=kind, duplicate=duplicate), self.assertRaises(ValueError):
                     self.validate(data)
 
+    def test_development_version_reaches_exe_and_keeps_display_release_path(self):
+        version = '1.0.0.(001)'
+        command = self.builder.nuitka_command(ROOT, self.home, version)
+        self.assertIn('--file-version=1.0.0.1', command)
+        self.assertIn('--product-version=1.0.0.1', command)
+        self.assertEqual(self.builder.release_destination(version, self.home).name, version)
+        for invalid in ('1.0.0.(000)', '1.0.0.(1)', '1.0.0.(001)/other'):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                self.builder.release_destination(invalid, self.home)
+
     def test_build_preflight_includes_pytest_function_tests(self):
         commands = self.builder.preflight_commands(ROOT)
         self.assertIn([sys.executable, '-m', 'pytest', 'tests', '-q'], commands)

@@ -19,6 +19,11 @@ import sys
 import tempfile
 import zipfile
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from bellalunauto.versioning import DISPLAY_VERSION, windows_version
+
 MARKER = '게이트-미통과-후보.txt'
 MANIFEST = 'SHA256SUMS.txt'
 GUIDE = '사용안내.txt'
@@ -78,7 +83,7 @@ def _inspect_release(release):
         raise ValueError('build-info 또는 manifest 누락')
     # 파일명 allowlist를 먼저 적용해 민감한 추가 파일은 읽지 않는다.
     preliminary = {'build-info.json', MANIFEST, MARKER}
-    if any(n not in preliminary and not re.fullmatch(r'BellalunAuto-\d+\.\d+\.\d+(?:-candidate)?-setup\.exe', n)
+    if any(n not in preliminary and not re.fullmatch(rf'BellalunAuto-{DISPLAY_VERSION}(?:-candidate)?-setup\.exe', n)
            for n in names):
         raise ValueError('허용되지 않은 추가 릴리즈 파일')
     hashes = _parse_manifest((release / MANIFEST).read_text(encoding='utf-8-sig'), names - {MANIFEST})
@@ -99,8 +104,9 @@ def _inspect_release(release):
         status = gate['status']
     except (KeyError, TypeError, json.JSONDecodeError) as error:
         raise ValueError('build-info 필수 메타데이터 누락·형식 오류') from error
-    if not isinstance(version, str) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
-        raise ValueError('잘못된 버전')
+    numeric = windows_version(version)
+    if '.(' in version and (info.get('windows_version') != numeric or passed is not False):
+        raise ValueError('개발 검증판 숫자형 버전·후보 상태 불일치')
     if release.name != version:
         raise ValueError('release 폴더명과 버전 불일치')
     if (not isinstance(app_hash, str) or not HASH.fullmatch(app_hash)

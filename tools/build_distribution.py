@@ -22,6 +22,10 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from bellalunauto.versioning import windows_version
+
 PYTHON_VERSION = '3.12.10'
 INNO_VERSION = '6.7.3'
 TK_VERSION = '8.6.15'
@@ -178,14 +182,15 @@ def audit_distribution(directory):
 
 def nuitka_command(root, output, version):
     root, output = Path(root), Path(output)
+    numeric = windows_version(version)
     command = [sys.executable, '-m', 'nuitka', '--mode=standalone', '--mingw64', '--jobs=2',
                '--assume-yes-for-downloads', '--enable-plugin=tk-inter',
                '--windows-console-mode=attach', '--output-filename=BellalunAuto.exe',
                f'--output-dir={output}', f'--report={output / "nuitka-report.xml"}',
                '--include-module=run', '--include-package=core', '--include-package=bellalunauto',
                '--nofollow-import-to=tests.test_*', '--company-name=Bellalun QA',
-               '--product-name=BellalunAuto', f'--file-version={version}',
-               f'--product-version={version}']
+               '--product-name=BellalunAuto', f'--file-version={numeric}',
+               f'--product-version={numeric}']
     for path in sorted((root / 'tests').glob('*.py')):
         if path.name != '__init__.py' and not path.stem.startswith('test_'):
             command.append(f'--include-module=tests.{path.stem}')
@@ -466,8 +471,7 @@ def write_candidate_marker(directory, gate):
 
 
 def release_destination(version, release_root=None):
-    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
-        raise ValueError('릴리즈 버전 형식이 올바르지 않습니다.')
+    windows_version(version)
     base = Path(release_root) if release_root is not None else ROOT / 'release'
     _not_link(base.absolute())
     target = base.absolute() / version
@@ -489,7 +493,7 @@ def publish_release(output, version, artifacts, *, release_root=None):
         _not_link(file)
         if file.parent != output or not file.is_file():
             raise ValueError('작업 폴더의 릴리즈 파일만 옮길 수 있습니다.')
-    target.mkdir(parents=True, exist_ok=True)
+    target.mkdir(parents=True)
     for file in files:
         shutil.move(str(file), str(target / file.name))
     return target
@@ -501,6 +505,8 @@ def build(args):
         sys.path.insert(0, str(root))
     from bellalunauto import __version__
     release_destination(__version__)  # fail before expensive compilation
+    if '.(' in __version__ and args.skip_compile:
+        raise ValueError('개발 검증판에는 새 EXE 컴파일이 필요합니다.')
     output = Path(args.output).expanduser().absolute()
     # Require a fresh location: never delete or merge pre-existing private outputs.
     if output.exists() and any(output.iterdir()):
@@ -524,8 +530,12 @@ def build(args):
     commit = subprocess.check_output([git, 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     dirty = bool(subprocess.check_output([git, 'status', '--porcelain'], cwd=root, text=True).strip())
     # 정식 빌드 전에 릴리스 게이트를 판정한다. 미통과·미지정이면 후보로만 만든다.
-    gate = _release_gate().gate_for_build(getattr(args, 'gate_wu', None),
+    gate_tool = _release_gate()
+    gate = gate_tool.gate_for_build(getattr(args, 'gate_wu', None),
                                           getattr(args, 'gate_basic', None), commit, dirty)
+    if '.(' in __version__:
+        gate.update(status='candidate', label=gate_tool.GATE_LABEL_CANDIDATE, passed=False)
+        gate['reasons'].append('개발 검증판은 내부 후보로 빌드합니다.')
     print(f"릴리스 게이트: {gate['label']}")
     for reason in gate['reasons']:
         print(f'  - {reason}')
@@ -556,7 +566,9 @@ def build(args):
     audit_distribution(distribution)
     versions['c_compiler'] = provenance['compiler']
     versions['tcl_tk'] = tk_provenance(distribution)
-    info = {'schema_version': 1, 'version': __version__, 'source_commit': commit,
+    numeric = windows_version(__version__)
+    info = {'schema_version': 1, 'version': __version__, 'windows_version': numeric,
+            'source_commit': commit,
             'source_dirty': dirty, 'built_at_utc': datetime.now(timezone.utc).isoformat(),
             'target_os': ['Windows 10 x64', 'Windows 11 x64'],
             'build_host_os': {'platform': platform.platform(), 'version': platform.version()},
@@ -575,7 +587,7 @@ def build(args):
     _write_json(output / 'build-info.json', info)
     write_candidate_marker(output, gate)
     installer_name = installer_filename(__version__, gate)
-    run_checked([str(Path(args.iscc).absolute()), f'/DAppVersion={__version__}',
+    run_checked([str(Path(args.iscc).absolute()), f'/DAppVersion={__version__}', f'/DAppWindowsVersion={numeric}',
                  f'/DSourceDir={distribution}', f'/DOutputDir={output}',
                  str(root / 'packaging/BellalunAuto.iss')], log_path=output / 'installer.log')
     installer = output / f'BellalunAuto-{__version__}-setup.exe'

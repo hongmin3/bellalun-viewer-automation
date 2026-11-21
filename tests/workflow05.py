@@ -34,9 +34,8 @@ def workflow_05(ctx):
 
     그중 **실제로 수신되는 것은 Recon뿐**이다. 사양서 599쪽이 "3D 영상은 Recon
     영상이 전송된다"고 명문으로 정한다(근거 전체는 `sv.SENDABLE_3D_TYPES` 주석).
-    그래서 Raw/Syn 미수신은 FAIL이 아니고, 판정은 "사양이 정한 대상이 누락 없이
-    왔는가"로 한다. 제품이 나중에 Raw/Syn도 보내게 바뀌면 `db_3d_types` /
-    `received_types` 기록으로 드러난다.
+    같은 검사에서 Raw/Syn이 신규 Queue에 들어가거나 SCP에 새로 수신되면 실패다.
+    2D와 Dose SR은 이 3D 인스턴스 판정에서 제외한다.
     """
     r = TCResult("TC_Basic_WorkFlow_05", "3D 수동 DICOM Send")
     patient_id = (ctx.cfg.get("xipl") or {}).get(
@@ -90,7 +89,8 @@ def workflow_05(ctx):
             expected_uids |= by_type.get(t, set())
         outcome = sv.send_and_verify(ctx, ui, r, patient_id, scope="all",
                                    expect_count=None, wait=120,
-                                   study_key=session["study_key"])
+                                   study_key=session["study_key"],
+                                   fresh_image_types=sv.SENDABLE_3D_TYPES)
         if outcome is None:
             return r
         r.assert_true(
@@ -100,13 +100,12 @@ def workflow_05(ctx):
             actual=outcome,
             note="개정본 Expected 2.")
 
-        # 수신 객체를 InstanceType으로 되짚어 어떤 3D 종류가 왔는지 남긴다.
-        # 지역 변수다. `sv.received` 에 대입하면 모듈 함수를 리스트로 덮어써서
-        # 다음 TC 가 `'list' object is not callable` 로 죽는다(2026-08-19 회귀 16차).
-        received = sv.received(ctx, patient_id,
-                               study_uids=identity["study_uids"])
-        received_uids = {o.get("SOPInstanceUID") for o in received
-                         if o.get("SOPInstanceUID")}
+        received_uids = set(outcome["received_image_uids"])
+        queued_uids = set(outcome["queue_observed_uids"])
+        not_sendable = set().union(*(by_type.get(t, set())
+                                     for t in (sv.INSTANCE_RAW, sv.INSTANCE_SYN)))
+        unexpected_3d = {"queue": sorted(queued_uids & not_sendable),
+                         "received": sorted(received_uids & not_sendable)}
         uid_to_type = {}
         for t, uids in by_type.items():
             for u in uids:
@@ -116,25 +115,20 @@ def workflow_05(ctx):
         missing = expected_uids - received_uids
         r.assert_true(
             4, "Storage SCP에서 전송 대상 3D 객체 수신 확인",
-            bool(expected_uids) and not missing,
+            bool(expected_uids) and not missing and not any(unexpected_3d.values()),
             expected={"declared_3d_types": [sv.INSTANCE_NAMES[t]
                                             for t in sv.SENDABLE_3D_TYPES],
-                      "objects": len(expected_uids)},
-            actual={"received_total": len(received),
+                      "objects": len(expected_uids), "unexpected_3d": 0},
+            actual={"received_total": outcome["received_objects"],
                     "received_types": [sv.INSTANCE_NAMES.get(t, t)
                                        for t in received_types],
-                    "received_sop_classes": sorted(
-                        {o.get("SOPClassUID") for o in received}),
+                    "received_sop_classes": outcome["received_sop_classes"],
                     "db_3d_types": {sv.INSTANCE_NAMES[t]: n
                                     for t, n in db_3d.items()},
-                    "declared_missing": sorted(missing)},
-            note="개정본 Expected 4(전송 대상 3D 객체가 누락 없이 수신). 전송 "
-                 "대상에는 Raw/Recon/Syn을 모두 포함했지만, **사양서 599쪽"
-                 "(SRS 06-30-30 문맥)이 \"3D 영상은 Recon 영상이 전송된다\"고 "
-                 "명시**한다. DICOM Conformance Statement도 For Processing(Raw)을 "
-                 "선언하지 않으며, 실측도 Recon만 수신됨을 확인했다. 따라서 "
-                 "Raw/Syn 미수신은 결함이 아니다. 제품이 바뀌면 received_types로 "
-                 "드러난다.")
+                    "declared_missing": sorted(missing),
+                    "unexpected_3d": unexpected_3d},
+            note="R-23-2346 Basic Function Checklist K16:L16 및 R-25-782 Checklist H12:I12. "
+                 "신규 Queue와 해당 검사 SCP의 전송 전후 영상 SOP를 비교한다.")
 
         # --- 3D-N / 3D-W 구분 (픽스처 확장, 2026-08-26) --------------------
         #

@@ -1,3 +1,4 @@
+import os
 """Preview 준비와 렌더 지연을 실제 TC 경로에서 재현한다(UI/DB 입력 없음)."""
 from contextlib import ExitStack
 from pathlib import Path
@@ -101,6 +102,7 @@ class PreviewReadinessTests(unittest.TestCase):
             stack.enter_context(patch.object(flow.time, "sleep", side_effect=clock.sleep))
             stack.enter_context(patch.object(flow.time, "monotonic", side_effect=lambda: clock.now))
             stack.enter_context(patch.object(flow.time, "perf_counter", side_effect=lambda: clock.now))
+            stack.enter_context(patch.object(flow, "_verify_cancel_2d"))
             result = flow.compatibility_02(ctx, {"ui": ui, "step_2d": 1})
             events["finished"] = clock.now
             preview_path = Path(root) / "Viewer_XIPL" / "TC_XIPL_compatibility_02_preview.png"
@@ -108,6 +110,49 @@ class PreviewReadinessTests(unittest.TestCase):
                 with Image.open(preview_path) as image:
                     events["saved_pixel"] = image.getpixel((100, 100))
         return result, events
+
+    def test_cancel_2d_detects_same_size_file_change(self):
+        from core.result import StepFailed, TCResult
+        from unittest.mock import Mock
+        with TemporaryDirectory() as root, ExitStack() as stack:
+            target = Path(root) / "Image2.img"
+            target.write_bytes(b"before")
+            actions = Path(root) / "Image" / "ImageAction"
+            actions.mkdir(parents=True)
+            action = actions / "Image2.bin"
+            action.write_bytes(b"saved")
+            stack.enter_context(patch.object(flow.imginfo, "instance_image_path", return_value=str(target)))
+            row = {"Key": 2, "ImageInstanceUID": "1.2.2", "ContentDate": "20261121", "ContentTime": "150000"}
+            ui = Mock()
+            cfg = {"data_dir": root}
+            ctx = SimpleNamespace(cfg=cfg, evidence_root=root, db=Mock())
+            ctx.db.query.return_value = [row]
+            session = {"study_key": 11, "ui": ui}
+            for name in ("capture", "shift_slider", "read_2d_parameter_state"):
+                stack.enter_context(patch.object(vp, name))
+            vp.read_2d_parameter_state.return_value = {"Contrast": 12}
+            preview = stack.enter_context(patch.object(flow, "_wait_2d_preview"))
+            preview.return_value = {"delta": {"changed_ratio": .05}, "cancel_enabled": True}
+            cancel = stack.enter_context(patch.object(vp, "cancel_window", return_value=True))
+            ui.by_id.return_value = [SimpleNamespace(visible=True)]
+            baseline = {"Contrast": 16}
+            r = TCResult("test", "cancel")
+            flow._verify_cancel_2d(ctx, session, r, baseline, [str(action)])
+            self.assertEqual(PASS, r.checks[-1].status)
+            cancel.assert_called_once_with(ui, require_visible=True)
+
+            def cancel_with_write(_ui, *, require_visible):
+                self.assertTrue(require_visible)
+                keep = action.stat()
+                action.write_bytes(b"other")
+                os.utime(action, ns=(keep.st_atime_ns, keep.st_mtime_ns))
+                return True
+
+            cancel.side_effect = cancel_with_write
+            broken = TCResult("test", "cancel changed file")
+            with self.assertRaises(StepFailed):
+                flow._verify_cancel_2d(ctx, session, broken, baseline, [str(action)])
+            self.assertEqual("FAIL", broken.checks[-1].status)
 
     def test_parameter_log_before_enabled_and_render_does_not_capture_early(self):
         result, events = self.run_flow()

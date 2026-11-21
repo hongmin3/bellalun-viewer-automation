@@ -384,6 +384,7 @@ def wait_queue_registered(ctx, before, wait=30, poll=1.0, *,
     """
     end = time.time() + wait
     added, last, stable = [], None, 0
+    observed_uids = set()
     expected = set(expected_uids or ())
     source = set(source_uids) if source_uids is not None else None
     while True:
@@ -398,7 +399,9 @@ def wait_queue_registered(ctx, before, wait=30, poll=1.0, *,
         stable = stable + 1 if added and added == last else 0
         missing = expected - seen
         if diagnostics is not None:
+            observed_uids.update(uid for uid in seen if uid)
             diagnostics.update(queue_observed_at=storagescp.observation()["observed_at"],
+                               queue_observed_uids=sorted(observed_uids),
                                queue_rows_observed=len(new_rows), queue_rows_correlated=len(related),
                                queue_expected_images=len(expected), queue_missing_images=len(missing),
                                queue_registration_settled=bool(added) and not missing and stable >= settle_rounds)
@@ -428,6 +431,7 @@ def wait_queue_settled(ctx, keys, wait=60, poll=1.5, *, before=None,
     if not keys:
         return {}
     wanted = set(keys)
+    observed_uids = set(diagnostics.get("queue_observed_uids", ())) if diagnostics is not None else set()
     end = time.time() + wait
     states, last, stable = {}, None, 0
     while True:
@@ -445,7 +449,10 @@ def wait_queue_settled(ctx, keys, wait=60, poll=1.5, *, before=None,
         stable = stable + 1 if current == last else 0
         complete = all(states.get(k) == QUEUE_STATE_DONE for k in wanted)
         if diagnostics is not None:
-            diagnostics.update(queue_final_count=len(wanted), queue_all_done=complete)
+            observed_uids.update(row["InstanceUID"] for row in rows
+                                 if int(row["Key"]) in wanted and row.get("InstanceUID"))
+            diagnostics.update(queue_final_count=len(wanted), queue_all_done=complete,
+                               queue_observed_uids=sorted(observed_uids))
         if complete and (before is None or stable >= settle_rounds):
             return states
         if time.time() >= end:
@@ -457,7 +464,7 @@ def wait_queue_settled(ctx, keys, wait=60, poll=1.5, *, before=None,
 def send_and_verify(ctx, ui, r, patient_id, scope="selected",
                      expect_count=None, expect_types=None, wait=90,
                      step_queue=3, step_receive=4, step_tags=5, sender=None,
-                     study_key=None):
+                     study_key=None, fresh_image_types=()):
     """전송 1회를 수행하고 개정본 Step 3~5를 각각 판정한다.
 
     개정본 `TC_Basic_WorkFlow_04`의 Expected는 세 가지를 따로 요구한다.
@@ -479,7 +486,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     evidence = {}
     cleared = clear_received(ctx)
     before_uids = set()
-    if cleared is None and expect_count is not None:
+    if fresh_image_types or (cleared is None and expect_count is not None):
         try:
             before_uids = {o.get("SOPInstanceUID")
                            for o in received(ctx, patient_id,
@@ -489,6 +496,14 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
             r.add(step_receive, "Storage SCP 전송 전 수신 관측", FAIL,
                   expected="전송 전 정상 수신 조회", actual=exc.diagnostics)
             return None
+    prior_required_uids = before_uids & set().union(
+        *(identity["by_type"].get(t, ()) for t in fresh_image_types))
+    if prior_required_uids:
+        r.blocked(step_receive, "이번 전송 수신을 식별할 새 시험 검사 확인",
+                  note="이전 수신과 재전송을 구별할 수 있는 새 SOP가 필요합니다.",
+                  expected="시험 대상 Recon의 전송 전 수신 기록 없음",
+                  actual={"already_received": sorted(prior_required_uids)})
+        return None
     before_queue = queue_keys(ctx)
     try:
         # `sender` 를 주면 그 경로로 보낸다. **Dose SR 을 보는 TC 는 반드시
@@ -634,7 +649,9 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
                  "설정된 Station Name을 사용한다\". **MWL 오더의 값이 여기 나오면 "
                  "사양 위반이다.**")
 
-    detail.update({"queue_added": new_queue, "tag_mismatch": mismatch})
+    detail.update({"queue_added": new_queue, "tag_mismatch": mismatch,
+                   "queue_observed_uids": queue_evidence.get("queue_observed_uids", []),
+                   "received_image_uids": sorted(got["SOPInstanceUID"] - before_uids)})
     if expect_types is not None:
         detail["instance_types_in_db"] = {
             k: len(v) for k, v in sorted(identity["by_type"].items())}

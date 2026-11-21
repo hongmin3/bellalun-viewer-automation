@@ -291,6 +291,60 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 #### 관련 테스트
 TEST-TRACE-001, `tests/test_result_reports.py`.
 
+### REQ-OFFICIAL-001 공식 체크리스트 단계 원장
+
+공용 QA의 유효한 R-23-2346 기본기능과 R-25-782 Windows Update 호환성 원본을
+파일명·SHA-256·시트·행·셀·셀 내부 줄 번호로 식별한다. 공식 WF는 Basic Function Checklist
+2~70행과 Screening Test 11~20행, WU는 Checklist 6~18행을 대상으로 한다. 숨김 행은
+적용 범위에 넣고, 명시적 취소선과 그 밖의 적용 미확정은 원문 위치에서 판별한다.
+이전 결과 열과 WU Summary의 문서 식별 정보는 현재 시험 단계에서 제외한다.
+
+원장은 TC ID 또는 시트·행, 선행조건, 조작, 기대 결과, 분기·보충 줄을 남긴다.
+원문 번호가 다르거나 번호가 없는 Expected는 해석 대기로 남겨 근거 없이 Step과 짝짓지 않는다.
+#191의 행 단위 대조와 연결할 때 원본의 판·행·숨김 상태를 확인한다. 기준선과 새 판정은 서로 다른
+필드에 저장한다. 각 적용 단계의 실제 조작, 관찰, 실패 대조, 판정과 원상복원 증거를 새 실행에 연결한다.
+근거가 없는 단계는 미검증이며, 부분·수동·SKIP 및 과거 결과는 신규 완전 검증 집계에서 제외한다.
+
+1.0.0 공식 범위의 수용에는 이번 설치판의 버전·커밋과 감독 실행 ID, 원본 보고서 SHA-256,
+모든 적용 단계의 판정 및 원상복원 증거를 대조한다. 개정본 TC의 같은 번호나 전체 PASS 수로
+공식 원장의 빈 증거를 채우지 않는다. 자료 생성 도구는 시험을 시작하거나 결과를 변경하지 않는다.
+
+관련 구현과 정적 시험은 12절에 둔다. 설치판 실측과 독립 수용 시험은 구현 진척에 따라 연결한다.
+
+### REQ-OFFICIAL-002 3D DICOM Send의 Recon 판정
+
+R-23-2346 Basic Function Checklist K16:L16과 R-25-782 Checklist G12:I12의
+3D 영상 전송 기준은 Recon이다. 이 검사에 연결된 3D 원본 SOP 중 Recon은 모두
+수신해야 한다. Raw 또는 Syn이 이번 Queue에 등록되거나 새로 수신되면 FAIL이다.
+전송 전 해당 Recon이 이미 SCP에 있으면 새 수신을 구별할 수 없어 시험을 차단한다.
+기존 2D와 Dose SR의 판정 및 다른 검사 범위는 각각 보존한다.
+현행 개정본 WF05의 실제 Queue 신규 Key 및 같은 SCP 수신 스캔에서 판정한다.
+
+Examine·View·Examined 각각의 Selected/All 전송과 Recon이 없는 시험 검사의
+미전송은 별도 증거가 필요하다. 이 요구의 단위시험은 제품 실측을 대신하지 않는다.
+
+### REQ-OFFICIAL-003 개발 검증판 버전 식별
+
+첫 개발 검증판의 표시 버전은 `1.0.0.(001)`, Windows 파일·제품 숫자형 버전은
+`1.0.0.1`이다. 개발 번호는 001~999이며 같은 표시 버전의 기존 산출물을 덮어쓰지
+않는다. Setup 표시, EXE GUI/CLI, build-info와 실시간 보고서에 동일한 표시 버전을
+반영한다. build-info와 실시간 보고서는 숫자형 버전도 기록한다. 설치판 게이트는 이
+두 값이 일치하는지 확인한다. 단독 전체 WF·WU는 실행 로그의 감독 번호와
+완료 기록 해시, 계획 ID, 커밋, 실행 시각 및 원본 보고서 번호·해시를 함께 대조한다.
+원상복원 증거는 감독과 보고서에서 일치해야 한다. 파일·DB·서비스와 WU의 USB 복원을 확인하고
+검증 일지가 완료돼 있으며 복원 대기가 없을 때 통과한다.
+이전 정식 형식의 ZIP과 보관 기록도 계속 읽는다.
+검증판 이름은 내부 후보를 가리킨다. 정식 배포 승인과 공식 단계 수용은 기존 승인 절차를 따른다.
+
+### REQ-OFFICIAL-004 2D Preview 취소 검증
+
+공식 R-23-2346 Basic Function Checklist K30:L30과 R-25-782 Checklist H9:I9의
+Cancel 분기를 XIPL02의 2D Image Processing에 추가한다. 동일 시험 영상에 Apply가 만든
+저장 결과를 기준으로 잡고, 한 파라미터를 다시 바꿔 Preview 완료와 영상 변화를 확인한다.
+Cancel을 조작한 후 처리 창 닫힘·동일 영상 DB 식별·원본 영상과 ImageAction 파일의
+목록·내용이 이전과 같아야 한다. 저장 결과나 관찰값을 확보하지 못하면 PASS를 기록하지 않는다.
+Apply가 생성한 결과와 Cancel이 보존한 결과는 별도 판정으로 남긴다. 3D는 별개의 분기다.
+
 ### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
 
 #### 목적
@@ -1595,6 +1649,10 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-003 | `tools/build_distribution.py`, `tools/check_regression_names.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py`, `tests/test_regression_names_check.py` | verified |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | verified |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
+| REQ-OFFICIAL-001 | `tools/official_checklist_ledger.py` | `tests/test_official_checklist_ledger.py` | implemented |
+| REQ-OFFICIAL-002 | `core/send_verify.py`, `tests/workflow05.py` | `tests/test_send_recovery.py` | implemented |
+| REQ-OFFICIAL-003 | `bellalunauto/versioning.py`, `run.py`, `tools/build_distribution.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `tools/release_zip.py`, `packaging/BellalunAuto.iss` | `tests/test_distribution_build.py`, `tests/test_release_zip.py`, `tests/test_installed_release_gate.py`, `tests/test_installed_suites.py` | implemented |
+| REQ-OFFICIAL-004 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_preview_readiness.py`, `tests/test_process_window_wait.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
