@@ -948,6 +948,97 @@ def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
         stop=False)
 
 
+def _verify_cancel_3d(ctx, session, result, mode, step, group_key, geometry, timeout):
+    ui, study_key = session["ui"], session["study_key"]
+    before = _result_state(ctx, study_key, group_key)
+    rows = before["instances"]
+    result.assert_true(
+        11, f"{mode} Cancel 전 Recon/Syn 기준 확인",
+        {int(row["InstanceType"]) for row in rows} == {2, 3}
+        and all(row.get("ImageInstanceUID") for row in rows)
+        and len(before["files"]) == len(rows),
+        expected="같은 Group의 Recon/Syn DB 식별자와 모든 파일 해시",
+        actual={"group": group_key, **before})
+
+    vp.select_3d_raw(ui, step)
+    vp.open_post_reconstruction(ui)
+    parameter = vp.select_test_parameter(ui, "TEST_3D_FLOW.xtp")
+    selected = _ev(ctx, f"TC_XIPL_compatibility_03_cancel_{mode}_before.png")
+    vp.capture(selected)
+    result.attach(selected)
+    original = _read_state_retry(vp.read_3d_parameter_state, ui)["Recon.Brightness"]
+    vp.shift_slider(ui, 2045, "-" if original >= 10 else "+", 24)
+    edited = _read_state_retry(vp.read_3d_parameter_state, ui)["Recon.Brightness"]
+    result.assert_true(
+        11, f"{mode} Cancel용 Preview 밝기 변경", edited != original,
+        expected="원래와 다른 Recon Brightness", actual={"before": original, "edited": edited})
+
+    mark = _viewer_log_mark(ctx)
+    initialization = re.compile(
+        rf"Initialize Reconstruction\.\s*\(\s*{re.escape(geometry)}\s*,\s*"
+        rf"{re.escape(parameter)}\s*,", re.I)
+    preview = _ev(ctx, f"TC_XIPL_compatibility_03_cancel_{mode}_preview.png")
+
+    def ready(allow_below_threshold=False):
+        done, reason, detail = _post_recon_preview_ready(mark, ui)
+        detail["geometry_and_parameter"] = bool(initialization.search(_viewer_log_since(mark)))
+        vp.capture(preview)
+        detail["delta"] = _preview_delta(selected, preview)
+        visual_change = detail["delta"]["changed_ratio"] >= .005
+        confirmed = done and detail["geometry_and_parameter"] and not detail["errors"]
+        return confirmed and (visual_change or allow_below_threshold), reason, detail
+
+    prior_incomplete = getattr(ctx, "execution_incomplete", False)
+    prior_block = getattr(ctx, "execution_block", None)
+    ctx.execution_incomplete = True
+    ctx.execution_block = {"tc_id": result.tc_id, "causes": [{
+        "kind": "processing_completion_unconfirmed", "detail": f"{mode} Cancel Preview"}]}
+    ui.click([c for c in ui.by_id(vp.PREVIEW) if c.visible and c.enabled][0], settle=1)
+    try:
+        completion = _poll_completion(result, f"{mode} Cancel Preview", ready, timeout,
+                                      on_timeout=lambda: ready(allow_below_threshold=True))
+    finally:
+        if Path(preview).is_file():
+            result.attach(preview)
+    ctx.execution_incomplete = prior_incomplete
+    ctx.execution_block = prior_block
+    result.assert_true(
+        11, f"{mode} Cancel 직전 Preview 완료와 영상 변화 확인",
+        completion["delta"]["changed_ratio"] >= .005,
+        expected="선택한 모드의 완료 로그와 처리 영상 변화율 >= 0.005",
+        actual={"completion": completion, "group": group_key})
+
+    closed = vp.cancel_window(ui, require_visible=True)
+    after = _result_state(ctx, study_key, group_key)
+    result.assert_true(
+        11, f"{mode} Preview Cancel 후 Recon/Syn 저장 상태 보존",
+        closed is True and before == after,
+        expected="Cancel 동작과 창 닫힘, 동일 Group의 Recon/Syn DB 및 파일 해시 보존",
+        actual={"group": group_key, "window_closed": closed, "before": before, "after": after},
+        note="R-23-2346 K31:L31 및 R-25-782 H10:I10의 3D Cancel 분기.")
+
+
+def _verify_3d_cancel_modes(ctx, session, result, timeout):
+    groups = vp.acquired_groups(ctx.db, session["study_key"])
+    raw_groups = [row["GroupKey"] for row in session["instances"]
+                  if int(row["InstanceType"]) == 1 and row.get("ImageInstanceUID")]
+    modes = [("3D-N", "step_3d", 1, "narrow_standard.egp")]
+    if (ctx.cfg.get("test_data") or {}).get("include_3d_wide", True) or session.get("step_3d_w"):
+        modes.append(("3D-W", "step_3d_w", 2, "wide_standard.egp"))
+    else:
+        result.add(11, "3D-W Preview Cancel", SKIP, expected="3D-W 시험 검사",
+                   actual="승인된 설정에서 3D-W 픽스처를 끈 실행")
+    for mode, step_name, exposure, geometry in modes:
+        keys = [key for key in raw_groups if key in groups
+                and int(groups[key]["ExposureMode"]) == exposure]
+        step = session.get(step_name)
+        result.assert_true(
+            11, f"{mode} Cancel 시험 Group 확인", bool(step) and len(keys) == 1,
+            expected="해당 모드의 UI 단계와 유일한 Raw Group",
+            actual={"step": step, "identified_groups": keys, "exposure_mode": exposure})
+        _verify_cancel_3d(ctx, session, result, mode, step, keys[0], geometry, timeout)
+
+
 def compatibility_03(ctx, session):
     r = TCResult("TC_XIPL_compatibility_03", "Viewer 3D Post Reconstruction")
     ui = session["ui"]
@@ -1165,7 +1256,9 @@ def compatibility_03(ctx, session):
         overlays = _collect_post_recon_overlays(ctx, ui, 'after_restart')
         _record_post_recon_applied(r, baseline_state, restart_controls, changed_state,
                                    name, restart_name, restart_state, restart_saved, 'after_restart', overlays)
-        vp.cancel_window(ui)
+        if not vp.cancel_window(ui):
+            raise RuntimeError("3D Apply 대조 창이 닫히지 않아 Cancel 시험을 시작할 수 없습니다.")
+        _verify_3d_cancel_modes(ctx, session, r, preview_limit)
     except Exception as exc:
         if not getattr(ctx, 'execution_block', None):
             vp.cancel_window(ui)

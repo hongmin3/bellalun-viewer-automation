@@ -1,5 +1,9 @@
 # Changelog
 
+## 개발 — 3D Preview 취소 검증 (2026-11-22)
+
+- REQ-OFFICIAL-005: XIPL03에 3D-N·3D-W Preview Cancel과 동일 Group의 Recon/Syn DB·파일 비교를 추가했다. 개발 검증판 번호는 `1.0.0.003`이다.
+
 ## 개발 — 2D Preview 대기와 취소 검증 (2026-11-22)
 
 - REQ-OFFICIAL-004: 화면 변화량이 기준에 미달한 안정 프레임에서 Preview 대기를 조기 종료하던 동작을 수정했다. 취소 재검증에서 대비를 더 크게 변경한다. 개발 검증판 번호는 `1.0.0.002`다.

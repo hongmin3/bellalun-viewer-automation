@@ -5,7 +5,7 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 개발 검증판 1.0.0.002, 정식 기준 1.0.0 |
+| Project Version | BellalunAuto 개발 검증판 1.0.0.003, 정식 기준 1.0.0 |
 | Last Updated | 2026-11-22 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
@@ -351,6 +351,14 @@ Cancel을 조작한 후 처리 창 닫힘·동일 영상 DB 식별·원본 영�
 처리 로그와 버튼이 준비돼도 처리 영상의 변화량이 기준에 못 미치면 기존 제한 시간까지
 관찰한다. 변화량 기준과 연속 안정 프레임 조건을 모두 충족한 뒤 Cancel을 수행한다.
 Apply가 생성한 결과와 Cancel이 보존한 결과는 별도 판정으로 남긴다. 3D는 별개의 분기다.
+
+### REQ-OFFICIAL-005 3D Preview 취소 검증
+
+R-23-2346 K31:L31 및 R-25-782 H10:I10의 Cancel을 XIPL03에서 확인한다.
+3D-N과 3D-W 각각에서 시험 단계와 Raw Group을 확인하고, 같은 Group의 Recon/Syn DB 식별자와
+파일 해시를 읽는다. 해당 촬영 모드와 파라미터의 Preview 완료 로그, 활성 버튼, 화면 변화를
+확인한 뒤 Cancel을 누른다. 창이 닫히고 기존 Recon/Syn DB·파일이 보존돼야 한다.
+Apply가 정상 저장과 재시작 후 결과를 변경하는 기존 판정은 별도로 기록한다.
 
 ### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
 
@@ -1660,6 +1668,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OFFICIAL-002 | `core/send_verify.py`, `tests/workflow05.py` | `tests/test_send_recovery.py` | implemented |
 | REQ-OFFICIAL-003 | `bellalunauto/__init__.py`, `bellalunauto/versioning.py`, `run.py`, `tools/build_distribution.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `tools/release_zip.py`, `packaging/BellalunAuto.iss` | `tests/test_distribution_build.py`, `tests/test_release_zip.py`, `tests/test_installed_release_gate.py`, `tests/test_installed_suites.py` | implemented |
 | REQ-OFFICIAL-004 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_preview_readiness.py`, `tests/test_process_window_wait.py` | implemented |
+| REQ-OFFICIAL-005 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_xipl_post_recon.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |

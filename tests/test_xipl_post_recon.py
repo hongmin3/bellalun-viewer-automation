@@ -20,6 +20,84 @@ OVERLAYS = {
 }
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong_geometry', 'changed_file', 'closed_before_cancel'])
+def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path, monkeypatch, fault):
+    from core.result import StepFailed
+    from unittest.mock import Mock
+    ui = SimpleNamespace(
+        by_id=lambda _: [SimpleNamespace(visible=True, enabled=True)],
+        click=Mock(),
+    )
+    ctx = SimpleNamespace(cfg={'data_dir': str(tmp_path)}, evidence_root=str(tmp_path))
+    result = TCResult('test', '3D Cancel')
+    rows = [{'Key': 84, 'InstanceType': 2, 'ImageInstanceUID': '1.2.84'},
+            {'Key': 85, 'InstanceType': 3, 'ImageInstanceUID': '1.2.85'}]
+    before = {'instances': rows, 'files': {'Image84.img': {'sha256': 'recon'},
+                                          'Image85.img': {'sha256': 'syn'}}}
+    after = before
+    if fault == 'changed_file':
+        after = {'instances': rows, 'files': {**before['files'], 'Image85.img': {'sha256': 'changed'}}}
+    state = Mock(side_effect=[before, after])
+    monkeypatch.setattr(flow, '_result_state', state)
+    for name in ('open_post_reconstruction', 'shift_slider', 'capture'):
+        monkeypatch.setattr(flow.vp, name, Mock())
+    select = Mock()
+    cancel = Mock(return_value=fault != 'closed_before_cancel')
+    monkeypatch.setattr(flow.vp, 'select_3d_raw', select)
+    monkeypatch.setattr(flow.vp, 'select_test_parameter', lambda *args: 'TEST_3D_FLOW.xtp')
+    monkeypatch.setattr(flow.vp, 'cancel_window', cancel)
+    monkeypatch.setattr(flow, '_read_state_retry', Mock(side_effect=[
+        {'Recon.Brightness': 10}, {'Recon.Brightness': 0}]))
+    monkeypatch.setattr(flow, '_viewer_log_mark', lambda _: ('viewer.log', 123))
+    actual_egp = 'narrow_standard.egp' if fault == 'wrong_geometry' else 'wide_standard.egp'
+    monkeypatch.setattr(flow, '_viewer_log_since', lambda mark:
+        f'Initialize Reconstruction. ({actual_egp}, TEST_3D_FLOW.xtp, common_standard.eap)')
+    monkeypatch.setattr(flow, '_post_recon_preview_ready', lambda *args:
+        (True, 'done', {'errors': []}))
+    monkeypatch.setattr(flow, '_preview_delta', lambda *args: {'changed_ratio': .08})
+
+    def check_ready(result, name, predicate, timeout, **kwargs):
+        ready, _, detail = predicate()
+        if not ready:
+            raise RuntimeError('Preview mode not confirmed')
+        return detail
+    monkeypatch.setattr(flow, '_poll_completion', check_ready)
+    target = {'study_key': 48, 'ui': ui}
+    args = (ctx, target, result, '3D-W', 3, 55, 'wide_standard.egp', 120)
+    if fault in ('changed_file', 'closed_before_cancel'):
+        with pytest.raises(StepFailed):
+            flow._verify_cancel_3d(*args)
+    elif fault == 'wrong_geometry':
+        with pytest.raises(RuntimeError, match='Preview mode'):
+            flow._verify_cancel_3d(*args)
+        cancel.assert_not_called()
+        assert ctx.execution_incomplete
+    else:
+        flow._verify_cancel_3d(*args)
+        assert result.checks[-1].status == 'PASS'
+    select.assert_called_once_with(ui, 3)
+    if fault != 'wrong_geometry':
+        cancel.assert_called_once_with(ui, require_visible=True)
+        assert [call.args[-2:] for call in state.call_args_list] == [(48, 55), (48, 55)]
+
+
+def test_cancel_3d_modes_pair_fixture_steps_with_database_exposure_modes(monkeypatch):
+    from unittest.mock import Mock
+    ctx = SimpleNamespace(cfg={}, db=object())
+    session = {'study_key': 48, 'step_3d': 2, 'step_3d_w': 3, 'instances': [
+        {'InstanceType': 1, 'GroupKey': 11, 'ImageInstanceUID': '1.2.11'},
+        {'InstanceType': 1, 'GroupKey': 20, 'ImageInstanceUID': '1.2.20'},
+        {'InstanceType': 2, 'GroupKey': 20, 'ImageInstanceUID': '1.2.21'},
+    ]}
+    monkeypatch.setattr(flow.vp, 'acquired_groups',
+                        lambda *args: {11: {'ExposureMode': 2}, 20: {'ExposureMode': 1}})
+    verify = Mock()
+    monkeypatch.setattr(flow, '_verify_cancel_3d', verify)
+    flow._verify_3d_cancel_modes(ctx, session, TCResult('test', '3D modes'), 120)
+    assert [call.args[3:7] for call in verify.call_args_list] == [
+        ('3D-N', 2, 20, 'narrow_standard.egp'), ('3D-W', 3, 11, 'wide_standard.egp')]
+
+
 def test_reads_all_ten_applied_values_from_real_img_tail(tmp_path):
     image = tmp_path / 'Image81.img'
     write_sample(image, SAMPLE_XML.replace('TEST_3D_NARROW', 'TEST_3D_FLOW'))
@@ -215,8 +293,9 @@ def test_compatibility03_checks_files_after_product_save_not_dirty_memory(tmp_pa
     session = {'ui':ui, 'step_3d':2, 'study_key':48,
         'instances':[{'Key':80,'InstanceType':1,'ImageInstanceUID':'raw','GroupKey':54}]}
     for name in ('select_3d_raw','open_post_reconstruction','change_all_3d_parameters',
-                 'capture','capture_viewer_window','cancel_window'):
+                 'capture','capture_viewer_window'):
         monkeypatch.setattr(flow.vp,name,lambda *a,**k:None)
+    monkeypatch.setattr(flow.vp, 'cancel_window', lambda *a, **k: True)
     monkeypatch.setattr(flow.vp,'select_test_parameter',lambda *a:'TEST_3D_FLOW.xtp')
     baseline = {key:'Use' if key.endswith('Masking') else 0 for key in CHANGED}
     monkeypatch.setattr(flow,'_read_state_retry',Mock(side_effect=[baseline,CHANGED,baseline,baseline]))
@@ -277,6 +356,8 @@ def test_compatibility03_checks_files_after_product_save_not_dirty_memory(tmp_pa
             files.pop('82')
         return files
     monkeypatch.setattr(flow,'_post_recon_file_evidence',read_files)
+    verify_cancel = Mock()
+    monkeypatch.setattr(flow, '_verify_3d_cancel_modes', verify_cancel, raising=False)
     # The real driver reads Apply visibility after the accepted click.
     original = flow._click_3d_apply_confirmed
     def apply(*a):
@@ -297,6 +378,7 @@ def test_compatibility03_checks_files_after_product_save_not_dirty_memory(tmp_pa
         assert flow.run_xipl_sequence(ctx,session,(4,)) == []
         return
     assert not result.aborted, [(check.title, check.actual) for check in result.checks]
+    verify_cancel.assert_called_once()
     assert result.verdict == ('PASS' if persist_fault is None else 'FAIL')
     assert not any('after_apply' in check.title and 'img' in check.title for check in result.checks)
     assert next(check for check in result.checks if check.step == 10).status == (
