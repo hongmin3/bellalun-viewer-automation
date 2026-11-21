@@ -985,7 +985,11 @@ def _verify_cancel_3d(ctx, session, result, mode, step, group_key, geometry, tim
         vp.capture(preview)
         detail["delta"] = _preview_delta(selected, preview)
         visual_change = detail["delta"]["changed_ratio"] >= .005
-        confirmed = done and detail["geometry_and_parameter"] and not detail["errors"]
+        demo_completion = ((ctx.cfg.get("viewer") or {}).get("demo_mode") is True
+                           and detail["gpu_unavailable"] and detail["progress_done"])
+        detail["demo_completion"] = demo_completion
+        confirmed = (done and detail["geometry_and_parameter"]
+                     and (not detail["errors"] or demo_completion))
         return confirmed and (visual_change or allow_below_threshold), reason, detail
 
     prior_incomplete = getattr(ctx, "execution_incomplete", False)

@@ -210,6 +210,72 @@ def test_public_send_waits_all_original_sops_then_checks_actual_objects(monkeypa
     assert all(check.status != 'FAIL' for check in result.checks)
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong_queue_sop', 'wrong_received_sop', 'already_received'])
+def test_selected_send_checks_exact_new_uid_on_both_observers(monkeypatch, fault):
+    _, ctx, sender = send_context(monkeypatch)
+    expected = '1.2.1'
+    extra = '1.2.2'
+    def forbidden_clear(*args, **kwargs):
+        raise AssertionError('Exact selection must keep existing Storage SCP evidence')
+    monkeypatch.setattr(sv, 'clear_received', forbidden_clear)
+    monkeypatch.setattr(sv, 'received', lambda *a, **k:
+                        [{'SOPInstanceUID': expected}] if fault == 'already_received' else [])
+    monkeypatch.setattr(sv, 'wait_queue_registered', lambda *a, **k: [14])
+
+    def settled(*args, diagnostics, **kwargs):
+        diagnostics.update(queue_registration_settled=True,
+                           queue_observed_uids=[extra if fault == 'wrong_queue_sop' else expected])
+        return {14: sv.QUEUE_STATE_DONE}
+    monkeypatch.setattr(sv, 'wait_queue_settled', settled)
+    o = {'PatientID': 'TEST', 'StudyInstanceUID': '1.2', 'SeriesInstanceUID': '1.2.9',
+         'SOPInstanceUID': extra if fault == 'wrong_received_sop' else expected,
+         'SOPClassUID': sv.SOP_CLASS_MG, 'Modality': 'MG'}
+    monkeypatch.setattr(sv, 'wait_received_stable', lambda *a, **k: [o])
+    result = TCResult('OFFLINE', 'Selected SOP')
+    options = dict(scope='selected', study_key=11, sender=sender, expect_count=1,
+                   expected_image_uids={expected})
+    if fault == 'already_received':
+        assert sv.send_and_verify(ctx, None, result, 'TEST', **options) is None
+        assert result.checks[-1].status == 'BLOCKED'
+        assert not ctx.db.started
+    elif fault:
+        with pytest.raises(StepFailed):
+            sv.send_and_verify(ctx, None, result, 'TEST', **options)
+        assert result.checks[-1].step == (3 if fault == 'wrong_queue_sop' else 4)
+    else:
+        detail = sv.send_and_verify(ctx, None, result, 'TEST', **options)
+        assert detail['queue_observed_uids'] == detail['received_image_uids'] == [expected]
+
+
+def test_workflow04_uses_logged_study_selection_to_choose_sop(monkeypatch):
+    from unittest.mock import Mock
+    from tests import workflow04 as wf
+    ui = object()
+    ctx = SimpleNamespace(cfg={'data_dir': 'offline'}, db=object())
+    monkeypatch.setattr(wf, 'ensure_storage_reachable', lambda _: (True, {}))
+    monkeypatch.setattr(wf, '_fixture', lambda *args: {
+        'Key': 99, 'instances': [{'InstanceType': sv.INSTANCE_2D}]})
+    monkeypatch.setattr(wf.flows, 'cold_start', lambda *args, **kwargs: (ui, None))
+    monkeypatch.setattr(wf.flows, 'ensure_patient_screen', lambda _: True)
+    monkeypatch.setattr(sv, 'ensure_transfer_syntax', lambda *args: True)
+    opened = Mock(return_value={'study_key': 11, 'cards': 2, 'picked': 1, 'picked_rect': []})
+    monkeypatch.setattr(wf.flows, 'open_examined_study', opened)
+    monkeypatch.setattr(wf.flows, 'step_items', lambda _: [object()])
+    monkeypatch.setattr(wf.flows, 'select_step', lambda *args: None)
+    monkeypatch.setattr(wf.vp, 'expand_tools', lambda _: None)
+    monkeypatch.setattr(wf.flows, 'close_view_study', lambda _: True)
+    identity = Mock(return_value={'by_type': {sv.INSTANCE_2D: {'1.2.1'}}})
+    monkeypatch.setattr(sv, 'db_identity', identity)
+    sent = Mock(return_value={'queue_added': [14], 'received_sop_classes': [sv.SOP_CLASS_MG]})
+    monkeypatch.setattr(sv, 'send_and_verify', sent)
+    result = wf.workflow_04(ctx)
+    assert result.verdict == 'PASS', [(check.title, check.actual) for check in result.checks]
+    opened.assert_called_once_with(ui, 'DATA_FLOW_MWL_01', card='oldest', data_dir='offline')
+    identity.assert_called_once_with(ctx, 'DATA_FLOW_MWL_01', study_key=11)
+    assert sent.call_args.kwargs == {
+        'scope': 'selected', 'expect_count': 1, 'study_key': 11, 'expected_image_uids': {'1.2.1'}}
+
+
 def test_missing_last_source_fails_queue_even_if_visible_rows_are_done(monkeypatch):
     _, ctx, sender = send_context(monkeypatch, missing=True)
     result = TCResult('OFFLINE', '누락 재현')

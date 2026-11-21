@@ -1,5 +1,10 @@
 # Changelog
 
+## 개발 — 3D Demo Cancel 및 View 2D Selected (2026-11-22)
+
+- REQ-OFFICIAL-005: Demo 모드에서 해당 Preview의 완료 로그·활성 상태·영상 변화가 확인됐는데 `No GPUS` 때문에 Cancel까지 진행하지 못한 경로를 수정했다. 개발 검증판 번호는 `1.0.0.004`다.
+- REQ-OFFICIAL-006: WF04에서 새 UI 선택 로그의 Study Key와 선택 2D SOP를 확인한다. 신규 Queue와 SCP 수신의 SOP를 각각 정확히 대조한다.
+
 ## 개발 — 3D Preview 취소 검증 (2026-11-22)
 
 - REQ-OFFICIAL-005: XIPL03에 3D-N·3D-W Preview Cancel과 동일 Group의 Recon/Syn DB·파일 비교를 추가했다. 개발 검증판 번호는 `1.0.0.003`이다.

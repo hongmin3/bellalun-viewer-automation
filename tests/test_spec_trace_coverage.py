@@ -59,7 +59,6 @@ UNTRACED_BASELINE = {
     "tests/test_winupdate_isolation.py",
     "tests/test_xipl_startup.py",
     "tests/ui_flows.py",
-    "tests/workflow04.py",
     "tests/workflow06.py",
     "tests/workflow07.py",
 }

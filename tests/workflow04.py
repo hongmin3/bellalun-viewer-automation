@@ -109,7 +109,7 @@ def workflow_04(ctx):
             return r
 
         # --- Step 1: Examined 목록에서 대상 검사를 직접 골라 연다 ----------
-        opened = flows.open_examined_study(ui, patient_id, card="oldest")
+        opened = flows.open_examined_study(ui, patient_id, card="oldest", data_dir=ctx.cfg["data_dir"])
         steps = flows.step_items(ui)
         r.assert_true(
             1, "Examined 창에서 대상 검사 선택",
@@ -120,21 +120,26 @@ def workflow_04(ctx):
                     "고른 카드(0-based)": opened["picked"],
                     "카드 rect": opened["picked_rect"],
                     "열린 Step 수": len(steps),
-                    "DB study": study["Key"]},
+                    "DB study": opened["study_key"]},
             note="개정본 Expected 1. **이 TC 가 직접 밟는 경로다** — Examined(View) "
                  "화면에서 검색 항목을 Patient ID 로 바꾸고 조회 범위를 Month 로 "
                  "넓혀 검색한 뒤(기본 Today 로는 재사용 픽스처가 안 나온다), "
                  "카드를 골라 View(2182)로 연다(core/flows.open_examined_study). "
                  "검색어가 Patient ID 이므로 목록에 나온 카드는 모두 그 환자의 "
                  "검사이고, 카드는 StudyDate/Time 내림차순이라 재사용 픽스처는 "
-                 "가장 오래된 카드다. 열린 검사가 실제로 이 검사인지는 Step 5 의 "
-                 "Study Instance UID 대조가 최종적으로 보증한다.")
+                 "가장 오래된 카드다. 새 카드 선택 로그의 Study Key를 대조한다.")
 
         # --- Step 2: 2D 영상을 Selected Images로 전송 -------------------
         flows.select_step(ui, 1)
         vp.expand_tools(ui)
+        identity = sv.db_identity(ctx, patient_id, study_key=opened["study_key"])
+        selected_uids = identity["by_type"].get(sv.INSTANCE_2D, set())
+        r.assert_equal(2, "선택한 2D 단계의 원본 SOP 수", 1, len(selected_uids))
         outcome = sv.send_and_verify(ctx, ui, r, patient_id, scope="selected",
-                                     expect_count=1)
+                                     expect_count=1, study_key=opened["study_key"],
+                                     expected_image_uids=selected_uids)
+        if outcome is None:
+            return r
         r.assert_true(
             2, "Send 기능에서 2D 영상을 Selected Images로 전송",
             bool(outcome) and bool(outcome.get("queue_added")),

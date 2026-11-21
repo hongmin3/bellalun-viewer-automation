@@ -464,7 +464,7 @@ def wait_queue_settled(ctx, keys, wait=60, poll=1.5, *, before=None,
 def send_and_verify(ctx, ui, r, patient_id, scope="selected",
                      expect_count=None, expect_types=None, wait=90,
                      step_queue=3, step_receive=4, step_tags=5, sender=None,
-                     study_key=None, fresh_image_types=()):
+                     study_key=None, fresh_image_types=(), expected_image_uids=None):
     """전송 1회를 수행하고 개정본 Step 3~5를 각각 판정한다.
 
     개정본 `TC_Basic_WorkFlow_04`의 Expected는 세 가지를 따로 요구한다.
@@ -478,15 +478,26 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     봐서 Selected와 All의 차이를 검증하지 못했다.
     UI 선택이 확인된 study_key가 있으면 그 Study의 원본/수신만 대조하고,
     All Images의 원본 SOP 전체 등록도 요구한다.
+    expected_image_uids가 있으면 지정한 Study 안의 선택 SOP만 이번 Queue와
+    신규 영상 수신 목록에 있어야 한다.
     """
     # 초기화를 **끈 경우에도 개수 판정이 정확**하도록, 전송 전 우리 환자의 객체를
     # 기록해 두고 아래에서 **새로 생긴 것만** 센다. 지운 경우에는 이 집합이 비어
     # 있어 아무 영향이 없다(2026-08-27: 공유 SCP 라 전체 삭제를 줄이려고 넣었다).
     identity = db_identity(ctx, patient_id, study_key=study_key)
+    exact_uids = None if expected_image_uids is None else set(expected_image_uids)
+    if exact_uids is not None:
+        sendable = set().union(*(identity["by_type"].get(kind, ())
+                                 for kind in (INSTANCE_2D, *SENDABLE_3D_TYPES)))
+        if study_key is None or not exact_uids or not exact_uids <= sendable:
+            r.blocked(step_queue, "선택한 영상의 전송 SOP 확인",
+                      expected="선택 확인된 검사에 속한 2D 또는 Recon SOP",
+                      actual={"study_key": study_key, "requested": sorted(exact_uids)})
+            return None
     evidence = {}
-    cleared = clear_received(ctx)
+    cleared = clear_received(ctx) if exact_uids is None else None
     before_uids = set()
-    if fresh_image_types or (cleared is None and expect_count is not None):
+    if fresh_image_types or exact_uids is not None or (cleared is None and expect_count is not None):
         try:
             before_uids = {o.get("SOPInstanceUID")
                            for o in received(ctx, patient_id,
@@ -498,10 +509,12 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
             return None
     prior_required_uids = before_uids & set().union(
         *(identity["by_type"].get(t, ()) for t in fresh_image_types))
+    if exact_uids is not None:
+        prior_required_uids |= before_uids & exact_uids
     if prior_required_uids:
         r.blocked(step_receive, "이번 전송 수신을 식별할 새 시험 검사 확인",
                   note="이전 수신과 재전송을 구별할 수 있는 새 SOP가 필요합니다.",
-                  expected="시험 대상 Recon의 전송 전 수신 기록 없음",
+                  expected="시험 대상 SOP의 전송 전 수신 기록 없음",
                   actual={"already_received": sorted(prior_required_uids)})
         return None
     before_queue = queue_keys(ctx)
@@ -525,7 +538,9 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     expected_uids = set()
     # 환자에게 여러 Study가 있을 수 있다. UI 선택이 확인된 Study만 전체 SOP의
     # 필수 등록 범위로 삼는다. 기존 호출은 신규 Key 수렴과 실제 수신 판정을 유지한다.
-    if scope == "all" and study_key is not None:
+    if exact_uids is not None:
+        expected_uids = exact_uids
+    elif scope == "all" and study_key is not None:
         for kind in ((INSTANCE_2D,) + SENDABLE_3D_TYPES):
             expected_uids.update(identity["by_type"].get(kind, set()))
     queue_evidence = {}
@@ -537,14 +552,17 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     # --- Step 3: Queue 등록과 Done 상태 --------------------------------
     added_states = {k: states.get(k) for k in new_queue}
     done = [k for k, v in added_states.items() if v == QUEUE_STATE_DONE]
+    queue_uids = set(queue_evidence.get("queue_observed_uids", []))
     r.assert_true(
         step_queue, "DICOM 창 Queue 모드에서 전송 상태 확인",
         bool(new_queue) and len(done) == len(new_queue)
-        and queue_evidence.get("queue_registration_settled", False),
+        and queue_evidence.get("queue_registration_settled", False)
+        and (exact_uids is None or queue_uids == exact_uids),
         expected=f"이번 전송 항목이 Queue에 등록되고 전부 State={QUEUE_STATE_DONE}"
                  "(Done)",
         actual={"scope": sent, "queue_added": new_queue,
-                "states": added_states, "done": done, "observation": queue_evidence},
+                "states": added_states, "done": done, "observation": queue_evidence,
+                "expected_selected_sops": sorted(exact_uids) if exact_uids is not None else None},
         note="DATA.DICOM_STORAGE_QUEUE.State로 대조. 개정본 Expected 3.")
 
     try:
@@ -557,7 +575,7 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     # 정확한 신규 개수를 요구하는 기존 호출 계약만 전송 전 UID를 제외한다.
     # 동일 SOP 재전송을 허용한 expect_count=None 경로는 현재 Study만 검증한다.
     objects = ([o for o in arrived if o.get("SOPInstanceUID") not in before_uids]
-               if before_uids and expect_count is not None else arrived)
+               if before_uids and (expect_count is not None or exact_uids is not None) else arrived)
     evidence["objects_after_baseline_filter"] = len(objects)
 
     # --- Step 4: 수신 객체 개수 ----------------------------------------
@@ -574,6 +592,13 @@ def send_and_verify(ctx, ui, r, patient_id, scope="selected",
     else:
         count_ok = len(objects) == expect_count
         count_expected = f"수신 객체 정확히 {expect_count}건"
+    if exact_uids is not None:
+        received_uids = {o.get("SOPInstanceUID") for o in objects
+                         if o.get("SOPClassUID") != SOP_CLASS_RDSR}
+        count_ok = count_ok and received_uids == exact_uids
+        count_expected = f"{count_expected}, 선택 SOP {sorted(exact_uids)}"
+        detail["missing_selected_sops"] = sorted(exact_uids - received_uids)
+        detail["unexpected_selected_sops"] = sorted(uid for uid in received_uids - exact_uids if uid)
     r.assert_true(
         step_receive, "Storage SCP에서 수신 객체 확인", count_ok,
         expected=count_expected, actual=detail,

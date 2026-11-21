@@ -20,7 +20,9 @@ OVERLAYS = {
 }
 
 
-@pytest.mark.parametrize('fault', [None, 'wrong_geometry', 'changed_file', 'closed_before_cancel'])
+@pytest.mark.parametrize('fault', [
+    None, 'demo_no_gpu', 'live_no_gpu', 'demo_no_progress', 'other_recon_error',
+    'wrong_geometry', 'changed_file', 'closed_before_cancel'])
 def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path, monkeypatch, fault):
     from core.result import StepFailed
     from unittest.mock import Mock
@@ -28,7 +30,8 @@ def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path
         by_id=lambda _: [SimpleNamespace(visible=True, enabled=True)],
         click=Mock(),
     )
-    ctx = SimpleNamespace(cfg={'data_dir': str(tmp_path)}, evidence_root=str(tmp_path))
+    ctx = SimpleNamespace(cfg={'data_dir': str(tmp_path), 'viewer': {'demo_mode': fault != 'live_no_gpu'}},
+                          evidence_root=str(tmp_path))
     result = TCResult('test', '3D Cancel')
     rows = [{'Key': 84, 'InstanceType': 2, 'ImageInstanceUID': '1.2.84'},
             {'Key': 85, 'InstanceType': 3, 'ImageInstanceUID': '1.2.85'}]
@@ -52,8 +55,11 @@ def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path
     actual_egp = 'narrow_standard.egp' if fault == 'wrong_geometry' else 'wide_standard.egp'
     monkeypatch.setattr(flow, '_viewer_log_since', lambda mark:
         f'Initialize Reconstruction. ({actual_egp}, TEST_3D_FLOW.xtp, common_standard.eap)')
+    no_gpu = fault in ('demo_no_gpu', 'live_no_gpu', 'demo_no_progress')
+    errors = ['No GPUS'] if no_gpu else (['Cannot load input'] if fault == 'other_recon_error' else [])
     monkeypatch.setattr(flow, '_post_recon_preview_ready', lambda *args:
-        (True, 'done', {'errors': []}))
+        (True, 'done', {'errors': errors, 'gpu_unavailable': no_gpu,
+                        'progress_done': fault != 'demo_no_progress'}))
     monkeypatch.setattr(flow, '_preview_delta', lambda *args: {'changed_ratio': .08})
 
     def check_ready(result, name, predicate, timeout, **kwargs):
@@ -67,7 +73,7 @@ def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path
     if fault in ('changed_file', 'closed_before_cancel'):
         with pytest.raises(StepFailed):
             flow._verify_cancel_3d(*args)
-    elif fault == 'wrong_geometry':
+    elif fault in ('wrong_geometry', 'other_recon_error', 'live_no_gpu', 'demo_no_progress'):
         with pytest.raises(RuntimeError, match='Preview mode'):
             flow._verify_cancel_3d(*args)
         cancel.assert_not_called()
@@ -76,7 +82,7 @@ def test_cancel_3d_requires_fresh_matching_preview_and_unchanged_result(tmp_path
         flow._verify_cancel_3d(*args)
         assert result.checks[-1].status == 'PASS'
     select.assert_called_once_with(ui, 3)
-    if fault != 'wrong_geometry':
+    if fault not in ('wrong_geometry', 'other_recon_error', 'live_no_gpu', 'demo_no_progress'):
         cancel.assert_called_once_with(ui, require_visible=True)
         assert [call.args[-2:] for call in state.call_args_list] == [(48, 55), (48, 55)]
 

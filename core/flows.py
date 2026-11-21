@@ -3317,7 +3317,7 @@ def examined_cards(ui):
     return sorted(rows, key=lambda c: (c.rect[1], c.rect[0]))
 
 
-def open_examined_study(ui, patient_id, card="oldest", settle=8.0, wait=3):
+def open_examined_study(ui, patient_id, card="oldest", settle=8.0, wait=3, *, data_dir=None):
     """**Examined 목록에서 카드를 직접 골라** 검사를 View 로 연다.
 
     반환: `{"cards": 카드수, "picked": 0-based 순번, "picked_rect": rect,
@@ -3347,15 +3347,22 @@ def open_examined_study(ui, patient_id, card="oldest", settle=8.0, wait=3):
     if not 0 <= index < len(cards):
         raise FlowError(f"대상 카드 순번 {index}, 화면 카드 {len(cards)}건")
     target = cards[index]
+    if data_dir is not None:
+        from core import usb_evidence
+        cursor = usb_evidence.log_cursor(data_dir)
     ui.click(target, settle=1.2)
+    study_key = usb_evidence.selected_study_key(cursor) if data_dir is not None else None
     button = [c for c in ui.by_id(EXAMINED_VIEW_BUTTON) if c.visible]
     if not button:
         raise FlowError(
             f"Examined 의 View 버튼({EXAMINED_VIEW_BUTTON})을 찾지 못했습니다. "
             "카드가 선택되지 않았을 수 있습니다.")
     ui.click(button[0], settle=settle)
-    return {"cards": len(cards), "picked": index, "picked_rect": target.rect,
-            "steps": len(step_items(ui)), "patient_id": patient_id}
+    opened = {"cards": len(cards), "picked": index, "picked_rect": target.rect,
+              "steps": len(step_items(ui)), "patient_id": patient_id}
+    if study_key is not None:
+        opened["study_key"] = study_key
+    return opened
 
 
 # Examined 툴바. **툴팁으로 확정했다**(2026-08-26) — 아이콘만으로는 구분되지
