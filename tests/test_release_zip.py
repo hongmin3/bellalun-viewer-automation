@@ -80,6 +80,22 @@ class ReleaseZipTests(unittest.TestCase):
                 self.assertIn(phrase, guide)
 
     def test_development_candidate_zip_preserves_display_version(self):
+        version = '1.0.0.001'
+        changed = self.release.with_name(version)
+        self.release.rename(changed)
+        self.release = changed
+        new_name = f'BellalunAuto-{version}-candidate-setup.exe'
+        (self.release / self.exe).rename(self.release / new_name)
+        self.exe = new_name
+        self.info.update(version=version, windows_version='1.0.0.1')
+        self.write_info()
+        self.assertEqual(self.create()['version'], version)
+        self.output = self.root / 'incorrect-version.zip'
+        self.info['windows_version'] = '1.0.0.2'
+        self.write_info()
+        self.assert_rejected()
+
+    def test_legacy_candidate_zip_preserves_archived_display_version(self):
         version = '1.0.0.(001)'
         changed = self.release.with_name(version)
         self.release.rename(changed)

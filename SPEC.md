@@ -5,8 +5,8 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-15 |
+| Project Version | BellalunAuto 개발 검증판 1.0.0.001, 정식 기준 1.0.0 |
+| Last Updated | 2026-11-21 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -325,16 +325,21 @@ Examine·View·Examined 각각의 Selected/All 전송과 Recon이 없는 시험 
 
 ### REQ-OFFICIAL-003 개발 검증판 버전 식별
 
-첫 개발 검증판의 표시 버전은 `1.0.0.(001)`, Windows 파일·제품 숫자형 버전은
-`1.0.0.1`이다. 개발 번호는 001~999이며 같은 표시 버전의 기존 산출물을 덮어쓰지
-않는다. Setup 표시, EXE GUI/CLI, build-info와 실시간 보고서에 동일한 표시 버전을
-반영한다. build-info와 실시간 보고서는 숫자형 버전도 기록한다. 설치판 게이트는 이
-두 값이 일치하는지 확인한다. 단독 전체 WF·WU는 실행 로그의 감독 번호와
+정식 배포의 표시 버전은 `MAJOR.MINOR.PATCH`다. 정식 기준 `1.0.0`의 첫 개발 검증판은
+`1.0.0.001`이며, 개발판 형식은 `MAJOR.MINOR.PATCH.NNN`이다. 정식 기준별로
+`001`부터 `999`까지 순서대로 올리고 사용한 번호는 다시 배정하지 않는다. 사용자가
+기준 버전 변경을 승인하면 새 기준의 개발 번호를 `001`부터 시작한다. 같은 버전의 기존
+산출물이 있으면 중단한다.
+
+Setup 표시·파일명, EXE GUI·CLI, build-info와 실시간 보고서에 같은 표시 버전을 쓴다.
+Windows 파일·제품 숫자형 버전은 정식 `1.0.0.0`, 개발 `1.0.0.1`처럼 기록한다.
+build-info와 실시간 보고서는 숫자형 버전도 기록한다. 설치판 게이트는 두 값이 일치하는지
+확인한다. 단독 전체 WF·WU는 실행 로그의 감독 번호와
 완료 기록 해시, 계획 ID, 커밋, 실행 시각 및 원본 보고서 번호·해시를 함께 대조한다.
 원상복원 증거는 감독과 보고서에서 일치해야 한다. 파일·DB·서비스와 WU의 USB 복원을 확인하고
 검증 일지가 완료돼 있으며 복원 대기가 없을 때 통과한다.
-이전 정식 형식의 ZIP과 보관 기록도 계속 읽는다.
-검증판 이름은 내부 후보를 가리킨다. 정식 배포 승인과 공식 단계 수용은 기존 승인 절차를 따른다.
+이전 세 묶음 버전과 괄호 표기를 사용한 후보의 ZIP·검증 기록도 발행 당시 버전으로 읽는다.
+개발판은 내부 후보다. 정식 배포와 공식 단계 수용에는 기존 검증·승인 절차를 적용한다.
 
 ### REQ-OFFICIAL-004 2D Preview 취소 검증
 
@@ -1651,7 +1656,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
 | REQ-OFFICIAL-001 | `tools/official_checklist_ledger.py` | `tests/test_official_checklist_ledger.py` | implemented |
 | REQ-OFFICIAL-002 | `core/send_verify.py`, `tests/workflow05.py` | `tests/test_send_recovery.py` | implemented |
-| REQ-OFFICIAL-003 | `bellalunauto/versioning.py`, `run.py`, `tools/build_distribution.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `tools/release_zip.py`, `packaging/BellalunAuto.iss` | `tests/test_distribution_build.py`, `tests/test_release_zip.py`, `tests/test_installed_release_gate.py`, `tests/test_installed_suites.py` | implemented |
+| REQ-OFFICIAL-003 | `bellalunauto/__init__.py`, `bellalunauto/versioning.py`, `run.py`, `tools/build_distribution.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `tools/release_zip.py`, `packaging/BellalunAuto.iss` | `tests/test_distribution_build.py`, `tests/test_release_zip.py`, `tests/test_installed_release_gate.py`, `tests/test_installed_suites.py` | implemented |
 | REQ-OFFICIAL-004 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_preview_readiness.py`, `tests/test_process_window_wait.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |

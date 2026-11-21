@@ -65,18 +65,18 @@ class InstalledGateTests(unittest.TestCase):
 
     def test_development_report_must_match_both_build_versions(self):
         info = json.loads(self.info.read_text(encoding="utf-8"))
-        info.update(version="1.0.0.(001)", windows_version="1.0.0.1")
+        info.update(version="1.0.0.001", windows_version="1.0.0.1")
         self.info.write_text(json.dumps(info), encoding="utf-8")
         self.record["build_info_sha256"] = digest(self.info)
         self.assertFalse(self.evaluate()["passed"])
-        self.data["meta"].update(automation_version="1.0.0.(001)", windows_version="1.0.0.1")
+        self.data["meta"].update(automation_version="1.0.0.001", windows_version="1.0.0.1")
         result = self.evaluate()
         self.assertTrue(result["passed"], result["reasons"])
         self.data["meta"]["windows_version"] = "1.0.0.2"
         self.assertFalse(self.evaluate()["passed"])
 
     def test_development_report_cannot_fall_back_to_legacy_build_info(self):
-        self.data["meta"].update(automation_version="1.0.0.(001)", windows_version="1.0.0.1")
+        self.data["meta"].update(automation_version="1.0.0.001", windows_version="1.0.0.1")
         self.assertFalse(self.evaluate()["passed"])
 
     def test_wrong_expected_tc_or_empty_scope_cannot_pass(self):
@@ -198,7 +198,7 @@ class InstalledGateTests(unittest.TestCase):
         command = "run-winupdate"
         run_id = "20261121-150000-fa123456"
         info = json.loads(self.info.read_text(encoding="utf-8"))
-        info.update(version="1.0.0.(001)", windows_version="1.0.0.1")
+        info.update(version="1.0.0.001", windows_version="1.0.0.1")
         self.info.write_text(json.dumps(info), encoding="utf-8")
         reports = self.root / "Reports"
         reports.mkdir()

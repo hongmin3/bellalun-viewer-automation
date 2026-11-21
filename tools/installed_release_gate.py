@@ -80,9 +80,9 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
               and sha256(info_path) == record.get("build_info_sha256"), "EXE·설치 파일·build-info 해시 대조")
         gate._identity("빌드", {"meta": info}, expected_commit, checks, reasons)
         version = info.get("version")
-        from bellalunauto.versioning import windows_version
-        versioned = "windows_version" in info or (isinstance(version, str) and ".(" in version)
-        numeric = windows_version(version) if versioned else None
+        from bellalunauto.versioning import is_development_version, windows_version
+        versioned = "windows_version" in info or is_development_version(version)
+        numeric = windows_version(version, allow_legacy=True) if versioned else None
         if versioned:
             check("빌드 숫자형 버전", info.get("windows_version") == numeric, version)
         runs = record.get("runs") or []
@@ -101,7 +101,7 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
             gate._identity(command, report, expected_commit, checks, reasons)
             report_version = meta.get("automation_version")
             if (versioned or "windows_version" in meta
-                    or (isinstance(report_version, str) and ".(" in report_version)):
+                    or is_development_version(report_version)):
                 check(f"{command} 빌드와 보고서 버전",
                       versioned and report_version == version and meta.get("windows_version") == numeric,
                       "build-info 표시 및 숫자형 버전과 보고서 대조")

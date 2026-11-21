@@ -24,7 +24,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from bellalunauto.versioning import windows_version
+from bellalunauto.versioning import is_development_version, windows_version
 
 PYTHON_VERSION = '3.12.10'
 INNO_VERSION = '6.7.3'
@@ -475,9 +475,14 @@ def release_destination(version, release_root=None):
     base = Path(release_root) if release_root is not None else ROOT / 'release'
     _not_link(base.absolute())
     target = base.absolute() / version
-    _not_link(target)
-    if target.exists() and any(target.iterdir()):
-        raise ValueError('해당 버전 릴리즈가 이미 있습니다. 버전을 올리거나 기존 릴리즈를 먼저 정리하세요.')
+    reserved = [target]
+    if is_development_version(version):
+        base_version, number = version.rsplit('.', 1)
+        reserved.append(target.with_name(f'{base_version}.({number})'))
+    for destination in reserved:
+        _not_link(destination)
+        if destination.exists() and any(destination.iterdir()):
+            raise ValueError('해당 버전 릴리즈가 이미 있습니다. 새 개발 번호를 확인하세요.')
     return target
 
 
@@ -505,7 +510,7 @@ def build(args):
         sys.path.insert(0, str(root))
     from bellalunauto import __version__
     release_destination(__version__)  # fail before expensive compilation
-    if '.(' in __version__ and args.skip_compile:
+    if is_development_version(__version__) and args.skip_compile:
         raise ValueError('개발 검증판에는 새 EXE 컴파일이 필요합니다.')
     output = Path(args.output).expanduser().absolute()
     # Require a fresh location: never delete or merge pre-existing private outputs.
@@ -533,7 +538,7 @@ def build(args):
     gate_tool = _release_gate()
     gate = gate_tool.gate_for_build(getattr(args, 'gate_wu', None),
                                           getattr(args, 'gate_basic', None), commit, dirty)
-    if '.(' in __version__:
+    if is_development_version(__version__):
         gate.update(status='candidate', label=gate_tool.GATE_LABEL_CANDIDATE, passed=False)
         gate['reasons'].append('개발 검증판은 내부 후보로 빌드합니다.')
     print(f"릴리스 게이트: {gate['label']}")
