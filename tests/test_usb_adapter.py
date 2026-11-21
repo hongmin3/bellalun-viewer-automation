@@ -21,7 +21,7 @@ def adapter(tmp_path, monkeypatch):
                               evidence_root=str(tmp_path / "Evidence"))
     source = import_evidence()
     state = SimpleNamespace(export_mode="images", export_error=None, import_error=None, after_error=None,
-                            cleanup_error=None, outcome={"rows": 1, "row_selected": True, "imported_clicked": True,
+                            cleanup_error=None, reopen_error=False, outcome={"rows": 1, "row_selected": True, "imported_clicked": True,
                             "closed": True, "error": None, "completion": deepcopy(source["completion"])})
     manager = SimpleNamespace(pid=77, dialog=lambda: None)
 
@@ -77,6 +77,13 @@ def adapter(tmp_path, monkeypatch):
         return {"patient_id": patient_id, "searched": True, "study_uids": ["actual-ui-observed-uid"],
                 "count": 2, "observations": [{"study_key": 99}]}
 
+    def reopen(files, source_snapshot, study_key):
+        events.append("reopen-export")
+        assert study_key == 1 and source_snapshot == source["before"]
+        if state.reopen_error:
+            raise usb_evidence.ObservationError("synthetic wrong source IMG")
+        return [{"path": path, "source_study_key": study_key} for path in files]
+
     def cancel(manager_ui, timeout):
         events.append("cancel-export")
         if state.cleanup_error:
@@ -104,6 +111,9 @@ def adapter(tmp_path, monkeypatch):
     monkeypatch.setattr(usb_media, "close_import_dialog", lambda *args: events.append("close-import") or True)
     monkeypatch.setattr(usb_evidence, "patient_snapshot", snapshot)
     monkeypatch.setattr(usb_evidence, "observe_examined", observe)
+    monkeypatch.setattr(usb_evidence, "log_cursor", lambda _: "fresh export selection")
+    monkeypatch.setattr(usb_evidence, "selected_study_key", lambda _: 1)
+    monkeypatch.setattr(usb_evidence, "verify_exported_img_identity", reopen)
     return SimpleNamespace(run=lambda: winupdate.run_usb_export_import(context, ui, "SYNTHETIC_USB"),
                            state=state, events=events, target=target, source=source,
                            usb_media=usb_media, em=em, manager=manager)
@@ -120,8 +130,16 @@ def test_adapter_prepares_owned_folder_and_attaches_observed_raw_evidence(adapte
     assert result["import"]["evidence"]["after"] == adapter.source["after"]
     assert result["import"]["evidence"]["examined"]["study_uids"] == ["actual-ui-observed-uid"]
     position = adapter.events.index("snapshot-before")
-    assert adapter.events[position:position + 4] == ["snapshot-before", "attempt-import", "snapshot-after", "observe-examined"]
+    assert adapter.events[position:position + 5] == [
+        "snapshot-before", "reopen-export", "attempt-import", "snapshot-after", "observe-examined"]
     assert result["cleanup"]["ok"] is True
+
+
+def test_export_identity_failure_never_imports_an_unexpected_image(adapter):
+    adapter.state.reopen_error = True
+    result = adapter.run()
+    assert "synthetic wrong source IMG" in result["error"]
+    assert "attempt-import" not in adapter.events
 
 
 @pytest.mark.parametrize("mode", ["sidecar", "empty"])

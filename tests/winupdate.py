@@ -672,7 +672,9 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
         rows = flows.examined_search(ui, patient_id)
         if not rows:
             raise flows.FlowError("시험 환자의 Examined 검색 결과가 없습니다.")
+        cursor = usb_evidence.log_cursor(ctx.cfg["data_dir"])
         ui.click(rows[0], settle=1.2)
+        source_study_key = usb_evidence.selected_study_key(cursor)
         button = [c for c in ui.by_id(2191) if c.visible]
         if len(button) != 1:
             raise flows.FlowError("유일한 Export 버튼(2191)을 찾지 못했습니다.")
@@ -723,6 +725,8 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
         try:
             # Take this immediately before the Import attempt, not before Export.
             evidence["before"] = usb_evidence.patient_snapshot(ctx.db, ctx.cfg["data_dir"], patient_id)
+            result["export"]["reopened_images"] = usb_evidence.verify_exported_img_identity(
+                files, evidence["before"], source_study_key)
             import_requested = True
             result["import"] = usb_media.attempt_import(ui, target, expected=1, evidence_path=completion_path)
             if not isinstance(result["import"], dict):

@@ -105,6 +105,37 @@ def test_truncated_log_never_reuses_a_key(tmp_path):
         module.selected_study_key(cursor, timeout=0)
 
 
+@pytest.mark.parametrize("fault", [None, "wrong_study", "wrong_series", "wrong_patient", "duplicate", "malformed"])
+def test_usb_export_reopens_img_and_binds_it_to_the_selected_source(tmp_path, fault):
+    module = evidence_module()
+    source = {"patient_id": "SYNTHETIC", "instances": [
+        {"study_key": 42, "study_uid": "1.2", "series_uid": "1.2.3", "image_uid": "1.2.3.4"},
+        {"study_key": 43, "study_uid": "1.8", "series_uid": "1.8.3", "image_uid": "1.8.3.4"},
+    ]}
+    study = "1.8" if fault == "wrong_study" else "1.2"
+    series = "1.2.9" if fault == "wrong_series" else "1.2.3"
+    patient = "OTHER" if fault == "wrong_patient" else "SYNTHETIC"
+    actual = ('<?xml version="1.0"?><INFORMATION>'
+              f'<PATIENT_INFO><Patient ID="{patient}"/></PATIENT_INFO>'
+              f'<STUDY_INFO><Study InstanceUID="{study}"/></STUDY_INFO>'
+              f'<SERIES_INFO><Series InstanceUID="{series}"/></SERIES_INFO>'
+              '<INSTANCE_INFO><Instance InstanceUID="1.2.3.4"/></INSTANCE_INFO></INFORMATION>')
+    path = tmp_path / "export.img"
+    raw = b"invalid" if fault == "malformed" else b"pixels" + actual.encode("utf-16-le")
+    path.write_bytes(raw)
+    files = [path]
+    if fault == "duplicate":
+        other = tmp_path / "second.img"
+        other.write_bytes(raw)
+        files.append(other)
+    if fault is None:
+        reopened = module.verify_exported_img_identity(files, source, 42)
+        assert reopened[0]["file_identity"]["image_uid"] == "1.2.3.4"
+    else:
+        with pytest.raises(module.ObservationError):
+            module.verify_exported_img_identity(files, source, 42)
+
+
 class SyntheticDb:
     def __init__(self, data_dir):
         self.data_dir = data_dir

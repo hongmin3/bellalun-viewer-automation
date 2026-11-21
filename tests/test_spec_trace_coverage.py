@@ -55,7 +55,6 @@ UNTRACED_BASELINE = {
     "tests/test_setting_dialog.py",
     "tests/test_supervisor_final_record.py",
     "tests/test_ui_children.py",
-    "tests/test_usb_adapter.py",
     "tests/test_winupdate_isolation.py",
     "tests/test_xipl_startup.py",
     "tests/ui_flows.py",

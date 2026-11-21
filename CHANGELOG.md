@@ -1,5 +1,9 @@
 # Changelog
 
+## 개발 — USB Export IMG 식별 대조 (2026-11-22)
+
+- REQ-WU-001: USB의 Normal IMG를 Import하기 전에 다시 열어 환자·검사·시리즈·영상 식별자를 실제 선택한 원본과 비교한다. 잘못된 검사, 손상된 파일과 중복을 감지하면 Import를 중단한다. 개발 검증판 번호는 `1.0.0.005`다.
+
 ## 개발 — 3D Demo Cancel 및 View 2D Selected (2026-11-22)
 
 - REQ-OFFICIAL-005: Demo 모드에서 해당 Preview의 완료 로그·활성 상태·영상 변화가 확인됐는데 `No GPUS` 때문에 Cancel까지 진행하지 못한 경로를 수정했다. 개발 검증판 번호는 `1.0.0.004`다.

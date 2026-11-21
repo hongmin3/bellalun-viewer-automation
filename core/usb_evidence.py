@@ -136,6 +136,40 @@ _SELECTED_SQL = (
     "WHERE s.[Key]=@key AND p.PatientID=@pid"
 )
 
+_IMG_UID_FIELDS = (("study_uid", "study"), ("series_uid", "series"), ("image_uid", "instance"))
+
+
+def _file_identity(metadata):
+    return {field: metadata.get(section, {}).get("InstanceUID") for field, section in _IMG_UID_FIELDS}
+
+
+def verify_exported_img_identity(paths, original, study_key):
+    """Reopen every exported IMG and compare its metadata to the actual UI-selected study."""
+    fields = tuple(field for field, _ in _IMG_UID_FIELDS)
+    source_rows = [row for row in original["instances"] if row["study_key"] == study_key]
+    original_uids = {tuple(row.get(field) for field in fields) for row in source_rows}
+    if not source_rows or not original["patient_id"] or len(original_uids) != len(source_rows):
+        raise ObservationError("선택한 USB Export 원본의 영상 UID를 특정하지 못했습니다.")
+
+    observations = []
+    seen = set()
+    for path in paths:
+        try:
+            metadata = imginfo.sections(path)
+        except (OSError, imginfo.ImgInfoError, ET.ParseError) as error:
+            raise ObservationError(f"Export IMG를 다시 읽지 못했습니다: {Path(path).name}") from error
+        identity = _file_identity(metadata)
+        uids = tuple(identity.values())
+        if (not all(uids) or uids not in original_uids or uids in seen
+                or metadata.get("patient", {}).get("ID") != original["patient_id"]):
+            raise ObservationError(f"Export IMG의 환자·검사·시리즈·영상 식별 불일치 또는 중복: {Path(path).name}")
+        seen.add(uids)
+        observations.append({"path": str(path), "file_identity": identity,
+                             "source_study_key": study_key})
+    if not observations:
+        raise ObservationError("다시 열어 확인할 Export IMG가 없습니다.")
+    return observations
+
 
 def patient_snapshot(db, data_dir, patient_id: str) -> dict:
     """실제 환자 범위 Study/Series/Instance UID와 파일 열기 결과를 수집한다.
@@ -169,9 +203,7 @@ def patient_snapshot(db, data_dir, patient_id: str) -> dict:
             instance["file_identity_error"] = "IMG 파일이 비어 있거나 읽을 수 없습니다."
             if instance["readable"]:
                 metadata = imginfo.sections(path)
-                identity = {field: metadata.get(section, {}).get("InstanceUID")
-                            for field, section in (("study_uid", "study"), ("series_uid", "series"),
-                                                   ("image_uid", "instance"))}
+                identity = _file_identity(metadata)
                 instance["file_identity"] = identity
                 instance["file_identity_error"] = (None if all(isinstance(uid, str) and uid.strip()
                                                                for uid in identity.values())

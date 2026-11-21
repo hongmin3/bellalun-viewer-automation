@@ -5,7 +5,7 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 개발 검증판 1.0.0.004, 정식 기준 1.0.0 |
+| Project Version | BellalunAuto 개발 검증판 1.0.0.005, 정식 기준 1.0.0 |
 | Last Updated | 2026-11-22 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
@@ -750,6 +750,8 @@ UI 회귀를 시작하기 전에 실행할 빌드/EXE, 대상 TC·묶음, 선택
 
 WU_09는 IMG 단독 USB Export, 제한된 하위 폴더 선택, 행 선택과 중복 환자 처리를 수행한다.
 Export 성공 안내를 확인한 뒤 Windows의 프로세스 종료 신호를 확인하고 Import를 시작한다.
+Import 전에 내보낸 IMG를 각각 다시 열어 환자 ID와 Study·Series·영상 UID를 읽는다.
+신규 카드 선택 로그의 Study Key로 찾은 원본 검사와 대조하고, 다른 검사·손상·중복이 있으면 중단한다.
 Import 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색 등 독립 근거를 대조한다.
 기존 검사 검색이나 Import 클릭만으로 PASS를 주지 않는다. USB 부재·예외·수행 실패를 구분한다.
 드라이브 루트/지원하지 않는 경로 선택과 창 범위를 벗어나는 1102 사용을 금지한다.
@@ -1698,7 +1700,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPEEDUP-007 | `core/preservation_storage.py` | TEST-SPEEDUP-007; `tests/test_archive_hash_once.py`, `tests/test_restore_archive_verify.py` | verified |
 | REQ-SPEEDUP-008 | `core/result.py`, `core/flows.py`, `core/wu_chain.py`, `run.py` | TEST-SPEEDUP-008; `tests/test_flow_timings.py` | implemented |
 | REQ-SPEEDUP-009 | `core/flows.py` | TEST-SPEEDUP-009; `tests/test_setting_rail_waits.py` | verified |
-| REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/ui.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py` | verified |
+| REQ-WU-001 | `core/usb_media.py`, `core/usb_evidence.py`, `core/usb_verification.py`, `core/usb_paths.py`, `core/setting_values.py`, `core/export_manager.py`, `core/ui.py`, `core/flows.py`, `tests/winupdate.py` | TEST-WU-001; `tests/test_winupdate_usb.py`, `tests/test_export_manager_leftover.py`, `tests/test_setting_render.py`, `tests/test_usb_evidence.py`, `tests/test_usb_import_completion.py`, `tests/test_usb_paths.py`, `tests/test_usb_adapter.py` | verified |
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
