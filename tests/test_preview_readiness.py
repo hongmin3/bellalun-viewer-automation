@@ -169,6 +169,15 @@ class PreviewReadinessTests(unittest.TestCase):
         self.assertGreaterEqual(events["apply_times"][0], 4.5)
         self.assertEqual((90, 90, 90), events["saved_pixel"])
 
+    def test_stable_change_below_visual_threshold_keeps_waiting(self):
+        # PC1 showed a stable changed ratio of 0.004426 with both controls enabled.
+        partial = Image.new("RGB", (200, 200))
+        partial.paste((40, 40, 40), (80, 80, 84, 93))
+        result, events = self.run_flow(ready_at=0, render=lambda now: partial if now < 5 else 90)
+        self.assertEqual(PASS, next(check for check in result.checks if check.step == 7).status)
+        self.assertGreaterEqual(events["apply_times"][0], 5)
+        self.assertEqual((90, 90, 90), events["saved_pixel"])
+
     def test_visible_but_permanently_disabled_apply_is_readiness_timeout(self):
         result, events = self.run_flow(ready_at=999, render=lambda _: 70)
         self.assertFalse(events["applied"])

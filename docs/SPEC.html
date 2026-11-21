@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="cdb1cd0ab569ee6ddbda6f5bc03b4db466802d0f1fcef917fecc2ad6130d1f86">
+<meta name="spec-source-sha256" content="497816bf63b77d5bc36d8b396260e8a9155fa0fdbc93c7673a7fd05cc4c6162f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,7 +92,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 개발 검증판 1.0.0.001, 정식 기준 1.0.0</b></span><span class="chip"><span>Last Updated</span><b>2026-11-21</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 개발 검증판 1.0.0.002, 정식 기준 1.0.0</b></span><span class="chip"><span>Last Updated</span><b>2026-11-22</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
 <div class="stats"><div class="stat"><b>56</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>6</b><span>implemented</span></div><div class="stat st-verified"><b>50</b><span>verified</span></div></div>
 </header>
 <div class="layout">
@@ -770,8 +770,9 @@ build-info와 실시간 보고서는 숫자형 버전도 기록한다. 설치판
 <section class="card kind-req" id="REQ-OFFICIAL-004">
 <h3><span class="idtag">REQ-OFFICIAL-004</span> 2D Preview 취소 검증</h3>
 <div class="card-meta"><span class="badge st-implemented">implemented</span><span class="meta"><b>구현</b> <code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">개발 — 2D Preview 대기와 취소 검증 (2026-11-22)</span> <a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a>: 화면 변화량이 기준에 미달한 안정 프레임에서 Preview 대기를 조기 종료하던 동작을 수정했다. 취소 재검증에서 대비를 더 크게 변경한다. 개발 검증판 번호는 <code>1.0.0.002</code>다.</li>
 <li><span class="hist">개발 — 공식 체크리스트 추적 및 전송 판정 (2026-11-21)</span> <a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a>: 2D Preview 취소 후 같은 영상의 DB 식별과 파일·적용 결과의 불변을 확인한다.</li>
 </ul>
 </details>
@@ -780,6 +781,8 @@ Cancel 분기를 XIPL02의 2D Image Processing에 추가한다. 동일 시험 �
 저장 결과를 기준으로 잡고, 한 파라미터를 다시 바꿔 Preview 완료와 영상 변화를 확인한다.
 Cancel을 조작한 후 처리 창 닫힘·동일 영상 DB 식별·원본 영상과 ImageAction 파일의
 목록·내용이 이전과 같아야 한다. 저장 결과나 관찰값을 확보하지 못하면 PASS를 기록하지 않는다.
+처리 로그와 버튼이 준비돼도 처리 영상의 변화량이 기준에 못 미치면 기존 제한 시간까지
+관찰한다. 변화량 기준과 연속 안정 프레임 조건을 모두 충족한 뒤 Cancel을 수행한다.
 Apply가 생성한 결과와 Cancel이 보존한 결과는 별도 판정으로 남긴다. 3D는 별개의 분기다.</p>
 </section>
 <section class="card kind-req" id="REQ-TRACE-002">

@@ -24,6 +24,8 @@ from core import screen
 from core import specs
 from core import viewer_processing as vp
 
+PREVIEW_2D_MIN_CHANGED_RATIO = .005
+
 
 def _close_saved_setting(ui):
     """Update·저장 확인을 마친 Setting만 기존 공통 닫기 경로로 닫는다."""
@@ -246,13 +248,13 @@ def _preview_2d_complete(log_mark, expected_values, ui):
 def _wait_2d_preview(result, ui, log_mark, expected_values, selected, preview, timeout):
     """로그·활성 버튼·연속 안정 프레임을 확인하고 최종 캡처를 보존한다.
 
-    원본 프레임이 잠시 안정돼도 렌더가 뒤따를 수 있다. 변화가 없으면 기존
+    변화가 아직 기준에 미치지 않는 프레임이 잠시 안정돼도 렌더가 뒤따를 수 있다. 기존
     timeout까지 관측하되, 끝에도 처리 완료/안정 상태라면 영상 판정으로 넘긴다.
     비활성/불안정/로그 누락은 준비 timeout이며 영상 무변화와 구분한다.
     """
     previous, stable_frames = None, 0
 
-    def probe(allow_unchanged=False):
+    def probe(allow_below_threshold=False):
         nonlocal previous, stable_frames
         ready, _, detail = _preview_2d_complete(log_mark, expected_values, ui)
         vp.capture(preview)
@@ -263,17 +265,17 @@ def _wait_2d_preview(result, ui, log_mark, expected_values, selected, preview, t
         previous = pane if ready else None
         delta = _preview_delta(selected, preview)
         stable = stable_frames >= 2
-        visible_change = delta["changed_ratio"] > 0
+        visible_change = delta["changed_ratio"] >= PREVIEW_2D_MIN_CHANGED_RATIO
         detail.update(processing_ready=ready, screen_stable=stable,
                       stable_frames=stable_frames, delta=delta)
-        done = ready and stable and (visible_change or allow_unchanged)
+        done = ready and stable and (visible_change or allow_below_threshold)
         reason = ("log/control/stable image completion detected" if visible_change
                   else "completed without visible image change")
         return done, reason, detail
 
     try:
         return _poll_completion(result, "XIPL 2D Preview", probe, timeout,
-                                on_timeout=lambda: probe(allow_unchanged=True))
+                                on_timeout=lambda: probe(allow_below_threshold=True))
     finally:
         if Path(preview).exists():
             result.attach(preview)
@@ -677,7 +679,8 @@ def _verify_cancel_2d(ctx, session, result, applied_values, action_paths):
     vp.capture(selected)
     result.attach(selected)
     direction = "-" if applied_values["Contrast"] >= 10 else "+"
-    vp.shift_slider(ui, 2057, direction, 8)
+    # PC1의 8회 조작은 Contrast를 14에서 10으로 바꿨지만 영상 변화가 기준에 미달했다.
+    vp.shift_slider(ui, 2057, direction, 24)
     edited = _read_state_retry(vp.read_2d_parameter_state, ui)
     result.assert_true(
         10, "Cancel 전 Preview 대비값 변경",
@@ -691,7 +694,7 @@ def _verify_cancel_2d(ctx, session, result, applied_values, action_paths):
                                float((ctx.cfg.get("xipl") or {}).get("preview_2d_wait", 20)))
     result.assert_true(
         10, "Cancel 직전 Preview 완료와 영상 변화 확인",
-        preview["delta"]["changed_ratio"] >= .005 and preview["cancel_enabled"],
+        preview["delta"]["changed_ratio"] >= PREVIEW_2D_MIN_CHANGED_RATIO and preview["cancel_enabled"],
         expected="처리 pane 변화율 >= 0.005 및 Cancel 활성", actual=preview)
 
     closed = vp.cancel_window(ui, require_visible=True)
@@ -752,7 +755,7 @@ def compatibility_02(ctx, session):
             r, ui, log_mark, changed_state, selected, preview, preview_limit)
         preview_delta = preview_completion["delta"]
         r.assert_true(7, "원본과 변경 Preview 구분 표시",
-                      preview_delta["changed_ratio"] >= .005
+                      preview_delta["changed_ratio"] >= PREVIEW_2D_MIN_CHANGED_RATIO
                       and preview_completion["apply_enabled"]
                       and preview_completion["cancel_enabled"],
                       expected="처리 pane 변화율 >= 0.005 및 Apply/Cancel 활성",

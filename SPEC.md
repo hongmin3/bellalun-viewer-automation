@@ -5,8 +5,8 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 개발 검증판 1.0.0.001, 정식 기준 1.0.0 |
-| Last Updated | 2026-11-21 |
+| Project Version | BellalunAuto 개발 검증판 1.0.0.002, 정식 기준 1.0.0 |
+| Last Updated | 2026-11-22 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -348,6 +348,8 @@ Cancel 분기를 XIPL02의 2D Image Processing에 추가한다. 동일 시험 �
 저장 결과를 기준으로 잡고, 한 파라미터를 다시 바꿔 Preview 완료와 영상 변화를 확인한다.
 Cancel을 조작한 후 처리 창 닫힘·동일 영상 DB 식별·원본 영상과 ImageAction 파일의
 목록·내용이 이전과 같아야 한다. 저장 결과나 관찰값을 확보하지 못하면 PASS를 기록하지 않는다.
+처리 로그와 버튼이 준비돼도 처리 영상의 변화량이 기준에 못 미치면 기존 제한 시간까지
+관찰한다. 변화량 기준과 연속 안정 프레임 조건을 모두 충족한 뒤 Cancel을 수행한다.
 Apply가 생성한 결과와 Cancel이 보존한 결과는 별도 판정으로 남긴다. 3D는 별개의 분기다.
 
 ### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
