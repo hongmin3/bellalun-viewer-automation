@@ -87,8 +87,11 @@ BellalunAuto.exe run-winupdate
 ```
 
 설치·설정·제거 시 자료 보존과 내부 패키지 빌드 방법은 [배포 안내](docs/distribution-guide.md)를 참고합니다.
+[PC1 설치판 검증 기록](progress.md)에서 WF·WU 단독 GUI와 결합 실행 결과를 확인할 수 있습니다.
+공식 체크리스트와 자동화가 실행하는 개정본의 항목은 검증 기록에서 각각 확인합니다.
+
 사내 체크리스트·사양서·매뉴얼·Baseline이 든 설치 파일은 공개 저장소나 공개 Release에 올리지 않습니다.
-배포 파일은 `release/<버전>/`에 정리합니다. 현재 설치판의 후보 Setup은 `release/1.0.18/BellalunAuto-1.0.18-candidate-setup.exe`입니다. 전체 수용을 통과하기 전까지 정식 릴리스로 표시하지 않습니다.
+배포 파일은 `release/<버전>/`에 정리합니다. PC1 수용 검증에 사용한 Setup은 `release/1.0.27/`의 후보 패키지입니다. 최종 배포 승인은 별도입니다.
 배포용 실행 패키지는 Setup만 생성하며 포터블 ZIP은 만들지 않습니다.
 아래는 소스 저장소를 사용하는 개발·유지보수 안내입니다.
 
