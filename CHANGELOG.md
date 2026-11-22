@@ -1,5 +1,11 @@
 # Changelog
 
+## 개발 — Queue List Retry 사양 확인 (2026-11-22)
+
+- REQ-QUEUE-001: SRS 06-10-10 Queue List의 2026-10-30 Retry 문구를 확인하는 선택 실행 단계 `SPEC_QueueList_Retry`를 추가했다. Storage Port를 닫힌 포트로 바꿔 2D Selected 전송을 Failed로 만들고, Port를 되돌린 뒤 Retry해 Queue 화면 State가 다시 Failed인지 판정한다. 시험 뒤 Storage 설정을 원래 값으로 되돌려 DB로 확인한다.
+- REQ-QUEUE-001: 좁은 State 칸이 `Sending`을 `Send...`로 줄여 보여 줄 때 판독하지 못하던 문제를 고쳤다. 재시도 신호의 로그 출처를 실제로 기록이 남는 Viewer 로그(`Update Queue Storage Item`, `Storage> Connecting to`)로 바꿨다.
+- REQ-SPEEDUP-002: `run-regression --select queue-retry`로만 이 단계를 고를 수 있다. 기본 전체 회귀와 WU 체인의 단계·순서는 바꾸지 않았다.
+
 ## 개발 — USB Export IMG 식별 대조 (2026-11-22)
 
 - REQ-WU-001: USB의 Normal IMG를 Import하기 전에 다시 열어 환자·검사·시리즈·영상 식별자를 실제 선택한 원본과 비교한다. 잘못된 검사, 손상된 파일과 중복을 감지하면 Import를 중단한다. 개발 검증판 번호는 `1.0.0.005`다.

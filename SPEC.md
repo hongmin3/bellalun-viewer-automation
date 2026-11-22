@@ -156,6 +156,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | BOUNDARY | 비공개 자료 보호 |
 | QA | 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결) |
 | SPECSYNC | 동작 변경과 사양 동기화 검사 |
+| QUEUE | DICOM Queue 화면 사양 확인(Retry) |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
 
@@ -369,6 +370,44 @@ R-23-2346의 K15:L15에서 View의 Selected 분기를 WF04로 확인한다.
 Selected를 눌러 전송한 뒤 이번 Queue와 Storage SCP의 신규 영상 수신 각각에서 이 SOP만
 확인한다. 선택을 식별할 수 없거나 같은 SOP가 전송 전에 이미 수신돼 있으면 판정을 보류한다.
 기존 Storage SCP 자료를 지우지 않는다. 다른 화면·범위는 별도 실행 증거를 요구한다.
+
+### REQ-QUEUE-001 Queue List Retry의 등록 당시 정보 재전송
+
+#### 하는 일
+Queue 화면의 Retry가 지금 Storage 설정이 아니라 Queue에 등록될 때의 Storage 정보로 다시 보내는지 확인한다.
+근거는 SRS 06-10-10 Queue List의 2026-10-30 개정 문구다.
+"DICOM Storage 설정 변경 여부와 관계없이 Queue 등록 당시 저장된 정보를 기준으로 재전송한다."
+이 문구는 기존 원노트 사양서(261030)에 있다. 같은 동작을 다룬 Redmine #25531은 사양으로 종료됐다.
+
+#### 언제
+기본기능 체크리스트에 없는 사양 확인 시험이다. 기본 전체 회귀와 WU 체인에는 들어가지 않는다.
+`run-regression --select queue-retry`로 고를 때만 WF_04 자리 뒤에서 실행한다. 선행 단계는 WF_01·WF_02다.
+
+#### 순서
+1. 설정된 Storage 행의 이름·AE Title·IP·Port를 DB에서 읽어 원래 값으로 둔다. 같은 호스트에서 연결이 거절되는 포트를 고른다.
+2. Setting > DICOM > Storage에서 그 행의 Port만 닫힌 포트로 바꾸고 Update한다.
+3. Examined에서 시험 검사를 열고 2D 영상 하나를 Selected로 전송한다.
+4. DICOM 창 Queue 모드에서 이번 행의 State가 Failed가 될 때까지 본다.
+5. Storage Port를 원래 값으로 되돌리고 Update한다.
+6. Queue 화면에서 그 행을 골라 Retry를 누르고 State를 다시 읽는다.
+
+#### 결과
+- 판정은 Queue 화면에 보이는 State 값으로 한다. Retry 뒤 다시 Failed면 PASS, Done이면 FAIL이다.
+- Retry 뒤 Failed여도 재시도가 일어났다는 신호가 하나도 없으면 FAIL로 남긴다.
+  신호는 화면 State가 Failed가 아닌 값으로 바뀐 관찰, DB State 변화, Viewer 로그(`Log\Viewer\YYYY_MM_DD.log`)의 같은 Queue 항목 상태 변화 중 하나다.
+- 화면의 State 칸은 좁아서 `Sending`을 `Send...`처럼 줄여 보여 준다. 줄임표가 있으면 접두사가 맞는 State가 하나일 때만 그 값으로 읽는다.
+- Viewer 로그의 `Storage> Connecting to` 접속 대상(등록 당시 IP:Port인지)은 참고 근거로 남긴다.
+- Storage SCP의 수신 건수, Queue 작업 사본 행의 Port, DB State 값은 참고 근거로만 남긴다.
+
+#### 안 될 때
+- 닫힌 포트를 찾지 못하거나 원래 Port가 열려 있지 않으면 시험을 보류한다.
+- 시험 영상이 전송 전에 이미 Storage SCP에 있으면 새 수신을 구별할 수 없으므로 보류한다.
+- Queue 화면에서 이번 행을 하나로 특정하지 못하면 Retry를 누르지 않고 실패 근거를 남긴다.
+
+#### 지킬 것
+- 시험이 끝나면 성공·실패와 관계없이 Storage 행을 원래 Port로 되돌리고 DB로 확인한다.
+- Retry 버튼은 누르기 전에 툴팁 문구 `Retry`를 확인한다. Delete는 누르지 않는다.
+- 기존 체크리스트의 판정과 회귀 순서는 바꾸지 않는다.
 
 ### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
 
@@ -916,6 +955,9 @@ OS 정보는 레지스트리와 kernel32를 먼저 쓴다. KB 목록을 읽는 P
 4. 실행 순서는 기본 전체와 같은 개정 체크리스트 순서다. 각 TC의 진입 함수·판정·감시(`guarded`)는 기본 전체와 같은 것을 쓴다.
 5. XIPL은 기본 전체와 같이 01~07을 한 단계(`TC_XIPL_compatibility`)로 실행한다. `TC_XIPL_compatibility_0N`을 지정해도 이 단계 전체를 실행한다.
 6. 선택하지 않은 TC는 결과에 넣지 않는다. 사람 전용 SKIP 행(REQ-TCUP-001)도 넣지 않는다. 실행하지 않은 TC를 SKIP이나 PASS로 적지 않는다.
+7. 체크리스트 밖 사양 확인 단계는 고를 때만 실행한다. 지금은 `queue-retry`(REQ-QUEUE-001, 단계 ID `SPEC_QueueList_Retry`) 하나다.
+   이 단계는 기본 사슬의 `TC_Basic_WorkFlow_04` 바로 뒤에 놓고, 선행 TC는 `TC_Basic_WorkFlow_01`·`02`다.
+   기본 전체와 같은지 비교할 때는 이 단계를 빼고 기본 사슬만 본다.
 
 #### 입력 검사
 - TC ID는 정식 ID나 짧은 이름(`wf08`, `install02`, `xipl`)으로 받는다. 모르는 이름은 제품을 조작하기 전에 거부한다(종료 코드 2).
@@ -1682,6 +1724,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OFFICIAL-004 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_preview_readiness.py`, `tests/test_process_window_wait.py` | implemented |
 | REQ-OFFICIAL-005 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_xipl_post_recon.py` | implemented |
 | REQ-OFFICIAL-006 | `tests/workflow04.py`, `core/flows.py`, `core/send_verify.py` | `tests/test_send_recovery.py` | implemented |
+| REQ-QUEUE-001 | `tests/queue_retry.py`, `core/queue_ui.py`, `core/selection.py`, `run.py`, `tools/probe_queue_window.py` | `tests/test_queue_retry.py` | implemented |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
@@ -1740,6 +1783,9 @@ NFR-BOUNDARY-001은 수동 절차(TEST-BOUNDARY-001)만 있어 implemented로 �
   근거: `progress.md`의 2026-09-08 기록.
   영향: 현재 expected/actual/note는 유지하며 원문 영역의 기존 빈 상태를 완료로 바꾸지 않는다.
   결정 담당: 사용자와 자동화 유지보수 담당자.
+- 확인 필요 — REQ-QUEUE-001의 Retry 문구는 원노트 사양서(261030) SRS 06-10-10에만 있다.
+  ALM 1.0.12 사양서(261122)의 VP-314(draft)에는 같은 문구가 아직 없다. 개정 기록은 1.0.12.114T1·115T1 Patch(검증 중단)에 있다.
+  영향: 시험 PC의 Viewer 1.0.12.105 결과를 해당 Patch의 수용으로 보지 않는다. 결정 담당: 제품 QA 담당자.
 
 ## 14. 향후 개선 후보
 

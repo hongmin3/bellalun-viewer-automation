@@ -58,7 +58,7 @@ def _entries():
         for path in paths:
             if path.startswith("tests/"):
                 entries.setdefault(path, set())
-                if stage in selection.BASIC_CHAIN_IDS:
+                if stage in selection.BASIC_CHAIN_IDS or stage in selection.OPTIONAL_STAGES:
                     entries[path].add(stage)
     return entries
 
@@ -162,7 +162,8 @@ def classify(paths, graph=None):
         impact = ", ".join(sorted(traced["tcs"])) + (" + WU" if traced["wu"] else "")
         rows.append({"path": path, "impact": impact.strip(" +") or "none",
                      "reason": "import 관계로 닿는 TC 진입 파일"})
-    order = {stage: index for index, stage in enumerate(selection.BASIC_CHAIN_IDS)}
+    order = {stage: index for index, stage in
+             enumerate(selection.with_optional(selection.BASIC_CHAIN_IDS))}
     ordered = sorted(tcs, key=order.__getitem__)
     if full or (tcs and wu):
         scope, command = "full", "run-regression, run-winupdate (두 묶음 전체)"

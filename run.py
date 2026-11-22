@@ -1102,10 +1102,28 @@ def _basic_chain_stages():
     ]
 
 
+def _optional_stages():
+    """고를 때만 실행하는 체크리스트 밖 사양 확인 단계 (함수, 단계 ID, 제목)."""
+    from tests.queue_retry import TC_ID as queue_retry_id, TITLE as queue_retry_title
+    from tests.queue_retry import queue_retry
+    return [(queue_retry, queue_retry_id, queue_retry_title)]
+
+
 def _selected_chain_stages(stages, selection):
-    """선택 회귀(REQ-SPEEDUP-002): 기본 사슬에서 선택·smoke·전제·선행 단계만 같은 순서로 남긴다."""
+    """선택 회귀(REQ-SPEEDUP-002): 기본 사슬에서 선택·smoke·전제·선행 단계만 같은 순서로 남긴다.
+
+    선택 전용 단계(REQ-QUEUE-001)는 `core.selection.OPTIONAL_STAGES`가 정한 기본 단계 바로 뒤에 끼운다.
+    """
+    from core.selection import OPTIONAL_STAGES
     executed = set(selection["executed"])
-    return [stage for stage in stages if stage[1] in executed]
+    optional = {stage[1]: stage for stage in _optional_stages()
+                if stage[1] in executed}
+    ordered = []
+    for stage in stages:
+        ordered.append(stage)
+        ordered.extend(optional[opt] for opt, after in OPTIONAL_STAGES.items()
+                       if after == stage[1] and opt in optional)
+    return [stage for stage in ordered if stage[1] in executed]
 
 
 def _regression_scope_skips(ctx, results, selection):

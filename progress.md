@@ -1,5 +1,15 @@
 # 진행 상태
 
+## Queue List Retry 사양 확인 (2026-11-22, REQ-QUEUE-001)
+
+- 근거는 원노트 사양서(261030) 828쪽 SRS 06-10-10의 2026-10-30 Retry 문구와 Redmine #25531(Spec 종료)이다. ALM 1.0.12 VP-314에는 같은 문구가 아직 없다(SPEC 13절).
+- 소스 선택 실행 `20261122-163800-2b5b7f9c`(`run-regression --select queue-retry --restore-after`, Viewer 1.0.12.105 Demo): 6 TC PASS, 원상복원 verified.
+- 실행 흐름: Port를 11117(닫힘)로 바꿔 Queue Key 13이 화면 State Failed가 됐다. Port를 11116으로 되돌리고 Retry하자 화면이 `Send...` 뒤 Failed로 돌아왔다. Viewer 로그에도 `Pending → Sending`, `Connecting to 10.13.0.222:11117`, `Failed`가 남았다. SCP 수신은 0건이었고 Storage 설정은 원복됐다.
+- 그 실행에서 판독기는 잘린 `Send...`를 읽지 못했다. 재시도 신호는 DB State 3→5→3 하나뿐이었고, DICOM Storage 로그에는 줄이 없었다. 판독과 로그 출처를 고친 뒤 같은 실기 캡처 45장과 Viewer 로그로 재현했다. 결과는 `Sending` 9회 → `Failed`, 접속 대상 11117이다. 수정본의 제품 재실행은 아직 하지 않았다.
+- 첫 시도 `20261122-162620-be02fb9d`는 Viewer가 보조 모니터에 떠 DICOM 등록 전제에서 멈췄다. 보조 모니터를 끈 뒤 위 실행을 했다.
+- verify: pytest 1879 passed·3 skipped, spec-sync·readiness 통과. `tools/traceability.py`는 지식 폴더 이름(`지식` ↔ `Bellalun Viewer 지식파일`)과 기준서 파일 이름 차이로 기존부터 실패한다. 이번 변경과는 무관하다.
+- 다음 시작점: 수정본의 같은 선택 실행 1회(사용자 승인 필요), 지식 폴더 이름 차이 처리.
+
 ## PC1 첫 개발 검증판 설치와 선택 회귀 (2026-11-22)
 
 - 당시 표기 `1.0.0.(001)`의 실제 시작 메뉴 첫 실행과 설정 보존을 확인했다. 준비 점검은 PASS 24건, OCR 버전 차이 WARN 1건이다.

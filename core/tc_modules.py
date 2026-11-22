@@ -68,6 +68,9 @@ TC_MODULES = {
                                       "core/flows.py"],
     "AUTOMATION_3D_ACQUISITION_3DW": ["tests/system_compat.py",
                                       "core/flows.py"],
+    # --- 체크리스트 밖 사양 확인(선택 실행 전용, REQ-QUEUE-001) ---
+    "SPEC_QueueList_Retry": ["tests/queue_retry.py", "core/queue_ui.py",
+                             "core/send_verify.py", "core/dicom_settings.py"],
 }
 
 

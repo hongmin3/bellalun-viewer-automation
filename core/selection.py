@@ -17,6 +17,11 @@ PRECONDITIONS = ("DICOM_Server_Setup",)
 #: 언제나 실행하는 짧은 smoke.
 SMOKE = ("TC_Basic_Install_02", "TC_Basic_WorkFlow_01")
 XIPL_STAGE = "TC_XIPL_compatibility"
+#: 체크리스트 밖 사양 확인 단계. 고를 때만 실행하며 {단계 ID: 바로 앞 기본 단계}다.
+#: 기본 전체(`run-regression` 인자 없음)에는 들어가지 않는다(REQ-QUEUE-001).
+OPTIONAL_STAGES = {"SPEC_QueueList_Retry": "TC_Basic_WorkFlow_04"}
+_OPTIONAL_ALIASES = {"queueretry": "SPEC_QueueList_Retry",
+                     "specqueuelistretry": "SPEC_QueueList_Retry"}
 
 _FIXTURE = ("TC_Basic_WorkFlow_01", "TC_Basic_WorkFlow_02")
 _OVERLAY = ("TC_Basic_WorkFlow_03",)
@@ -27,7 +32,7 @@ def dependencies(stage_id):
 
     WF_14는 Step 7에서 Print Overlay 목록 행을 열거한다. 기준 상태에는 그 행이 없다.
     """
-    if stage_id == XIPL_STAGE:
+    if stage_id == XIPL_STAGE or stage_id in OPTIONAL_STAGES:
         return _FIXTURE
     match = re.fullmatch(r"TC_Basic_WorkFlow_(\d\d)", stage_id)
     if not match:
@@ -45,7 +50,7 @@ def dependencies(stage_id):
 def normalize(name):
     """정식 ID나 짧은 이름(`wf08`, `install02`, `xipl`, `xipl-04`)을 사슬 단계 ID로 바꾼다."""
     text = str(name or "").strip()
-    if text in BASIC_CHAIN_IDS:
+    if text in BASIC_CHAIN_IDS or text in OPTIONAL_STAGES:
         return text
     if re.fullmatch(r"TC_XIPL_compatibility_0[1-7]", text):
         return XIPL_STAGE
@@ -60,12 +65,23 @@ def normalize(name):
         return XIPL_STAGE
     if key in {"dicom", "dicomserversetup"}:
         return "DICOM_Server_Setup"
+    if key in _OPTIONAL_ALIASES:
+        return _OPTIONAL_ALIASES[key]
     raise ValueError(f"선택 회귀에서 알 수 없는 TC입니다: {text or '(빈 값)'}")
+
+
+def with_optional(chain_ids):
+    """기본 사슬에 선택 전용 단계를 바로 앞 단계 뒤에 끼운 순서."""
+    out = []
+    for stage_id in chain_ids:
+        out.append(stage_id)
+        out.extend(opt for opt, after in OPTIONAL_STAGES.items() if after == stage_id)
+    return tuple(out)
 
 
 def resolve(requested, chain_ids=BASIC_CHAIN_IDS):
     """요청 TC → {requested, dependencies, smoke, executed}. 순서는 모두 체크리스트 순서다."""
-    order = {stage_id: index for index, stage_id in enumerate(chain_ids)}
+    order = {stage_id: index for index, stage_id in enumerate(with_optional(chain_ids))}
     picked = {normalize(name) for name in requested if str(name or "").strip()}
     if not picked:
         raise ValueError("선택 회귀에 실행할 TC를 하나 이상 지정하세요.")
