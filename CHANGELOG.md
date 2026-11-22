@@ -1,5 +1,9 @@
 # Changelog
 
+## 개발 — Queue Retry 사양 시험 (2026-11-22)
+
+- REQ-QUEUE-001: `run-queue-retry` 단독 시험을 추가했다. 틀린 Port로 등록한 Storage로 보낸 2D 영상이 Failed가 된 뒤 Port를 고쳐 Retry하면, Queue 화면에서 Sending을 거쳐 다시 Failed가 되는지 판정한다. DB·제품 로그·SCP 수신은 참고로 남기고, 끝나면 Storage 설정을 실행 전으로 되돌린다. 기존 체크리스트 판정과 회귀 순서는 바꾸지 않았다.
+
 ## 개발 — USB Export IMG 식별 대조 (2026-11-22)
 
 - REQ-WU-001: USB의 Normal IMG를 Import하기 전에 다시 열어 환자·검사·시리즈·영상 식별자를 실제 선택한 원본과 비교한다. 잘못된 검사, 손상된 파일과 중복을 감지하면 Import를 중단한다. 개발 검증판 번호는 `1.0.0.005`다.

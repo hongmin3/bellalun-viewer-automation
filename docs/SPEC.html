@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="637377a351f6c95391a30f7ed9ee4939fb3a9feffb8acd67656d9551562c5924">
+<meta name="spec-source-sha256" content="b13178e62224ab80dad90831e05a2852e9a5457e67e08396b74242293cfd5194">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 개발 검증판 1.0.0.005, 정식 기준 1.0.0</b></span><span class="chip"><span>Last Updated</span><b>2026-11-22</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>58</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>8</b><span>implemented</span></div><div class="stat st-verified"><b>50</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>59</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>8</b><span>implemented</span></div><div class="stat st-verified"><b>51</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -119,6 +119,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004 <span>2D Preview 취소 검증</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-OFFICIAL-005">REQ-OFFICIAL-005 <span>3D Preview 취소 검증</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-OFFICIAL-006">REQ-OFFICIAL-006 <span>View의 2D Selected 전송 검증</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-QUEUE-001">REQ-QUEUE-001 <span>Queue Retry의 등록 당시 Storage 정보 재전송</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-TRACE-002">REQ-TRACE-002 <span>Windows Update 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-002">REQ-VERDICT-002 <span>사람이 직접 하는 TC는 SKIP</span></a></li>
@@ -251,6 +252,8 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a></td><td data-label="이름">2D Preview 취소 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="테스트"><code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-005">REQ-OFFICIAL-005</a></td><td data-label="이름">3D Preview 취소 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="테스트"><code>tests/test_xipl_post_recon.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-OFFICIAL-006">REQ-OFFICIAL-006</a></td><td data-label="이름">View의 2D Selected 전송 검증</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>tests/workflow04.py</code>, <code>core/flows.py</code>, <code>core/send_verify.py</code></td><td data-label="테스트"><code>tests/test_send_recovery.py</code></td></tr>
+<tr class="group"><th colspan="5"><span class="gcode">QUEUE</span> 체크리스트 밖의 DICOM Queue 사양 시험</th></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-QUEUE-001">REQ-QUEUE-001</a></td><td data-label="이름">Queue Retry의 등록 당시 Storage 정보 재전송</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/queue_retry.py</code>, <code>core/dicom_queue.py</code>, <code>run.py</code></td><td data-label="테스트"><code>tests/test_queue_retry.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">VERDICT</span> 근거에 따른 판정</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
@@ -483,6 +486,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <tr><td>BOUNDARY</td><td>비공개 자료 보호</td></tr>
 <tr><td>QA</td><td>처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결)</td></tr>
 <tr><td>SPECSYNC</td><td>동작 변경과 사양 동기화 검사</td></tr>
+<tr><td>QUEUE</td><td>체크리스트 밖의 DICOM Queue 사양 시험</td></tr>
 </tbody>
 </table></div>
 <section class="card kind-req" id="REQ-REGRESSION-001">
@@ -819,6 +823,56 @@ Apply가 정상 저장과 재시작 후 결과를 변경하는 기존 판정은 
 Selected를 눌러 전송한 뒤 이번 Queue와 Storage SCP의 신규 영상 수신 각각에서 이 SOP만
 확인한다. 선택을 식별할 수 없거나 같은 SOP가 전송 전에 이미 수신돼 있으면 판정을 보류한다.
 기존 Storage SCP 자료를 지우지 않는다. 다른 화면·범위는 별도 실행 증거를 요구한다.</p>
+</section>
+<section class="card kind-req" id="REQ-QUEUE-001">
+<h3><span class="idtag">REQ-QUEUE-001</span> Queue Retry의 등록 당시 Storage 정보 재전송</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tests/queue_retry.py</code>, <code>core/dicom_queue.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_queue_retry.py</code></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">개발 — Queue Retry 사양 시험 (2026-11-22)</span> <a class="idref" href="#REQ-QUEUE-001">REQ-QUEUE-001</a>: <code>run-queue-retry</code> 단독 시험을 추가했다. 틀린 Port로 등록한 Storage로 보낸 2D 영상이 Failed가 된 뒤 Port를 고쳐 Retry하면, Queue 화면에서 Sending을 거쳐 다시 Failed가 되는지 판정한다. DB·제품 로그·SCP 수신은 참고로 남기고, 끝나면 Storage 설정을 실행 전으로 되돌린다. 기존 체크리스트 판정과 회귀 순서는 바꾸지 않았다.</li>
+</ul>
+</details>
+<p>하는 일: SRS 06-10-10 Queue List의 Retry 사양을 Demo 모드 Viewer에서 확인한다.
+사양 문장은 &quot;DICOM Storage 설정 변경 여부와 관계없이 Queue 등록 당시 저장된 정보를 기준으로
+재전송한다&quot;이다. 기존 원노트 사양서(261030)의 2026-10-30 개정에서 추가됐다.</p>
+<p>언제: QA 담당자가 <code>python run.py run-queue-retry</code>로 단독 실행한다.
+기본기능·WU 체크리스트 회귀 순서와 판정에는 넣지 않는다.</p>
+<p>순서:</p>
+<ol>
+<li>실행 전 설정된 Storage 행(<code>SCPUseType=0</code>)을 기록한다. 설정 Storage SCP가 올바른 Port에서 도달 가능해야 한다.</li>
+<li>같은 SCP 호스트에서 연결되지 않는 Port를 고른다. 설정 파일의 <code>queue_retry.wrong_port</code>가 있으면 그 값을 쓴다.</li>
+<li>Setting &gt; DICOM &gt; Storage에서 시험 Storage를 틀린 Port로 저장하고, 그 Storage만 Use로 둔다.</li>
+<li>New Patient로 고유 ID의 Local 시험 검사를 만들고 F8 Demo 촬영으로 2D 영상 1장을 얻는다.</li>
+<li>Examine에서 그 영상을 Selected로 보낸다. 이번 Queue 행이 화면에서 Failed가 될 때까지 기다린다.</li>
+<li>같은 Storage의 Port를 올바른 값으로 고치고 Update한다.</li>
+<li>DICOM 창의 Queue 모드에서 시험 Patient ID 행을 선택하고 Retry를 누른다.</li>
+<li>같은 행의 State를 다시 읽는다.</li>
+</ol>
+<p>판정: Queue 화면 Storage 목록의 State 문구로 한다.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>시점</th><th>기대 State</th><th>근거</th></tr></thead>
+<tbody>
+<tr><td>첫 전송 뒤</td><td>Failed</td><td>틀린 Port로 연결할 수 없다</td></tr>
+<tr><td>Retry 뒤</td><td>Failed</td><td>등록 당시 정보(틀린 Port)로 다시 보낸다</td></tr>
+</tbody>
+</table></div>
+<ul>
+<li>Retry 뒤 Done이면 사양과 다르므로 FAIL이다.</li>
+<li>Retry 뒤 재전송 신호가 없으면 FAIL이다. 신호는 화면의 중간 상태(Pending·Sending)이고, 제품 로그의 상태 변화와 DB 행 변화를 보조로 본다.</li>
+<li>시험 행을 화면에서 Patient ID로 찾지 못하면 다른 행으로 대체하지 않고 FAIL로 남긴다.</li>
+</ul>
+<aside class="callout callout-info"><span class="callout-label">참고</span>
+<p>화면의 State·Patient ID 열은 좁아서 <code>Send...</code>, <code>QRETRY_261122_15...</code>처럼 잘려 보인다. 잘린 글자는 앞부분이 한 값과만 맞을 때 그 값으로 읽는다. 시험 Patient ID는 열 안에 다 보이는 10글자(<code>QR</code>+일시분초)로 만든다.</p>
+</aside>
+<p>참고 기록: DB의 Queue 행(<code>DATA.DICOM_STORAGE_QUEUE</code>)과 작업 사본 Storage 행의 Port,
+Viewer 로그(<code>&lt;data_dir&gt;/Log/Viewer/YYYY_MM_DD.log</code>, UTF-16)의 시험 항목 상태 변화와 연결 주소,
+Storage SCP의 시험 SOP 수신 건수를 남긴다. 이 값들로 최종 판정을 바꾸지 않는다.</p>
+<p>지킬 것: 시험이 끝나면 성공·실패와 관계없이 설정된 Storage 행을 실행 전 기록과 같게
+UI로 되돌린다. 실행 전 행이 없었으면 시험 Storage를 UI로 삭제한다. 복원 결과는 DB로 확인한다.
+시험 검사·영상, 시험 Queue 행과 제품이 만든 작업 사본 행은 지우지 않는다.</p>
+<aside class="callout callout-warn"><span class="callout-label">주의</span>
+<p>사양이나 판정과 다른 동작을 보면 자동화를 사양에 맞추지 않는다. FAIL 또는 <code>SPEC / CODE MISMATCH</code>로 보고한다.</p>
+</aside>
 </section>
 <section class="card kind-req" id="REQ-TRACE-002">
 <h3><span class="idtag">REQ-TRACE-002</span> Windows Update 추적성과 정적 자체검사</h3>
@@ -2830,6 +2884,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-004">REQ-OFFICIAL-004</a></td><td data-label="Implementation"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="Test"><code>tests/test_preview_readiness.py</code>, <code>tests/test_process_window_wait.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-005">REQ-OFFICIAL-005</a></td><td data-label="Implementation"><code>tests/xipl_flows.py</code>, <code>core/viewer_processing.py</code></td><td data-label="Test"><code>tests/test_xipl_post_recon.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-OFFICIAL-006">REQ-OFFICIAL-006</a></td><td data-label="Implementation"><code>tests/workflow04.py</code>, <code>core/flows.py</code>, <code>core/send_verify.py</code></td><td data-label="Test"><code>tests/test_send_recovery.py</code></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-QUEUE-001">REQ-QUEUE-001</a></td><td data-label="Implementation"><code>tests/queue_retry.py</code>, <code>core/dicom_queue.py</code>, <code>run.py</code></td><td data-label="Test"><code>tests/test_queue_retry.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-002">REQ-TRACE-002</a></td><td data-label="Implementation"><code>automation_scope.json</code>, <code>traceability.json</code>, <code>tools/wu_selfcheck.py</code>, <code>tools/traceability.py</code>, <code>tools/report_numbers.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-002">TEST-TRACE-002</a>; <code>tests/test_wu_selfcheck.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a></td><td data-label="Implementation"><code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/qa_dialogs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code>, <code>tests/test_qa_dialogs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a></td><td data-label="Implementation"><code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
@@ -2887,13 +2942,16 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 </tbody>
 </table></div>
 <ul>
-<li>확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
+<li><p>확인 필요 — Install_01/02의 승인 Release Note와 OS Build 기준 자료.
 근거: <code>automation_scope.json</code> 및 <code>NEXT_WORK.md</code>.
-영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.</li>
-<li>확인 필요 — WU 리포트의 원문 Step 설명을 공통 접이식 영역에 채울지 여부.
+영향: 기준값 없는 검증은 기존 MANUAL/SKIP으로 남긴다. 담당: 사용자/제품 QA 담당자.</p></li>
+<li><p>확인 필요 — WU 리포트의 원문 Step 설명을 공통 접이식 영역에 채울지 여부.
 근거: <code>progress.md</code>의 2026-09-08 기록.
 영향: 현재 expected/actual/note는 유지하며 원문 영역의 기존 빈 상태를 완료로 바꾸지 않는다.
-결정 담당: 사용자와 자동화 유지보수 담당자.</li>
+결정 담당: 사용자와 자동화 유지보수 담당자.</p></li>
+<li><p>확인 필요 — ALM 사양서 1.0.12(261122) VP-314(SRS 06-10-10) 본문에는 Retry 기준 문장이 없다.
+기존 원노트 사양서(261030)와 Redmine #25531의 종료 댓글에는 있다.
+영향: <a class="idref" href="#REQ-QUEUE-001">REQ-QUEUE-001</a>은 원노트 개정 문장을 기대 결과의 근거로 쓴다. 결정 담당: 제품 QA 담당자.</p></li>
 </ul>
 </section>
 <section class="chapter" id="sec-14">

@@ -102,6 +102,12 @@ python run.py run-winupdate --from-regression <기본 json>  # 과거 결과 변
 - 실행 중 마우스와 키보드를 점유하므로 사람이 조작하지 않는다.
 - 전체 회귀는 오래 걸리고 DB baseline을 복원한다. 문서 검증 목적으로 실행하지 않는다.
 
+## 체크리스트 밖 사양 시험
+
+- `python run.py run-queue-retry`: SRS 06-10-10 Queue Retry 시험(REQ-QUEUE-001). 회귀 순서에 들어 있지 않다.
+- 약 5분 동안 마우스·키보드를 점유한다. Storage를 틀린 Port로 저장했다가 고치고, 끝나면 실행 전 설정으로 되돌린다.
+- 실행할 때마다 Local 시험 환자 1명, F8 2D 영상 1장, Failed Queue 행 1개가 DB에 남는다. 실행 전 사용자 승인을 받는다.
+
 ## 출력 절약
 
 성공 시 exit code와 최종 요약만 남긴다. 실패 시 `ERROR|FAILED|WARNING|Traceback` 주변만

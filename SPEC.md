@@ -156,6 +156,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | BOUNDARY | 비공개 자료 보호 |
 | QA | 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결) |
 | SPECSYNC | 동작 변경과 사양 동기화 검사 |
+| QUEUE | 체크리스트 밖의 DICOM Queue 사양 시험 |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
 
@@ -369,6 +370,49 @@ R-23-2346의 K15:L15에서 View의 Selected 분기를 WF04로 확인한다.
 Selected를 눌러 전송한 뒤 이번 Queue와 Storage SCP의 신규 영상 수신 각각에서 이 SOP만
 확인한다. 선택을 식별할 수 없거나 같은 SOP가 전송 전에 이미 수신돼 있으면 판정을 보류한다.
 기존 Storage SCP 자료를 지우지 않는다. 다른 화면·범위는 별도 실행 증거를 요구한다.
+
+### REQ-QUEUE-001 Queue Retry의 등록 당시 Storage 정보 재전송
+
+하는 일: SRS 06-10-10 Queue List의 Retry 사양을 Demo 모드 Viewer에서 확인한다.
+사양 문장은 "DICOM Storage 설정 변경 여부와 관계없이 Queue 등록 당시 저장된 정보를 기준으로
+재전송한다"이다. 기존 원노트 사양서(261030)의 2026-10-30 개정에서 추가됐다.
+
+언제: QA 담당자가 `python run.py run-queue-retry`로 단독 실행한다.
+기본기능·WU 체크리스트 회귀 순서와 판정에는 넣지 않는다.
+
+순서:
+
+1. 실행 전 설정된 Storage 행(`SCPUseType=0`)을 기록한다. 설정 Storage SCP가 올바른 Port에서 도달 가능해야 한다.
+2. 같은 SCP 호스트에서 연결되지 않는 Port를 고른다. 설정 파일의 `queue_retry.wrong_port`가 있으면 그 값을 쓴다.
+3. Setting > DICOM > Storage에서 시험 Storage를 틀린 Port로 저장하고, 그 Storage만 Use로 둔다.
+4. New Patient로 고유 ID의 Local 시험 검사를 만들고 F8 Demo 촬영으로 2D 영상 1장을 얻는다.
+5. Examine에서 그 영상을 Selected로 보낸다. 이번 Queue 행이 화면에서 Failed가 될 때까지 기다린다.
+6. 같은 Storage의 Port를 올바른 값으로 고치고 Update한다.
+7. DICOM 창의 Queue 모드에서 시험 Patient ID 행을 선택하고 Retry를 누른다.
+8. 같은 행의 State를 다시 읽는다.
+
+판정: Queue 화면 Storage 목록의 State 문구로 한다.
+
+| 시점 | 기대 State | 근거 |
+|---|---|---|
+| 첫 전송 뒤 | Failed | 틀린 Port로 연결할 수 없다 |
+| Retry 뒤 | Failed | 등록 당시 정보(틀린 Port)로 다시 보낸다 |
+
+- Retry 뒤 Done이면 사양과 다르므로 FAIL이다.
+- Retry 뒤 재전송 신호가 없으면 FAIL이다. 신호는 화면의 중간 상태(Pending·Sending)이고, 제품 로그의 상태 변화와 DB 행 변화를 보조로 본다.
+- 시험 행을 화면에서 Patient ID로 찾지 못하면 다른 행으로 대체하지 않고 FAIL로 남긴다.
+
+> **참고** 화면의 State·Patient ID 열은 좁아서 `Send...`, `QRETRY_261122_15...`처럼 잘려 보인다. 잘린 글자는 앞부분이 한 값과만 맞을 때 그 값으로 읽는다. 시험 Patient ID는 열 안에 다 보이는 10글자(`QR`+일시분초)로 만든다.
+
+참고 기록: DB의 Queue 행(`DATA.DICOM_STORAGE_QUEUE`)과 작업 사본 Storage 행의 Port,
+Viewer 로그(`<data_dir>/Log/Viewer/YYYY_MM_DD.log`, UTF-16)의 시험 항목 상태 변화와 연결 주소,
+Storage SCP의 시험 SOP 수신 건수를 남긴다. 이 값들로 최종 판정을 바꾸지 않는다.
+
+지킬 것: 시험이 끝나면 성공·실패와 관계없이 설정된 Storage 행을 실행 전 기록과 같게
+UI로 되돌린다. 실행 전 행이 없었으면 시험 Storage를 UI로 삭제한다. 복원 결과는 DB로 확인한다.
+시험 검사·영상, 시험 Queue 행과 제품이 만든 작업 사본 행은 지우지 않는다.
+
+> **주의** 사양이나 판정과 다른 동작을 보면 자동화를 사양에 맞추지 않는다. FAIL 또는 `SPEC / CODE MISMATCH`로 보고한다.
 
 ### REQ-TRACE-002 Windows Update 추적성과 정적 자체검사
 
@@ -1682,6 +1726,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OFFICIAL-004 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_preview_readiness.py`, `tests/test_process_window_wait.py` | implemented |
 | REQ-OFFICIAL-005 | `tests/xipl_flows.py`, `core/viewer_processing.py` | `tests/test_xipl_post_recon.py` | implemented |
 | REQ-OFFICIAL-006 | `tests/workflow04.py`, `core/flows.py`, `core/send_verify.py` | `tests/test_send_recovery.py` | implemented |
+| REQ-QUEUE-001 | `tests/queue_retry.py`, `core/dicom_queue.py`, `run.py` | `tests/test_queue_retry.py` | verified |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
@@ -1740,6 +1785,10 @@ NFR-BOUNDARY-001은 수동 절차(TEST-BOUNDARY-001)만 있어 implemented로 �
   근거: `progress.md`의 2026-09-08 기록.
   영향: 현재 expected/actual/note는 유지하며 원문 영역의 기존 빈 상태를 완료로 바꾸지 않는다.
   결정 담당: 사용자와 자동화 유지보수 담당자.
+
+- 확인 필요 — ALM 사양서 1.0.12(261122) VP-314(SRS 06-10-10) 본문에는 Retry 기준 문장이 없다.
+  기존 원노트 사양서(261030)와 Redmine #25531의 종료 댓글에는 있다.
+  영향: REQ-QUEUE-001은 원노트 개정 문장을 기대 결과의 근거로 쓴다. 결정 담당: 제품 QA 담당자.
 
 ## 14. 향후 개선 후보
 

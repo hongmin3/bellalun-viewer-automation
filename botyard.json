@@ -151,7 +151,8 @@
     "tests/test_xipl_save_dialog.py",
     "tests/test_xipl_startup.py",
     "tests/test_xipl_step_selection.py",
-    "tests/test_xipl_study_selection.py"
+    "tests/test_xipl_study_selection.py",
+    "tests/test_queue_retry.py"
   ],
   "autoSync": false,
   "autoPush": false

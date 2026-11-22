@@ -1666,6 +1666,8 @@ def _main():
     sub.add_parser("run-xipl-07",
                    help="촬영 모드별 3D Default Recon Parameter TC07만 실행")
     sub.add_parser("run-sys3d", help="System 연동 3D-Narrow/3D-Wide 촬영 TC03/04 실행")
+    sub.add_parser("run-queue-retry",
+                   help="SRS 06-10-10 Queue Retry 사양 시험(체크리스트 밖, 단독 실행)")
     regression_parser = sub.add_parser(
         "run-regression", help="DB 기준 스냅샷 복원→DICOM→WF01→WF02→WF03→XIPL 전체 회귀")
     regression_parser.add_argument(
@@ -2125,7 +2127,7 @@ def _dispatch(ctx, args):
                    # 해상도 게이트 대상에서 뺀다.
                    "run-wf14", "run-wf15", "run-xipl",
                    "run-xipl-01", "run-xipl-02", "run-xipl-03", "run-xipl-04", "run-xipl-05",
-                   "run-xipl-06", "run-xipl-07", "run-sys3d", "run-auto",
+                   "run-xipl-06", "run-xipl-07", "run-sys3d", "run-queue-retry", "run-auto",
                    "run-regression", "portability-check", "probe-preset3d",
                    "run-winupdate", "run-wu09"}
     if args.cmd in ui_commands:
@@ -2437,6 +2439,10 @@ def _dispatch(ctx, args):
     if args.cmd == "run-sys3d":
         from tests.system_compat import run as run_system_3d
         results.extend(run_system_3d(ctx))
+    if args.cmd == "run-queue-retry":
+        # REQ-QUEUE-001. 체크리스트 TC 가 아니라 회귀 순서에 넣지 않는다.
+        from tests.queue_retry import run as run_queue_retry
+        results.extend(run_queue_retry(ctx))
     if args.cmd == "run-auto":
         from tests.install import install_01, install_02
         results[0:0] = [install_01(ctx), install_02(ctx)]
