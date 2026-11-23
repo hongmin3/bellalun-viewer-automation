@@ -203,6 +203,11 @@ class DistributionBuildTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.builder.audit_distribution(Path(directory))
 
+    def test_nuitka_ships_shared_launcher_script(self):
+        # REQ-FRAME-002: 공용 실행 화면 스크립트가 설치판의 core 폴더에 들어간다.
+        command = self.builder.nuitka_command(ROOT, self.home, '1.2.3')
+        self.assertIn(f"--include-data-files={ROOT / 'core' / 'frame_ui.ps1'}=core/frame_ui.ps1", command)
+
     def test_nuitka_compiles_scenarios_and_excludes_only_unit_tests(self):
         command = self.builder.nuitka_command(ROOT, self.home, '1.2.3')
         self.assertIn('--include-module=tests.winupdate', command)

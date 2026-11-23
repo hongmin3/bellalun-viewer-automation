@@ -159,7 +159,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | BOUNDARY | 비공개 자료 보호 |
 | QA | 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결) |
 | SPECSYNC | 동작 변경과 사양 동기화 검사 |
-| FRAME | VXvue와 같은 실행 화면·레포트 틀 유지 |
+| FRAME | VXvue와 같은 실행 화면·레포트 틀 유지, 처음 쓰는 사람용 공용 실행 화면 |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
 
@@ -1241,6 +1241,26 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 - 공유 파일에는 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다. 제품 값은 호출하는 쪽이 넘긴다.
 - 화면 흐름·레포트 절 순서·산출물의 목표와 맞추는 단계는 `frame/FRAME.md` 2·4절을 따른다. 판정 규칙과 종료 코드는 사용자 확인 없이 VXvue에 맞추지 않는다.
 
+### REQ-FRAME-002 처음 쓰는 사람용 공용 실행 화면
+
+하는 일: 설치판이나 `BellalunAuto.py`를 인자 없이 열면, 처음 쓰는 사람도 설명 없이 따라갈 수 있는 다섯 단계 화면을 보인다. VXvue 자동화와 같은 화면(`core/frame_ui.ps1`, `core/frame_ui.py`)이다.
+
+순서:
+
+1. 시작: 이 프로그램이 하는 일 세 줄, 마지막 실행 결과, "준비 점검 시작" 버튼. 첫 실행이면 설정을 자동으로 찾아 저장한 뒤 준비 점검부터 연다.
+2. 준비 점검: 맨 위 결론 한 줄과 상태·항목·확인 결과·해결 방법 표. 고칠 것이 표 위쪽에 온다. PC별 설정 입력값이 비었으면 실행 버튼을 끄고 이유를 보인다.
+3. 실행 동의: 실행 계획(`format_plan`), 준비 확인 항목, 시험 후 복원 선택(기본 켜짐), "위 변경에 동의합니다". 모든 확인 항목을 체크해야 시작 버튼이 켜진다.
+4. 진행: 단계 n/N, 지금 실행 중인 TC, 경과 시간, 최근 기록 줄, "안전한 지점에서 중단" 버튼. 엔진은 `Runs/<실행 번호>/events.jsonl`에 TC마다 한 줄을 남긴다.
+5. 결과: 큰 결론(모두 통과 / 사람이 확인할 TC 있음 / 실패 있음 / 중단 / UAC 취소), 사람이 확인할 TC와 이유, 레포트 열기·결과 폴더 열기·수동 검토·공유 ZIP 버튼.
+
+지킬 것:
+
+- 시험 실행·동의 검증·실행 기록은 기존 실행 관리(`gui.RunController`), 실행 계획(`runplan`), 실행 기록(`runs`)을 그대로 쓴다. 판정·복원 동작은 바꾸지 않는다.
+- PC별 설정·수동 검토·공유 ZIP은 기존 창을 연다.
+- 무인 실행(`--unattended`)은 원격·에이전트가 다루는 기존 화면(REQ-DIST-002, REQ-FOLLOWUP-003)을 쓴다.
+- 공용 화면을 띄우지 못하면 안내 한 줄을 출력하고 기존 화면을 연다.
+- 진행 창을 닫아도 시험은 계속되고, 시험이 끝날 때까지 진행 창을 다시 연다.
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1585,6 +1605,12 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 대상: REQ-FRAME-001.
 - `tests/test_frame_sync.py`: 이 저장소의 잠금·VXvue 사본 일치, 잠금 미갱신 실패, 형제 미반영 실패, `--propagate` 뒤 양쪽 통과, 형제만 바꾼 경우 감지, 줄바꿈 차이 무시를 임시 폴더에서 확인한다.
 
+### TEST-FRAME-002 공용 실행 화면
+
+- 대상: REQ-FRAME-002.
+- `tests/test_frame_ui.py`: 다섯 화면의 데이터, 진행 기록 줄, 창 호출·임시 파일 정리, 스크립트가 ASCII인지, 실제 WinForms로 다섯 화면을 PNG로 그리는지 확인한다.
+- `tests/test_frame_launch.py`: 문제 우선 정렬, 설정 누락 시 실행 차단, 동의 처리, 결과 화면의 확인할 TC, 엔진 진행 기록, 시작부터 결과까지 한 바퀴 흐름을 가짜 화면·실행기로 확인한다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -1643,6 +1669,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py` | verified |
+| REQ-FRAME-002 | `core/frame_ui.py`, `core/frame_ui.ps1`, `bellalunauto/frame_launch.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/build_distribution.py` | TEST-FRAME-002; `tests/test_frame_ui.py`, `tests/test_frame_launch.py`, `tests/test_distribution_build.py` | verified |
 
 상태의 뜻:
 

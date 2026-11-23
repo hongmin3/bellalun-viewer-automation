@@ -40,10 +40,27 @@ TC와 Step 판정 값은 `PASS`, `FAIL`, `MANUAL`, `SKIP`, `BLOCKED` 다섯 가�
 
 화면 문구는 쉬운 한국어로 쓰고, 오류 원문과 경로는 그대로 보인다.
 
+구현은 공유 파일 두 개다.
+
+| 파일 | 하는 일 |
+|---|---|
+| `core/frame_ui.ps1` | Windows PowerShell 5.1의 WinForms로 다섯 화면을 그린다. ASCII로만 쓰고 보이는 글자는 모두 JSON으로 받는다. `-Snapshot <png>`이면 그린 화면을 저장하고 바로 닫는다. |
+| `core/frame_ui.py` | 화면별 데이터(`home`·`inspect`·`confirm`·`progress`·`result`)를 만들고 창을 띄운다(`show`). 화면 맨 위의 단계 표시, 색(`PALETTE`, 레포트 배지와 같은 색), 결과 결론 문장(`outcome_headline`)을 정한다. |
+
+제품 코드는 점검 결과·실행 대상·동의 항목·결과 행을 이 함수들에 넘기기만 한다. 제품마다 다른 선택값(VXvue의 모드·테마)은 `inspect(options=..., views=...)`로 넘긴다.
+
 ### 2.3 진행 기록
 
 실행 엔진은 진행을 실행 폴더의 `events.jsonl`에 한 줄씩 남기고, 화면은 그 파일을 읽어 보인다.
 화면과 엔진은 이 파일과 종료 결과 파일로만 주고받는다. 화면이 닫혀도 실행은 계속된다.
+
+한 줄의 모양(`core/frame_ui.append_event`):
+
+```json
+{"time": "14:03:22", "tc_id": "TC_Basic_WorkFlow_03", "index": 3, "total": 27, "message": "실행 시작"}
+```
+
+`index`·`total`이 있으면 진행 화면이 "단계 3/27"과 진행 막대를 보인다. 없으면 마지막 TC 이름만 보인다.
 
 ### 2.4 결과 레포트
 
@@ -103,7 +120,8 @@ HTML 절 순서와 목차 이름은 `core/report_layout.py`의 `SECTIONS`가 정
 |---|---|---|
 | 1 | 공유 사본 검사·반영 규칙(이 문서, `frame/sync_check.py`) | 완료 |
 | 2 | 레포트 통일: Bellalun CSV·TXT 중단, 공통 절 목록(`SECTIONS`)으로 목차·순서 통일, VXvue 체크리스트 xlsx를 결과와 같은 폴더·같은 시각 이름으로 저장 | 완료 |
-| 3 | 공용 WinForms 실행 화면(2.2)과 진행 기록(2.3). Bellalun tkinter 화면을 이 창으로 바꿈 | 예정 |
+| 3 | 공용 WinForms 실행 화면(2.2)과 진행 기록(2.3). 사람이 여는 기본 흐름을 두 제품 모두 이 화면으로 바꿈(Bellalun `bellalunauto/frame_launch.py`, VXvue `core/frame_vxvue.py`) | 완료 |
+| 3-후속 | Bellalun의 PC별 설정·수동 검토·공유 ZIP 창과 무인 실행 화면(Tk), VXvue의 상세 설정·이력·PC 준비 창을 공용 화면으로 옮김 | 예정 |
 | 4 | 각 제품 EXE로 화면·레포트 수용 확인(실행 전 사용자 승인) | 예정 |
 
 알려진 차이(맞출지 정하지 않은 것):

@@ -608,7 +608,16 @@ def main(argv=None):
                     return main(forwarded)
         if not arguments:
             from bellalunauto.gui import launch
-            return launch(layout, unattended=unattended)
+            if unattended:
+                # 무인 실행은 원격·에이전트가 다루는 기존 Tk 화면을 유지한다(REQ-FOLLOWUP-003).
+                return launch(layout, unattended=unattended)
+            # 사람 실행은 VXvue와 같은 공용 화면이다(REQ-FRAME-002). 창을 띄우지 못하면 기존 화면으로 연다.
+            from bellalunauto.frame_launch import launch as launch_frame
+            try:
+                return launch_frame(layout)
+            except RuntimeError as error:
+                print(f'[안내] 공용 실행 화면을 열지 못해 기존 화면으로 엽니다: {error}')
+                return launch(layout, unattended=unattended)
         if arguments == ['prepare-install']:
             from bellalunauto.prerequisites import prepare_install
             return prepare_install(layout)

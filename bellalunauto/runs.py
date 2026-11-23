@@ -243,3 +243,9 @@ def engine_progress(workspace, run_id, tc_id, index, total):
         _write(Path(workspace) / 'work' / 'qa_progress.json', {
             'run_id': run_id, 'current_tc': tc_id, 'index': index, 'total': total, 'updated': _now(),
         })
+        # 공용 진행 화면이 읽는 기록(REQ-FRAME-002, frame/FRAME.md 2.3). 기록 실패는 시험을 멈추지 않는다.
+        try:
+            from core.frame_ui import append_event
+            append_event(Path(workspace) / 'Runs' / run_id / 'events.jsonl', tc_id, '실행 시작', index, total)
+        except OSError:
+            pass

@@ -180,13 +180,16 @@ def test_main_passes_option_or_environment_signal_to_gui(monkeypatch, tmp_path):
     from bellalunauto import app, gui
     calls = []
     monkeypatch.setattr(app, 'resolve_layout', lambda **kwargs: SimpleNamespace(workspace=tmp_path))
+    from bellalunauto import frame_launch
     monkeypatch.setattr(gui, 'launch', lambda layout, **kwargs: calls.append(kwargs) or 0)
+    # 사람 실행은 공용 화면으로 간다(REQ-FRAME-002). 무인 실행만 기존 화면에 신호를 넘긴다.
+    monkeypatch.setattr(frame_launch, 'launch', lambda layout, **kwargs: calls.append('frame') or 0)
     monkeypatch.delenv('QA_AUTOMATION_UNATTENDED', raising=False)
     assert app.main(['--unattended']) == 0
     assert app.main([]) == 0
     monkeypatch.setenv('QA_AUTOMATION_UNATTENDED', '1')
     assert app.main([]) == 0
-    assert [call.get('unattended') for call in calls] == ['option', None, 'environment']
+    assert [call if call == 'frame' else call.get('unattended') for call in calls] == ['option', 'frame', 'environment']
 
 
 def test_unattended_wrappers_pass_the_signal(tmp_path):

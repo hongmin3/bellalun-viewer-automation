@@ -189,6 +189,8 @@ def nuitka_command(root, output, version):
     for path in sorted((root / 'tests').glob('*.py')):
         if path.name != '__init__.py' and not path.stem.startswith('test_'):
             command.append(f'--include-module=tests.{path.stem}')
+    # 공용 실행 화면 스크립트(REQ-FRAME-002). core/frame_ui.py가 자기 옆에서 찾는다.
+    command.append(f"--include-data-files={root / 'core' / 'frame_ui.ps1'}=core/frame_ui.ps1")
     return command + [str(root / 'BellalunAuto.py')]
 
 

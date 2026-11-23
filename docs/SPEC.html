@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="1e023cf960383a0da45f02bc3f0dc5ef119b01864f216f90fd3bec437b8f6aff">
+<meta name="spec-source-sha256" content="b81a8842d31e937890b972f3379eab88e5ee067212488cc98e0cd8f4e2d93884">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>53</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>42</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>51</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>54</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>43</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>52</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -157,6 +157,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002 <span>동작 파일의 12절 추적 범위</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003 <span>커밋된 verify 게이트와 verified 상태</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FRAME-001">REQ-FRAME-001 <span>VXvue와 공통 자동화 프레임 유지</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-FRAME-002">REQ-FRAME-002 <span>처음 쓰는 사람용 공용 실행 화면</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
 <li class="toc-2"><a href="#sec-7">7. 데이터 사양</a></li>
@@ -206,6 +207,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-TCUP-005">TEST-TCUP-005 <span>사양에 맞는 Import와 Post Reconstruction</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001 <span>사양 동기화 검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-FRAME-001">TEST-FRAME-001 <span>공통 프레임 사본 검사</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-FRAME-002">TEST-FRAME-002 <span>공용 실행 화면</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -281,8 +283,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-001">REQ-SPECSYNC-001</a></td><td data-label="이름">동작 변경과 SPEC 갱신을 같은 커밋에 묶기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tools/spec_sync_check.py</code>, <code>tools/install_git_hooks.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_sync_check.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a></td><td data-label="이름">동작 파일의 12절 추적 범위</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003</a></td><td data-label="이름">커밋된 verify 게이트와 verified 상태</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>botyard.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td></tr>
-<tr class="group"><th colspan="5"><span class="gcode">FRAME</span> VXvue와 같은 실행 화면·레포트 틀 유지</th></tr>
+<tr class="group"><th colspan="5"><span class="gcode">FRAME</span> VXvue와 같은 실행 화면·레포트 틀 유지, 처음 쓰는 사람용 공용 실행 화면</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="이름">VXvue와 공통 자동화 프레임 유지</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="이름">처음 쓰는 사람용 공용 실행 화면</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -477,7 +480,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.</p>
 <tr><td>BOUNDARY</td><td>비공개 자료 보호</td></tr>
 <tr><td>QA</td><td>처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결)</td></tr>
 <tr><td>SPECSYNC</td><td>동작 변경과 사양 동기화 검사</td></tr>
-<tr><td>FRAME</td><td>VXvue와 같은 실행 화면·레포트 틀 유지</td></tr>
+<tr><td>FRAME</td><td>VXvue와 같은 실행 화면·레포트 틀 유지, 처음 쓰는 사람용 공용 실행 화면</td></tr>
 </tbody>
 </table></div>
 <section class="card kind-req" id="REQ-REGRESSION-001">
@@ -938,7 +941,7 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 </section>
 <section class="card kind-req" id="REQ-DIST-002">
 <h3><span class="idtag">REQ-DIST-002</span> 실행 화면과 프로세스 관리</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code>, <code>core/sysinfo.py</code>, <code>core/db.py</code>, <code>core/dbreset.py</code>, <code>core/screen.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/flows.py</code>, <code>core/update_evidence.py</code>, <code>core/source_identity.py</code>, <code>tests/xipl_flows.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code>, <code>tests/test_console_children.py</code>, <code>tests/test_console_dbreset.py</code>, <code>tests/test_console_ocr.py</code>, <code>tests/test_console_stdin.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code>, <code>core/sysinfo.py</code>, <code>core/db.py</code>, <code>core/dbreset.py</code>, <code>core/screen.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/flows.py</code>, <code>core/update_evidence.py</code>, <code>core/source_identity.py</code>, <code>tests/xipl_flows.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code>, <code>tests/test_console_children.py</code>, <code>tests/test_console_dbreset.py</code>, <code>tests/test_console_ocr.py</code>, <code>tests/test_console_stdin.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a>, <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
 <details class="history"><summary>변경 이력 12</summary>
 <ul>
 <li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: Python 3.13에서도 공유 이름이 없는 UNC 보존 경로를 거부한다.</li>
@@ -1962,7 +1965,7 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-003">
 <h3><span class="idtag">REQ-FOLLOWUP-003</span> 회귀 완료 후 60초 자동 닫기 (무인 실행만)</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></span><span class="meta"><b>테스트</b> <code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></span></div>
 <details class="history"><summary>변경 이력 7</summary>
 <ul>
 <li><span class="hist">1.0.21 후보 — 결과 창 자동 닫기를 무인 실행에만 적용</span> <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>: 회귀 완료 뒤 60초 자동 닫기를 무인 실행에만 적용한다. 무인 여부는 명령줄 <code>--unattended</code> 또는 환경 변수 <code>QA_AUTOMATION_UNATTENDED=1</code>로만 정하며, 신호가 없으면 사람 실행으로 보고 결과 창을 남긴다. 창 제목에 <code>자동 닫기 꺼짐(사람 실행)</code> 또는 <code>N초 뒤 자동 닫힘(무인 실행)</code>을 표시한다. 신호 이름과 문구는 VXvue 자동화와 같게 쓴다.</li>
@@ -2226,6 +2229,32 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 <li>VXvue 저장소 폴더가 이 PC에 없으면 사본 비교를 건너뛰고 안내만 출력한다. 폴더가 있는데 공유 프레임이 없으면 실패한다.</li>
 <li>공유 파일에는 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다. 제품 값은 호출하는 쪽이 넘긴다.</li>
 <li>화면 흐름·레포트 절 순서·산출물의 목표와 맞추는 단계는 <code>frame/FRAME.md</code> 2·4절을 따른다. 판정 규칙과 종료 코드는 사용자 확인 없이 VXvue에 맞추지 않는다.</li>
+</ul>
+</section>
+<section class="card kind-req" id="REQ-FRAME-002">
+<h3><span class="idtag">REQ-FRAME-002</span> 처음 쓰는 사람용 공용 실행 화면</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">공통 자동화 프레임 3단계 — 처음 쓰는 사람용 공용 실행 화면 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a>(신규): 설치판이나 <code>BellalunAuto.py</code>를 인자 없이 열면 VXvue와 같은 다섯 단계 화면(시작 → 준비 점검 → 실행 동의 → 진행 → 결과)이 열린다. 화면 맨 위 단계 표시를 따라가면 되고, 준비 점검은 고칠 것을 표 위쪽에 둔다.</li>
+</ul>
+</details>
+<p>하는 일: 설치판이나 <code>BellalunAuto.py</code>를 인자 없이 열면, 처음 쓰는 사람도 설명 없이 따라갈 수 있는 다섯 단계 화면을 보인다. VXvue 자동화와 같은 화면(<code>core/frame_ui.ps1</code>, <code>core/frame_ui.py</code>)이다.</p>
+<p>순서:</p>
+<ol>
+<li>시작: 이 프로그램이 하는 일 세 줄, 마지막 실행 결과, &quot;준비 점검 시작&quot; 버튼. 첫 실행이면 설정을 자동으로 찾아 저장한 뒤 준비 점검부터 연다.</li>
+<li>준비 점검: 맨 위 결론 한 줄과 상태·항목·확인 결과·해결 방법 표. 고칠 것이 표 위쪽에 온다. PC별 설정 입력값이 비었으면 실행 버튼을 끄고 이유를 보인다.</li>
+<li>실행 동의: 실행 계획(<code>format_plan</code>), 준비 확인 항목, 시험 후 복원 선택(기본 켜짐), &quot;위 변경에 동의합니다&quot;. 모든 확인 항목을 체크해야 시작 버튼이 켜진다.</li>
+<li>진행: 단계 n/N, 지금 실행 중인 TC, 경과 시간, 최근 기록 줄, &quot;안전한 지점에서 중단&quot; 버튼. 엔진은 <code>Runs/&lt;실행 번호&gt;/events.jsonl</code>에 TC마다 한 줄을 남긴다.</li>
+<li>결과: 큰 결론(모두 통과 / 사람이 확인할 TC 있음 / 실패 있음 / 중단 / UAC 취소), 사람이 확인할 TC와 이유, 레포트 열기·결과 폴더 열기·수동 검토·공유 ZIP 버튼.</li>
+</ol>
+<p>지킬 것:</p>
+<ul>
+<li>시험 실행·동의 검증·실행 기록은 기존 실행 관리(<code>gui.RunController</code>), 실행 계획(<code>runplan</code>), 실행 기록(<code>runs</code>)을 그대로 쓴다. 판정·복원 동작은 바꾸지 않는다.</li>
+<li>PC별 설정·수동 검토·공유 ZIP은 기존 창을 연다.</li>
+<li>무인 실행(<code>--unattended</code>)은 원격·에이전트가 다루는 기존 화면(<a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>)을 쓴다.</li>
+<li>공용 화면을 띄우지 못하면 안내 한 줄을 출력하고 기존 화면을 연다.</li>
+<li>진행 창을 닫아도 시험은 계속되고, 시험이 끝날 때까지 진행 창을 다시 연다.</li>
 </ul>
 </section>
 </section>
@@ -2689,6 +2718,14 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <li><code>tests/test_frame_sync.py</code>: 이 저장소의 잠금·VXvue 사본 일치, 잠금 미갱신 실패, 형제 미반영 실패, <code>--propagate</code> 뒤 양쪽 통과, 형제만 바꾼 경우 감지, 줄바꿈 차이 무시를 임시 폴더에서 확인한다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-FRAME-002">
+<h3><span class="idtag">TEST-FRAME-002</span> 공용 실행 화면</h3>
+<ul>
+<li>대상: <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a>.</li>
+<li><code>tests/test_frame_ui.py</code>: 다섯 화면의 데이터, 진행 기록 줄, 창 호출·임시 파일 정리, 스크립트가 ASCII인지, 실제 WinForms로 다섯 화면을 PNG로 그리는지 확인한다.</li>
+<li><code>tests/test_frame_launch.py</code>: 문제 우선 정렬, 설정 누락 시 실행 차단, 동의 처리, 결과 화면의 확인할 TC, 엔진 진행 기록, 시작부터 결과까지 한 바퀴 흐름을 가짜 화면·실행기로 확인한다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -2749,6 +2786,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a></td><td data-label="Implementation"><code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003</a></td><td data-label="Implementation"><code>botyard.json</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="Implementation"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="Implementation"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 </tbody>
 </table></div>
 <p>상태의 뜻:</p>
