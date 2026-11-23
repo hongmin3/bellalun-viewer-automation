@@ -134,7 +134,7 @@ Bellalun Viewer\
    ├─ config.example.json    설정 템플릿 (config.json 은 커밋하지 않는다)
    ├─ AGENTS.md              저장소 작업 규칙
    ├─ NEXT_WORK.md           현재 상태와 다음 할 일
-   ├─ Reports\               리포트 4종 + 체크리스트 결과 xlsx   ┐
+   ├─ Reports\               리포트 2종 + 체크리스트 결과 xlsx   ┐
    ├─ Evidence\              단계별 캡처·크롭 (판정 근거 이미지)  │ 전부
    └─ work\ Temp\ Log\ Cache\  런타임 산출물                      ┘ 커밋 제외
 ```
@@ -196,7 +196,7 @@ DB를 기준 스냅샷으로 복원 → 시험 파라미터 재생성
   → DICOM Print 실제 출력 + 출력물 웹 프리뷰 OCR 대조
   → Export(Normal/Anonymous), Reject·Restore, 계정·권한, Setting Export/Import
   → XIPL 연동 7종(2D/3D 영상처리 파라미터 왕복 검증)
-  → 리포트 4종(HTML·CSV·JSON·TXT) + 체크리스트 xlsx 결과 기록
+  → 리포트(HTML·JSON) + 체크리스트 xlsx 결과 기록
 ```
 
 **회귀와 별개로 도는 단독 점검** — 설치 패키지가 사양·매뉴얼대로 구성됐는지
@@ -213,7 +213,7 @@ python run.py verify-install-package
   → Input License(Hardware Key·18자 4-5-4-5 구조 확인 → **사람이 직접 입력**할 때까지 대기)
   → Summary(스크롤하며 선택한 값이 그대로 실렸는지 대조. 라이선스는 입력 여부와
      형식만 보고 값은 가려서 기록) → **여기서 멈춘다**
-  → 리포트 4종 + 선택 옵션 JSON(설치 후 대조용) + 화면 캡처
+  → 리포트(HTML·JSON) + 선택 옵션 JSON(설치 후 대조용) + 화면 캡처
 ```
 
 **Windows Update 호환성 검증 체크리스트 자동화** — OS 업데이트 후 제품이 여전히

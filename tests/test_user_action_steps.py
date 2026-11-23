@@ -64,17 +64,16 @@ def test_plain_fail_is_marked_for_recheck_on_its_own_step():
     assert action['step_description'] == 'Overlay 를 선택한다.'
 
 
-def test_txt_html_and_json_list_the_user_steps():
+def test_html_and_json_list_the_user_steps():
+    # TXT 레포트는 2026-11-23부터 만들지 않는다(REQ-FRAME-001). 같은 목록을 HTML·JSON에서 확인한다.
     result = padded()
     with tempfile.TemporaryDirectory() as directory:
         paths = write_reports([result], directory, 'actions', meta={'checklist': ROWS})
-        txt = open(paths['txt'], encoding='utf-8').read()
         html = open(paths['html'], encoding='utf-8').read()
         import json
         data = json.load(open(paths['json'], encoding='utf-8'))
-    assert '[ 직접 확인할 TC Step ]' in txt
-    assert 'TC_X Step 2 [자동화 중단 — 이 Step 부터 직접 수행] Print Overlay 를 추가한다.' in txt
     assert '직접 확인할 TC Step' in html and 'Print Overlay 구성이 저장된다.' in html
+    assert '자동화 중단 — 이 Step 부터 직접 수행' in html and 'Print Overlay 를 추가한다.' in html
     assert [a['step'] for a in data['user_actions']] == [2, 3]
 
 

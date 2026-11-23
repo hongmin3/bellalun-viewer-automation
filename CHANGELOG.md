@@ -1,5 +1,10 @@
 # Changelog
 
+## 공통 자동화 프레임 2단계 — 레포트 통일 (2026-11-23)
+
+- REQ-REPORT-001, REQ-FRAME-001: 결과 레포트를 VXvue와 같은 HTML·JSON 두 가지로 만든다. CSV·TXT는 더 만들지 않는다(사용자 결정 2026-11-23). 이전 실행의 CSV·TXT는 공유 ZIP·실행 기록에서 그대로 읽는다.
+- REQ-FRAME-001: HTML 목차와 절 순서를 공유 모듈의 공통 절 목록(`SECTIONS`, `standard_nav`)으로 만든다. "직접 확인할 Step"이 목차에 새로 보인다. 판정·JSON 내용은 바꾸지 않았다.
+
 ## 공통 자동화 프레임 1단계 (2026-11-23)
 
 - REQ-FRAME-001(신규): VXvue 자동화와 실행 화면·진행 표시·레포트를 같은 틀로 유지하는 계약 `frame/FRAME.md`를 만들었다. 공유 파일은 `frame/frame.lock.json`에 해시로 적고, `python frame/sync_check.py`가 잠금과 VXvue 사본을 비교한다. `--propagate`는 공유 파일을 VXvue 저장소에 복사한다. 단위시험 `tests/test_frame_sync.py`가 검증 게이트에서 돈다.

@@ -68,15 +68,13 @@ class OutcomeSummaryTests(unittest.TestCase):
         summary = outcome_summary([tc("TC_A", (1, "확인", FAIL, "a", "b", ""))])
         self.assertEqual(summary["rows"][0]["reason"], "(판정 근거 없음)")
 
-    def test_html_and_text_reports_open_with_the_conclusion(self):
+    def test_html_report_opens_with_the_conclusion(self):
         results = [tc("TC_A", (2, "저장 값 확인", FAIL, "10", "3", "DB 값이 바뀌지 않았다."))]
         with tempfile.TemporaryDirectory() as tmp:
             paths = write_reports(results, tmp, "Summary_test")
             html = Path(paths["html"]).read_text(encoding="utf-8")
-            text = Path(paths["txt"]).read_text(encoding="utf-8")
         self.assertLess(html.index("결론 — 한눈에 보기"), html.index("요약 대시보드"))
         self.assertIn("DB 값이 바뀌지 않았다.", html)
-        self.assertIn("결론:", text.split("판정 합계")[0] if "판정 합계" in text else text[:800])
 
 
 if __name__ == "__main__":

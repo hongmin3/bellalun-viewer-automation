@@ -1,5 +1,6 @@
 """Bellalun·VXvue 공통 오프라인 보고서 표시 계약 v1. 제품 판정은 호출자가 제공한다."""
 from html import escape
+import re
 from collections.abc import Mapping
 
 LAYOUT_VERSION = 1
@@ -109,6 +110,43 @@ SCRIPT = r"""
   });
 })();
 """
+
+
+# 두 제품이 같이 쓰는 레포트 절 순서와 목차 이름(frame/FRAME.md 2.4).
+# 이번 실행에 해당 내용이 없는 절은 빼되 순서는 바꾸지 않는다.
+SECTIONS = (
+    ('overview', '결과 요약'),
+    ('user-steps', '직접 확인할 Step'),
+    ('failures', '실패 원인'),
+    ('manual', '수동 확인'),
+    ('references', '참고 정보'),
+    ('skipped', 'SKIP 사유'),
+    ('tc-results', '전체 TC 결과'),
+    ('tc-details', '상세 근거'),
+    ('slow-steps', '오래 걸린 단계'),
+    ('run-info', '환경·원본'),
+)
+_SECTION_IDS = tuple(key for key, _ in SECTIONS)
+_SECTION_ID_RE = re.compile(r"""\sid=['"](""" + '|'.join(map(re.escape, _SECTION_IDS)) + r""")['"]""")
+
+
+def standard_nav(present):
+    """이번 레포트에 있는 절 id로 공통 순서·이름의 목차를 만든다."""
+    present = set(present)
+    unknown = present - set(_SECTION_IDS)
+    if unknown:
+        raise ValueError('공통 절 목록(SECTIONS)에 없는 절: ' + ', '.join(sorted(unknown)))
+    return [(key, label) for key, label in SECTIONS if key in present]
+
+
+def section_order_problems(html):
+    """본문에 나온 공통 절 id가 SECTIONS 순서를 어기면 그 내용을 돌려준다. 맞으면 빈 목록."""
+    seen = []
+    for match in _SECTION_ID_RE.finditer(html):
+        if match.group(1) not in seen:
+            seen.append(match.group(1))
+    expected = [key for key in _SECTION_IDS if key in seen]
+    return [] if seen == expected else ['절 순서 ' + ' > '.join(seen) + ' (기대: ' + ' > '.join(expected) + ')']
 
 
 def render_badge(status, annotation=''):

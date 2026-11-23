@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import csv
 import json
 import os
 import tempfile
@@ -124,16 +123,7 @@ class ResultReportTests(unittest.TestCase):
             self.assertEqual("장치 연결 후 통신 성공 여부.",
                              blocked["not_verified"])
 
-            with open(paths["csv"], encoding="utf-8-sig", newline="") as stream:
-                rows = list(csv.reader(stream))
-            self.assertIn(["# 실행 환경", "호스트", "QA-PC"], rows)
-            header = next(row for row in rows if row and row[0] == "TC ID")
-            self.assertIn("기준 수행 절차", header)
-            self.assertIn("기준 기대 결과", header)
-            self.assertIn("해제 조건", header)
-            self.assertIn("이 실행으로 말할 수 없는 것", header)
-
-            for kind in ("txt", "html"):
+            for kind in ("html",):
                 with open(paths[kind], encoding="utf-8") as stream:
                     text = stream.read()
                 self.assertIn("BLOCKED", text)
@@ -143,7 +133,9 @@ class ResultReportTests(unittest.TestCase):
                 self.assertIn("실물 장치를 연결한다", text)
                 self.assertIn("장치 통신이 시작된다", text)
 
-            self.assertEqual({"csv", "json", "html", "txt"}, set(paths))
+            # 산출물은 VXvue와 같은 HTML·JSON 두 가지다(REQ-FRAME-001, frame/FRAME.md 2.4).
+            self.assertEqual({"json", "html"}, set(paths))
+            self.assertEqual([], [n for n in os.listdir(directory) if n.endswith((".csv", ".txt"))])
             self.assertTrue(all(os.path.isfile(path) for path in paths.values()))
 
 

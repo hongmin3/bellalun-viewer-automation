@@ -44,5 +44,36 @@ class ReportLayoutTests(unittest.TestCase):
         self.assertIn(' open', b)
 
 
+class SharedSectionOrderTests(unittest.TestCase):
+    """VXvue와 같은 절 순서·목차 이름(REQ-FRAME-001, frame/FRAME.md 2.4)."""
+
+    def test_standard_nav_keeps_common_order_and_rejects_unknown(self):
+        self.assertEqual(['overview', 'failures', 'tc-details'],
+                         [k for k, _ in view.standard_nav({'tc-details', 'failures', 'overview'})])
+        with self.assertRaises(ValueError):
+            view.standard_nav({'overview', 'my-own-section'})
+
+    def test_order_check_detects_swapped_sections(self):
+        self.assertEqual([], view.section_order_problems("<section id='overview'></section><section id='failures'>"))
+        self.assertTrue(view.section_order_problems("<section id='failures'></section><section id='overview'>"))
+
+    def test_bellalun_report_follows_common_order(self):
+        import tempfile
+        from core.result import FAIL, MANUAL, PASS, TCResult, write_reports
+        fail = TCResult('TC_A', '실패 TC')
+        fail.add(1, '값 확인', FAIL, '1', '2', '다름', stop=False)
+        hold = TCResult('TC_B', '수동 TC')
+        hold.add(1, '화면 확인', MANUAL, '표시', '', '사람이 본다')
+        ok = TCResult('TC_C', '통과 TC')
+        ok.add(1, '확인', PASS, 'a', 'a', '')
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = write_reports([fail, hold, ok], tmp, 'order')
+            with open(paths['html'], encoding='utf-8') as stream:
+                html = stream.read()
+        self.assertEqual([], view.section_order_problems(html))
+        for key, label in view.standard_nav({'overview', 'failures', 'manual', 'tc-results', 'tc-details', 'run-info'}):
+            self.assertIn('<a href="#' + key + '">' + label + '</a>', html)
+
+
 if __name__ == '__main__':
     unittest.main()

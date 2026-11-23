@@ -10,5 +10,5 @@ python tools/automation_status.py --max-age-days 7
 python tools/run_regression.py
 set "BLN_EXIT=%ERRORLEVEL%"
 echo.
-echo 결과는 Reports 폴더에 HTML, CSV, JSON, TXT로 저장되었습니다.
+echo 결과는 Reports 폴더에 HTML, JSON과 체크리스트 결과 xlsx로 저장되었습니다.
 exit /b %BLN_EXIT%

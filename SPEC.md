@@ -393,13 +393,15 @@ HTML은 복잡한 값을 접어 펼칠 수 있는 항목별 표로 표시한다.
 
 VXvue와 동일한 `core/report_layout.py` 표시 계약으로 목차·판정 배지·구조화 값·긴 비고·검색·상세 접기·인쇄를 제공한다. 외부 네트워크나 다른 저장소를 읽지 않는다.
 
+산출물은 VXvue와 같게 HTML·JSON과 체크리스트 결과 xlsx다(사용자 결정 2026-11-23, REQ-FRAME-001). CSV·TXT는 만들지 않는다. HTML 절 순서와 목차 이름은 `core/report_layout.py`의 공통 절 목록(`SECTIONS`)과 목차 함수(`standard_nav`)를 따른다.
+
 결론·전체 시간·판정 합계 다음에 실패와 수동 확인 카드를 배치한다. 전체 TC 목록에서 검색·판정 필터로 상세를 찾고 PASS 검증은 접어 둔다. 같은 TC를 반복 실행해도 각 실행의 링크는 고유하다. 필터로 숨긴 상세에 직접 이동하면 필터를 해제하고 해당 실행을 연다.
 
-값 `0`·`False`·`None`·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON/CSV/TXT와 판정 기준은 바꾸지 않는다.
+값 `0`·`False`·`None`·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON과 판정 기준은 바꾸지 않는다.
 
 시간 기록이 있는 TC는 단계 이름·소요 초·완료 또는 오류 상태를 표시한다.
 
-FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리스트 Step 목록을 TXT·HTML·JSON과 체크리스트 결과의 실패·수동 열 앞에 둔다.
+FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리스트 Step 목록을 HTML·JSON과 체크리스트 결과의 실패·수동 열 앞에 둔다.
 
 - 각 줄은 TC ID, 체크리스트 Step 번호, 구분, 그 Step의 수행 절차와 기대 결과를 먼저 쓴다. 자동화가 남긴 원인은 `자동화 참고`로 뒤에 붙인다.
 - 구분은 `자동화 중단 — 이 Step 부터 직접 수행`, `미수행 — 직접 수행`, `실패 — 직접 재확인`, `수동 확인 — 직접 확인`, `수행 불가 — 직접 수행`이다. SKIP은 넣지 않는다.
@@ -412,11 +414,11 @@ FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리�
 #### 선행 조건
 선택한 실행 흐름의 리포트 문맥이 제공된다.
 #### 동작
-공통 HTML/TXT/CSV/JSON 리포트에 실행 환경·명령·TC 판정과 사유를 전달한다.
+공통 HTML/JSON 리포트에 실행 환경·명령·TC 판정과 사유를 전달한다.
 Windows Update는 기본기능 제목으로 오표기하지 않는다. 체크리스트 결과에서
 Fail/Manual의 이유를 전용 Comment에 쓰고 기존 수기 공용 Comment를 덮어쓰지 않는다.
 
-HTML·TXT 리포트 맨 앞에 "결론 — 한눈에 보기"를 둔다(사용자 요청 2026-11-05).
+HTML 리포트 맨 앞에 "결론 — 한눈에 보기"를 둔다(사용자 요청 2026-11-05).
 - 결론 한 문장: 성공·실패·사람 확인 건수와 새 실패가 있는지. 색으로 성공/주의/실패를 나눈다.
 - PASS가 아닌 TC마다 한 줄: 결과, 멈춘 Step과 확인 항목, 기대값과 실제값, 원인.
 - 원인은 등록된 알려진 결함이면 그 결함 설명, 아니면 판정 근거의 첫 문장이다. 리포트가 원인을 추측해 만들지 않는다.
@@ -635,7 +637,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 ### REQ-QA-004 결과 공유 ZIP
 
 #### 하는 일
-이번 실행의 보고서(HTML·JSON·TXT·CSV)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.
+이번 실행의 보고서(HTML·JSON, 이전 판의 TXT·CSV가 있으면 함께)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.
 #### 순서
 1. 만들기 전에 공유 범위를 고른다: 증거 스크린샷·DICOM(시험 환자 정보 포함), Viewer 로그 구간. 설정 파일·비밀번호는 넣지 않는다.
 2. 리포트의 증거 링크는 ZIP 안의 상대 경로로 바꾼다. 실행 환경의 절대 경로는 남겨도 링크로 쓰지 않는다.
@@ -1330,7 +1332,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 
 - 검증 대상: REQ-REPORT-001.
 - 선행 조건: 임시 디렉터리와 합성 TC 결과.
-- 절차: `tests/test_result_reports.py`로 네 형식의 공통 문맥·판정 이유·원문 연결을 검증한다.
+- 절차: `tests/test_result_reports.py`로 HTML·JSON의 공통 문맥·판정 이유·원문 연결을 검증한다.
   기본기능/WU 메타데이터 비교에서는 각 제목·source document·source sheet와 Fail/Manual 이유를 대조한다.
 - Expected Result: 기본기능/WU 문맥이 섞이지 않고 기존 수기 Comment가 보존된다.
   기존 공통 단위 테스트만으로 WU XLSX/제목 조합 전체가 검증됐다고 주장하지 않는다.
@@ -1640,7 +1642,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
-| REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py` | verified |
+| REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py` | verified |
 
 상태의 뜻:
 

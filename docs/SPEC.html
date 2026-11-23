@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="beb21728edeaaa312d3ceb6c434c0da589824dec009f107581962485fd728ce1">
+<meta name="spec-source-sha256" content="1e023cf960383a0da45f02bc3f0dc5ef119b01864f216f90fd3bec437b8f6aff">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -282,7 +282,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a></td><td data-label="이름">동작 파일의 12절 추적 범위</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003</a></td><td data-label="이름">커밋된 verify 게이트와 verified 상태</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>botyard.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">FRAME</span> VXvue와 같은 실행 화면·레포트 틀 유지</th></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="이름">VXvue와 공통 자동화 프레임 유지</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="이름">VXvue와 공통 자동화 프레임 유지</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -840,8 +840,9 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <section class="card kind-req" id="REQ-REPORT-001">
 <h3><span class="idtag">REQ-REPORT-001</span> 체크리스트별 결과 보고</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>core/checklist.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>, <a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a></span></div>
-<details class="history"><summary>변경 이력 11</summary>
+<details class="history"><summary>변경 이력 12</summary>
 <ul>
+<li><span class="hist">공통 자동화 프레임 2단계 — 레포트 통일 (2026-11-23)</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>: 결과 레포트를 VXvue와 같은 HTML·JSON 두 가지로 만든다. CSV·TXT는 더 만들지 않는다(사용자 결정 2026-11-23). 이전 실행의 CSV·TXT는 공유 ZIP·실행 기록에서 그대로 읽는다.</li>
 <li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a> / <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: 승인된 기본·WU 체크리스트 해시에서 셀 위치와 구현 함수를 연결한다. 원본 충돌을 HTML·JSON에 기록하고 에이전트 판정의 인용과 관찰 근거를 채점한다.</li>
 <li><span class="hist">1.0.6 후보(1.0.5 후속 수정) — 2026-11-10</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: FAIL·MANUAL·BLOCKED가 있으면 직접 확인할 체크리스트 Step 목록(Step 번호·구분·수행 절차·기대 결과·자동화 참고)을 TXT·HTML·JSON과 체크리스트 결과 열에 둔다. 중단 기록에는 수행 중이던 Step(<code>interrupted_step</code>)을 남긴다. 판정과 Step 번호, 미수행 채움 행은 바꾸지 않는다.</li>
 <li><span class="hist">2026-11-06 (VXvue·Bellalun 공통 보고서)</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>: VXvue82bb189의 읽기 구조와 Bellalun의 결함 분류·해제 조건·구조화 값을 결합했다. 같은 공통 표시 모듈로 목차·카드·검색·PASS 접기·긴 비고·인쇄를 통일한다. 반복 TC의 실패 링크와 None/빈 값 구분도 검증했다. 판정·JSON/CSV/TXT·원본 결과는 보존한다.</li>
@@ -863,10 +864,11 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 구조화된 기대값·실제값은 JSON의 <code>expected_data</code>·<code>actual_data</code>에도 보존한다.
 HTML은 복잡한 값을 접어 펼칠 수 있는 항목별 표로 표시한다.</p>
 <p>VXvue와 동일한 <code>core/report_layout.py</code> 표시 계약으로 목차·판정 배지·구조화 값·긴 비고·검색·상세 접기·인쇄를 제공한다. 외부 네트워크나 다른 저장소를 읽지 않는다.</p>
+<p>산출물은 VXvue와 같게 HTML·JSON과 체크리스트 결과 xlsx다(사용자 결정 2026-11-23, <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>). CSV·TXT는 만들지 않는다. HTML 절 순서와 목차 이름은 <code>core/report_layout.py</code>의 공통 절 목록(<code>SECTIONS</code>)과 목차 함수(<code>standard_nav</code>)를 따른다.</p>
 <p>결론·전체 시간·판정 합계 다음에 실패와 수동 확인 카드를 배치한다. 전체 TC 목록에서 검색·판정 필터로 상세를 찾고 PASS 검증은 접어 둔다. 같은 TC를 반복 실행해도 각 실행의 링크는 고유하다. 필터로 숨긴 상세에 직접 이동하면 필터를 해제하고 해당 실행을 연다.</p>
-<p>값 <code>0</code>·<code>False</code>·<code>None</code>·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON/CSV/TXT와 판정 기준은 바꾸지 않는다.</p>
+<p>값 <code>0</code>·<code>False</code>·<code>None</code>·빈 문자열을 서로 구분하고, 해제 조건·미검증 범위·원문·증거를 보존한다. 인쇄는 필터를 해제해 전체 상세를 펼치고 끝나면 화면 상태를 복구한다. 기존 JSON과 판정 기준은 바꾸지 않는다.</p>
 <p>시간 기록이 있는 TC는 단계 이름·소요 초·완료 또는 오류 상태를 표시한다.</p>
-<p>FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리스트 Step 목록을 TXT·HTML·JSON과 체크리스트 결과의 실패·수동 열 앞에 둔다.</p>
+<p>FAIL·MANUAL·BLOCKED가 있으면 사람이 직접 확인할 기준 체크리스트 Step 목록을 HTML·JSON과 체크리스트 결과의 실패·수동 열 앞에 둔다.</p>
 <ul>
 <li>각 줄은 TC ID, 체크리스트 Step 번호, 구분, 그 Step의 수행 절차와 기대 결과를 먼저 쓴다. 자동화가 남긴 원인은 <code>자동화 참고</code>로 뒤에 붙인다.</li>
 <li>구분은 <code>자동화 중단 — 이 Step 부터 직접 수행</code>, <code>미수행 — 직접 수행</code>, <code>실패 — 직접 재확인</code>, <code>수동 확인 — 직접 확인</code>, <code>수행 불가 — 직접 수행</code>이다. SKIP은 넣지 않는다.</li>
@@ -880,10 +882,10 @@ HTML은 복잡한 값을 접어 펼칠 수 있는 항목별 표로 표시한다.
 <p>선택한 실행 흐름의 리포트 문맥이 제공된다.</p>
 </div></section>
 <section class="field"><h4>동작</h4><div class="field-body">
-<p>공통 HTML/TXT/CSV/JSON 리포트에 실행 환경·명령·TC 판정과 사유를 전달한다.
+<p>공통 HTML/JSON 리포트에 실행 환경·명령·TC 판정과 사유를 전달한다.
 Windows Update는 기본기능 제목으로 오표기하지 않는다. 체크리스트 결과에서
 Fail/Manual의 이유를 전용 Comment에 쓰고 기존 수기 공용 Comment를 덮어쓰지 않는다.</p>
-<p>HTML·TXT 리포트 맨 앞에 &quot;결론 — 한눈에 보기&quot;를 둔다(사용자 요청 2026-11-05).</p>
+<p>HTML 리포트 맨 앞에 &quot;결론 — 한눈에 보기&quot;를 둔다(사용자 요청 2026-11-05).</p>
 <ul>
 <li>결론 한 문장: 성공·실패·사람 확인 건수와 새 실패가 있는지. 색으로 성공/주의/실패를 나눈다.</li>
 <li>PASS가 아닌 TC마다 한 줄: 결과, 멈춘 Step과 확인 항목, 기대값과 실제값, 원인.</li>
@@ -1278,7 +1280,7 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 </ul>
 </details>
 <section class="field"><h4>하는 일</h4><div class="field-body">
-<p>이번 실행의 보고서(HTML·JSON·TXT·CSV)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.</p>
+<p>이번 실행의 보고서(HTML·JSON, 이전 판의 TXT·CSV가 있으면 함께)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.</p>
 </div></section>
 <section class="field"><h4>순서</h4><div class="field-body">
 <ol>
@@ -2202,9 +2204,11 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 </section>
 <section class="card kind-req" id="REQ-FRAME-001">
 <h3><span class="idtag">REQ-FRAME-001</span> VXvue와 공통 자동화 프레임 유지</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>AGENTS.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a></span></div>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">공통 자동화 프레임 2단계 — 레포트 통일 (2026-11-23)</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>: 결과 레포트를 VXvue와 같은 HTML·JSON 두 가지로 만든다. CSV·TXT는 더 만들지 않는다(사용자 결정 2026-11-23). 이전 실행의 CSV·TXT는 공유 ZIP·실행 기록에서 그대로 읽는다.</li>
+<li><span class="hist">공통 자동화 프레임 2단계 — 레포트 통일 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>: HTML 목차와 절 순서를 공유 모듈의 공통 절 목록(<code>SECTIONS</code>, <code>standard_nav</code>)으로 만든다. &quot;직접 확인할 Step&quot;이 목차에 새로 보인다. 판정·JSON 내용은 바꾸지 않았다.</li>
 <li><span class="hist">공통 자동화 프레임 1단계 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>(신규): VXvue 자동화와 실행 화면·진행 표시·레포트를 같은 틀로 유지하는 계약 <code>frame/FRAME.md</code>를 만들었다. 공유 파일은 <code>frame/frame.lock.json</code>에 해시로 적고, <code>python frame/sync_check.py</code>가 잠금과 VXvue 사본을 비교한다. <code>--propagate</code>는 공유 파일을 VXvue 저장소에 복사한다. 단위시험 <code>tests/test_frame_sync.py</code>가 검증 게이트에서 돈다.</li>
 </ul>
 </details>
@@ -2340,7 +2344,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 <ul>
 <li>검증 대상: <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>.</li>
 <li>선행 조건: 임시 디렉터리와 합성 TC 결과.</li>
-<li>절차: <code>tests/test_result_reports.py</code>로 네 형식의 공통 문맥·판정 이유·원문 연결을 검증한다.
+<li>절차: <code>tests/test_result_reports.py</code>로 HTML·JSON의 공통 문맥·판정 이유·원문 연결을 검증한다.
 기본기능/WU 메타데이터 비교에서는 각 제목·source document·source sheet와 Fail/Manual 이유를 대조한다.</li>
 <li>Expected Result: 기본기능/WU 문맥이 섞이지 않고 기존 수기 Comment가 보존된다.
 기존 공통 단위 테스트만으로 WU XLSX/제목 조합 전체가 검증됐다고 주장하지 않는다.</li>
@@ -2744,7 +2748,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-001">REQ-SPECSYNC-001</a></td><td data-label="Implementation"><code>tools/spec_sync_check.py</code>, <code>tools/install_git_hooks.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_sync_check.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-002">REQ-SPECSYNC-002</a></td><td data-label="Implementation"><code>tests/test_spec_trace_coverage.py</code>, <code>SPEC.md</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003</a></td><td data-label="Implementation"><code>botyard.json</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="Implementation"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="Implementation"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 </tbody>
 </table></div>
 <p>상태의 뜻:</p>

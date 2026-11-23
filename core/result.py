@@ -11,7 +11,6 @@
   BLOCKED: 필수 선행 환경이 없어 수행 자체가 불가능
 """
 
-import csv
 import html
 import json
 import os
@@ -646,140 +645,6 @@ def outcome_summary(results):
     return {"level": level, "headline": headline, "counts": counts, "rows": rows}
 
 
-def write_txt(results, path, env=None, checklist=None, command=None,
-             report_title="Bellalun Viewer 기본기능 자동화 결과"):
-    """사람이 바로 읽는 Pass/Fail 요약 텍스트."""
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    total = {status: 0 for status in STATUSES}
-    for r in results:
-        for k, v in r.counts.items():
-            total[k] += v
-
-    L = []
-    L.append("=" * 78)
-    L.append(f" {report_title}")
-    L.append("=" * 78)
-    L.append(f" 수행 일시 : {datetime.now():%Y-%m-%d %H:%M:%S}")
-    if command:
-        L.append(f" 실행 명령 : {command}")
-    # **두 층을 구분해 적는다.** 아래 "판정 합계"는 Step(체크) 단위 합계라서 TC
-    # 개수보다 훨씬 크다. 예: TC 20개인데 체크 172개 -> PASS 160.
-    # 구분하지 않으면 "TC가 20개인데 왜 PASS가 160개냐"는 오해가 생긴다
-    # (2026-08-19 사용자 지적).
-    tc_total = {status: 0 for status in STATUSES}
-    for r in results:
-        if r.verdict in tc_total:
-            tc_total[r.verdict] += 1
-    summary = outcome_summary(results)
-    L.append(f" 결론: {summary['headline']}")
-    for row in summary["rows"]:
-        known = " · 알려진 제품 결함" if row["known_defect"] else ""
-        L.append(f"   - [{row['verdict']}{known}] {row['tc_id']} Step {row['step']} "
-                 f"{row['check']}: {row['reason']}")
-    actions = user_actions(results, checklist)
-    if actions:
-        L.append(" [ 직접 확인할 TC Step ]")
-        for a in actions:
-            L.append(f"   - {a['tc_id']} Step {step_label(a['step'])} [{a['kind']}] "
-                     f"{a['step_description'] or '(체크리스트 수행 절차 없음)'}")
-            if a["expected_result"]:
-                L.append(f"       기대 결과: {a['expected_result']}")
-            if a["automation_reference"]:
-                L.append(f"       자동화 참고: {a['automation_reference']}")
-    L.append(f" TC 건수   : {len(results)}")
-    L.append(f" TC 판정   : PASS {tc_total[PASS]} / FAIL {tc_total[FAIL]} / "
-             f"MANUAL {tc_total[MANUAL]} / SKIP {tc_total[SKIP]} / "
-             f"BLOCKED {tc_total[BLOCKED]}   (TC 단위)")
-    checks = sum(total.values())
-    L.append(f" 검증 판정 : PASS {total[PASS]} / FAIL {total[FAIL]} / "
-             f"MANUAL {total[MANUAL]} / SKIP {total[SKIP]} / "
-             f"BLOCKED {total[BLOCKED]}   "
-             f"(Step 단위, 총 {checks}개 체크)")
-    if env:
-        L.append("")
-        L.append(" [ 시험 환경 ]")
-        for k, v in env.items():
-            L.append(f"   - {k}: {v}")
-
-    # 회귀는 선행 단계(DB 복원 -> DICOM 등록 -> WF01 -> 촬영)가 뒤 TC의 전제다.
-    # 앞에서 한 번 무너지면 뒤가 줄줄이 FAIL로 찍혀 "제품이 10군데 깨졌다"처럼
-    # 보인다(2026-08-18 실측: FAIL 10건이 전부 첫 FAIL 하나의 결과였다).
-    # 그래서 **가장 앞선 FAIL을 맨 위에 표시**해 읽는 순서를 강제한다.
-    first = next((r for r in results if r.verdict == FAIL), None)
-    if first is not None and total[FAIL] > 1 and len(results) > 1:
-        L.append("")
-        L.append(" [ 먼저 볼 것 ] 가장 앞선 FAIL")
-        L.append(f"   - {first.tc_id}: {first.title}")
-        for chk in first.checks:
-            if chk.status == FAIL:
-                L.append(f"     -> Step {step_label(chk.step)}: {chk.title}")
-                L.append(f"        실제: {_one_line(chk.actual)}")
-                break
-        L.append(f"   - 이후 FAIL {total[FAIL] - 1}건 중 일부는 이 실패의 결과일 "
-                 f"수 있다. 전제 미충족(fixture 없음 / 서버 미등록) 메시지가 "
-                 f"보이면 제품 판정이 아니다.")
-    L.append("")
-
-    L.append("-" * 78)
-    L.append(" TC 별 판정")
-    L.append("-" * 78)
-    for r in results:
-        c = r.counts
-        L.append(f" [{r.verdict:^6}] {r.tc_id:<28} {r.title} ({r.duration_seconds:.1f}s)")
-        L.append(f"          P{c[PASS]} F{c[FAIL]} M{c[MANUAL]} "
-                 f"S{c[SKIP]} B{c[BLOCKED]}")
-    L.append("")
-
-    for r in results:
-        L.append("=" * 78)
-        L.append(f" {r.tc_id} — {r.title}   →  {r.verdict}")
-        L.append("=" * 78)
-        for chk in r.checks:
-            source = _step_context({"checklist": checklist or {}},
-                                   r.tc_id, chk.step)
-            L.append(f"  [{chk.status:^6}] "
-                     f"Step {step_label(chk.step):<4} {chk.title}")
-            if source["step_description"]:
-                L.append(f"            수행 절차 : {source['step_description']}")
-            if source["source_expected_result"]:
-                L.append("            기준 기대 결과 : "
-                         + source["source_expected_result"])
-            if chk.status in (FAIL, MANUAL) or chk.expected or chk.actual:
-                if str(chk.expected):
-                    L.append(f"            자동화 기대값 : {chk.expected}")
-                if str(chk.actual):
-                    L.append(f"            실제 : {chk.actual}")
-            if chk.note:
-                L.append(f"            비고 : {chk.note}")
-            if chk.status in (MANUAL, SKIP, BLOCKED):
-                L.append("            해제 조건 : "
-                         + (chk.unblock_condition or "비고에 별도 기재되지 않음"))
-                L.append("            이 실행으로 말할 수 없는 것 : "
-                         + (chk.not_verified or "비고에 별도 기재되지 않음"))
-        if r.evidence:
-            L.append("  [증거]")
-            for e in r.evidence:
-                L.append(f"    - {e}")
-        L.append("")
-
-    fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
-    L.append("=" * 78)
-    if fails:
-        L.append(f" 실패 항목 {len(fails)}건")
-        L.append("=" * 78)
-        for r, c in fails:
-            L.append(f"  {r.tc_id} / Step {step_label(c.step)} / {c.title}")
-            L.append(f"     기대={c.expected}")
-            L.append(f"     실제={c.actual}")
-    else:
-        L.append(" 실패 항목 없음")
-    L.append("=" * 78)
-
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(L))
-    return path
-
-
 SELECTED_SCOPE_LABEL = "선택 실행(영향 TC+smoke) — 전체 회귀 아님"
 
 
@@ -793,50 +658,21 @@ def scope_label(meta):
 
 
 def write_reports(results, out_dir, run_name=None, meta=None):
-    """CSV / JSON / HTML / TXT 리포트를 out_dir에 생성하고 경로를 반환한다.
+    """JSON / HTML 리포트를 out_dir에 생성하고 경로를 반환한다(frame/FRAME.md 2.4).
 
-    `meta` 는 HTML뿐 아니라 TXT/CSV/JSON 네 형식에 공통으로 실린다:
+    CSV·TXT는 2026-11-23부터 만들지 않는다(VXvue와 산출물 통일). `meta` 는 JSON에 그대로 실리고 HTML이 읽는다:
       {"env":      {"항목": "값"},             # 실행 환경·버전
        "checklist":{tc_id: {precondition, steps, expected, test_data, ...}},
        "modules":  {tc_id: ["tests/workflow14.py", ...]},
        "scope":    {tc_id: {"level":.., "reason":..}},
        "command":  "python run.py run-regression",
        "report_title": "...",        # HTML <h1> — 생략 시 기본기능 문구
-       "report_title_short": "...",  # TXT/CSV 머리글 — 생략 시 기본기능 문구
        "source_doc": "...xlsx", "source_sheet": "..."}  # HTML 기준 문서 줄
     """
     os.makedirs(out_dir, exist_ok=True)
     meta = meta or {}
     stamp = run_name or datetime.now().strftime("%Y%m%d_%H%M%S")
     base = os.path.join(out_dir, f"Result_{stamp}")
-
-    # CSV — Excel에서 열어도 시험 환경과 실행 명령을 잃지 않도록 데이터 표 위에
-    # 메타 행을 둔다.
-    report_title_short = meta.get("report_title_short", "Bellalun Viewer 기본기능 자동화 결과")
-    if scope_label(meta):
-        report_title_short += f" [{SELECTED_SCOPE_LABEL}]"
-    csv_path = base + ".csv"
-    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.writer(f)
-        w.writerow([f"# {report_title_short}"])
-        w.writerow(["# 생성 일시", datetime.now().isoformat(timespec="seconds")])
-        if meta.get("command"):
-            w.writerow(["# 실행 명령", meta["command"]])
-        for key, value in (meta.get("env") or {}).items():
-            w.writerow(["# 실행 환경", key, value])
-        w.writerow([])
-        w.writerow(["TC ID", "Title", "TC 판정", "Step", "기준 수행 절차",
-                    "확인 항목", "판정", "기준 기대 결과", "자동화 기대값",
-                    "실제값", "비고", "해제 조건",
-                    "이 실행으로 말할 수 없는 것"])
-        for r in results:
-            for c in r.checks:
-                source = _step_context(meta, r.tc_id, c.step)
-                w.writerow([r.tc_id, r.title, r.verdict, c.step,
-                            source["step_description"], c.title, c.status,
-                            source["source_expected_result"], c.expected,
-                            c.actual, c.note,
-                            c.unblock_condition, c.not_verified])
 
     # JSON
     json_path = base + ".json"
@@ -848,17 +684,11 @@ def write_reports(results, out_dir, run_name=None, meta=None):
                   ensure_ascii=False, indent=2, default=str)
 
     # HTML
-    txt_path = write_txt(results, base + ".txt", env=meta.get("env"),
-                         checklist=meta.get("checklist"),
-                         command=meta.get("command"),
-                         report_title=report_title_short)
     html_path = base + ".html"
     with open(html_path, "w", encoding="utf-8") as f:
-        f.write(_render_html(results, meta,
-                             siblings={"csv": csv_path, "json": json_path,
-                                       "txt": txt_path}))
+        f.write(_render_html(results, meta, siblings={"json": json_path}))
 
-    return {"csv": csv_path, "json": json_path, "html": html_path, "txt": txt_path}
+    return {"json": json_path, "html": html_path}
 
 
 def _render_html(results, meta, siblings=None):
@@ -1340,12 +1170,9 @@ def _render_html(results, meta, siblings=None):
                      f"<td><a href='{_file_url(p)}'>{e(str(p))}</a></td></tr>")
         P.append("</table>")
     P.append("</details>")
-    nav = [('overview', '결과 요약')]
-    if fails:
-        nav.append(('failures', '실패 원인'))
-    if holds:
-        nav.append(('manual', '수동 확인'))
-    nav.extend([('tc-results', '전체 TC 결과'), ('tc-details', '상세 근거'), ('run-info', '환경·원본')])
+    present = {'overview', 'tc-results', 'tc-details', 'run-info'}
+    present |= {key for key, shown in (('user-steps', actions), ('failures', fails), ('manual', holds)) if shown}
+    nav = view.standard_nav(present)
     return view.render_shell(title=report_title, product='BELLALUN', subtitle='체크리스트 QA 결과',
                              nav=nav, body_html='\n'.join(P),
                              overall=next((status for status in (FAIL, BLOCKED, MANUAL, PASS, SKIP)

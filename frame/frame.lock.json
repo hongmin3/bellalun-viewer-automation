@@ -5,8 +5,8 @@
     "vxvue": "vxvue/auto"
   },
   "files": {
-    "core/report_layout.py": "9f3e846a5568eb334d9c1b14511270d0aa45a9aac7928303b629c3841fe2108d",
-    "frame/FRAME.md": "f20e6beba7e9a7cfb45260a209baee93cdef1733dcdc2c5f7d848ebca4618718",
+    "core/report_layout.py": "6cd7ccc32513731dc69188afeea1c47a57eede5ef385fa0d30a9b4bc0b1b352f",
+    "frame/FRAME.md": "005f8f2c257832d24e9c7efe3971ae9f9f45681992368ef4859f45ac0b7fc946",
     "frame/sync_check.py": "1d20e9a3bb4d72404c1a593eab1adfbcf7629c27870c77a3b48874d0c7963b62"
   }
 }

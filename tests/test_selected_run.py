@@ -204,10 +204,10 @@ class CountingTests(unittest.TestCase):
             paths = result.write_reports([r], tmp, "selected", meta=meta)
             with open(paths["html"], encoding="utf-8") as fh:
                 html = fh.read()
-            with open(paths["csv"], encoding="utf-8-sig") as fh:
-                csv_text = fh.read()
+            with open(paths["json"], encoding="utf-8") as fh:
+                data = json.load(fh)
         self.assertIn("선택 실행(영향 TC+smoke) — 전체 회귀 아님", html)
-        self.assertIn("선택 실행(영향 TC+smoke) — 전체 회귀 아님", csv_text)
+        self.assertEqual("selected", data["meta"]["run_scope"])
 
 
 class InstalledSuiteTests(unittest.TestCase):
