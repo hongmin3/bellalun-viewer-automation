@@ -533,6 +533,8 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 
 ### REQ-DIST-005 설치판의 승인 범위를 확인하는 릴리스 게이트
 
+내부 검증판은 1.0.0 계열에 세 자리 개발 번호를 붙인다(예: 1.0.0.007). Windows 파일 버전의 마지막 자리는 같은 번호를 정수로 표시한다. 새 EXE를 컴파일하고 후보로 보관한다. 기존에 발행한 개발 번호는 괄호 표기를 포함해 재사용하지 않는다.
+
 #### 하는 일
 소스의 단위시험·정적 검사 뒤 검증용 빌드를 만들고, 설치판으로 승인받은 범위를 시험한 결과가 배포 기준을 채웠는지 확인한다. 소스 UI 회귀와 설치판 UI 회귀를 연달아 반복하도록 요구하지 않는다.
 #### 순서
@@ -1702,7 +1704,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
-| REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
+| REQ-DIST-005 | `bellalunauto/versioning.py`, `tools/release_gate.py`, `tools/installed_release_gate.py`, `core/source_identity.py`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
 | REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py`, `tests/test_wu_tool_missing.py` | verified |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | verified |

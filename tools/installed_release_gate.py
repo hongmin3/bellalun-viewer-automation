@@ -52,6 +52,12 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
               and installed["exe_sha256"] == record["install"].get("exe_sha256")
               and sha256(info_path) == record.get("build_info_sha256"), "EXE·설치 파일·build-info 해시 대조")
         gate._identity("빌드", {"meta": info}, expected_commit, checks, reasons)
+        version = info.get("version")
+        from bellalunauto.versioning import is_development_version, windows_version
+        versioned = "windows_version" in info or is_development_version(version)
+        numeric = windows_version(version, allow_legacy=True) if versioned else None
+        if versioned:
+            check("빌드 숫자형 버전", info.get("windows_version") == numeric, version)
         runs = record.get("runs") or []
         check("선택 실행 완료", bool(record.get("finished")) and len(runs) == len(commands)
               and [r.get("command") for r in runs] == commands
@@ -72,6 +78,12 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
                   "선택 회귀 결과는 릴리스 수용 전체 회귀로 세지 않습니다")
             check(f"{command} 설치판 출처", meta.get("source_identity_origin") == "build-info",
                   "리포트 출처가 build-info여야 합니다")
+            report_version = meta.get("automation_version")
+            if (versioned or "windows_version" in meta
+                    or is_development_version(report_version)):
+                check(f"{command} 빌드와 보고서 버전",
+                      versioned and report_version == version and meta.get("windows_version") == numeric,
+                      "build-info 표시 및 숫자형 버전과 보고서 대조")
             actual_command = str(meta.get("command") or "").split()
             check(f"{command} 명령 일치", bool(actual_command) and actual_command[-1] == command,
                   "실행 기록과 리포트 명령 대조")

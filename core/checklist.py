@@ -179,6 +179,10 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, sourc
         else _pick_tc_sheet(wb))
     hdr_row, tc_col = _find_header_row(ws)
 
+    # 상세 시트에 준비 단계와 구분 행을 덧붙이기 전의 원본 TC만 요약에서 집계한다.
+    from core import frame_checklist
+    rows, extras = frame_checklist.rows_from_sheet(ws, hdr_row, tc_col, results)
+
     # 결과 열 확보 (이미 있으면 재사용)
     existing = {str(ws.cell(hdr_row, c).value or "").strip(): c
                 for c in range(1, ws.max_column + 1)}
@@ -229,8 +233,6 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, sourc
             12 if name in ("자동화 판정", *STATUSES) else 40)
 
     # 두 제품 공통 "결과 요약" 시트를 맨 앞에 둔다(REQ-FRAME-004, frame/FRAME.md 2.6).
-    from core import frame_checklist
-    rows, extras = frame_checklist.rows_from_sheet(ws, hdr_row, tc_col, results)
     frame_checklist.add_summary_sheet(
         wb, product="Bellalun Viewer 기본기능", rows=rows, extras=extras, report_path=report_path,
         info=[("실행 일시", stamp), ("체크리스트 원본", os.path.basename(str(source_xlsx))), *info])

@@ -4,9 +4,11 @@
 Validates: REQ-FRAME-004
 """
 from types import SimpleNamespace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from core import frame_checklist as fc
 from core import report_layout
@@ -57,6 +59,33 @@ class RowsTests(unittest.TestCase):
 
 
 class SummarySheetTests(unittest.TestCase):
+    def test_basic_writer_keeps_added_setup_out_of_official_counts(self):
+        from core.checklist import write_results
+        from core.result import TCResult
+        with TemporaryDirectory() as folder:
+            source, output = (Path(folder) / name for name in ('input.xlsx', 'output.xlsx'))
+            wb, ws = checklist()
+            wb.save(source)
+            results = []
+            for tc in ('TC_A_01', 'AUTOMATION_SETUP'):
+                row = TCResult(tc, '합성 시험')
+                row.add(1, '확인', 'PASS')
+                row.finalize()
+                results.append(row)
+            write_results(source, results, out_path=output, sheet_name=ws.title)
+            saved = load_workbook(output)
+            try:
+                rows = list(saved[fc.SHEET_TITLE].values)
+                line = next(i for i, row in enumerate(rows) if row[0] == '판정 합계')
+                counts = dict(zip(rows[line + 1], rows[line + 2]))
+                self.assertEqual((counts['PASS'], counts[fc.NOT_RUN]), (1, 2))
+                extra = next(i for i, row in enumerate(rows) if row[0] == '체크리스트 밖 준비 단계 (환경 준비·점검)')
+                self.assertEqual(rows[extra + 1][1], 'AUTOMATION_SETUP')
+                self.assertFalse(any('자동화 추가 항목' in row for row in rows))
+                self.assertIn('자동화 추가 항목', [r[0] for r in saved[ws.title].values])
+            finally:
+                saved.close()
+
     def build(self, rows, extras=()):
         wb, _ = checklist()
         fc.add_summary_sheet(wb, product='제품', rows=rows, extras=extras, report_path='C:/r/Result_1.html',

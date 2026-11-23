@@ -2,6 +2,9 @@
 #ifndef AppVersion
   #error AppVersion required
 #endif
+#ifndef AppWindowsVersion
+  #define AppWindowsVersion AppVersion
+#endif
 #ifndef SourceDir
   #error SourceDir required
 #endif
@@ -13,6 +16,10 @@
 AppId={{9BB91B13-A9B6-4484-B3E8-C71BC2D0088E}
 AppName=BellalunAuto
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppWindowsVersion}
+VersionInfoProductVersion={#AppWindowsVersion}
+VersionInfoTextVersion={#AppVersion}
+VersionInfoProductTextVersion={#AppVersion}
 AppPublisher=Bellalun QA
 DefaultDirName={sd}\BellalunAuto
 DefaultGroupName=BellalunAuto

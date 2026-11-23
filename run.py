@@ -105,9 +105,11 @@ def _bind_checkpoint_source(ctx, checkpoint, resume):
 
 def _execution_meta(ctx):
     from bellalunauto import __version__
+    from bellalunauto.versioning import windows_version
     plan = getattr(ctx, 'execution_plan', {})
     return {'run_id': getattr(ctx, 'run_id', os.environ.get('BELLALUN_QA_RUN')),
-            'automation_version': __version__, 'execution_mode': 'live',
+            'automation_version': __version__, 'windows_version': windows_version(__version__),
+            'execution_mode': 'live',
             'chain_completed': not bool(getattr(ctx, 'execution_incomplete', False)),
             'plan_id': plan.get('plan_id'), 'config_fingerprint': plan.get('config_fingerprint'),
             'execution_fingerprint': getattr(ctx, 'execution_fingerprint', None),
