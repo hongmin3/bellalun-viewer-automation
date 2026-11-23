@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="6720c25040d3dc324d3d6861a9883511cf13b17bc63394ef6335be6af35e00a8">
+<meta name="spec-source-sha256" content="303b806af08eeebdaffcff0a00dd9eb7e2fa1c7176acffb59e6b20c534ea418b">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1005,7 +1005,8 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 도구 버전·파일 목록·SHA256을 남긴다. 배포용 실행 패키지는 Setup만 만들고 포터블 ZIP은 생성하지 않는다.</p>
 <p>등록된 벨라룬오토 프로젝트의 <code>auto/release/</code> 아래에 버전마다 폴더를 만든다. 폴더 이름은
 <code>build-info.json</code>의 버전을 그대로 쓴다. 최종 Setup·build-info·SHA256SUMS와 후보 표식을 그곳에 보관한다.
-별도 작업 트리에서 빌드한 파일도 등록된 <code>auto/release/&lt;버전&gt;/</code>에 모은다.</p>
+별도 작업 트리에서 빌드한 파일도 등록된 <code>auto/release/&lt;버전&gt;/</code>에 모은다.
+배포 작업은 <code>auto/release/&lt;버전&gt;/</code>에서 최종 설치 파일·ZIP·빌드 정보와 해시를 다시 읽어 검증한 뒤 마무리한다. 검증에 성공하면 해당 빌드 전용 작업 폴더 전체(컴파일 결과, 압축 전 배포 트리, 임시 도구·캐시, 로그, 중복 배포 사본)를 삭제하고 경로가 사라졌는지 확인한다. 시험 결과·복원 백업·승인 원본이나 편집 중인 소스가 들어 있는 상위 폴더는 보존한다. 정리 실패 시 남은 경로를 기록한다.</p>
 <p>컴파일 중간파일과 로그는 <code>--output</code> 작업 폴더에 둔다. 빌더는 같은 버전의 출력 폴더에
 이미 파일이 있으면 컴파일 전에 중단한다. 최종 보관 폴더의 같은 버전도 덮어쓰지 않는다.
 최신본만 남기도록 정리할 때는 빌드 기록의 생성 시각으로 최신본을 고른다. 최종 폴더에서 최신 Setup과
