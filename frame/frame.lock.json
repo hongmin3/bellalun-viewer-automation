@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "products": {
+    "bellalun": "Bellalun Viewer/auto",
+    "vxvue": "vxvue/auto"
+  },
+  "files": {
+    "core/report_layout.py": "9f3e846a5568eb334d9c1b14511270d0aa45a9aac7928303b629c3841fe2108d",
+    "frame/FRAME.md": "f20e6beba7e9a7cfb45260a209baee93cdef1733dcdc2c5f7d848ebca4618718",
+    "frame/sync_check.py": "1d20e9a3bb4d72404c1a593eab1adfbcf7629c27870c77a3b48874d0c7963b62"
+  }
+}

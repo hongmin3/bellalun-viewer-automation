@@ -159,6 +159,7 @@ UI/OCR·DB·DICOM·판정·보고 공용 계층은 core에 있다.
 | BOUNDARY | 비공개 자료 보호 |
 | QA | 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결) |
 | SPECSYNC | 동작 변경과 사양 동기화 검사 |
+| FRAME | VXvue와 같은 실행 화면·레포트 틀 유지 |
 
 ### REQ-REGRESSION-001 기준 체크리스트 실행
 
@@ -1219,6 +1220,25 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 - `verified`는 단위시험 게이트 통과를 뜻한다. 설치판·실제 제품 수용은 `progress.md`와 검증 기록 문서에 따로 남긴다.
 - `autoSync`와 `autoPush`는 `false`로 둔다. 키트 관리 파일의 자동 반영 정책을 이 작업으로 바꾸지 않는다.
 
+### REQ-FRAME-001 VXvue와 공통 자동화 프레임 유지
+
+하는 일: Bellalun과 VXvue 자동화의 실행 화면·진행 표시·결과 레포트를 같은 모양으로 유지한다. 두 저장소가 같이 지키는 계약은 `frame/FRAME.md`에 있다.
+
+순서:
+
+1. `frame/frame.lock.json`의 `files`에 적힌 파일을 두 저장소에 같은 내용으로 둔다(지금은 `core/report_layout.py`, `frame/FRAME.md`, `frame/sync_check.py`).
+2. 공유 파일을 고치면 `python frame/sync_check.py --update-lock`으로 잠금 해시를 갱신한다.
+3. `python frame/sync_check.py --propagate`로 VXvue 저장소(`../../vxvue/auto`)에 복사하고, 두 저장소의 검증을 통과한 뒤 각각 커밋한다.
+
+결과: 한쪽만 고친 상태에서는 `python frame/sync_check.py`와 검증 게이트의 단위시험이 실패하고, 다른 파일과 해결 방법을 보인다.
+
+지킬 것:
+
+- 줄바꿈(CRLF/LF) 차이는 내용 차이로 보지 않는다.
+- VXvue 저장소 폴더가 이 PC에 없으면 사본 비교를 건너뛰고 안내만 출력한다. 폴더가 있는데 공유 프레임이 없으면 실패한다.
+- 공유 파일에는 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다. 제품 값은 호출하는 쪽이 넘긴다.
+- 화면 흐름·레포트 절 순서·산출물의 목표와 맞추는 단계는 `frame/FRAME.md` 2·4절을 따른다. 판정 규칙과 종료 코드는 사용자 확인 없이 VXvue에 맞추지 않는다.
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1558,6 +1578,11 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - `tests/test_spec_trace_coverage.py`: 실제 저장소의 동작 파일이 12절에 나오는지, 제외·도입 시점 미추적 목록이 낡지 않았는지, `botyard.json`의 `verify`·`verifyTests`와 `verified` 행의 게이트 연결을 확인한다.
 - 도입할 때 각 검사를 일부러 어겨 실패하는 것을 먼저 확인했다(작업 기록은 `progress.md`).
 
+### TEST-FRAME-001 공통 프레임 사본 검사
+
+- 대상: REQ-FRAME-001.
+- `tests/test_frame_sync.py`: 이 저장소의 잠금·VXvue 사본 일치, 잠금 미갱신 실패, 형제 미반영 실패, `--propagate` 뒤 양쪽 통과, 형제만 바꾼 경우 감지, 줄바꿈 차이 무시를 임시 폴더에서 확인한다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -1615,6 +1640,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
+| REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py` | verified |
 
 상태의 뜻:
 

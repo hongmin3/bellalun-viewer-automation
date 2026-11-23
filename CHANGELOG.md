@@ -1,5 +1,10 @@
 # Changelog
 
+## 공통 자동화 프레임 1단계 (2026-11-23)
+
+- REQ-FRAME-001(신규): VXvue 자동화와 실행 화면·진행 표시·레포트를 같은 틀로 유지하는 계약 `frame/FRAME.md`를 만들었다. 공유 파일은 `frame/frame.lock.json`에 해시로 적고, `python frame/sync_check.py`가 잠금과 VXvue 사본을 비교한다. `--propagate`는 공유 파일을 VXvue 저장소에 복사한다. 단위시험 `tests/test_frame_sync.py`가 검증 게이트에서 돈다.
+- 실행 화면은 공용 WinForms 창, 산출물은 HTML·JSON·체크리스트 xlsx로 맞추기로 했다(사용자 결정 2026-11-23). 이번 단계에서 제품 실행·판정·레포트 동작은 바꾸지 않았다. 남은 단계는 `frame/FRAME.md` 4절에 있다.
+
 ## 릴리즈 폴더 정리 (2026-11-23)
 
 - REQ-DIST-003, REQ-DIST-008: 등록된 `auto/release/<버전>/`에 Setup·빌드 기록·설치용 ZIP을 모으는 경로와 이전 버전 정리 절차를 명시했다.

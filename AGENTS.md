@@ -24,6 +24,15 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 - 새 동작 파일은 12절에 넣는다. `tests/test_spec_trace_coverage.py`의 `UNTRACED_BASELINE`은 줄이기만 한다.
 - 12절 `verified`는 `verify`가 도는 단위시험 통과만 뜻한다. 설치판·실제 제품 수용은 `progress.md`와 검증 기록 문서에 둔다.
 
+### VXvue·Bellalun 공통 프레임 동기화 (REQ-FRAME-001)
+
+Bellalun 자동화(`Bellalun Viewer/auto`)와 VXvue 자동화(`vxvue/auto`)는 실행 화면·진행 표시·결과 레포트를 같은 틀로 유지한다. 계약은 `frame/FRAME.md`, 공유 파일 목록은 `frame/frame.lock.json`이다.
+
+- 공유 파일(잠금 목록의 `files`)을 고치면 같은 작업에서 `python frame/sync_check.py --update-lock` → `python frame/sync_check.py --propagate`로 형제 저장소에 반영하고, 두 저장소의 검증을 모두 통과한 뒤 각 저장소에 커밋·push한다. 한쪽만 커밋하고 끝내지 않는다.
+- 실행 화면 흐름·레포트 절 순서·산출물처럼 `frame/FRAME.md` 2절의 모양을 바꾸는 변경은 먼저 그 문서를 고치고, 형제 제품의 대응 작업을 같은 작업에서 하거나 `frame/FRAME.md` 4절 표에 남은 일로 적는다.
+- 제품 UI 조작·TC·판정 근거는 공유 대상이 아니다. 공유 파일에 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다.
+- 형제 저장소에 다른 세션의 변경이 진행 중이면 복사하지 않고 보고한다. 검사 실패(`python frame/sync_check.py`)를 우회하지 않는다.
+
 ### 추적 정보 두 곳의 역할
 
 `SPEC.md` 12절은 자동화 요구사항(REQ)이 어느 코드와 단위시험으로 구현·검증되는지 잇는다. 자동화를 고칠 때 볼 곳이다.

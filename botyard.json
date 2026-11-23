@@ -45,6 +45,7 @@
     "tests/test_first_run.py",
     "tests/test_flow_timings.py",
     "tests/test_focus_recovery.py",
+    "tests/test_frame_sync.py",
     "tests/test_human_only_skip.py",
     "tests/test_image_cleanup.py",
     "tests/test_image_overlay.py",
