@@ -49,7 +49,10 @@
 | WF14 단독 예시 | `--suites run-wf14 --expected-tc TC_Basic_WorkFlow_14` |
 | XIPL04 단독 예시 | `--suites run-xipl-04 --expected-tc TC_XIPL_compatibility_04` |
 
-전체 묶음은 원상복원 선택(`--restore-after` 또는 사전 백업만 남기는 `--no-restore-after`)이 필수다. USB 묶음은 실행 전 준비 체크리스트(다른 조작 없음, 백업, USB 연결, `BellalunWU09` 백업)를 확인한 뒤 `--prepared`를 준다. 빠지면 도구가 제품 실행 전에 거부한다(REQ-DIST-004).
+전체 묶음은 원상복원 선택(`--restore-after` 또는 사전 백업만 남기는 `--no-restore-after`)이 필수다.
+WU는 다른 조작이 없고 시험 자료를 백업했는지 확인한다. USB를 쓸 때는 `BellalunWU09`도 백업한다.
+GUI는 USB가 없으면 계속할지 묻는다. `--prepared`를 받은 CLI는 같은 경고를 출력하고 계속한다.
+USB 단계는 MANUAL로 표시하고 나머지 시험을 수행한다(REQ-TCUP-004).
 
 자동화를 고친 뒤 범위를 정할 때는 `python tools/impact_scope.py`(기준 `origin/main`)가 변경 파일로 `none`·`selected`·`wu`·`full`과 명령을 추천한다. 추천은 판단 자료이고 UI 회귀 전 사용자 확인을 대신하지 않는다.
 

@@ -62,7 +62,7 @@ REBOOT_PENDING_KEYS = (
      r"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"),
 )
 
-USB_SKIP_TEXT = "WU_09 USB 단계 SKIP 예정"
+USB_MANUAL_TEXT = "WU_09 USB 단계 MANUAL 예정"
 
 
 def _item(key, label, level, actual, expected, hint="", blocks_run=None):
@@ -244,7 +244,7 @@ def check_taskbar(autohide):
 def check_usb(drive):
     return _item("usb_drive", "이동식 드라이브",
                  OK if drive else WARN, drive or "없음", "연결됨",
-                 f"{USB_SKIP_TEXT} — 이동식 드라이브를 연결하면 WU_09 USB Export·Import까지 수행합니다.")
+                 f"{USB_MANUAL_TEXT} — 이동식 드라이브를 연결하면 WU_09 USB Export·Import까지 수행합니다.")
 
 
 def check_reboot_pending(found):

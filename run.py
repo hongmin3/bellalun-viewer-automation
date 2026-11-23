@@ -940,8 +940,10 @@ def _run_wu09_single(ctx):
     from tests.workflow09 import run as run_export
     from core import flows
     lookup = winupdate.lookup_from_results(run_export(ctx))
-    ui, _ = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
-    usb = winupdate.run_usb_export_import(ctx, ui)
+    usb = {'drive': None}
+    if getattr(ctx, 'usb_drive', True) is not None:
+        ui, _ = flows.cold_start(ctx.cfg, ctx.db, force_restart=True)
+        usb = winupdate.run_usb_export_import(ctx, ui)
     result = winupdate._wu_09(lookup, usb)
     return _finish_winupdate(ctx, [result], source_note='WU09 소스 단독',
                              execution_mode='single', chain_completed=False)
@@ -1408,6 +1410,9 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
         holder = {"ui": None, "usb": checkpoint.extra("usb")}
 
         def _usb_stage(ctx):
+            if getattr(ctx, 'usb_drive', True) is None:
+                holder["usb"] = {"drive": None}
+                return []
             ui, _startup = flows.cold_start(ctx.cfg, ctx.db, force_restart=False)
             holder["ui"] = ui
             try:
@@ -1591,6 +1596,13 @@ def cmd_sync_knowledge(args):
     return code
 
 
+def _confirm_usb_preparation(ctx, args):
+    from core.run_preparation import confirm_cli, connected_usb
+
+    ctx.usb_drive = None if getattr(args, 'without_usb', False) else connected_usb(args.cmd)
+    return confirm_cli(args.cmd, prepared=args.prepared, without_usb=ctx.usb_drive is None)
+
+
 def main():
     from bellalunauto.app import (historical_conversion, legacy_product_lock,
                                  requires_product_control)
@@ -1691,6 +1703,8 @@ def _main():
              "개발 중 확인용이며 릴리스 수용은 run-regression과 run-winupdate를 따로 실행한다.")
     winupdate_parser.add_argument('--prepared', action='store_true',
                                   help='실행 전 준비 체크리스트를 모두 확인했음을 전달(USB 실제 점검 유지)')
+    winupdate_parser.add_argument('--without-usb', action='store_true',
+                                  help='이번 실행에서 USB 단계는 수동 확인으로 남김')
     usb_parser = sub.add_parser('run-wu09', help='WU09 단독: WF09와 USB Export/Import만 실행')
     usb_parser.add_argument('--prepared', action='store_true',
                             help='실행 전 준비 체크리스트를 모두 확인했음을 전달')
@@ -1780,9 +1794,8 @@ def _main():
     ctx = Context(args.config)
     # 사람의 취소는 계획 해시·백업·서비스 중지보다 먼저 처리한다.
     if args.cmd in {'run-winupdate', 'run-wu09'} and not getattr(args, 'from_regression', None):
-        from core.run_preparation import confirm_cli
         try:
-            if not confirm_cli(args.cmd, prepared=args.prepared):
+            if not _confirm_usb_preparation(ctx, args):
                 return 2
         except ValueError as error:
             print(error)
@@ -1840,7 +1853,11 @@ def _execute_preserved(ctx, args):
         # 서비스 복구 실패도 위 finally의 보고서 철회와 같은 종료3으로 연결한다.
         # KeyboardInterrupt/SystemExit는 삼키지 않으며 durable pending이 다음 실행을 막는다.
         ctx.execution_incomplete = True
-        ctx.execution_error = {'type': type(error).__name__, 'phase': 'execution-session'}
+        from bellalunauto.gui import secret_redactor
+        detail = secret_redactor(ctx.cfg)(str(error))
+        ctx.execution_error = {'type': type(error).__name__, 'phase': 'execution-session', 'message': detail}
+        print(f'[FAIL] 시험 준비 또는 복원: {detail or type(error).__name__}')
+        print('준비 점검에서 현재 상태를 확인하고 화면의 조치 버튼을 사용하세요.')
         code = 3
     finally:
         # 복원 후의 최종 결과를 모든 리포트 형식에 연결한다. 이전 회차는 수정하지 않는다.
@@ -2038,9 +2055,8 @@ def _dispatch(ctx, args):
         return _run_winupdate_from_regression(ctx, args.from_regression)
 
     if args.cmd in {'run-winupdate', 'run-wu09'} and not getattr(args, 'preparation_confirmed', False):
-        from core.run_preparation import confirm_cli
         try:
-            if not confirm_cli(args.cmd, prepared=args.prepared):
+            if not _confirm_usb_preparation(ctx, args):
                 return 2
         except ValueError as error:
             print(error)

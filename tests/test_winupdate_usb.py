@@ -238,10 +238,10 @@ class WindowsUpdateUSBSafetyTests(unittest.TestCase):
     def test_current_click_only_import_remains_manual(self):
         self.assertEqual(self.import_check(self.outcome()).status, MANUAL)
 
-    def test_unavailable_usb_remains_skip(self):
+    def test_unavailable_usb_requires_manual_confirmation(self):
         result = self.wu._wu_09(self.lookup, {'drive': None})
         check = next(check for check in result.checks if check.title == 'USB Export/Import')
-        self.assertEqual(check.status, SKIP)
+        self.assertEqual(check.status, MANUAL)
 
     def test_import_error_and_outer_exception_remain_fail(self):
         outcome = self.outcome()

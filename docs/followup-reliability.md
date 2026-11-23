@@ -18,7 +18,14 @@ python run.py --config config.json run-wu09 --restore-after
 
 `preservation.storage_dir`를 지정하면 작업 폴더 `preservation/<run_id>`에는 journal·manifest를 두고 실제 사전/시험 후 사본은 공용 저장소 실행별 폴더에 둔다. 변경 없는 파일은 사전 사본을 참조하며 변경 파일만 순차 복원한다. 경로가 비어 있는 기존 모드는 로컬 전체 보존을 사용한다. 공유 실패를 로컬 전체 복사로 대체하지 않는다. 기존 사본·archive는 자동 삭제하지 않는다. 새 정리 예외는 정상 전체 회귀·선택 복원·서비스·완료 증명이 검증된 해당 실행의 생성 Image 격리 파일뿐이다. 보고서가 참조하는 증거는 `Evidence/preserved`로 해시를 대조해 복사한다.
 
-미완료 보존 journal이 있으면 새 시험을 차단한다. 임의로 journal을 지우거나 이전 저장점만 복사해 실행하지 않는다. `python tools/recover_preservation.py --workspace <작업폴더>`로 조회하고, `--run-id <번호> --config <설정> --apply`로 복구할 실행을 선택한다. 백업 실패 후 제품이 시작되지 않은 경우에만 `--acknowledge-unstarted`로 미시작 사실을 확인할 수 있다.
+미완료 보존 기록이 있으면 새 시험을 차단한다. 설치판의 **준비 점검 → 복원 대기 → 복원 재개**에서
+작업 폴더와 실행 번호를 확인한다. 선택한 실행의 복원을 승인하면 사전 백업을 읽어 시험 DB·파일을
+복원하고 검증한다. 기존 설치판에서는 별도 `BellalunAutoRecovery.exe`의 복원 화면을 사용할 수 있다.
+설치판과 복구용 EXE는 대상 PC의 Python 설치가 필요 없다.
+
+개발 환경에서는 `python tools/recover_preservation.py --workspace <작업폴더>`로 조회한다.
+`--run-id <번호> --config <설정> --apply`는 선택한 실행을 복원한다. 백업 실패 뒤 제품이
+시작되지 않은 경우에만 `--acknowledge-unstarted`로 확인한다. 보존 기록과 백업은 유지한다.
 
 ## 공간·메모리와 실행 상태
 

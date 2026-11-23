@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 from datetime import datetime
+from ipaddress import IPv6Address
 import os
 from pathlib import Path, PureWindowsPath
 import queue
@@ -12,8 +13,10 @@ import subprocess
 import threading
 import uuid
 from typing import Any
+from urllib.parse import urlsplit
 
 
+DICOM_SETTINGS_TAB = "DICOM 서버 설정"
 # (탭, 설정 경로, 표시명, 입력 종류). 폼에 없는 설정은 그대로 보존한다.
 FIELDS = (
     ("제품 / DB", "viewer.exe", "Viewer 실행파일", "file"),
@@ -24,15 +27,15 @@ FIELDS = (
     ("XIPL / OCR", "xipl.studio_exe", "XIPL Studio 실행파일", "file"),
     ("XIPL / OCR", "xipl.parameter_dir", "XIPL Parameter 폴더", "dir"),
     ("XIPL / OCR", "xipl.tesseract_exe", "Tesseract OCR 실행파일", "file"),
-    ("DICOM 서버", "dicom.mwl_server_url", "MWL HTTP 주소", "url"),
-    ("DICOM 서버", "dicom.print_server_url", "Print HTTP 주소", "url"),
-    ("DICOM 서버", "dicom.print_scp.host", "Print 호스트", "text"),
-    ("DICOM 서버", "dicom.print_scp.ae_title", "Print AE Title", "text"),
-    ("DICOM 서버", "dicom.print_scp.port", "Print 포트", "port"),
-    ("DICOM 서버", "dicom.storage_scp.api_url", "Storage HTTP 주소", "url"),
-    ("DICOM 서버", "dicom.storage_scp.host", "Storage 호스트", "text"),
-    ("DICOM 서버", "dicom.storage_scp.ae_title", "Storage AE Title", "text"),
-    ("DICOM 서버", "dicom.storage_scp.port", "Storage 포트", "port"),
+    (DICOM_SETTINGS_TAB, "dicom.mwl_server_url", "MWL HTTP 주소", "url"),
+    (DICOM_SETTINGS_TAB, "dicom.print_server_url", "Print HTTP 주소", "url"),
+    (DICOM_SETTINGS_TAB, "dicom.storage_scp.api_url", "Storage HTTP 주소", "url"),
+    (DICOM_SETTINGS_TAB, "dicom.print_scp.host", "Print 확인용 호스트", "text"),
+    (DICOM_SETTINGS_TAB, "dicom.print_scp.ae_title", "Print 확인용 AE Title", "text"),
+    (DICOM_SETTINGS_TAB, "dicom.print_scp.port", "Print 확인용 포트", "port"),
+    (DICOM_SETTINGS_TAB, "dicom.storage_scp.host", "Storage 확인용 호스트", "text"),
+    (DICOM_SETTINGS_TAB, "dicom.storage_scp.ae_title", "Storage 확인용 AE Title", "text"),
+    (DICOM_SETTINGS_TAB, "dicom.storage_scp.port", "Storage 확인용 포트", "port"),
     ("시험 로그인", "viewer.login.id", "시험 계정 ID", "text"),
     ("시험 로그인", "viewer.login.password", "시험 계정 비밀번호", "password"),
     ("시험 자료", "checklist_xlsx", "기본기능 체크리스트", "file"),
@@ -78,11 +81,78 @@ def form_fields(config: dict) -> tuple:
         for index, server in enumerate(servers):
             if not isinstance(server, dict):
                 continue
-            tab = f"등록{index + 1} {server.get('kind', 'DICOM')}"
+            prefix = f"{server.get('kind', 'DICOM')} 등록 서버 {index + 1}"
             for key, label, kind in (("name", "이름", "text"), ("ip", "호스트", "text"),
                                      ("ae_title", "AE Title", "text"), ("port", "포트", "port")):
-                fields.append((tab, f"dicom.servers_to_register.{index}.{key}", f"등록 서버 {index + 1} {label}", kind))
+                fields.append((DICOM_SETTINGS_TAB, f"dicom.servers_to_register.{index}.{key}",
+                               f"{prefix} {label}", kind))
     return tuple(fields)
+
+
+def settings_fields(config: dict) -> tuple:
+    """저장 주소는 설정 화면에서 호스트와 웹 포트로 표시한다."""
+    fields = []
+    for tab, key, label, kind in form_fields(config):
+        if kind == "url":
+            service = label.split()[0]
+            fields.extend(((tab, f"{key}.host", f"{service} 웹 호스트", "text"),
+                           (tab, f"{key}.port", f"{service} 웹 포트", "port")))
+        else:
+            fields.append((tab, key, label, kind))
+    return tuple(fields)
+
+
+def _web_address(raw):
+    try:
+        url = urlsplit(raw or "")
+        if url.scheme in {"http", "https"} and url.hostname and url.username is None:
+            return url, str(url.port if url.port is not None else (443 if url.scheme == "https" else 80))
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return urlsplit("http://"), ""
+
+
+def settings_values(config: dict) -> dict[str, str]:
+    values = {}
+    for _, key, _, kind in form_fields(config):
+        value = _get(config, key)
+        if kind == "url":
+            url, port = _web_address(value)
+            values[f"{key}.host"] = url.hostname or ""
+            values[f"{key}.port"] = port
+        else:
+            values[key] = "" if value is None or (kind == "storage_dir" and not isinstance(value, str)) else str(value)
+    return values
+
+
+def merge_settings_values(config: dict, values: dict[str, str]) -> dict:
+    current = settings_values(config)
+    edited = {key: value for key, value in values.items() if current.get(key) != value}
+    for _, key, label, kind in form_fields(config):
+        if kind != "url":
+            continue
+        host_key, port_key = f"{key}.host", f"{key}.port"
+        if host_key not in edited and port_key not in edited:
+            continue
+        host = edited.pop(host_key, current[host_key]).strip()
+        port = edited.pop(port_key, current[port_key]).strip()
+        if not host and not port:
+            edited[key] = ""
+            continue
+        try:
+            if ":" in host:
+                host = f"[{IPv6Address(host.removeprefix('[').removesuffix(']'))}]"
+            elif not host or not all(char.isalnum() or char in "-._" for char in host):
+                raise ValueError
+            if not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535:
+                raise ValueError
+        except ValueError:
+            raise ValueError(f"{label.split()[0]} 웹 호스트와 웹 포트(1~65535)를 확인하세요.") from None
+        url, _ = _web_address(_get(config, key))
+        default_port = "443" if url.scheme == "https" else "80"
+        authority = host if url.port is None and port == default_port else f"{host}:{port}"
+        edited[key] = url._replace(netloc=authority).geturl()
+    return merge_form_config(config, edited)
 
 
 def command_arguments(layout, action: str, *, stop_file=None) -> list[str]:
@@ -117,7 +187,6 @@ def merge_form_config(config: dict, values: dict[str, str]) -> dict:
             except (ValueError, TypeError):
                 raise ValueError(f"{field_labels[key]}: 1~65535 정수가 필요합니다.") from None
         if field_types[key] == "url" and value:
-            from urllib.parse import urlsplit
             try:
                 parsed = urlsplit(value)
                 valid = parsed.scheme in {"http", "https"} and bool(parsed.hostname) and not parsed.username and not parsed.password
@@ -450,7 +519,8 @@ class RunController:
         self.record = None
         if action in {"run-regression", "run-winupdate"}:
             from core.run_preparation import validate_preparation
-            validate_preparation(action, (plan or {}).get('preparation_checked', []))
+            validate_preparation(action, (plan or {}).get('preparation_checked', []),
+                                 without_usb=(plan or {}).get('without_usb') is True)
             from .runs import RunRecord
             self.record = RunRecord.create(self.layout.workspace, action, plan or {}, consent=True)
         self.stop_path = Path(self.layout.workspace) / "work" / f"stop-{uuid.uuid4().hex}.json"
@@ -458,6 +528,8 @@ class RunController:
             arguments = command_arguments(self.layout, action, stop_file=self.stop_path)
             if action == 'run-winupdate':
                 arguments.append('--prepared')
+                if (plan or {}).get('without_usb') is True:
+                    arguments.append('--without-usb')
             if self.record:
                 arguments = ['--run-id', self.record.data['run_id']] + arguments
             self.start_argv(child_command(arguments))
@@ -566,7 +638,11 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
     tabs = {}
     variables = {}
     status = {}
-    fields = form_fields(config)
+    rows = {}
+    fields = settings_fields(config)
+    initial = settings_values(config)
+    host_keys = [key for tab, key, _, _ in fields
+                 if tab == DICOM_SETTINGS_TAB and key.endswith((".ip", ".host"))]
 
     def browse(key, kind):
         selected = (filedialog.askdirectory(parent=dialog) if kind in {"dir", "storage_dir"}
@@ -584,16 +660,41 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
             else:
                 status[key].set("입력됨" if value else "미입력")
 
+    def apply_common_host():
+        host = common_host.get().strip()
+        if host:
+            for key in host_keys:
+                variables[key].set(host)
+            refresh_status()
+
     for tab_name, key, label, kind in fields:
         if tab_name not in tabs:
-            tabs[tab_name] = ttk.Frame(notebook, padding=12)
-            tabs[tab_name].columnconfigure(1, weight=1)
-            notebook.add(tabs[tab_name], text=tab_name)
+            panel = ttk.Frame(notebook, padding=12)
+            notebook.add(panel, text=tab_name)
+            rows[tab_name] = 0
+            if tab_name == DICOM_SETTINGS_TAB:
+                canvas = tk.Canvas(panel, highlightthickness=0)
+                scrollbar = ttk.Scrollbar(panel, orient="vertical", command=canvas.yview)
+                canvas.configure(yscrollcommand=scrollbar.set)
+                scrollbar.pack(side="right", fill="y")
+                canvas.pack(side="left", fill="both", expand=True)
+                panel = ttk.Frame(canvas)
+                window = canvas.create_window((0, 0), window=panel, anchor="nw")
+                panel.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+                canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+                hosts = {initial[host_key] for host_key in host_keys}
+                common_host = tk.StringVar(value=hosts.pop() if len(hosts) == 1 else "")
+                ttk.Label(panel, text="공통 호스트").grid(row=0, column=0, sticky="w", padx=4, pady=8)
+                ttk.Entry(panel, textvariable=common_host).grid(row=0, column=1, sticky="ew", padx=4)
+                ttk.Button(panel, text="전체 호스트에 적용", command=apply_common_host).grid(row=0, column=2, columnspan=2, padx=4)
+                rows[tab_name] = 1
+            tabs[tab_name] = panel
+            panel.columnconfigure(1, weight=1)
         tab = tabs[tab_name]
-        row = len([entry for entry in variables if next(item[0] for item in fields if item[1] == entry) == tab_name])
+        row = rows[tab_name]
+        rows[tab_name] += 1
         ttk.Label(tab, text=label).grid(row=row, column=0, sticky="w", padx=4, pady=8)
-        value = _get(config, key) or ""
-        variables[key] = tk.StringVar(value="" if kind == "storage_dir" and not isinstance(value, str) else str(value))
+        variables[key] = tk.StringVar(value=initial[key])
         ttk.Entry(tab, textvariable=variables[key], show="●" if kind == "password" else "").grid(row=row, column=1, sticky="ew", padx=4, pady=8)
         if kind in {"file", "dir", "storage_dir"}:
             ttk.Button(tab, text="찾기", command=lambda k=key, t=kind: browse(k, t)).grid(row=row, column=2, padx=4)
@@ -606,18 +707,20 @@ def _settings_dialog(root, layout, config: dict, *, first_run=False):
 
     def detect():
         try:
-            draft = merge_form_config(config, {key: value.get() for key, value in variables.items()})
-        except ValueError:
-            messagebox.showerror("입력 확인", "포트와 HTTP 주소를 먼저 확인하세요.", parent=dialog)
+            draft = merge_settings_values(config, {key: value.get() for key, value in variables.items()})
+        except ValueError as error:
+            messagebox.showerror("입력 확인", str(error), parent=dialog)
             return
-        for key, value in detect_settings(draft).items():
-            variables[key].set(value)
+        detected = detect_settings(draft)
+        for _, key, _, kind in fields:
+            if kind in {"file", "dir"}:
+                variables[key].set(detected[key])
         refresh_status()
         messagebox.showinfo("자동 탐지", "로컬 파일 후보를 폼에 채웠습니다. 서버·계정·SQL 서비스 값은 직접 확인하세요. 저장을 눌러야 반영됩니다.", parent=dialog)
 
     def save():
         try:
-            updated = merge_form_config(config, {key: value.get() for key, value in variables.items()})
+            updated = merge_settings_values(config, {key: value.get() for key, value in variables.items()})
             errors = validate_config(updated)
             if errors and not messagebox.askyesno("미완성 설정 저장", "아래 항목을 나중에 입력할 수 있습니다. 현재 설정을 저장할까요?\n\n" + "\n".join(errors), parent=dialog):
                 return
@@ -863,6 +966,20 @@ def launch(layout, workspace_chosen=False, unattended=None) -> int:
         except OSError:
             messagebox.showerror("결과 폴더", "결과 폴더를 열 수 없습니다. 작업 폴더의 Reports를 확인하세요.", parent=root)
     ttk.Button(footer, text="결과 폴더 열기", command=auto_close.command(open_results)).pack(side="left", padx=4)
+
+    def open_execution_log():
+        path = controller.log_path
+        try:
+            if path and path.is_file():
+                os.startfile(str(path))
+            else:
+                logs = layout.workspace / "Log"
+                logs.mkdir(exist_ok=True)
+                os.startfile(str(logs))
+        except OSError:
+            messagebox.showerror("실행 로그 열기", f"작업 폴더의 Log에 접근할 수 없습니다.\n{layout.workspace}", parent=root)
+
+    ttk.Button(footer, text="실행 로그 열기", command=auto_close.command(open_execution_log)).pack(side="left", padx=4)
     def selected_record():
         from .runs import latest_run
         return controller.record or latest_run(layout.workspace)

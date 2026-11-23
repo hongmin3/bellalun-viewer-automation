@@ -194,7 +194,7 @@ def diagnostics(layout, check_connections=True):
         '실행 화면의 PC별 설정에서 경로와 시험 계정을 저장하세요.')
     pending = pending_recovery_detail(layout.workspace)
     add('복원 대기', pending is None, pending or '없음',
-        '시험 담당자에게 실행 번호와 작업 폴더를 전달하세요. 복원을 확인한 뒤 다시 점검하세요.')
+        '[복원 재개]에서 실행 번호를 선택하고 복원한 뒤 다시 점검하세요.')
     try:
         config = bundled_config(load_config(layout), layout.resource_dir)
     except (OSError, ValueError) as exc:
@@ -312,9 +312,10 @@ def diagnostics(layout, check_connections=True):
                     available = True
             except (OSError, ValueError):
                 available = False
-            add(name, available, '연결 가능' if available else ('연결 실패' if configured else '주소 미설정'),
-                '서버 가동·포트와 시험망 연결을 확인하세요.' if configured else
-                'PC별 설정에 서버 주소와 포트를 입력하세요.')
+            add(name, available, '웹 포트 연결 가능' if available else ('웹 포트 연결 실패' if configured else '웹 접속 정보 미설정'),
+                'PC별 설정 → DICOM 서버 설정에서 이 서버의 웹 호스트와 웹 포트를 확인하세요. '
+                '입력이 맞으면 시험망 연결과 서버 가동 상태를 확인한 뒤 [다시 점검]을 누르세요. '
+                'Viewer의 DICOM C-ECHO는 첫 시험 준비 단계에서 확인합니다.')
     return items
 
 
@@ -565,7 +566,7 @@ def main(argv=None):
         if hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(add_help=False, description='BellalunAuto: 기본기능·Windows Update 자동화',
-                                     epilog='명령: selfcheck, portability-check, run-regression, run-winupdate 및 기존 run.py 명령')
+                                     epilog='명령: selfcheck, portability-check, run-regression, run-winupdate, recover-preservation 및 기존 run.py 명령')
     parser.add_argument('--version', action='store_true')
     parser.add_argument('--workspace')
     parser.add_argument('--config')
@@ -617,6 +618,18 @@ def main(argv=None):
         if arguments == ['prepare-install']:
             from bellalunauto.prerequisites import prepare_install
             return prepare_install(layout)
+        if arguments[0] == 'recover-preservation':
+            if len(arguments) != 2:
+                raise ValueError('recover-preservation <복원 대기 실행 번호>를 지정하세요.')
+            from core.sysinfo import is_elevated
+            if not is_elevated():
+                if options.elevated:
+                    raise PermissionError('관리자 권한으로 복원을 시작하지 못했습니다.')
+                return _elevate(layout, arguments)
+            from bellalunauto.recovery_gui import recover_selected
+            code, detail = recover_selected(layout.workspace, layout.config_path, arguments[1])
+            print(detail, end='')
+            return code
         if arguments[0] == 'verify-share':
             from bellalunauto.share import verify_package
             if len(arguments) != 2:

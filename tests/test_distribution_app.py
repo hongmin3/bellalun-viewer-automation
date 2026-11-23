@@ -215,7 +215,7 @@ class DistributionAppTests(unittest.TestCase):
             blocked = recovery_row()
             self.assertFalse(blocked['ok'])
             self.assertIn(journal.parent.name, blocked['detail'])
-            self.assertIn('시험 담당자', blocked['fix'])
+            self.assertIn('[복원 재개]', blocked['fix'])
             journal.write_text('{"state":"verified","execution_finalization_pending":false}', encoding='utf-8')
             self.assertTrue(recovery_row()['ok'])
             journal.write_text('[]', encoding='utf-8')

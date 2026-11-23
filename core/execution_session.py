@@ -47,6 +47,28 @@ def restoration_generation(workspace):
     return generations
 
 
+def _budget_failure(budget):
+    problems = []
+    volumes = {volume['id']: volume for volume in budget['volumes']}
+    for entry in budget['items']:
+        if not entry['blocks_run']:
+            continue
+        key = entry['key']
+        if key == 'memory':
+            problems.append('사용 가능한 메모리가 1 GiB 미만이거나 조회되지 않습니다. '
+                            '열려 있는 다른 작업을 저장하고 닫은 뒤 다시 점검하세요.')
+        elif key.startswith('disk:'):
+            volume = volumes[key.removeprefix('disk:')]
+            paths = ', '.join(dict.fromkeys(item['path'] for item in volume['allocations']))
+            extra = (volume['required'] - volume['free']) / GIB
+            problems.append(f'{paths}의 볼륨에 {max(extra, 0.01):.2f} GiB 이상 더 필요합니다. '
+                            '여유 공간을 확보하거나 PC별 설정에서 보존 저장소를 확인하세요.')
+        else:
+            problems.append('보존 대상 폴더 또는 여유 공간을 조회할 수 없습니다. '
+                            'Viewer 데이터 폴더와 공용 보존 저장소의 연결·접근 권한을 확인한 뒤 다시 점검하세요.')
+    return '\n'.join(problems)
+
+
 class DatabasePreservation:
     def __init__(self, ctx):
         self.ctx = ctx
@@ -143,11 +165,15 @@ def execution_session(ctx, action):
     run_id = run_id or datetime.now().strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:8]
     roots = roots_from_config(ctx.cfg)
     if action in {'run-winupdate', 'run-wu09'}:
-        from core.usb_media import find_usb_drive
-        usb = find_usb_drive()
-        if not usb:
-            raise ValueError('시험용 USB가 없어 실행을 시작하지 않습니다.')
-        roots = roots_from_config(ctx.cfg, usb_drive=usb)
+        from core.usb_media import find_usb_drive, mounted_usb_drive
+        if not hasattr(ctx, 'usb_drive'):
+            ctx.usb_drive = find_usb_drive()
+        elif ctx.usb_drive and not mounted_usb_drive(ctx.usb_drive):
+            ctx.usb_drive = None
+            from core.run_preparation import USB_MISSING_MESSAGE
+            print('[WARN] ' + USB_MISSING_MESSAGE)
+        if ctx.usb_drive:
+            roots = roots_from_config(ctx.cfg, usb_drive=ctx.usb_drive)
     adapter = DatabasePreservation(ctx)
     options = ctx.cfg.get('preservation') or {}
     storage_dir = options.get('storage_dir')
@@ -176,7 +202,7 @@ def execution_session(ctx, action):
                             incremental_restore=bool(storage_dir), root_headroom_bytes=headrooms)
     ctx.resource_budget = budget
     if budget['blocked']:
-        raise ValueError('보존/시험 예상량을 위한 디스크·USB·메모리가 부족하거나 조회되지 않았습니다.')
+        raise ValueError(_budget_failure(budget))
     if RunPreservation.pending(ctx.root):
         raise ValueError('미완료 보존 기록을 복구한 뒤 새 시험을 시작하세요.')
     session = RunPreservation(ctx.root, run_id, roots, restore_after=choice, db_adapter=adapter,

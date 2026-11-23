@@ -76,10 +76,10 @@ class WarnItemTests(unittest.TestCase):
         self.assertEqual("WARN", _item(result, "taskbar_autohide")["level"])
         self.assertFalse(result["blocked"])
 
-    def test_no_usb_warns_wu09_skip(self):
+    def test_no_usb_warns_wu09_manual(self):
         item = _item(_run(usb_drive=None), "usb_drive")
         self.assertEqual("WARN", item["level"])
-        self.assertIn("WU_09 USB 단계 SKIP 예정", item["hint"])
+        self.assertIn("WU_09 USB 단계 MANUAL 예정", item["hint"])
 
     def test_reboot_pending_warns(self):
         item = _item(_run(reboot_pending=["Windows Update"]), "reboot_pending")

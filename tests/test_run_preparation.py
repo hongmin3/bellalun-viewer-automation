@@ -1,17 +1,19 @@
-"""Validates: REQ-TCUP-004. USB와 사람 확인의 독립적인 차단."""
+"""Validates: REQ-TCUP-004. USB 미연결 동의와 MANUAL 판정."""
 import pytest
 from unittest.mock import patch
 
 
-def test_wu_requires_all_checks_and_real_usb_even_when_prepared():
+def test_wu_requires_usb_checks_only_when_usb_is_available(capsys):
     from core import run_preparation as prep
     keys = [r['key'] for r in prep.preparation_items('run-winupdate')]
     assert {'desktop_free','backup','usb_ready','usb_folder'} == set(keys)
     assert not prep.preparation_complete('run-winupdate', keys[:-1])
     assert prep.preparation_complete('run-winupdate', keys)
     with patch('core.usb_media.find_usb_drive', return_value=None):
-        with pytest.raises(ValueError, match='USB'):
-            prep.confirm_cli('run-winupdate', prepared=True)
+        assert prep.confirm_cli('run-winupdate', prepared=True)
+        assert 'MANUAL' in capsys.readouterr().out
+        assert not prep.confirm_cli('run-winupdate', input_fn=lambda prompt: 'n')
+        assert prep.confirm_cli('run-winupdate', input_fn=lambda prompt: 'y')
 
 
 def test_cli_rejection_and_noninteractive_eof_do_not_start():
@@ -69,3 +71,14 @@ def test_wu09_single_passes_workflow_list_to_real_wu_mapping():
     assert rows[0].tc_id == 'TC_WindowsUpdate_09'
     assert any(c.title.endswith('Normal Export') and c.status == 'PASS' for c in rows[0].checks)
     assert rows[0].verdict == 'MANUAL'
+    assert any(c.title == 'USB Export/Import' and c.status == 'MANUAL' for c in rows[0].checks)
+
+
+def test_run_without_usb_does_not_open_usb_flow_even_if_media_appears():
+    import run
+    from types import SimpleNamespace
+    with patch('tests.workflow09.run', return_value=[]), \
+         patch('core.flows.cold_start', side_effect=AssertionError('USB 화면을 열면 안 됩니다.')), \
+         patch.object(run, '_finish_winupdate', side_effect=lambda ctx, rows, **kw: rows):
+        rows = run._run_wu09_single(SimpleNamespace(cfg={}, db=None, usb_drive=None))
+    assert any(c.title == 'USB Export/Import' and c.status == 'MANUAL' for c in rows[0].checks)

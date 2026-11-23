@@ -103,6 +103,11 @@ FILE_ATTRIBUTE_HIDDEN = 0x02
 FILE_ATTRIBUTE_SYSTEM = 0x04
 
 
+def mounted_usb_drive(root):
+    """이동식 드라이브 문자가 있어도 매체가 마운트되어 있어야 한다."""
+    return k32.GetDriveTypeW(root) == DRIVE_REMOVABLE and os.path.isdir(root)
+
+
 def find_usb_drive():
     """이동식(USB) 드라이브의 루트 경로를 찾는다. 없으면 None.
 
@@ -114,11 +119,7 @@ def find_usb_drive():
         if not (bitmask >> i) & 1:
             continue
         root = f"{letter}:\\"
-        try:
-            drive_type = k32.GetDriveTypeW(root)
-        except Exception:
-            continue
-        if drive_type == DRIVE_REMOVABLE:
+        if mounted_usb_drive(root):
             return root
     return None
 

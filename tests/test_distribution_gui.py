@@ -91,7 +91,39 @@ def test_validation_checks_registered_server_placeholders():
     gui = gui_module()
     errors = gui.validate_config({"dicom": {"servers_to_register": [
         {"kind": "MWL", "name": "TEST", "ip": "REPLACE_ME", "port": 11112, "ae_title": "TEST"}]}})
-    assert any("등록 서버 1 호스트" in error for error in errors)
+    assert any("MWL 등록 서버 1 호스트" in error for error in errors)
+
+
+def test_dicom_settings_use_one_tab_and_separate_web_ports_from_dicom_ports():
+    gui = gui_module()
+    config = {"dicom": {"mwl_server_url": "http://192.0.2.1:5000",
+                        "print_server_url": "http://192.0.2.1:8000",
+                        "print_scp": {"host": "192.0.2.1", "port": 11113},
+                        "storage_scp": {"api_url": "https://storage.example/qa", "port": 11116},
+                        "servers_to_register": [{"kind": "MWL", "ip": "192.0.2.1", "port": 11112}]}}
+    fields = gui.settings_fields(config)
+    dicom_fields = [entry for entry in fields if entry[1].startswith("dicom.")]
+    assert {entry[0] for entry in dicom_fields} == {"DICOM 서버 설정"}
+    assert "url" not in {entry[3] for entry in dicom_fields}
+    values = gui.settings_values(config)
+    assert values["dicom.mwl_server_url.host"] == "192.0.2.1"
+    assert values["dicom.mwl_server_url.port"] == "5000"
+    assert values["dicom.storage_scp.api_url.port"] == "443"
+    assert gui.merge_settings_values(config, values) == config
+    updated = gui.merge_settings_values(config, {"dicom.mwl_server_url.port": "5500",
+                                                  "dicom.storage_scp.api_url.host": "2001:db8::4"})
+    assert updated["dicom"]["mwl_server_url"] == "http://192.0.2.1:5500"
+    assert updated["dicom"]["storage_scp"] == {"api_url": "https://[2001:db8::4]/qa", "port": 11116}
+    assert updated["dicom"]["servers_to_register"] == config["dicom"]["servers_to_register"]
+
+
+@pytest.mark.parametrize(("field", "value"), [("host", "http://192.0.2.1"), ("port", "65536")])
+def test_dicom_settings_reject_invalid_web_host_or_port(field, value):
+    gui = gui_module()
+    with pytest.raises(ValueError):
+        gui.merge_settings_values({}, {"dicom.mwl_server_url.host": "192.0.2.1",
+                                      "dicom.mwl_server_url.port": "5000",
+                                      **{f"dicom.mwl_server_url.{field}": value}})
 
 
 @pytest.mark.parametrize("port", ["0", "65536", "hello", "1.5"])
@@ -113,7 +145,7 @@ def test_validation_reports_missing_fields_without_secret_values():
 def test_validation_rejects_numeric_zero_port_loaded_from_config():
     gui = gui_module()
     errors = gui.validate_config({"dicom": {"storage_scp": {"port": 0}}})
-    assert any("Storage 포트" in error for error in errors)
+    assert any("Storage 확인용 포트" in error for error in errors)
 
 
 def test_form_rejects_embedded_url_credentials_without_echoing_them():

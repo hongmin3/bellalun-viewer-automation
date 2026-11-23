@@ -14,7 +14,7 @@ import uuid
 from core.atomic_metadata import replace_metadata
 
 
-RECOVERY_ACTION = '준비 점검에서 복원 대기를 확인하고 시험 담당자에게 복원을 요청하세요.'
+RECOVERY_ACTION = '준비 점검에서 복원 대기를 선택하고 [복원 재개]를 누르세요. 실행 번호를 확인한 뒤 복원하세요.'
 
 
 def pending_recovery_detail(workspace):

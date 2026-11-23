@@ -28,7 +28,9 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 1. 배포 담당자가 제공한 `SHA256SUMS.txt`와 설치 파일 해시를 `Get-FileHash -Algorithm SHA256`으로 대조한다.
 2. `BellalunAuto-<version>-setup.exe`를 실행하고 UAC에서 [예]를 누른다. UAC를 취소하거나 관리자 권한을 얻지 못하면 설치하지 않는다(화면 동작은 아래 실측 기록).
 3. 완료 화면의 "BellalunAuto 열기"(설치를 시작한 사용자 권한) 또는 시작 메뉴에서 연다. 작업 폴더·설정 창은 뜨지 않는다.
-4. 첫 실행은 이 PC의 Viewer·데이터 폴더·SQL·XIPL·OCR 위치를 찾아 저장하고 준비 점검을 바로 보인다. 서버 주소·계정은 이 PC의 기존 BellalunAuto 설정에서만 가져오고, 없으면 [PC별 설정]에서 입력한다.
+4. 첫 실행은 이 PC의 Viewer·데이터 폴더·SQL·XIPL·OCR 위치를 찾아 저장하고 준비 점검을 바로 보인다.
+   사내 팀 설정을 포함한 설치판은 QA 서버와 시험 계정을 채운다. 같은 PC에 저장한 값이 있으면 우선한다.
+   [PC별 설정 → DICOM 서버 설정]에서 웹 호스트·웹 포트와 Viewer 등록용 포트·AE Title을 확인한다.
 5. [준비 점검]의 첫 줄이 "시험을 시작할 수 있습니다"인지 본다. 그 뒤 기본기능 전체 또는 Windows Update 전체를 실행한다.
    시험을 시작할 때 UAC로 관리자 권한을 요청한다. 취소하면 시험을 시작하지 않는다(REQ-DIST-006).
 6. 설치 폴더 아래 `작업`(기본 `C:\Program Files\BellalunAuto\작업`)의 Reports/Evidence/Log에서 결과를 확인한다. 리포트 맨 위 "결론 — 한눈에 보기"를 먼저 읽는다. FAIL/MANUAL/SKIP을 PASS로 해석하지 않는다.

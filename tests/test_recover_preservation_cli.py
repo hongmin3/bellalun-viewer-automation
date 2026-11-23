@@ -15,6 +15,27 @@ def test_apply_requires_explicit_run_before_any_product_operation(tmp_path):
     assert cli.main(['--workspace', str(tmp_path), '--apply']) == 2
 
 
+def test_recovery_ui_routes_only_pending_run_with_elevation(tmp_path, monkeypatch):
+    from bellalunauto import recovery_gui
+    from core import sysinfo
+
+    config = tmp_path / "config.json"
+    config.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(sysinfo, "is_elevated", lambda: False)
+    with pytest.raises(PermissionError):
+        recovery_gui.recover_selected(tmp_path, config, "selected")
+
+    monkeypatch.setattr(sysinfo, "is_elevated", lambda: True)
+    monkeypatch.setattr(preservation.RunPreservation, "pending", lambda path: ["selected"])
+    with pytest.raises(ValueError):
+        recovery_gui.recover_selected(tmp_path, config, "other")
+    calls = []
+    monkeypatch.setattr(cli, "main", lambda args, **kw: calls.append(args) or 0)
+    assert recovery_gui.recover_selected(tmp_path, config, "selected") == (0, "")
+    assert calls == [["--workspace", str(tmp_path), "--config", str(config),
+                      "--run-id", "selected", "--apply"]]
+
+
 @pytest.mark.parametrize('require_finalization', [False, True])
 def test_unstarted_ack_keeps_original_and_backup_without_product_action(tmp_path, monkeypatch, require_finalization):
     from bellalunauto import runtime

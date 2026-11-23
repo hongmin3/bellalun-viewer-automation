@@ -5,7 +5,7 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 개발 검증판 1.0.0.005, 정식 기준 1.0.0 |
+| Project Version | BellalunAuto 개발 검증판 1.0.0.006, 정식 기준 1.0.0 |
 | Last Updated | 2026-11-22 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
@@ -244,12 +244,16 @@ WF15의 전제 검사는 WF02가 획득한 2D·3D Raw·3D Recon 영상을 가진
 
 ### REQ-TCUP-004 WU09 실행 전 준비 체크리스트
 
-실행 전 확인창은 다른 GUI 작업 종료·시험 자료 백업과, WU 실행일 때 USB 연결 및
-`BellalunWU09` 폴더 사용 확인을 개별 체크 항목으로 표시한다. 모두 확인하고 데이터
-변경에 동의해야 시작할 수 있다. 자동 점검은 USB 연결을 재확인하며 WU USB 실행에
-USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목록을 표시하고 명시적
-확인 입력을 요구한다. 비대화형은 `--prepared`로 확인 사실을 전달하며 USB 실제 점검은
-생략하지 않는다. 결과 변환(`--from-regression`)에는 확인을 요구하지 않는다.
+실행 전 확인창에서 다른 GUI 작업 종료와 시험 자료 백업을 확인한다. WU 실행 전에는
+이동식 드라이브 연결을 확인한다. USB가 연결돼 있으면 완료까지 연결을 유지하고
+`BellalunWU09` 폴더를 백업했는지 확인한다.
+
+USB가 없으면 팝업에서 USB 단계가 MANUAL로 기록된다고 알리고 계속할지 묻는다.
+계속을 선택하면 USB 보존과 USB 시험을 생략하고 나머지 시험을 수행한다. 해당 실행에서는
+나중에 연결한 USB에 쓰지 않는다. 취소하면 시험을 시작하지 않는다.
+
+대화형 CLI도 같은 내용을 안내하고 동의를 받는다. `--prepared`가 있는 비대화형 실행은
+USB가 없으면 같은 경고를 기록하고 계속한다. 결과 변환(`--from-regression`)에는 확인을 요구하지 않는다.
 
 ### REQ-TRACE-001 사양 근거 추적
 
@@ -534,6 +538,12 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 
 명령 없는 실행은 한국어 화면을 연다. 자동화 선택 항목은 "기본기능 체크리스트 자동화 수행"과 "Windows Update 체크리스트 자동화 수행" 두 개로 표시한다. 선택한 항목의 체크리스트만 수행한다. 준비 점검, PC별 설정,
 진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령(`selfcheck`, `portability-check` 포함)을 유지한다.
+PC별 설정은 MWL·Print·Storage의 웹 접속 정보와 Viewer 등록 정보를 `DICOM 서버 설정` 탭 하나에 표시한다.
+웹 접속은 호스트와 웹 포트로 편집한다. 저장할 때 기존 설정 파일에 쓰던 주소 형식으로 조합한다.
+기존 주소에 설정된 HTTPS와 경로는 보존한다. 같은 호스트를 쓰는 서버에는 공통 호스트를 한 번에 적용할 수 있다.
+DICOM 등록용 호스트·포트·AE Title과 등록 목록의 순서는 별도로 유지한다.
+준비 점검은 실패한 항목에 맞춰 PC별 설정, Windows 서비스 관리, 디스플레이 설정 또는 복원 재개를 연다.
+실행 화면에서 해당 회차의 로그를 열 수 있다.
 한 줄이 매우 긴 증거 로그는 화면에 앞부분 4,096자 이내로 표시하고 생략 안내를 붙인다. 전체 내용은 로그 파일에 그대로 저장한다. 긴 로그를 그리느라 진행 갱신이나 완료 처리가 멈추면 안 된다.
 화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.
@@ -654,11 +664,16 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 
    - 서버 주소·시험 계정: 사내 배포본의 팀 공통 설정(`resources/team-settings.json`)을 먼저 넣고, 이 PC에 있던 BellalunAuto 설정(기억한 작업 폴더, 기본 작업 폴더)이 있으면 그 값을 쓴다. 추측하지 않는다.
 
+   - 공용 QA 서버와 승인한 시험 계정은 신규 사내 설치판의 팀 기본값으로 제공한다. 시험 계정은 Git 밖 빌드 입력에서 읽는다.
+
    - 찾지 못한 값은 준비 점검에 [FAIL]로 보이고 [PC별 설정]에서 채운다.
 5. 준비 점검 창의 첫 줄은 "시작 전에 해결할 문제 N개" 또는 "시험을 시작할 수 있습니다"다.
    경고와 안내는 실패 건수에서 뺀다. "다시 점검"을 누르면 새 결과로 첫 줄을 바꾼다.
    재점검에 실패하거나 결과가 비면 이전 항목과 설명을 지우고 현재 상태를 알린다.
-   미완료 복원이나 읽을 수 없는 보존 기록은 [복원 대기] 실패로 표시한다. 실행 번호와 복원 요청 방법을 확인할 수 있다.
+   미완료 복원이나 읽을 수 없는 보존 기록은 [복원 대기] 실패로 표시한다.
+   설치판의 [복원 재개]와 별도 복구용 EXE는 Python 설치 없이 작업 폴더와 대기 실행 번호를 보여 준다.
+   사용자가 실행을 선택해 동의하고 관리자 권한을 얻은 뒤 기존 복원 엔진으로 복원과 검증을 수행한다.
+   취소하거나 검증에 실패하면 대기 상태와 보존 자료를 유지한다.
    통과 시에도 실행 전 확인에서 보존 저장소와 용량을 점검한다고 알린다.
    일반 권한으로 연 화면의 권한 행은 안내로 표시하고 종료 코드에 넣지 않는다.
 6. 점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 "미설정", 적힌 위치에 파일이 없으면 "위치에 없음"으로 나눈다.
@@ -791,7 +806,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 | SKIP | blocks_verdict | 이유 |
 |---|---|---|
 | WU_09 CD Export/Import | false | 무인 실행에서 공디스크·버너를 보장할 수 없어 사용자가 자동화 대상에서 뺐다 |
-| WU_09 USB(이동식 드라이브 없음·`--from-regression`) | 표시 정책에 따름 | 아래 표 |
+| WU_09 USB(`--from-regression`) | 표시 정책에 따름 | 아래 표 |
 | WU_10 `--from-regression` | 해당 없음 | TC 전체가 SKIP이라 PASS가 되지 않는다 |
 
 `blocks_verdict`가 참인 SKIP이 남으면 TC 판정은 PASS가 아니라 MANUAL이다. FAIL·BLOCKED가 있으면 그 판정이 우선한다.
@@ -809,6 +824,8 @@ USB 왕복을 확인하지 못했을 때 WU_09 표시 정책(`tests/winupdate.py
 **결정(2026-11-04, 사용자 위임):** `manual`을 쓴다. USB 왕복을 확인하지 못했는데 PASS로 남으면
 REQ-DIST-005의 목표(PASS 10 / SKIP 3)에 미검증이 섞여 게이트를 통과하기 때문이다. 자동화가 수행했지만 확인하지 못한 경우라 REQ-VERDICT-002의 사람 전용 SKIP과 구분한다.
 USB가 연결된 실시간 실행은 그대로 PASS가 될 수 있고, `--from-regression` 변환의 WU_09는 MANUAL이다.
+실시간 실행에서 USB가 없으면 기본 정책은 USB Step 자체를 MANUAL로 기록한다. 연결된 USB에서
+Export·Import가 실패한 결과와 USB 외 단계의 판정은 유지한다.
 `flag`·`current`는 비교용으로 코드와 시험에 남긴다.
 
 `--from-regression` 변환은 실시간 체인과 같은 함수(`build_wu_results`)를 지나므로 같은 규칙을 쓴다.
@@ -829,7 +846,7 @@ WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아�
 | 작업 폴더 경로에 `%` | 있으면 BLOCK | 예 |
 | 사용 가능 메모리 | 1 GiB 미만 BLOCK, 2 GiB 미만 WARN | 1 GiB 미만만 |
 | 작업 폴더 경로 120자 초과 | WARN | 아니오 |
-| 이동식 드라이브 없음 | WARN("WU_09 USB 단계 SKIP 예정") | 아니오 |
+| 이동식 드라이브 없음 | WARN("WU_09 USB 단계 MANUAL 예정") | 아니오 |
 | Windows Update 재부팅 대기, 시계 이상 | WARN | 아니오 |
 | 작업표시줄 자동 숨김 | 기록만(제품 조작 중에는 자동화가 관리) | 아니오 |
 | 검증된 환경 대조(OS 에디션, 빌드+UBR, 해상도, DPI, Viewer 버전) | 미등록이면 WARN | 아니오 |
@@ -1349,7 +1366,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - `tests/test_setting_list_rewind.py`, `tests/test_setting_lists.py`, `tests/test_print_overlay_empty_lists.py`: 중간 위치·가상 슬롯 재사용·끝/연속/개수 증명과 부모별 빈 목록 대조.
 - `tests/test_overlay_lines.py`, `tests/test_image_overlay.py`, `tests/test_wf15_preconditions.py`: 추가 줄 판독, 밝은 영상 열, 빈 화면·OCR 오류 제외, 원본 검사 선택·UI Study Key·수신 UID 대조 및 기존 선량/ID 규칙.
 - `tests/test_workflow09_format.py`, `tests/test_completion_scope.py`, `tests/test_examined_empty_notice.py`: 이전 IMG 선택을 DICOM으로 교체하고 미확정 형식을 거부하며, 단독 시험의 완료 표시와 자정 이후 0건 안내 처리를 검증.
-- `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py`: 미확인·취소·USB 없음 차단, 기본기능의 USB 불필요, 실제 Tk 전체 체크, CLI/실제 WU 결과 매핑.
+- `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py`: USB 미연결 팝업에서 계속·취소, 기본기능의 USB 불필요, 실제 Tk 전체 체크, CLI/실제 WU 결과 매핑.
 - 최초 승인된 실물 범위는 WF14·WF15·WU09 단독과 WF14 동일 결과의 WU11 매핑이다. 이후 추가 승인된 소스 BellalunAuto GUI의 기본기능·실시간 WU 전체도 수행한다. 단독·중단·전체 완료를 구분하고 GUI 동의·실행 기록·리포트·복원 근거를 함께 남긴다.
 
 아래 테스트 파일은 제품 시나리오와 구분한 안전한 단위 검증 대상이다.
@@ -1648,7 +1665,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py`, `tests/test_report_identity_followup.py` | verified |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `remote/bundles.py`, `remote/interlock.py`, `remote/service.py`, `remote/result_views.py`, `remote/winrm_executor.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_remote_result_paths.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | verified |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/completion_notice.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/launch_gui.py`, `tools/run_installed_suites.py`, `remote/winrm_executor.py` | `tests/test_auto_close.py`, `tests/test_completion_notice.py`, `tests/test_qa_runs.py`, `tests/test_installed_suites.py`, `tests/test_remote_execution.py` | verified |
-| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py`, `tests/test_qa_runs.py`, `tests/test_distribution_app.py`, `tests/test_interrupted_recovery_finalization.py` | verified |
+| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py`, `bellalunauto/recovery_gui.py`, `BellalunAutoRecovery.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py`, `tests/test_qa_runs.py`, `tests/test_distribution_app.py`, `tests/test_interrupted_recovery_finalization.py` | verified |
 | REQ-FOLLOWUP-005 | `core/system_toasts.py`, `core/ui.py`, `run.py` | `tests/test_system_toasts.py`, `tests/test_focus_recovery.py` | verified |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | verified |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | verified |

@@ -119,7 +119,7 @@ def _resume_image_cleanup(args):
     return result
 
 
-def main(argv=None):
+def main(argv=None, *, context_factory=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace', required=True, type=Path)
     parser.add_argument('--run-id')
@@ -149,9 +149,11 @@ def main(argv=None):
         else:
             if not args.config:
                 raise ValueError('실제 복원에는 --config가 필요합니다.')
-            from run import Context
             from core.execution_session import DatabasePreservation, stop_product, start_services
-            ctx = Context(str(args.config))
+            if context_factory is None:
+                from run import Context
+                context_factory = Context
+            ctx = context_factory(str(args.config))
             with RunLock():
                 stop_product(ctx)
                 adapter = DatabasePreservation(ctx)

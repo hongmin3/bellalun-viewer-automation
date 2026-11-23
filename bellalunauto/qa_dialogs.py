@@ -76,6 +76,14 @@ def remediation_target(name):
     return 'config'
 
 
+ACTION_LABELS = {
+    'recovery_guidance': '복원 재개',
+    'ms-settings:display': '디스플레이 설정 열기',
+    'services.msc': 'Windows 서비스 열기',
+    'config': 'PC별 설정 열기',
+}
+
+
 def diagnostics_error_report(error, workspace):
     """준비 점검 예외를 오류 창 문구로 만들고 작업/Log에 남긴다.
 
@@ -107,9 +115,20 @@ def diagnostics_error_report(error, workspace):
 
 def confirm_plan(root, plan, *, layout=None, open_config=None):
     import tkinter as tk
-    from tkinter import ttk, scrolledtext
+    from tkinter import messagebox, ttk, scrolledtext
     from .runplan import format_plan
-    from core.run_preparation import preparation_items, preparation_complete, validate_preparation
+    from core.run_preparation import (USB_ACTIONS, USB_MISSING_MESSAGE, connected_usb,
+                                      preparation_items, preparation_complete)
+    action = plan['action']
+
+    def confirm_without_usb(parent):
+        return messagebox.askyesno('시험용 USB 미연결',
+                                   USB_MISSING_MESSAGE + '\n\nUSB 없이 계속 진행하시겠습니까?',
+                                   parent=parent, default='no')
+
+    without_usb = action in USB_ACTIONS and connected_usb(action) is None
+    if without_usb and not confirm_without_usb(root):
+        return False
     dialog = tk.Toplevel(root)
     dialog.title('실행 전 확인 — 데이터 변경 동의')
     dialog.geometry('1000x900' if layout is not None else '850x740')
@@ -132,10 +151,12 @@ def confirm_plan(root, plan, *, layout=None, open_config=None):
         return [key for key, value in checks.items() if value.get()]
 
     def refresh():
-        ready = agreed.get() and preparation_complete(plan['action'], checked())
+        ready = agreed.get() and preparation_complete(action, checked(), without_usb=without_usb)
         start.configure(state='normal' if ready else 'disabled')
 
-    for item in preparation_items(plan['action']):
+    if without_usb:
+        ttk.Label(dialog, text=USB_MISSING_MESSAGE).pack(anchor='w', padx=12)
+    for item in preparation_items(action, without_usb=without_usb):
         value = tk.BooleanVar(value=False)
         checks[item['key']] = value
         ttk.Checkbutton(dialog, text=item['label'], variable=value, command=refresh).pack(anchor='w', padx=12)
@@ -151,14 +172,15 @@ def confirm_plan(root, plan, *, layout=None, open_config=None):
                     command=refresh).pack(pady=6)
 
     def accept():
-        if agreed.get() and preparation_complete(plan['action'], checked()):
-            try:
-                validate_preparation(plan['action'], checked())
-            except ValueError as error:
-                from tkinter import messagebox
-                messagebox.showerror('준비 확인 필요', str(error), parent=dialog)
-                return
+        if agreed.get() and preparation_complete(action, checked(), without_usb=without_usb):
+            use_without_usb = without_usb
+            if action in USB_ACTIONS and not without_usb and connected_usb(action) is None:
+                if not confirm_without_usb(dialog):
+                    return
+                use_without_usb = True
             plan['preparation_checked'] = checked()
+            if use_without_usb:
+                plan['without_usb'] = True
             plan['restore_after'] = restore.get()
             accepted[0] = True
             dialog.destroy()
@@ -195,6 +217,9 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
 
     def select(_=None):
         row = selected()
+        action = ACTION_LABELS.get(remediation_target(row['name'])) if row else None
+        action_button.configure(text=action or '조치 열기',
+                                state='normal' if row and (not row['ok'] or row.get('warning')) else 'disabled')
         if row:
             explanation.set(f"{row['name']}: {row['detail']}\n해결 방법: {row['fix']}")
 
@@ -202,6 +227,7 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
         tree.delete(*tree.get_children())
         rows.clear()
         explanation.set('')
+        action_button.configure(text='조치 열기', state='disabled')
         try:
             result = diagnostics(layout)
         except (OSError, ValueError) as error:
@@ -234,8 +260,10 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
         target = remediation_target(row['name'])
         try:
             if target == 'recovery_guidance':
-                messagebox.showinfo('복원 대기', f"{row['detail']}\n작업 폴더: {layout.workspace}\n\n{row['fix']}",
-                                    parent=dialog)
+                from .recovery_gui import launch_recovery, recover_with_installed_exe
+                launch_recovery(layout.workspace, config=layout.config_path, parent=dialog,
+                                recover=recover_with_installed_exe)
+                refresh()
             elif target == 'config':
                 open_config()
             elif target == 'services.msc':
@@ -254,7 +282,8 @@ def _diagnostics_panel(parent, layout, open_config, *, height=14, show_summary=F
 
     actions = ttk.Frame(dialog)
     actions.pack(fill='x')
-    ttk.Button(actions, text='선택 항목 조치 열기', command=resolve).pack(side='left', padx=12, pady=10)
+    action_button = ttk.Button(actions, text='조치 열기', command=resolve)
+    action_button.pack(side='left', padx=12, pady=10)
     ttk.Button(actions, text='OCR 실패 증거 폴더 열기', command=open_evidence).pack(side='left', padx=6)
     ttk.Button(actions, text='다시 점검', command=refresh).pack(side='left', padx=12)
     refresh()

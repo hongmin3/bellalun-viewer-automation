@@ -346,11 +346,14 @@ def _wu_09(lookup, usb_outcome, policy=None):
              actual=usb_outcome["error"], stop=False,
              note=f"드라이브 {usb_outcome.get('drive')} 실행 중 예외 발생.")
     elif usb_outcome.get("drive") is None:
-        r.skip(0, "USB Export/Import",
-              "이 PC에 이동식(USB) 드라이브가 꽂혀 있지 않아 건너뛴다"
-              "(GetDriveTypeW 기준, 사용자 확정 정책).",
-              expected="USB 드라이브 존재", actual="이동식 드라이브 없음",
-              blocks_verdict=usb_blocks)
+        note = "시험용 USB가 없어 왕복 시험을 수동으로 확인해야 합니다."
+        if usb_blocks:
+            r.manual(0, "USB Export/Import", note=note,
+                     expected="USB 드라이브 존재", actual="이동식 드라이브 없음")
+        else:
+            r.skip(0, "USB Export/Import", note,
+                   expected="USB 드라이브 존재", actual="이동식 드라이브 없음",
+                   blocks_verdict=False)
     else:
         export_ok = bool(usb_outcome.get("export", {}).get("files"))
         r.assert_true(
@@ -659,7 +662,9 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
             result["error"] = f"USB 정리 실패: {message}"
 
     try:
-        drive = usb_media.find_usb_drive()
+        drive = ctx.usb_drive if hasattr(ctx, 'usb_drive') else usb_media.find_usb_drive()
+        if drive and hasattr(ctx, 'usb_drive') and not usb_media.mounted_usb_drive(drive):
+            return {"drive": None}
         result["drive"] = drive
         if drive is None:
             return {"drive": None}

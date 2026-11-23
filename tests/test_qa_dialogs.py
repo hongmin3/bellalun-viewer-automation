@@ -82,6 +82,41 @@ def test_basic_diagnostics_panel_explains_separate_preservation_budget(monkeypat
         panel.destroy()
 
 
+@pytest.mark.parametrize('accept', [False, True])
+def test_missing_usb_confirmation_proceeds_only_on_consent(monkeypatch, tk_root, accept):
+    from tkinter import messagebox
+    from bellalunauto import qa_dialogs, runplan
+    monkeypatch.setattr(runplan, 'format_plan', lambda plan: '합성 계획')
+    monkeypatch.setattr('core.usb_media.find_usb_drive', lambda: None)
+    messages = []
+    monkeypatch.setattr(messagebox, 'askyesno',
+                        lambda title, message, **kw: messages.append(message) or accept)
+    monkeypatch.setattr(messagebox, 'showerror', lambda *args, **kwargs: None)
+    plan = {'action': 'run-winupdate'}
+
+    def interact():
+        if not tk_root.winfo_children():
+            return
+        dialog = tk_root.winfo_children()[0]
+        controls = list(widgets(dialog))
+        for box in [w for w in controls if isinstance(w, ttk.Checkbutton)]:
+            if '복원' not in box.cget('text'):
+                box.invoke()
+        next(w for w in controls if isinstance(w, ttk.Button) and w.cget('text') == '동의하고 시작').invoke()
+
+    timer = tk_root.after(30, interact)
+    timeout = tk_root.after(1000, lambda: [w.destroy() for w in tk_root.winfo_children()])
+    try:
+        assert qa_dialogs.confirm_plan(tk_root, plan) is accept
+        assert len(messages) == 1 and 'MANUAL' in messages[0]
+        if accept:
+            assert plan['without_usb'] is True
+            assert set(plan['preparation_checked']) == {'desktop_free', 'backup'}
+    finally:
+        tk_root.after_cancel(timer)
+        tk_root.after_cancel(timeout)
+
+
 @pytest.mark.parametrize('agree', [False, True])
 @pytest.mark.parametrize('action', ['run-regression', 'run-winupdate'])
 def test_real_confirmation_requires_check_and_closes_without_product(agree, action, monkeypatch, tk_root):
@@ -171,7 +206,7 @@ def test_consent_shows_diagnostics_and_records_each_run_restoration(restore, mon
         tree.selection_set(row)
         tree.event_generate('<<TreeviewSelect>>')
         settings = next(w for w in controls if isinstance(w, ttk.Button)
-                        and w.cget('text') == '선택 항목 조치 열기')
+                        and w.cget('text') == 'PC별 설정 열기')
         settings.invoke()
         boxes = [w for w in controls if isinstance(w, ttk.Checkbutton)]
         restoration = next(w for w in boxes if '실행 전 상태로 복원' in w.cget('text'))

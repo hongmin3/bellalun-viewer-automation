@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="637377a351f6c95391a30f7ed9ee4939fb3a9feffb8acd67656d9551562c5924">
+<meta name="spec-source-sha256" content="75301f4c897898b0bf3bdee2b9d781e02843f89fe8d83d9dd424ea13551e286e">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,7 +92,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 개발 검증판 1.0.0.005, 정식 기준 1.0.0</b></span><span class="chip"><span>Last Updated</span><b>2026-11-22</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 개발 검증판 1.0.0.006, 정식 기준 1.0.0</b></span><span class="chip"><span>Last Updated</span><b>2026-11-22</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
 <div class="stats"><div class="stat"><b>58</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>41</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>8</b><span>implemented</span></div><div class="stat st-verified"><b>50</b><span>verified</span></div></div>
 </header>
 <div class="layout">
@@ -286,7 +286,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="이름">실행 보존·자원·결과 안정화</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="테스트"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code>, <code>tests/test_report_identity_followup.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="이름">준비·설치·효율·원격 실행</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>remote/bundles.py</code>, <code>remote/interlock.py</code>, <code>remote/service.py</code>, <code>remote/result_views.py</code>, <code>remote/winrm_executor.py</code>, <code>tools/scope_summary.py</code></td><td data-label="테스트"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_remote_result_paths.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="이름">회귀 완료 후 60초 자동 닫기 (무인 실행만)</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></td><td data-label="테스트"><code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="이름">공용 보존과 볼륨별 용량 기준</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="이름">공용 보존과 볼륨별 용량 기준</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code>, <code>bellalunauto/recovery_gui.py</code>, <code>BellalunAutoRecovery.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FOLLOWUP-005">REQ-FOLLOWUP-005</a></td><td data-label="이름">Windows 알림 배너 가림 자동 처리</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/system_toasts.py</code>, <code>core/ui.py</code>, <code>run.py</code></td><td data-label="테스트"><code>tests/test_system_toasts.py</code>, <code>tests/test_focus_recovery.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">SPECSYNC</span> 동작 변경과 사양 동기화 검사</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-SPECSYNC-001">REQ-SPECSYNC-001</a></td><td data-label="이름">동작 변경과 SPEC 갱신을 같은 커밋에 묶기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tools/spec_sync_check.py</code>, <code>tools/install_git_hooks.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_sync_check.py</code></td></tr>
@@ -636,18 +636,21 @@ UPS는 SRS 01-10-60 Import 제외에 따라 변경값 유지를 검증한다. �
 <section class="card kind-req" id="REQ-TCUP-004">
 <h3><span class="idtag">REQ-TCUP-004</span> WU09 실행 전 준비 체크리스트</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/run_preparation.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_run_preparation.py</code>, <code>tests/test_qa_dialogs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">1.0.0.006 후보 — PC별 설정, USB 미연결, 복원 재개</span> <a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>·004: USB 미연결 때 계속할지 확인한다. 동의하면 USB Step을 MANUAL로 표시하고 나머지 시험을 수행한다.</li>
 <li><span class="hist">2026-11-13 실제 GUI 전체 검증과 실행 차단 수정</span> <a class="idref" href="#REQ-TCUP-001">REQ-TCUP-001</a> / <a class="idref" href="#REQ-TCUP-002">REQ-TCUP-002</a> / <a class="idref" href="#REQ-TCUP-003">REQ-TCUP-003</a> / <a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a>: 실제 소스 GUI 기본기능 99.0분(PASS 23 / 기존 제품 FAIL 2 / 기준값 미확정 MANUAL 1 / SKIP 10)과 최종 WU 75.7분(PASS 10 / SKIP 3)을 확인했다. WF14의 숨은 행 89개·849항목, WF15의 16개 확인, WU09 USB 왕복·WU11 전수 대조를 검증했다. 등급은 기본 FULL 24 / PARTIAL 3 / SKIP 10, WU FULL 10 / SKIP 3으로 맞췄다.</li>
 <li><span class="hist">2026-11-12 TC 고도화와 WU USB 실행 전 확인</span> <a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a>: GUI에서 공통 준비 2개·WU USB 준비 2개를 각각 확인하고 USB를 재점검한다. CLI WU는 준비 목록과 명시 확인, USB 단독 <code>run-wu09</code>를 제공한다.</li>
 </ul>
 </details>
-<p>실행 전 확인창은 다른 GUI 작업 종료·시험 자료 백업과, WU 실행일 때 USB 연결 및
-<code>BellalunWU09</code> 폴더 사용 확인을 개별 체크 항목으로 표시한다. 모두 확인하고 데이터
-변경에 동의해야 시작할 수 있다. 자동 점검은 USB 연결을 재확인하며 WU USB 실행에
-USB가 없으면 시작을 차단한다. CLI의 WU와 USB 단독 실행도 목록을 표시하고 명시적
-확인 입력을 요구한다. 비대화형은 <code>--prepared</code>로 확인 사실을 전달하며 USB 실제 점검은
-생략하지 않는다. 결과 변환(<code>--from-regression</code>)에는 확인을 요구하지 않는다.</p>
+<p>실행 전 확인창에서 다른 GUI 작업 종료와 시험 자료 백업을 확인한다. WU 실행 전에는
+이동식 드라이브 연결을 확인한다. USB가 연결돼 있으면 완료까지 연결을 유지하고
+<code>BellalunWU09</code> 폴더를 백업했는지 확인한다.</p>
+<p>USB가 없으면 팝업에서 USB 단계가 MANUAL로 기록된다고 알리고 계속할지 묻는다.
+계속을 선택하면 USB 보존과 USB 시험을 생략하고 나머지 시험을 수행한다. 해당 실행에서는
+나중에 연결한 USB에 쓰지 않는다. 취소하면 시험을 시작하지 않는다.</p>
+<p>대화형 CLI도 같은 내용을 안내하고 동의를 받는다. <code>--prepared</code>가 있는 비대화형 실행은
+USB가 없으면 같은 경고를 기록하고 계속한다. 결과 변환(<code>--from-regression</code>)에는 확인을 요구하지 않는다.</p>
 </section>
 <section class="card kind-req" id="REQ-TRACE-001">
 <h3><span class="idtag">REQ-TRACE-001</span> 사양 근거 추적</h3>
@@ -1059,8 +1062,9 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 <section class="card kind-req" id="REQ-DIST-002">
 <h3><span class="idtag">REQ-DIST-002</span> 실행 화면과 프로세스 관리</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/processes.py</code>, <code>core/sysinfo.py</code>, <code>core/db.py</code>, <code>core/dbreset.py</code>, <code>core/screen.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/flows.py</code>, <code>core/update_evidence.py</code>, <code>core/source_identity.py</code>, <code>tests/xipl_flows.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_distribution_gui.py</code>, <code>tests/test_distribution_processes.py</code>, <code>tests/test_distribution_legacy.py</code>, <code>tests/test_console_children.py</code>, <code>tests/test_console_dbreset.py</code>, <code>tests/test_console_ocr.py</code>, <code>tests/test_console_stdin.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
-<details class="history"><summary>변경 이력 12</summary>
+<details class="history"><summary>변경 이력 13</summary>
 <ul>
+<li><span class="hist">1.0.0.006 후보 — PC별 설정, USB 미연결, 복원 재개</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>·006: 웹 호스트·웹 포트와 Viewer 등록값을 DICOM 서버 설정 탭 하나에서 편집한다. 공통 호스트를 적용할 수 있으며 사내 팀 기본값과 PC별 저장 값을 지원한다.</li>
 <li><span class="hist">개발 — 기준서 판본과 판정 근거 확인 (2026-11-19)</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: Python 3.13에서도 공유 이름이 없는 UNC 보존 경로를 거부한다.</li>
 <li><span class="hist">2026-11-13 실제 GUI 전체 검증과 실행 차단 수정</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: 긴 증거 로그 한 줄을 GUI에 그리는 동안 완료 화면이 멈추는 문제를 고쳤다. 화면 표시는 한 줄 4,096자 이내로 제한하고 전체 원문은 로그 파일에 남긴다. 45만 자 출력 자식 프로세스로 파일 보존·화면 제한·종료를 검증했다.</li>
 <li><span class="hist">2026-11-05 (바로가기 실행의 준비 점검 OSError) · Fixed</span> <a class="idref" href="#REQ-DIST-002">REQ-DIST-002</a>: 후보6을 탐색기·바로가기로 열면 준비 점검이 <code>OSError</code>로 멈추던 결함을 고쳤다. 콘솔 없는 GUI 실행 파일의 표준 입력이 잘못된 핸들(<code>INVALID_HANDLE_VALUE</code>)로 남아, 출력을 받는 자식 호출이 그 핸들을 상속하다 <code>WinError 6</code>으로 실패했다. 출력을 받는 PowerShell·DB·서비스·OCR·Git·taskkill·Windows 업데이트 근거·지식 동기화 호출 31곳에 표준 입력 NUL을 지정했다. worker에는 유효한 콘솔 입력만 넘긴다. 콘솔 표시·환경 gate·판정은 바꾸지 않았다.</li>
@@ -1077,6 +1081,12 @@ PATH 기존 값을 보존하고 중복을 막는다. 제거 시 추가한 등록
 </details>
 <p>명령 없는 실행은 한국어 화면을 연다. 자동화 선택 항목은 &quot;기본기능 체크리스트 자동화 수행&quot;과 &quot;Windows Update 체크리스트 자동화 수행&quot; 두 개로 표시한다. 선택한 항목의 체크리스트만 수행한다. 준비 점검, PC별 설정,
 진행/로그, 결과 폴더 열기, 버전을 제공한다. 기존 CLI 명령(<code>selfcheck</code>, <code>portability-check</code> 포함)을 유지한다.
+PC별 설정은 MWL·Print·Storage의 웹 접속 정보와 Viewer 등록 정보를 <code>DICOM 서버 설정</code> 탭 하나에 표시한다.
+웹 접속은 호스트와 웹 포트로 편집한다. 저장할 때 기존 설정 파일에 쓰던 주소 형식으로 조합한다.
+기존 주소에 설정된 HTTPS와 경로는 보존한다. 같은 호스트를 쓰는 서버에는 공통 호스트를 한 번에 적용할 수 있다.
+DICOM 등록용 호스트·포트·AE Title과 등록 목록의 순서는 별도로 유지한다.
+준비 점검은 실패한 항목에 맞춰 PC별 설정, Windows 서비스 관리, 디스플레이 설정 또는 복원 재개를 연다.
+실행 화면에서 해당 회차의 로그를 열 수 있다.
 한 줄이 매우 긴 증거 로그는 화면에 앞부분 4,096자 이내로 표시하고 생략 안내를 붙인다. 전체 내용은 로그 파일에 그대로 저장한다. 긴 로그를 그리느라 진행 갱신이나 완료 처리가 멈추면 안 된다.
 화면의 준비 점검은 두 CLI 점검과 같은 내용이라 버튼 하나로 제공한다.
 실시간 WU 실행과 과거 결과 변환은 화면과 결과에서 구분한다.</p>
@@ -1255,8 +1265,9 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-006">
 <h3><span class="idtag">REQ-DIST-006</span> 관리자 설치와 첫 실행 준비</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/qa_dialogs.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code>, <code>tests/test_qa_dialogs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
-<details class="history"><summary>변경 이력 9</summary>
+<details class="history"><summary>변경 이력 10</summary>
 <ul>
+<li><span class="hist">1.0.0.006 후보 — PC별 설정, USB 미연결, 복원 재개</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 클린 PC의 설치판과 복구용 EXE에서 복원 대기 실행을 선택해 기존 엔진으로 복원한다.</li>
 <li><span class="hist">개발 — 실행 번호 대조, 준비 점검, 격리 복원 (2026-11-20)</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>: 준비 점검 창은 첫 줄에 실패 건수 또는 시험 시작 가능 여부를 표시한다. OCR 경고나 권한 안내만 있으면 실패로 안내하지 않는다. 재점검이 실패하거나 결과가 비면 이전 항목과 설명을 지운다.</li>
 <li><span class="hist">개발 — 실행 번호 대조, 준비 점검, 격리 복원 (2026-11-20)</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>·<a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 중단 뒤 남은 복원 대기를 준비 점검의 실패로 표시하고 복원 요청을 안내한다. 중단 복원을 검증하면 실행 기록에 다시 점검하라는 다음 행동을 적는다.</li>
 <li><span class="hist">1.0.14 후보 — 실제 DB 사전 보존 차단 수정</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>: 1.0.13 후보를 납품 ZIP에서 해제한 Setup으로 업데이트했다. Setup·자동 준비 종료0, 설치 파일1,010개 해시 일치와 기존 설정 보존, 설치판 GUI 설정 저장·준비 점검·실행 전 확인창을 확인했다. 관리자 설치 마법사 화면은 도구 접근 제한으로 확인하지 못해 Inno 지원 옵션을 사용했다. 기본/WU 제품 회귀는 시작하지 않았다.</li>
@@ -1286,13 +1297,17 @@ Setup 안의 한국어 관리자 확인 창은 추가 방어다. 실제로 보�
 <li><p>데이터 폴더: 고정 디스크의 <code>BellalunData</code> 중 <code>Config</code>·<code>Database</code>가 있는 하나만 쓴다. USB의 같은 이름 폴더는 쓰지 않는다.</p></li>
 <li><p>SQL: 등록된 인스턴스 중 이름이 <code>BELLALUN</code>인 것을 쓴다. XIPL은 <code>XIPL_PATH</code>, OCR은 PATH와 기본 설치 위치에서 찾는다.</p></li>
 <li><p>서버 주소·시험 계정: 사내 배포본의 팀 공통 설정(<code>resources/team-settings.json</code>)을 먼저 넣고, 이 PC에 있던 BellalunAuto 설정(기억한 작업 폴더, 기본 작업 폴더)이 있으면 그 값을 쓴다. 추측하지 않는다.</p></li>
+<li><p>공용 QA 서버와 승인한 시험 계정은 신규 사내 설치판의 팀 기본값으로 제공한다. 시험 계정은 Git 밖 빌드 입력에서 읽는다.</p></li>
 <li><p>찾지 못한 값은 준비 점검에 [FAIL]로 보이고 [PC별 설정]에서 채운다.</p></li>
 </ul>
 </li>
 <li>준비 점검 창의 첫 줄은 &quot;시작 전에 해결할 문제 N개&quot; 또는 &quot;시험을 시작할 수 있습니다&quot;다.
 경고와 안내는 실패 건수에서 뺀다. &quot;다시 점검&quot;을 누르면 새 결과로 첫 줄을 바꾼다.
 재점검에 실패하거나 결과가 비면 이전 항목과 설명을 지우고 현재 상태를 알린다.
-미완료 복원이나 읽을 수 없는 보존 기록은 [복원 대기] 실패로 표시한다. 실행 번호와 복원 요청 방법을 확인할 수 있다.
+미완료 복원이나 읽을 수 없는 보존 기록은 [복원 대기] 실패로 표시한다.
+설치판의 [복원 재개]와 별도 복구용 EXE는 Python 설치 없이 작업 폴더와 대기 실행 번호를 보여 준다.
+사용자가 실행을 선택해 동의하고 관리자 권한을 얻은 뒤 기존 복원 엔진으로 복원과 검증을 수행한다.
+취소하거나 검증에 실패하면 대기 상태와 보존 자료를 유지한다.
 통과 시에도 실행 전 확인에서 보존 저장소와 용량을 점검한다고 알린다.
 일반 권한으로 연 화면의 권한 행은 안내로 표시하고 종료 코드에 넣지 않는다.</li>
 <li>점검 문구는 실제 결과에 맞춘다. 경로가 비어 있으면 &quot;미설정&quot;, 적힌 위치에 파일이 없으면 &quot;위치에 없음&quot;으로 나눈다.
@@ -1549,8 +1564,9 @@ Windows의 접근 거부·공유·잠금 오류(5·32·33)로 교체가 잠시 �
 <section class="card kind-req" id="REQ-WU-003">
 <h3><span class="idtag">REQ-WU-003</span> SKIP과 최종 판정의 관계</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/result.py</code>, <code>tests/winupdate.py</code>, <code>core/winupdate_report.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-003">TEST-WU-003</a>; <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_wu_tool_missing.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a>, <a class="idref" href="#TEST-WU-003">TEST-WU-003</a></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 4</summary>
 <ul>
+<li><span class="hist">1.0.0.006 후보 — PC별 설정, USB 미연결, 복원 재개</span> <a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>·004: USB 미연결 때 계속할지 확인한다. 동의하면 USB Step을 MANUAL로 표시하고 나머지 시험을 수행한다.</li>
 <li><span class="hist">2026-11-13 실제 GUI 전체 검증과 실행 차단 수정</span> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>: WU03의 원본 WF02가 Tool Step 6·7 전에 중단되면 SKIP이나 일부 근거만으로 PASS가 되던 문제를 고쳤다. 빠진 단계와 원본 실패 사유를 FAIL로 남긴다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Added</span> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>: SKIP마다 판정을 막는지(<code>blocks_verdict</code>)를 적는다. WU_09 CD SKIP은 막지 않는다. USB 미확인 표시 정책(<code>manual</code>/<code>flag</code>/<code>current</code>)을 넣었고, 사용자 위임 결정으로 <code>manual</code>(USB 왕복 미확인이면 WU_09 MANUAL)을 쓴다.</li>
 <li><span class="hist">2026-11-04 (WU 자동화 정비) · Fixed</span> <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>: <code>--from-regression</code> 변환에서 XIPL_03 알려진 결함이 있으면 WU_05가 FAIL로 나오던 문제를 고쳤다. 변환 JSON의 &quot;Step N 미수행&quot; 채움 행이 연쇄 중단 제외를 막았다. 후보11 기본 결과 변환이 PASS 8 / FAIL 1에서 실시간 경로와 같은 PASS 9 / FAIL 0이 됐다.</li>
@@ -1564,7 +1580,7 @@ Windows의 접근 거부·공유·잠금 오류(5·32·33)로 교체가 잠시 �
 <thead><tr><th>SKIP</th><th>blocks_verdict</th><th>이유</th></tr></thead>
 <tbody>
 <tr><td>WU_09 CD Export/Import</td><td>false</td><td>무인 실행에서 공디스크·버너를 보장할 수 없어 사용자가 자동화 대상에서 뺐다</td></tr>
-<tr><td>WU_09 USB(이동식 드라이브 없음·<code>--from-regression</code>)</td><td>표시 정책에 따름</td><td>아래 표</td></tr>
+<tr><td>WU_09 USB(<code>--from-regression</code>)</td><td>표시 정책에 따름</td><td>아래 표</td></tr>
 <tr><td>WU_10 <code>--from-regression</code></td><td>해당 없음</td><td>TC 전체가 SKIP이라 PASS가 되지 않는다</td></tr>
 </tbody>
 </table></div>
@@ -1583,6 +1599,8 @@ WU_03의 원본 WF02가 Tool 적용 Step 6·7 전에 중단됐으면 수행 실�
 <p><strong>결정(2026-11-04, 사용자 위임):</strong> <code>manual</code>을 쓴다. USB 왕복을 확인하지 못했는데 PASS로 남으면
 <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>의 목표(PASS 10 / SKIP 3)에 미검증이 섞여 게이트를 통과하기 때문이다. 자동화가 수행했지만 확인하지 못한 경우라 <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>의 사람 전용 SKIP과 구분한다.
 USB가 연결된 실시간 실행은 그대로 PASS가 될 수 있고, <code>--from-regression</code> 변환의 WU_09는 MANUAL이다.
+실시간 실행에서 USB가 없으면 기본 정책은 USB Step 자체를 MANUAL로 기록한다. 연결된 USB에서
+Export·Import가 실패한 결과와 USB 외 단계의 판정은 유지한다.
 <code>flag</code>·<code>current</code>는 비교용으로 코드와 시험에 남긴다.</p>
 <p><code>--from-regression</code> 변환은 실시간 체인과 같은 함수(<code>build_wu_results</code>)를 지나므로 같은 규칙을 쓴다.
 변환 JSON에 있는 &quot;Step N 미수행&quot; 채움 행은 알려진 결함의 연쇄 중단 기록으로 보고 실시간 경로와 같은 판정을 낸다.</p>
@@ -1609,7 +1627,7 @@ WU_10은 Setting 화면 표시 시험이라 Export/Import 비교 대상이 아�
 <tr><td>작업 폴더 경로에 <code>%</code></td><td>있으면 BLOCK</td><td>예</td></tr>
 <tr><td>사용 가능 메모리</td><td>1 GiB 미만 BLOCK, 2 GiB 미만 WARN</td><td>1 GiB 미만만</td></tr>
 <tr><td>작업 폴더 경로 120자 초과</td><td>WARN</td><td>아니오</td></tr>
-<tr><td>이동식 드라이브 없음</td><td>WARN(&quot;WU_09 USB 단계 SKIP 예정&quot;)</td><td>아니오</td></tr>
+<tr><td>이동식 드라이브 없음</td><td>WARN(&quot;WU_09 USB 단계 MANUAL 예정&quot;)</td><td>아니오</td></tr>
 <tr><td>Windows Update 재부팅 대기, 시계 이상</td><td>WARN</td><td>아니오</td></tr>
 <tr><td>작업표시줄 자동 숨김</td><td>기록만(제품 조작 중에는 자동화가 관리)</td><td>아니오</td></tr>
 <tr><td>검증된 환경 대조(OS 에디션, 빌드+UBR, 해상도, DPI, Viewer 버전)</td><td>미등록이면 WARN</td><td>아니오</td></tr>
@@ -2139,9 +2157,10 @@ WU_01은 사람이 직접 하는 TC라 SKIP으로 기록하고(<a class="idref" 
 </section>
 <section class="card kind-req" id="REQ-FOLLOWUP-004">
 <h3><span class="idtag">REQ-FOLLOWUP-004</span> 공용 보존과 볼륨별 용량 기준</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>, <a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a>, <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>, <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
-<details class="history"><summary>변경 이력 10</summary>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code>, <code>bellalunauto/recovery_gui.py</code>, <code>BellalunAutoRecovery.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a>, <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-002">REQ-SPEEDUP-002</a>, <a class="idref" href="#REQ-SPEEDUP-006">REQ-SPEEDUP-006</a>, <a class="idref" href="#REQ-SPEEDUP-007">REQ-SPEEDUP-007</a>, <a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a></span></div>
+<details class="history"><summary>변경 이력 11</summary>
 <ul>
+<li><span class="hist">1.0.0.006 후보 — PC별 설정, USB 미연결, 복원 재개</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 클린 PC의 설치판과 복구용 EXE에서 복원 대기 실행을 선택해 기존 엔진으로 복원한다.</li>
 <li><span class="hist">개발 — 실행 번호 대조, 준비 점검, 격리 복원 (2026-11-20)</span> <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: Windows의 잠금 관련 오류로 격리 이동이 실패하면 저장소·보관본·원본·목적지를 다시 확인하고 제한 시간 안에 재시도한다.</li>
 <li><span class="hist">개발 — 실행 번호 대조, 준비 점검, 격리 복원 (2026-11-20)</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>·<a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>: 중단 뒤 남은 복원 대기를 준비 점검의 실패로 표시하고 복원 요청을 안내한다. 중단 복원을 검증하면 실행 기록에 다시 점검하라는 다음 행동을 적는다.</li>
 <li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a>, <a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a>, <a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a>, <a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a>, <a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a>: P1–P14·공용 보존·판정 수정의 요구사항·구현·시험·실물 확인 범위를 연결했다. 기존 사양과 판정은 유지하며 1.0.18 전체 수용 미완료와 이전1.0.17 결과를 구분한다.</li>
@@ -2386,7 +2405,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 <li><code>tests/test_setting_list_rewind.py</code>, <code>tests/test_setting_lists.py</code>, <code>tests/test_print_overlay_empty_lists.py</code>: 중간 위치·가상 슬롯 재사용·끝/연속/개수 증명과 부모별 빈 목록 대조.</li>
 <li><code>tests/test_overlay_lines.py</code>, <code>tests/test_image_overlay.py</code>, <code>tests/test_wf15_preconditions.py</code>: 추가 줄 판독, 밝은 영상 열, 빈 화면·OCR 오류 제외, 원본 검사 선택·UI Study Key·수신 UID 대조 및 기존 선량/ID 규칙.</li>
 <li><code>tests/test_workflow09_format.py</code>, <code>tests/test_completion_scope.py</code>, <code>tests/test_examined_empty_notice.py</code>: 이전 IMG 선택을 DICOM으로 교체하고 미확정 형식을 거부하며, 단독 시험의 완료 표시와 자정 이후 0건 안내 처리를 검증.</li>
-<li><code>tests/test_run_preparation.py</code>, <code>tests/test_qa_dialogs.py</code>: 미확인·취소·USB 없음 차단, 기본기능의 USB 불필요, 실제 Tk 전체 체크, CLI/실제 WU 결과 매핑.</li>
+<li><code>tests/test_run_preparation.py</code>, <code>tests/test_qa_dialogs.py</code>: USB 미연결 팝업에서 계속·취소, 기본기능의 USB 불필요, 실제 Tk 전체 체크, CLI/실제 WU 결과 매핑.</li>
 <li>최초 승인된 실물 범위는 WF14·WF15·WU09 단독과 WF14 동일 결과의 WU11 매핑이다. 이후 추가 승인된 소스 BellalunAuto GUI의 기본기능·실시간 WU 전체도 수행한다. 단독·중단·전체 완료를 구분하고 GUI 동의·실행 기록·리포트·복원 근거를 함께 남긴다.</li>
 </ul>
 <p>아래 테스트 파일은 제품 시나리오와 구분한 안전한 단위 검증 대상이다.
@@ -2796,7 +2815,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-001">REQ-FOLLOWUP-001</a></td><td data-label="Implementation"><code>run.py</code>, <code>core/execution_session.py</code>, <code>core/run_preservation.py</code>, <code>core/resource_budget.py</code>, <code>core/artifact_archive.py</code>, <code>tools/recover_preservation.py</code>, <code>tools/archive_artifacts.py</code>, <code>bellalunauto/runs.py</code>, <code>core/source_identity.py</code>, <code>core/wu_chain.py</code></td><td data-label="Test"><code>tests/test_run_preservation.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_artifact_archive.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_checkpoint_partial_report.py</code>, <code>tests/test_source_identity_followup.py</code>, <code>tests/test_report_identity_followup.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-002">REQ-FOLLOWUP-002</a></td><td data-label="Implementation"><code>bellalunauto/qa_dialogs.py</code>, <code>core/product_lifecycle.py</code>, <code>core/release_note_baseline.py</code>, <code>core/performance.py</code>, <code>core/failure_evidence.py</code>, <code>remote/coordinator.py</code>, <code>remote/bundles.py</code>, <code>remote/interlock.py</code>, <code>remote/service.py</code>, <code>remote/result_views.py</code>, <code>remote/winrm_executor.py</code>, <code>tools/scope_summary.py</code></td><td data-label="Test"><code>tests/test_qa_dialogs.py</code>, <code>tests/test_product_lifecycle.py</code>, <code>tests/test_release_note_baseline.py</code>, <code>tests/test_remote_execution.py</code>, <code>tests/test_remote_result_paths.py</code>, <code>tests/test_performance_followup.py</code>, <code>tests/test_environment_failure_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-003">REQ-FOLLOWUP-003</a></td><td data-label="Implementation"><code>bellalunauto/auto_close.py</code>, <code>bellalunauto/completion_notice.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/launch_gui.py</code>, <code>tools/run_installed_suites.py</code>, <code>remote/winrm_executor.py</code></td><td data-label="Test"><code>tests/test_auto_close.py</code>, <code>tests/test_completion_notice.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_remote_execution.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="Implementation"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-004">REQ-FOLLOWUP-004</a></td><td data-label="Implementation"><code>core/run_preservation.py</code>, <code>core/atomic_metadata.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>core/preservation_storage.py</code>, <code>core/resource_budget.py</code>, <code>core/execution_session.py</code>, <code>bellalunauto/gui.py</code>, <code>tools/recover_preservation.py</code>, <code>bellalunauto/recovery_gui.py</code>, <code>BellalunAutoRecovery.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FOLLOWUP-004">TEST-FOLLOWUP-004</a>; <code>tests/test_shared_preservation.py</code>, <code>tests/test_atomic_metadata.py</code>, <code>tests/test_image_cleanup.py</code>, <code>tests/test_resource_budget.py</code>, <code>tests/test_execution_session.py</code>, <code>tests/test_preservation_settings.py</code>, <code>tests/test_recover_preservation_cli.py</code>, <code>tests/test_qa_runs.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_interrupted_recovery_finalization.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FOLLOWUP-005">REQ-FOLLOWUP-005</a></td><td data-label="Implementation"><code>core/system_toasts.py</code>, <code>core/ui.py</code>, <code>run.py</code></td><td data-label="Test"><code>tests/test_system_toasts.py</code>, <code>tests/test_focus_recovery.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-005">REQ-TCUP-005</a></td><td data-label="Implementation"><code>tests/workflow14.py</code>, <code>tests/xipl_flows.py</code>, <code>tests/winupdate.py</code>, <code>automation_scope.json</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-005">TEST-TCUP-005</a>; <code>tests/test_workflow14_evidence.py</code>, <code>tests/test_xipl_post_recon.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_installed_release_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-001">REQ-TCUP-001</a></td><td data-label="Implementation"><code>automation_scope.json</code>, <code>core/scope_results.py</code>, <code>core/result.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_scope_skips.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
