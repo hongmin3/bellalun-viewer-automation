@@ -49,13 +49,31 @@ class RuntimeTests(unittest.TestCase):
              patch.object(runtime.sys, "executable", str(install / "BellalunAuto.exe")):
             yield install
 
-    def test_default_workspace_is_local_appdata_and_does_not_write(self):
-        local = self.root / "local"
-        with patch.dict(os.environ, {"LOCALAPPDATA": str(local)}):
+    def test_default_workspace_is_system_drive_folder_and_does_not_write(self):
+        # REQ-FRAME-003: 소스 실행도 설치판과 같은 C:\BellalunAuto를 쓴다. AppData에 두지 않는다.
+        drive = self.root / "drive"
+        with patch.dict(os.environ, {"SystemDrive": str(drive)}):
             layout = self.layout()
-        self.assertEqual(layout.workspace, local / "BellalunAuto" / "workspace")
-        self.assertEqual(layout.config_path, layout.workspace / "config.json")
-        self.assertFalse(local.exists())
+        self.assertEqual(layout.workspace, drive / "BellalunAuto")
+        self.assertEqual(layout.config_path, layout.workspace / "Settings" / "config.json")
+        self.assertFalse(drive.exists())
+
+    def test_existing_root_config_keeps_working(self):
+        work = self.root / "예전 폴더"
+        work.mkdir()
+        (work / "config.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(self.layout(workspace=work).config_path, work / "config.json")
+        (work / "Settings").mkdir()
+        (work / "Settings" / "config.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(self.layout(workspace=work).config_path, work / "Settings" / "config.json")
+
+    def test_compiled_default_is_installation_folder_with_settings(self):
+        with self.compiled_install() as install:
+            layout = self.layout()
+            self.assertEqual(layout.workspace, install)
+            self.assertEqual(layout.config_path, install / "Settings" / "config.json")
+            runtime.save_config(layout, {"fixture": True})
+            self.assertEqual(runtime.load_config(layout), {"fixture": True})
 
     def test_remembered_unicode_workspace_survives_cwd_change(self):
         chosen = self.root / "QA 결과"
@@ -104,7 +122,7 @@ class RuntimeTests(unittest.TestCase):
         supplied = {"viewer": {"login": {"password": "do-not-print"}}, "custom": [1, 2]}
         runtime.save_config(layout, supplied)
         self.assertEqual(runtime.load_config(layout), supplied)
-        self.assertEqual(list(layout.workspace.iterdir()), [layout.config_path])
+        self.assertEqual(list(layout.config_path.parent.iterdir()), [layout.config_path])
 
     def test_failed_atomic_replace_preserves_previous_config_and_cleans_temp(self):
         layout = self.layout(workspace=self.root / "work")
@@ -113,7 +131,7 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 runtime.save_config(layout, {"generation": 2})
         self.assertEqual(runtime.load_config(layout), {"generation": 1})
-        self.assertEqual(list(layout.workspace.iterdir()), [layout.config_path])
+        self.assertEqual(list(layout.config_path.parent.iterdir()), [layout.config_path])
 
     def test_non_object_json_is_rejected(self):
         config = self.root / "invalid.json"
@@ -207,7 +225,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_compiled_workspace_inside_installation_is_rejected(self):
         with self.compiled_install() as install:
-            for work in (install, install / "resources" / "작업 결과"):
+            for work in (install / "resources" / "작업 결과", install / "Reports"):
                 with self.subTest(work=work), self.assertRaisesRegex(ValueError, "설치 폴더 밖"):
                     self.layout(workspace=work)
         self.assertFalse(install.exists())

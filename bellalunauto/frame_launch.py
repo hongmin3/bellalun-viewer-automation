@@ -57,10 +57,24 @@ def home_data(record=None, first_run=False):
                    last_result=last_result(record), tips=tips)
 
 
+# PC별 설정 칸 이름 → 같은 내용을 보는 준비 점검 항목 이름(app.diagnostics). 한 줄로 합칠 때 쓴다.
+SAME_CHECK = {'승인 Baseline 폴더': '승인 Baseline', '사양 / 매뉴얼 폴더': '근거 문서'}
+
+
 def inspection_rows(items, config_errors=()):
-    rows = [{'status': '조치 필요', 'level': 'bad', 'item': 'PC별 설정', 'result': error,
-             'fix': '"PC별 설정"에서 값을 입력하세요.'} for error in config_errors]
+    """점검 표의 행. 비어 있는 PC별 설정과 같은 이름의 점검 실패는 한 줄로 합친다."""
+    rows, merged = [], set()
+    for error in config_errors:
+        field, _, detail = str(error).partition(':')
+        field = field.strip() if detail else 'PC별 설정'
+        merged.add(field)
+        merged.add(SAME_CHECK.get(field, field))
+        rows.append({'status': '조치 필요', 'level': 'bad', 'item': field,
+                     'result': (detail.strip() or str(error)) if detail else str(error),
+                     'fix': '"PC별 설정"에서 값을 입력하고 "다시 점검"을 누르세요.'})
     for item in items:
+        if not item.get('ok') and not item.get('notice') and item.get('name') in merged:
+            continue
         if item.get('notice'):
             status, level = '안내', 'info'
         elif item.get('ok'):
@@ -189,18 +203,9 @@ def launch(layout, workspace_chosen=False, show=ui.show):
     from . import gui
     from .app import diagnostics
     from .runs import latest_run
-    from .runtime import _compiled, resolve_layout
 
+    # 데이터 위치를 묻지 않는다. 설치판은 설치 폴더, 소스 실행은 C:\BellalunAuto를 쓴다(REQ-FRAME-003).
     first_run = not Path(layout.config_path).exists()
-    if first_run and not workspace_chosen and not _compiled():
-        def pick(root):
-            from tkinter import filedialog
-            return filedialog.askdirectory(parent=root, title='BellalunAuto 작업 폴더 선택 (설정·결과·증거·로그)',
-                                           initialdir=str(layout.workspace), mustexist=False)
-        chosen = _with_tk(pick)
-        if not chosen:
-            return 0
-        layout = resolve_layout(workspace=chosen, resource_dir=layout.resource_dir)
     try:
         config = gui.prepare_first_run(layout) if first_run else gui.load_gui_config(layout)
     except (OSError, ValueError) as error:

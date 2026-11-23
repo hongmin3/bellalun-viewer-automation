@@ -1261,6 +1261,32 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 - 공용 화면을 띄우지 못하면 안내 한 줄을 출력하고 기존 화면을 연다.
 - 진행 창을 닫아도 시험은 계속되고, 시험이 끝날 때까지 진행 창을 다시 연다.
 
+### REQ-FRAME-003 설치 위치·폴더를 VXvue와 맞추기
+
+하는 일: 프로그램·설정·결과를 `C:\BellalunAuto` 한 곳에 둔다. AppData나 별도 "작업 폴더"를 쓰지 않는다(사용자 결정 2026-11-23). 공통 규칙은 `frame/FRAME.md` 2.5절이다.
+
+| 위치 | 내용 |
+|---|---|
+| `C:\BellalunAuto` | 프로그램. 관리자·SYSTEM만 고칠 수 있다. |
+| `C:\BellalunAuto\Settings\config.json` | PC별 설정 |
+| `C:\BellalunAuto\Reports`, `Evidence`, `Log` 등 | 결과·근거·기록 |
+
+순서:
+
+1. 설치 직후 관리자 권한의 설치 준비(`prepare-install`)가 예전 위치(`C:\Program Files\BellalunAuto\작업`)의 설정·결과를 새 위치로 복사한다. 이미 있는 파일은 덮어쓰지 않고 예전 폴더는 지우지 않는다(`core/frame_install.migrate`).
+2. 같은 단계에서 설치 폴더의 상속 권한을 끊고 관리자·SYSTEM만 쓰게 한다(`core/frame_install.harden`).
+3. 화면은 일반 권한으로 열리므로 데이터 폴더(`Settings`, `Reports`, `Evidence`, `Log`, `Runs`, `work`, `Cache`, `Temp`, `preservation`)에만 사용자 수정 권한을 준다. 관리자 실행 전 검사(REQ-DIST-006)는 설치 폴더를 쓸 때 이 데이터 폴더 안의 실행 파일만 막는다.
+4. 소스 실행의 기본 위치도 `C:\BellalunAuto`다. 공용 화면은 위치를 묻지 않는다.
+
+> **참고** 이 요구사항은 설치판 데이터를 설치 폴더 아래 `작업`에 두던 결정(2026-11-05, REQ-DIST-001·REQ-DIST-006)을 바꾼다.
+
+지킬 것:
+
+- 설정 파일이 예전처럼 폴더 바로 아래에만 있으면 그 파일을 계속 쓴다.
+- 직접 고른 다른 폴더를 쓰는 경우는 예전 규칙대로 그 폴더를 쓴다.
+
+이유: `C:\` 아래 새 폴더는 기본으로 "인증된 사용자 수정" 권한을 물려받는다. 그대로 두면 일반 사용자가 관리자 권한으로 도는 자동화의 실행 파일·DLL을 바꿀 수 있다.
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1611,6 +1637,12 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - `tests/test_frame_ui.py`: 다섯 화면의 데이터, 진행 기록 줄, 창 호출·임시 파일 정리, 스크립트가 ASCII인지, 실제 WinForms로 다섯 화면을 PNG로 그리는지 확인한다.
 - `tests/test_frame_launch.py`: 문제 우선 정렬, 설정 누락 시 실행 차단, 동의 처리, 결과 화면의 확인할 TC, 엔진 진행 기록, 시작부터 결과까지 한 바퀴 흐름을 가짜 화면·실행기로 확인한다.
 
+### TEST-FRAME-003 설치 위치·권한·예전 자료 복사
+
+- 대상: REQ-FRAME-003.
+- `tests/test_frame_install.py`: 예전 폴더 복사(설정은 `Settings`로, 덮어쓰지 않음, 다시 실행해도 같음), icacls 명령, 임시 폴더에 실제 icacls를 실행한 뒤 Windows가 돌려주는 권한(상속 끊김, 데이터 폴더만 사용자 수정)을 확인한다.
+- `tests/test_distribution_runtime.py`, `tests/test_first_run.py`: 기본 위치, `Settings` 설정, 예전 설정 계속 사용, 쓰기 경로 제한, 설치 스크립트의 위치·권한 줄, 설치 준비의 복사·권한 정리 순서를 확인한다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -1670,6 +1702,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py` | verified |
 | REQ-FRAME-002 | `core/frame_ui.py`, `core/frame_ui.ps1`, `bellalunauto/frame_launch.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/build_distribution.py` | TEST-FRAME-002; `tests/test_frame_ui.py`, `tests/test_frame_launch.py`, `tests/test_distribution_build.py` | verified |
+| REQ-FRAME-003 | `core/frame_install.py`, `bellalunauto/runtime.py`, `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py`, `packaging/BellalunAuto.iss` | TEST-FRAME-003; `tests/test_frame_install.py`, `tests/test_distribution_runtime.py`, `tests/test_first_run.py` | verified |
 
 상태의 뜻:
 

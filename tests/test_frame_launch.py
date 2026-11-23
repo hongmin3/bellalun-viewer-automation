@@ -42,6 +42,17 @@ class ScreenTests(unittest.TestCase):
         self.assertEqual(['bad', 'info', 'ok'], [r['level'] for r in rows])
         self.assertEqual('', rows[2]['fix'])
 
+    def test_empty_setting_and_same_named_check_are_one_row(self):
+        rows = fl.inspection_rows([{'name': '기본기능 체크리스트', 'ok': False, 'detail': '미설정', 'fix': 'x'},
+                                   {'name': 'DB 접속', 'ok': False, 'detail': '실패', 'fix': 'y'}],
+                                  ['기본기능 체크리스트: 값을 입력하세요.'])
+        self.assertEqual(['기본기능 체크리스트', 'DB 접속'], [r['item'] for r in rows])
+        self.assertEqual('값을 입력하세요.', rows[0]['result'])
+        rows = fl.inspection_rows([{'name': '승인 Baseline', 'ok': False, 'detail': '미설정', 'fix': 'x'},
+                                   {'name': '근거 문서', 'ok': False, 'detail': '미설정', 'fix': 'x'}],
+                                  ['승인 Baseline 폴더: 값을 입력하세요.', '사양 / 매뉴얼 폴더: 값을 입력하세요.'])
+        self.assertEqual(['승인 Baseline 폴더', '사양 / 매뉴얼 폴더'], [r['item'] for r in rows])
+
     def test_config_errors_block_both_checklists(self):
         data = fl.inspect_data([], ['Viewer 실행 파일을 입력하세요.'])
         self.assertEqual('bad', data['headline']['level'])

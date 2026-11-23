@@ -87,17 +87,22 @@ def _safe_cwd():
     return Path(__file__).resolve().parents[1]
 
 
-_WORKSPACE_FOLDERS = ('Log', 'Reports', 'Evidence', 'Cache', 'Temp', 'work', 'Runs', 'preservation')
+from bellalunauto.runtime import DATA_FOLDERS as _WORKSPACE_FOLDERS  # 사용자가 쓸 수 있는 데이터 폴더(REQ-FRAME-003)
 _EXECUTED_PATHS = ('viewer.exe', 'xipl.studio_exe', 'xipl.tesseract_exe', 'baseline_dir')
 
 
 def elevated_workspace_problems(workspace, config):
-    """승격된 시험이 믿으면 안 되는 작업 폴더 상태. 빈 목록이면 시작해도 된다.
+    """승격된 시험이 믿으면 안 되는 데이터 폴더 상태. 빈 목록이면 시작해도 된다.
 
-    `작업`은 Users가 쓸 수 있다. 관리자 권한으로 실행·복원할 제품 파일이 그 안에 있거나,
+    데이터 폴더는 Users가 쓸 수 있다. 관리자 권한으로 실행·복원할 제품 파일이 그 안에 있거나,
     결과 폴더가 다른 위치를 가리키는 링크로 바뀌었으면 시작하지 않는다(REQ-DIST-006).
     """
     work = Path(workspace).resolve()
+    # 설치판이 설치 폴더 자체를 쓰면 사용자가 쓸 수 있는 곳은 데이터 폴더뿐이다(프로그램·resources는 관리자만).
+    # 그 밖의 폴더(직접 고른 폴더, 소스 실행 폴더)는 폴더 전체를 사용자가 쓸 수 있다고 본다.
+    from bellalunauto.runtime import _compiled
+    installation = Path(sys.executable).resolve().parent if _compiled() else None
+    writable = [work / name for name in _WORKSPACE_FOLDERS] if work == installation else [work]
     problems = []
     for name in _WORKSPACE_FOLDERS:
         path = Path(workspace) / name
@@ -106,18 +111,19 @@ def elevated_workspace_problems(workspace, config):
         except FileNotFoundError:
             continue
         if path.is_symlink() or attributes & 0x400:  # FILE_ATTRIBUTE_REPARSE_POINT
-            problems.append(f"작업 폴더의 '{name}'이 다른 위치를 가리키는 링크입니다: {path}")
+            problems.append(f"BellalunAuto 폴더의 '{name}'이 다른 위치를 가리키는 링크입니다: {path}")
     for key in _EXECUTED_PATHS:
         value = config
         for part in key.split('.'):
             value = value.get(part) if isinstance(value, dict) else None
         if isinstance(value, str) and value.strip():
             try:
-                inside = Path(value).resolve().is_relative_to(work)
+                resolved = Path(value).resolve()
+                inside = any(resolved.is_relative_to(folder) for folder in writable)
             except (OSError, ValueError):
                 inside = False
             if inside:
-                problems.append(f"관리자 권한으로 실행·복원할 '{key}'가 작업 폴더 안에 있습니다: {value}")
+                problems.append(f"관리자 권한으로 실행·복원할 '{key}'가 사용자가 쓸 수 있는 폴더 안에 있습니다: {value}")
     return problems
 
 
@@ -167,7 +173,7 @@ def completed_report(reports_dir, command, since, scope=None):
 WORKSPACE_PATH_LIMIT = 120
 
 
-WORKSPACE_CHAR_FIX = ('작업 폴더를 %가 없는 경로로 다시 선택하세요. Windows 저장·열기 대화상자는 %이름%을 '
+WORKSPACE_CHAR_FIX = ('BellalunAuto를 %가 없는 경로(기본 C:/BellalunAuto)에 설치하세요. Windows 저장·열기 대화상자는 %이름%을 '
                       '환경 변수로 바꿔 읽으므로 Viewer의 Setting Export·Import가 실패합니다.')
 
 
@@ -198,9 +204,9 @@ def diagnostics(layout, check_connections=True):
     add('실행 자료', (layout.resource_dir/'automation_scope.json').is_file(), layout.resource_dir,
         '승인된 내부 자료가 포함된 설치 패키지를 다시 설치하세요.')
     length = len(str(layout.workspace))
-    add('작업 폴더 경로 길이', length <= WORKSPACE_PATH_LIMIT,
+    add('BellalunAuto 폴더 경로 길이', length <= WORKSPACE_PATH_LIMIT,
         f'{length}자 (최대 {WORKSPACE_PATH_LIMIT}자): {layout.workspace}',
-        '작업 폴더를 더 짧은 경로(예: D:\\BellalunAuto 작업)로 다시 선택하세요. '
+        'BellalunAuto를 더 짧은 경로(기본 C:\\BellalunAuto)에 설치하세요. '
         'Viewer가 저장하는 Export 증거 경로가 Windows 260자 한도를 넘으면 시험이 중간에 실패합니다.')
     from core import product_env
     launch_env = product_env.product_environment()
@@ -208,7 +214,7 @@ def diagnostics(layout, check_connections=True):
     add('XIPL 설치 경로(XIPL_PATH)', xipl_problem is None,
         xipl_problem or product_env.lookup(launch_env, 'XIPL_PATH'), product_env.XIPL_FIX)
     char_problem = workspace_path_problem(layout.workspace)
-    add('작업 폴더 경로 문자', char_problem is None, char_problem or layout.workspace, WORKSPACE_CHAR_FIX)
+    add('BellalunAuto 폴더 경로 문자', char_problem is None, char_problem or layout.workspace, WORKSPACE_CHAR_FIX)
     def section(value):
         return value if isinstance(value, dict) else {}
     viewer, xipl = section(config.get('viewer')), section(config.get('xipl'))
@@ -481,7 +487,7 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
                                        process=health.process_exit_message('VIEWER', started),
                                        message='새 전체 리포트가 없어 완료로 판단할 수 없습니다.')
                     health.notify_windows('BellalunAuto 비정상 종료',
-                                          '새 전체 리포트가 생성되지 않았습니다. 작업 폴더의 로그를 확인하세요.',
+                                          '새 전체 리포트가 생성되지 않았습니다. BellalunAuto 폴더의 Log를 확인하세요.',
                                           'error', 12)
                     print('[FAIL] 새 전체 리포트가 생성되지 않았습니다.')
                     return code or 3
@@ -649,7 +655,7 @@ def main(argv=None):
                 raise FileNotFoundError('실행 화면의 PC별 설정을 먼저 저장하세요.')
             char_problem = workspace_path_problem(layout.workspace)
             if char_problem:
-                print(f'[FAIL] 작업 폴더 경로 문자: {char_problem}')
+                print(f'[FAIL] BellalunAuto 폴더 경로 문자: {char_problem}')
                 print(f'해결 방법: {WORKSPACE_CHAR_FIX}')
                 return 2
             record = None

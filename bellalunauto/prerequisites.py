@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import os
 from pathlib import Path, PureWindowsPath
 import shutil
@@ -100,10 +101,30 @@ def ensure_ocr(resources, configured, *, workspace=None):
     return default
 
 
+def relocate_and_harden(layout, compiled=None, runner=None):
+    """설치판이면 예전 데이터(Program Files의 `작업`)를 새 설치 폴더로 복사하고 폴더 권한을 정리한다 (REQ-FRAME-003)."""
+    from core import frame_install
+    from .runtime import DATA_FOLDERS, LEGACY_INSTALL_WORKSPACE, _compiled
+    compiled = _compiled() if compiled is None else compiled
+    install = Path(sys.executable).resolve().parent
+    if not compiled or Path(layout.workspace).resolve() != install:
+        return []
+    lines = []
+    for legacy in frame_install.legacy_program_files('BellalunAuto', LEGACY_INSTALL_WORKSPACE):
+        moved = frame_install.migrate(legacy, install)
+        if moved['source']:
+            lines.append(f"[OK] 이전 설정·결과 복사: {moved['source']} → {install} "
+                         f"(새로 복사 {moved['copied']}개, 이미 있어 유지 {moved['kept']}개). 이전 폴더는 지우지 않았습니다.")
+    frame_install.harden(install, DATA_FOLDERS, **({'runner': runner} if runner else {}))
+    lines.append('[OK] 설치 폴더 권한: 프로그램은 관리자만 수정, 설정·결과 폴더(' + ', '.join(DATA_FOLDERS) + ')만 사용자 수정')
+    return lines
+
+
 def prepare_install(layout):
     lines = ['BellalunAuto 설치 준비 결과']
     failed = False
     try:
+        lines.extend(relocate_and_harden(layout))
         verify_assets(layout.resource_dir)
         lines.append('[OK] 승인 Baseline 4개·체크리스트·매뉴얼 SHA-256 확인')
         existing = layout.config_path.exists()

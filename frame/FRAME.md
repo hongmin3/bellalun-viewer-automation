@@ -90,6 +90,24 @@ HTML 절 순서와 목차 이름은 `core/report_layout.py`의 `SECTIONS`가 정
 
 새 절이 필요하면 `SECTIONS`에 먼저 넣고 두 제품에 반영한다. 목록에 없는 절 id로 목차를 만들면 `standard_nav()`가 오류를 낸다.
 
+### 2.5 설치 위치와 폴더
+
+사용자 결정(2026-11-23): 두 제품 모두 `C:\` 바로 아래 제품 폴더 하나에 프로그램·설정·결과를 둔다. AppData나 별도 "작업 폴더"를 쓰지 않는다.
+
+| 위치 | Bellalun | VXvue |
+|---|---|---|
+| 설치 폴더(프로그램) | `C:\BellalunAuto` | `C:\VXvueAuto` |
+| 설정 | `Settings\config.json` | `Settings\config.json` |
+| 결과·근거·기록 | `Reports`, `Evidence`, `Log`, `Runs` 등 | `Reports`, `Evidence`, `Log`, `Sessions` 등 |
+| 시험 자료 | 설치판 `resources` | `TestData` |
+
+지킬 것:
+
+- 설치 폴더는 상속 권한을 끊어 관리자·SYSTEM만 고칠 수 있게 한다(`core/frame_install.harden`). `C:\` 아래 새 폴더는 기본으로 "인증된 사용자 수정"을 물려받아, 관리자 권한으로 도는 자동화의 실행 파일·DLL을 일반 사용자가 바꿀 수 있기 때문이다.
+- 일반 권한으로 화면을 여는 제품(Bellalun)만 데이터 폴더에 사용자 수정 권한을 준다. 항상 관리자 권한으로 실행되는 제품(VXvue)은 사용자 쓰기 폴더를 두지 않는다.
+- 예전 위치(Bellalun `C:\Program Files\BellalunAuto\작업`, VXvue `%LOCALAPPDATA%\VXvueAuto\Workspace`)의 설정·결과는 업데이트 때 새 위치로 복사한다(`core/frame_install.migrate`). 이미 있는 파일은 덮어쓰지 않고, 예전 폴더는 지우지 않는다.
+- 화면·문서에는 "작업 폴더" 대신 실제 폴더 이름(`C:\BellalunAuto\Reports` 등)을 쓴다.
+
 ## 3. 한쪽에서 바꾸면 다른 쪽에도 반영하는 규칙
 
 공유 파일을 고치는 작업은 같은 작업 안에서 형제 저장소까지 끝낸다.
@@ -121,8 +139,10 @@ HTML 절 순서와 목차 이름은 `core/report_layout.py`의 `SECTIONS`가 정
 | 1 | 공유 사본 검사·반영 규칙(이 문서, `frame/sync_check.py`) | 완료 |
 | 2 | 레포트 통일: Bellalun CSV·TXT 중단, 공통 절 목록(`SECTIONS`)으로 목차·순서 통일, VXvue 체크리스트 xlsx를 결과와 같은 폴더·같은 시각 이름으로 저장 | 완료 |
 | 3 | 공용 WinForms 실행 화면(2.2)과 진행 기록(2.3). 사람이 여는 기본 흐름을 두 제품 모두 이 화면으로 바꿈(Bellalun `bellalunauto/frame_launch.py`, VXvue `core/frame_vxvue.py`) | 완료 |
+| 3-위치 | 설치 위치·폴더 통일(2.5), 설치 폴더 권한 정리, 예전 위치 자료 복사 | 완료(설치판 수용 확인 전) |
 | 3-후속 | Bellalun의 PC별 설정·수동 검토·공유 ZIP 창과 무인 실행 화면(Tk), VXvue의 상세 설정·이력·PC 준비 창을 공용 화면으로 옮김 | 예정 |
-| 4 | 각 제품 EXE로 화면·레포트 수용 확인(실행 전 사용자 승인) | 예정 |
+| 4 | 각 제품 EXE로 화면·레포트·설치 위치 수용 확인(실행 전 사용자 승인) | 예정 |
+| 5 | 체크리스트 TC 대응과 결과 xlsx 모양, 레포트 문장·배치의 공통 사양 정리(사용자 요청 2026-11-23) | 예정 |
 
 알려진 차이(맞출지 정하지 않은 것):
 

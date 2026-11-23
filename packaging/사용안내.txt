@@ -1,21 +1,25 @@
 BellalunAuto — 팀원 사용 안내
 
 1. 설치: BellalunAuto-<버전>-setup.exe를 실행하고 UAC 창에서 [예]를 누릅니다.
-   UAC를 취소하면 설치하지 않습니다. 기존 설치가 있으면 같은 위치에 업데이트합니다.
+   UAC를 취소하면 설치하지 않습니다. 설치 위치는 C:\BellalunAuto입니다.
+   예전 판(C:\Program Files\BellalunAuto)이 있으면 설정·결과를 C:\BellalunAuto로 복사합니다. 예전 폴더는 지우지 않습니다.
 2. 열기: 설치 완료 화면의 "BellalunAuto 열기" 또는 시작 메뉴·바탕 화면의 BellalunAuto를 누릅니다.
    설치나 화면 열기만으로는 시험·DB 복원을 시작하지 않습니다.
-3. 처음 열면 이 PC의 Viewer·데이터 폴더·SQL·XIPL·OCR 위치를 자동으로 찾아 저장하고 [준비 점검]을 바로 보여 줍니다.
-   서버 주소·시험 계정처럼 PC에서 찾을 수 없는 값은 [FAIL]로 보입니다. [PC별 설정]에서 채웁니다.
-4. 첫 줄이 "시험을 시작할 수 있습니다"가 되면 기본기능 전체 또는 Windows Update 전체를 누르고 UAC에서 [예]를 누릅니다.
+3. 화면 맨 위 단계 표시(1. 시작 → 2. 준비 점검 → 3. 실행 동의 → 4. 진행 → 5. 결과)를 따라갑니다.
+   처음 열면 이 PC의 Viewer·제품 데이터·SQL·XIPL·OCR 위치를 자동으로 찾아 저장하고 [준비 점검]을 바로 보여 줍니다.
+   서버 주소·시험 계정처럼 PC에서 찾을 수 없는 값은 "조치 필요"로 보입니다. [PC별 설정]에서 채우고 [다시 점검]을 누릅니다.
+4. 맨 위 결론이 "시작할 수 있습니다"가 되면 [기본기능 체크리스트] 또는 [Windows Update 체크리스트]를 누르고,
+   실행 전 확인 항목을 모두 체크해 동의한 뒤 UAC에서 [예]를 누릅니다.
    [안내] 관리자 권한 행은 문제가 아닙니다. UAC를 취소하면 시험을 시작하지 않으며 제품·DB는 바뀌지 않습니다.
    시험 중에는 마우스·키보드를 쓰지 않습니다. 전용 QA 환경에서만 실행합니다.
-5. 결과: 설치 폴더 아래 '작업' 폴더(기본 C:\Program Files\BellalunAuto\작업)에 Reports·Evidence·Log·config.json이 생깁니다.
+5. 결과: C:\BellalunAuto\Reports(레포트), Evidence(근거 화면), Log(기록)에 생깁니다. 설정은 C:\BellalunAuto\Settings\config.json입니다.
+   끝나면 결과 화면이 열려 사람이 확인할 TC와 [레포트 열기] 버튼을 보여 줍니다.
    리포트 맨 위 "결론 — 한눈에 보기"에서 성공/실패와 원인을 먼저 봅니다. FAIL·MANUAL·SKIP은 PASS와 구분합니다.
-   업데이트·재설치·제거해도 '작업' 폴더는 남습니다.
+   업데이트·재설치·제거해도 Settings·Reports·Evidence·Log 폴더는 남습니다.
 
 필요 없는 것: Python·Git·개발 소스·OCR 별도 설치·Baseline 별도 복사.
 Setup이 포함된 OCR을 자동 설치하고 승인 Baseline·시험 자료를 검증합니다. 정상 OCR과 기존 설정은 재사용합니다.
-완료 화면과 작업\install-preparation.txt에서 결과를 확인하세요. 실패하면 관리자 권한으로 BellalunAuto prepare-install을 다시 실행하세요.
+완료 화면과 C:\BellalunAuto\install-preparation.txt에서 결과를 확인하세요. 실패하면 관리자 권한으로 BellalunAuto prepare-install을 다시 실행하세요.
 별도 준비: Bellalun Viewer와 제품 설치에 포함된 SQL·Server·XIPL, 시험 서버, USB. Setup은 DB를 복원하지 않습니다.
 새 PowerShell/CMD에서 BellalunAuto --version, Win+R에서 BellalunAuto를 쓸 수 있습니다(설치 전 열린 셸은 다시 여십시오).
 제거 프로그램은 설치한 파일과 설치 프로그램이 추가한 PATH 항목만 지웁니다.

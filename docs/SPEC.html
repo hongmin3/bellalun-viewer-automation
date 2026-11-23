@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="b81a8842d31e937890b972f3379eab88e5ee067212488cc98e0cd8f4e2d93884">
+<meta name="spec-source-sha256" content="b2f1dd5f10b9277bb88010cdf547d4793e13edf2ea90b8ad5564765c18dd9a84">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>54</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>43</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>52</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>55</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>44</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>53</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -158,6 +158,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003 <span>커밋된 verify 게이트와 verified 상태</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FRAME-001">REQ-FRAME-001 <span>VXvue와 공통 자동화 프레임 유지</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FRAME-002">REQ-FRAME-002 <span>처음 쓰는 사람용 공용 실행 화면</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-FRAME-003">REQ-FRAME-003 <span>설치 위치·폴더를 VXvue와 맞추기</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
 <li class="toc-2"><a href="#sec-7">7. 데이터 사양</a></li>
@@ -208,6 +209,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001 <span>사양 동기화 검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-FRAME-001">TEST-FRAME-001 <span>공통 프레임 사본 검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-FRAME-002">TEST-FRAME-002 <span>공용 실행 화면</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-FRAME-003">TEST-FRAME-003 <span>설치 위치·권한·예전 자료 복사</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -286,6 +288,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr class="group"><th colspan="5"><span class="gcode">FRAME</span> VXvue와 같은 실행 화면·레포트 틀 유지, 처음 쓰는 사람용 공용 실행 화면</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="이름">VXvue와 공통 자동화 프레임 유지</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="이름">처음 쓰는 사람용 공용 실행 화면</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a></td><td data-label="이름">설치 위치·폴더를 VXvue와 맞추기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_install.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/frame_launch.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a>; <code>tests/test_frame_install.py</code>, <code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -912,7 +915,7 @@ Windows Update의 원문 Step 접이식 설명이 비어 있는 기존 한계를
 </section>
 <section class="card kind-req" id="REQ-DIST-001">
 <h3><span class="idtag">REQ-DIST-001</span> 설치와 실행 경로</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a></span></div>
 <details class="history"><summary>변경 이력 7</summary>
 <ul>
 <li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: SPEC 표지와 배포·보존 안내의 현재 버전을1.0.18 후보로 정정하고 README의 후보 Setup 경로를 맞췄다. 제어 이슈 정리와 잔여 이관은 전체 수용 완료를 뜻하지 않는다.</li>
@@ -1142,7 +1145,7 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 </section>
 <section class="card kind-req" id="REQ-DIST-006">
 <h3><span class="idtag">REQ-DIST-006</span> 관리자 설치와 첫 실행 준비</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a>, <a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a></span></div>
 <details class="history"><summary>변경 이력 7</summary>
 <ul>
 <li><span class="hist">1.0.14 후보 — 실제 DB 사전 보존 차단 수정</span> <a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>: 1.0.13 후보를 납품 ZIP에서 해제한 Setup으로 업데이트했다. Setup·자동 준비 종료0, 설치 파일1,010개 해시 일치와 기존 설정 보존, 설치판 GUI 설정 저장·준비 점검·실행 전 확인창을 확인했다. 관리자 설치 마법사 화면은 도구 접근 제한으로 확인하지 못해 Inno 지원 옵션을 사용했다. 기본/WU 제품 회귀는 시작하지 않았다.</li>
@@ -2234,8 +2237,9 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 <section class="card kind-req" id="REQ-FRAME-002">
 <h3><span class="idtag">REQ-FRAME-002</span> 처음 쓰는 사람용 공용 실행 화면</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">설치 위치를 C:\BellalunAuto 하나로 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a>: 준비 점검 표에서 비어 있는 PC별 설정과 같은 내용의 점검 실패를 한 줄로 합친다. 점검 항목 이름의 &quot;작업 폴더&quot;를 &quot;BellalunAuto 폴더&quot;로 바꿨다.</li>
 <li><span class="hist">공통 자동화 프레임 3단계 — 처음 쓰는 사람용 공용 실행 화면 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a>(신규): 설치판이나 <code>BellalunAuto.py</code>를 인자 없이 열면 VXvue와 같은 다섯 단계 화면(시작 → 준비 점검 → 실행 동의 → 진행 → 결과)이 열린다. 화면 맨 위 단계 표시를 따라가면 되고, 준비 점검은 고칠 것을 표 위쪽에 둔다.</li>
 </ul>
 </details>
@@ -2256,6 +2260,40 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 <li>공용 화면을 띄우지 못하면 안내 한 줄을 출력하고 기존 화면을 연다.</li>
 <li>진행 창을 닫아도 시험은 계속되고, 시험이 끝날 때까지 진행 창을 다시 연다.</li>
 </ul>
+</section>
+<section class="card kind-req" id="REQ-FRAME-003">
+<h3><span class="idtag">REQ-FRAME-003</span> 설치 위치·폴더를 VXvue와 맞추기</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_install.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/frame_launch.py</code>, <code>packaging/BellalunAuto.iss</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a>; <code>tests/test_frame_install.py</code>, <code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">설치 위치를 C:\BellalunAuto 하나로 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a>(신규): 설치판을 <code>C:\BellalunAuto</code>에 설치하고 설정은 <code>Settings\config.json</code>, 결과는 <code>Reports</code>·<code>Evidence</code>·<code>Log</code>처럼 설치 폴더 바로 아래에 둔다. &quot;작업 폴더&quot;를 따로 두지 않는다(사용자 결정 2026-11-23). 소스 실행의 기본 위치도 같다.</li>
+</ul>
+</details>
+<p>하는 일: 프로그램·설정·결과를 <code>C:\BellalunAuto</code> 한 곳에 둔다. AppData나 별도 &quot;작업 폴더&quot;를 쓰지 않는다(사용자 결정 2026-11-23). 공통 규칙은 <code>frame/FRAME.md</code> 2.5절이다.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>위치</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td><code>C:\BellalunAuto</code></td><td>프로그램. 관리자·SYSTEM만 고칠 수 있다.</td></tr>
+<tr><td><code>C:\BellalunAuto\Settings\config.json</code></td><td>PC별 설정</td></tr>
+<tr><td><code>C:\BellalunAuto\Reports</code>, <code>Evidence</code>, <code>Log</code> 등</td><td>결과·근거·기록</td></tr>
+</tbody>
+</table></div>
+<p>순서:</p>
+<ol>
+<li>설치 직후 관리자 권한의 설치 준비(<code>prepare-install</code>)가 예전 위치(<code>C:\Program Files\BellalunAuto\작업</code>)의 설정·결과를 새 위치로 복사한다. 이미 있는 파일은 덮어쓰지 않고 예전 폴더는 지우지 않는다(<code>core/frame_install.migrate</code>).</li>
+<li>같은 단계에서 설치 폴더의 상속 권한을 끊고 관리자·SYSTEM만 쓰게 한다(<code>core/frame_install.harden</code>).</li>
+<li>화면은 일반 권한으로 열리므로 데이터 폴더(<code>Settings</code>, <code>Reports</code>, <code>Evidence</code>, <code>Log</code>, <code>Runs</code>, <code>work</code>, <code>Cache</code>, <code>Temp</code>, <code>preservation</code>)에만 사용자 수정 권한을 준다. 관리자 실행 전 검사(<a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>)는 설치 폴더를 쓸 때 이 데이터 폴더 안의 실행 파일만 막는다.</li>
+<li>소스 실행의 기본 위치도 <code>C:\BellalunAuto</code>다. 공용 화면은 위치를 묻지 않는다.</li>
+</ol>
+<aside class="callout callout-info"><span class="callout-label">참고</span>
+<p>이 요구사항은 설치판 데이터를 설치 폴더 아래 <code>작업</code>에 두던 결정(2026-11-05, <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>·<a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a>)을 바꾼다.</p>
+</aside>
+<p>지킬 것:</p>
+<ul>
+<li>설정 파일이 예전처럼 폴더 바로 아래에만 있으면 그 파일을 계속 쓴다.</li>
+<li>직접 고른 다른 폴더를 쓰는 경우는 예전 규칙대로 그 폴더를 쓴다.</li>
+</ul>
+<p class="why"><span class="why-label">이유</span> <code>C:\</code> 아래 새 폴더는 기본으로 &quot;인증된 사용자 수정&quot; 권한을 물려받는다. 그대로 두면 일반 사용자가 관리자 권한으로 도는 자동화의 실행 파일·DLL을 바꿀 수 있다.</p>
 </section>
 </section>
 <section class="chapter" id="sec-6">
@@ -2726,6 +2764,14 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <li><code>tests/test_frame_launch.py</code>: 문제 우선 정렬, 설정 누락 시 실행 차단, 동의 처리, 결과 화면의 확인할 TC, 엔진 진행 기록, 시작부터 결과까지 한 바퀴 흐름을 가짜 화면·실행기로 확인한다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-FRAME-003">
+<h3><span class="idtag">TEST-FRAME-003</span> 설치 위치·권한·예전 자료 복사</h3>
+<ul>
+<li>대상: <a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a>.</li>
+<li><code>tests/test_frame_install.py</code>: 예전 폴더 복사(설정은 <code>Settings</code>로, 덮어쓰지 않음, 다시 실행해도 같음), icacls 명령, 임시 폴더에 실제 icacls를 실행한 뒤 Windows가 돌려주는 권한(상속 끊김, 데이터 폴더만 사용자 수정)을 확인한다.</li>
+<li><code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code>: 기본 위치, <code>Settings</code> 설정, 예전 설정 계속 사용, 쓰기 경로 제한, 설치 스크립트의 위치·권한 줄, 설치 준비의 복사·권한 정리 순서를 확인한다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -2787,6 +2833,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-SPECSYNC-003">REQ-SPECSYNC-003</a></td><td data-label="Implementation"><code>botyard.json</code></td><td data-label="Test"><a class="idref" href="#TEST-SPECSYNC-001">TEST-SPECSYNC-001</a>; <code>tests/test_spec_trace_coverage.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="Implementation"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="Implementation"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a></td><td data-label="Implementation"><code>core/frame_install.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/frame_launch.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a>; <code>tests/test_frame_install.py</code>, <code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 </tbody>
 </table></div>
 <p>상태의 뜻:</p>

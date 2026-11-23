@@ -31,13 +31,13 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 4. 첫 실행은 이 PC의 Viewer·데이터 폴더·SQL·XIPL·OCR 위치를 찾아 저장하고 준비 점검을 바로 보인다. 서버 주소·계정은 이 PC의 기존 BellalunAuto 설정에서만 가져오고, 없으면 [PC별 설정]에서 입력한다.
 5. [준비 점검]의 첫 줄이 "시험을 시작할 수 있습니다"인지 본다. 그 뒤 기본기능 전체 또는 Windows Update 전체를 실행한다.
    시험을 시작할 때 UAC로 관리자 권한을 요청한다. 취소하면 시험을 시작하지 않는다(REQ-DIST-006).
-6. 설치 폴더 아래 `작업`(기본 `C:\Program Files\BellalunAuto\작업`)의 Reports/Evidence/Log에서 결과를 확인한다. 리포트 맨 위 "결론 — 한눈에 보기"를 먼저 읽는다. FAIL/MANUAL/SKIP을 PASS로 해석하지 않는다.
+6. 설치 폴더 `C:\BellalunAuto`의 Reports/Evidence/Log에서 결과를 확인한다. 설정은 `C:\BellalunAuto\Settings\config.json`이다(REQ-FRAME-003). 리포트 맨 위 "결론 — 한눈에 보기"를 먼저 읽는다. FAIL/MANUAL/SKIP을 PASS로 해석하지 않는다.
 
 설치 후 새 CMD/PowerShell의 `BellalunAuto --version`과 Win+R의 `BellalunAuto`를 사용할 수 있다.
 기존 셸은 다시 열어 PATH 변경을 받는다. 기존 PATH의 같은 항목은 대소문자·인용부호·마지막 구분자를
 정규화하여 중복 추가하지 않는다. 다른 PATH 항목의 순서와 문자열은 보존한다.
 업데이트는 같은 AppId로 같은 위치에 수행하고, 설치 폴더의 `resources`는 새 판으로 통째로 바꾼다. 제거는 설치 프로그램이 추가했다고 기록한 PATH 토큰만 제거하며,
-`작업` 폴더의 설정·결과·증거를 지우지 않는다. Setup은 `작업` 폴더에만 Users 수정 권한을 준다. 설치 직후 제품 시험은 자동 실행하지 않는다.
+설정·결과·증거 폴더(Settings, Reports, Evidence, Log, Runs 등)를 지우지 않는다. Setup은 이 데이터 폴더에만 Users 수정 권한을 주고, 설치 준비가 설치 폴더 자체의 상속 쓰기 권한을 끊는다. 예전 `C:\Program Files\BellalunAuto\작업`의 자료는 새 위치로 복사하고 예전 폴더는 지우지 않는다. 설치 직후 제품 시험은 자동 실행하지 않는다.
 
 포터블 ZIP은 생성·배포하지 않는다. 팀원은 Setup을 사용한다. 2026-11-09 요청부터 Setup·build-info·체크섬·후보 표식·사용 안내를 묶는 설치용 릴리즈 ZIP을 지원한다.
 

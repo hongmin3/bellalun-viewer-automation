@@ -1,6 +1,7 @@
 """REQ-DIST-006: 첫 실행 자동 탐지와 손상된 작업 폴더 기억 복구."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,7 +44,7 @@ class PreferencesRecoveryTests(unittest.TestCase):
             self.assertEqual(Path(saved['workspace']), chosen.resolve())
 
     def test_bad_remembered_workspace_no_longer_blocks_installed_start(self):
-        """설치판은 기억 파일 대신 설치 폴더의 `작업`을 쓴다. 쓸 수 없는 기억 경로가 시작을 막지 않는다."""
+        """설치판은 기억 파일 대신 설치 폴더를 쓴다. 쓸 수 없는 기억 경로가 시작을 막지 않는다."""
         from bellalunauto import runtime
         with tempfile.TemporaryDirectory() as tmp:
             install = Path(tmp)/'app'
@@ -54,7 +55,7 @@ class PreferencesRecoveryTests(unittest.TestCase):
             with patch.object(runtime, '_compiled', return_value=True), \
                     patch.object(runtime.sys, 'executable', str(install/'BellalunAuto.exe')):
                 layout = runtime.resolve_layout(resource_dir=tmp, preferences_dir=prefs)
-                self.assertEqual(layout.workspace, (install/'작업').resolve())
+                self.assertEqual(layout.workspace, install.resolve())
                 with self.assertRaises(ValueError) as explicit:
                     runtime.resolve_layout(workspace=install/'ws', resource_dir=tmp, preferences_dir=prefs)
                 self.assertNotIsInstance(explicit.exception, runtime.PreferencesError)
@@ -79,7 +80,7 @@ class PreferencesRecoveryTests(unittest.TestCase):
 
 
 class InstallWorkspaceTests(unittest.TestCase):
-    """사용자 결정(2026-11-05): 설치판 리포트·로그·설정은 설치 폴더 아래 `작업`에 둔다."""
+    """사용자 결정(2026-11-23, REQ-FRAME-003): 설치판 리포트·로그는 설치 폴더 바로 아래, 설정은 `Settings`에 둔다."""
 
     def compiled(self, install):
         from bellalunauto import runtime
@@ -96,19 +97,19 @@ class InstallWorkspaceTests(unittest.TestCase):
             first, second = self.compiled(install)
             with first, second:
                 layout = runtime.resolve_layout(preferences_dir=prefs)
-            self.assertEqual(layout.workspace, (install/'작업').resolve())
-            self.assertEqual(layout.config_path, (install/'작업'/'config.json').resolve())
+            self.assertEqual(layout.workspace, install.resolve())
+            self.assertEqual(layout.config_path, (install/'Settings'/'config.json').resolve())
 
-    def test_writes_allowed_only_under_install_work_folder(self):
+    def test_writes_allowed_only_in_install_folder_itself_or_outside(self):
         from bellalunauto import runtime
         with tempfile.TemporaryDirectory() as tmp:
             install = Path(tmp)/'app'
             install.mkdir()
             first, second = self.compiled(install)
             with first, second:
-                runtime.resolve_layout(workspace=install/'작업')
+                runtime.resolve_layout(workspace=install)
                 runtime.resolve_layout(workspace=Path(tmp)/'outside')
-                for bad in (install, install/'resources', install/'작업2'):
+                for bad in (install/'resources', install/'작업', install/'Reports'):
                     with self.assertRaises(ValueError, msg=str(bad)):
                         runtime.resolve_layout(workspace=bad)
 
@@ -126,12 +127,44 @@ class InstallWorkspaceTests(unittest.TestCase):
                 (prefs/'preferences.json').unlink()
                 self.assertEqual(gui.previous_config()['viewer']['login']['id'], 'default')
 
-    def test_installer_grants_users_modify_only_on_work_folder(self):
+    def test_installer_grants_users_modify_only_on_data_folders(self):
+        # REQ-FRAME-003: C:\BellalunAuto에 설치하고 사용자 수정 권한은 데이터 폴더에만 준다.
         import re
+        from bellalunauto.runtime import DATA_FOLDERS
         script = (Path(__file__).resolve().parents[1]/'packaging'/'BellalunAuto.iss').read_text(encoding='utf-8')
-        self.assertRegex(script, r'(?m)^\[Dirs\]\s*\n(?:;.*\n)*Name: "\{app\}\\작업"; Permissions: users-modify; Flags: uninsneveruninstall\s*$')
-        self.assertEqual(len(re.findall(r'users-modify', script)), 1)
-        self.assertNotRegex(script, r'(?m)^Type: filesandordirs; Name: "\{app\}\\작업')
+        self.assertRegex(script, r'(?m)^DefaultDirName=\{sd\}\\BellalunAuto\s*$')
+        self.assertRegex(script, r'(?m)^UsePreviousAppDir=no\s*$')
+        granted = re.findall(r'(?m)^Name: "\{app\}\\([^"]+)"; Permissions: users-modify; Flags: uninsneveruninstall\s*$', script)
+        self.assertEqual(sorted(DATA_FOLDERS), sorted(granted))
+        self.assertEqual(len(re.findall(r'users-modify', script)), len(DATA_FOLDERS))
+        self.assertNotRegex(script, r'(?m)^Type: filesandordirs; Name: "\{app\}\\(Settings|Reports|Evidence)')
+        self.assertIn("ExpandConstant('{app}\\install-preparation.txt')", script)
+
+    def test_prepare_install_migrates_then_hardens_only_for_installed_folder(self):
+        from types import SimpleNamespace
+        from bellalunauto import prerequisites
+        calls = []
+
+        def runner(command, **kwargs):
+            import subprocess
+            calls.append(command)
+            return subprocess.CompletedProcess(command, 0, b'', b'')
+        with tempfile.TemporaryDirectory() as tmp:
+            install, legacy = Path(tmp)/'BellalunAuto', Path(tmp)/'PF'/'BellalunAuto'/'작업'
+            install.mkdir()
+            (legacy/'Reports').mkdir(parents=True)
+            (legacy/'config.json').write_text('{}', encoding='utf-8')
+            (legacy/'Reports'/'Result_1.json').write_text('{}', encoding='utf-8')
+            with patch.object(prerequisites.sys, 'executable', str(install/'BellalunAuto.exe')), \
+                    patch.dict(os.environ, {'ProgramW6432': str(Path(tmp)/'PF'), 'ProgramFiles': str(Path(tmp)/'PF')}):
+                self.assertEqual([], prerequisites.relocate_and_harden(SimpleNamespace(workspace=install), compiled=False, runner=runner))
+                self.assertEqual([], prerequisites.relocate_and_harden(SimpleNamespace(workspace=Path(tmp)/'다른'), compiled=True, runner=runner))
+                self.assertEqual([], calls)
+                lines = prerequisites.relocate_and_harden(SimpleNamespace(workspace=install), compiled=True, runner=runner)
+            self.assertTrue((install/'Settings'/'config.json').is_file())
+            self.assertTrue((install/'Reports'/'Result_1.json').is_file())
+            self.assertIn('/inheritance:r', calls[0])
+            self.assertEqual(2, len(lines), lines)
 
 
 class ElevatedWorkspaceGuardTests(unittest.TestCase):
@@ -147,6 +180,18 @@ class ElevatedWorkspaceGuardTests(unittest.TestCase):
             problems = app.elevated_workspace_problems(work, config)
             self.assertEqual(len(problems), 2, problems)
             self.assertEqual(app.elevated_workspace_problems(work, {'viewer': {'exe': 'C:/Program Files/Bellalun/VIEWER.exe'}}), [])
+
+    def test_install_folder_checks_only_user_writable_data_folders(self):
+        # REQ-FRAME-003: 설치 폴더의 resources(관리자만 쓰기)에 든 Baseline은 막지 않고, 데이터 폴더 안의 실행 파일은 막는다.
+        from bellalunauto import app, runtime
+        with tempfile.TemporaryDirectory() as tmp:
+            install = Path(tmp)/'app'
+            install.mkdir()
+            with patch.object(runtime, '_compiled', return_value=True),                     patch.object(app.sys, 'executable', str(install/'BellalunAuto.exe')):
+                config = {'baseline_dir': str(install/'resources'/'Baseline'), 'viewer': {'exe': str(install/'Reports'/'VIEWER.exe')}}
+                problems = app.elevated_workspace_problems(install, config)
+            self.assertEqual(1, len(problems), problems)
+            self.assertIn('viewer.exe', problems[0])
 
     @unittest.skipUnless(hasattr(__import__('_winapi'), 'CreateJunction'), 'Windows junction')
     def test_result_folder_replaced_by_junction_is_refused(self):

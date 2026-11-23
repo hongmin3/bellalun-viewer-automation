@@ -313,7 +313,7 @@ def team_settings() -> dict | None:
 
 
 def previous_config() -> dict | None:
-    """이 PC에서 쓰던 BellalunAuto 설정. 기억한 작업 폴더 → 기본 작업 폴더 순서. 없으면 None."""
+    """이 PC에서 쓰던 BellalunAuto 설정. 기억한 폴더 → 예전 기본 폴더 → 예전 설치판 순서. 없으면 None."""
     from . import runtime
     base = runtime._preferences_dir()
     candidates = []
@@ -324,6 +324,9 @@ def previous_config() -> dict | None:
     except (OSError, ValueError):
         pass
     candidates.append(base / "workspace" / "config.json")
+    # 2026-11-23 이전 설치판의 데이터 폴더(REQ-FRAME-003). 설치 프로그램이 못 옮긴 경우에도 설정을 잇는다.
+    for program_files in {os.environ.get("ProgramW6432"), os.environ.get("ProgramFiles")} - {None}:
+        candidates.append(Path(program_files) / "BellalunAuto" / runtime.LEGACY_INSTALL_WORKSPACE / "config.json")
     for path in candidates:
         try:
             if path.is_file():

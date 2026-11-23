@@ -36,7 +36,7 @@ HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 �
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
 탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
-실행 번호별 진행·보고서는 `작업/Runs/<run_id>/run.json`에 연결됩니다. 자동 실행이 끝나면
+실행 번호별 진행·보고서는 `C:\BellalunAuto\Runs\<run_id>un.json`에 연결됩니다. 자동 실행이 끝나면
 화면의 **수동 검토**에서 PASS가 아닌 TC를 확인하고 검수 완료를 별도로 기록하세요.
 **공유 ZIP**에서는 스크린샷·DICOM·Viewer 로그 구간을 선택하며, 기본은 모두 제외입니다.
 받은 파일은 `BellalunAuto.exe verify-share <ZIP 경로>`로 무결성과 상대 링크를 점검합니다.
@@ -73,11 +73,11 @@ Windows Update는 13 TC 중 PASS 10 / MANUAL 3(기존 수동 범위)으로 목�
 새 Setup은 OCR과 승인 Baseline·시험 자료를 포함하고 설치 중 실행·해시를 검사합니다. OCR이 없으면 자동 설치하며 정상 기존 OCR과 설정은 재사용합니다. 빌드와 실제 설치판 검증 상태는 [진행 기록](progress.md)에 둡니다.
 
 1. 승인된 내부 `BellalunAuto-<version>-setup.exe`를 관리자 권한(UAC [예])으로 설치합니다.
-2. 완료 화면과 `작업/install-preparation.txt`에서 준비 결과를 확인하고 "BellalunAuto 열기" 또는 시작 메뉴에서 엽니다. 신규 설정에는 탐지한 제품·OCR·Baseline 경로가 연결됩니다. 설치 중 DB 복원·제품 시험은 실행하지 않습니다.
+2. 완료 화면과 `C:\BellalunAuto\install-preparation.txt`에서 준비 결과를 확인하고 "BellalunAuto 열기" 또는 시작 메뉴에서 엽니다. 신규 설정에는 탐지한 제품·OCR·Baseline 경로가 연결됩니다. 설치 중 DB 복원·제품 시험은 실행하지 않습니다.
 3. 화면 맨 위의 단계 표시(1. 시작 → 2. 준비 점검 → 3. 실행 동의 → 4. 진행 → 5. 결과)를 따라갑니다. VXvue 자동화와 같은 화면입니다(SPEC REQ-FRAME-002).
 4. 처음 실행이면 준비 점검이 바로 보입니다. 표 위쪽의 "조치 필요" 행을 해결 방법대로 고치고, 서버 주소·시험 계정처럼 찾을 수 없는 값만 [PC별 설정]에서 입력한 뒤 [다시 점검]을 누릅니다.
 5. **기본기능 체크리스트** 또는 **Windows Update 체크리스트**를 고르고, 실행 전 확인 화면의 항목을 모두 체크해 동의한 뒤 시험 시작 때 UAC를 승인합니다.
-6. 진행 화면에서 지금 실행 중인 TC와 단계 n/N을 봅니다. 끝나면 결과 화면이 열려 사람이 확인할 TC와 레포트 열기 버튼을 보입니다. 결과는 설치 폴더 아래 `작업\Reports`에 생깁니다.
+6. 진행 화면에서 지금 실행 중인 TC와 단계 n/N을 봅니다. 끝나면 결과 화면이 열려 사람이 확인할 TC와 레포트 열기 버튼을 보입니다. 결과는 `C:\BellalunAuto\Reports`에, 설정은 `C:\BellalunAuto\Settings\config.json`에 있습니다. 예전 판(`C:\Program Files\BellalunAuto\작업`)의 설정·결과는 업데이트 때 복사됩니다(SPEC REQ-FRAME-003).
 
 ```powershell
 BellalunAuto.exe --version

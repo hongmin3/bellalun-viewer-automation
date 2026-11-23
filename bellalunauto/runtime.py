@@ -45,24 +45,41 @@ def _resources() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-INSTALL_WORKSPACE = "작업"
+# 설정·결과는 설치 폴더(예: C:\BellalunAuto) 바로 아래에 둔다(사용자 결정 2026-11-23, REQ-FRAME-003).
+# 프로그램 파일은 관리자만 고칠 수 있고, 아래 데이터 폴더만 사용자가 쓸 수 있다.
+SETTINGS_DIR = "Settings"
+DATA_FOLDERS = (SETTINGS_DIR, "Reports", "Evidence", "Log", "Runs", "work", "Cache", "Temp", "preservation")
+LEGACY_INSTALL_WORKSPACE = "작업"   # 2026-11-23 이전 설치판의 데이터 폴더(업데이트 때 새 위치로 복사)
+
+
+def default_root() -> Path:
+    """소스 실행의 기본 폴더. 설치판과 같은 `C:/BellalunAuto`를 쓴다."""
+    return Path((os.environ.get("SystemDrive") or "C:") + "\\") / "BellalunAuto"
 
 
 def install_workspace() -> Path:
-    """설치판 기본 작업 폴더: 설치 폴더 아래 `작업`(사용자 결정 2026-11-05)."""
-    return _absolute(sys.executable).parent / INSTALL_WORKSPACE
+    """설치판의 데이터 위치: 설치 폴더 자체(설정은 그 아래 `Settings`)."""
+    return _absolute(sys.executable).parent
+
+
+def config_path_for(workspace: str | os.PathLike[str]) -> Path:
+    """폴더의 설정 파일. 예전 판처럼 폴더 바로 아래에만 config.json이 있으면 그것을 계속 쓴다."""
+    work = _absolute(workspace)
+    current, legacy = work / SETTINGS_DIR / "config.json", work / "config.json"
+    return legacy if legacy.is_file() and not current.exists() else current
 
 
 def _validate_write_paths(workspace: Path, config_path: Path) -> None:
-    """Inside the installation only the `작업` folder is writable, including through path aliases."""
+    """설치 폴더 안에서는 데이터 폴더에만 쓴다. 경로 별칭을 거쳐도 같다."""
     if not _compiled():
         return
     installation = _absolute(sys.executable).parent
-    allowed = installation / INSTALL_WORKSPACE
-    for path in (workspace, config_path):
-        resolved = _absolute(path)
-        if resolved.is_relative_to(installation) and not resolved.is_relative_to(allowed):
-            raise ValueError(f"작업 파일은 '{allowed}' 아래 또는 설치 폴더 밖에 지정하세요.")
+    work = _absolute(workspace)
+    if work.is_relative_to(installation) and work != installation:
+        raise ValueError(f"데이터 위치는 설치 폴더 '{installation}' 자체 또는 설치 폴더 밖이어야 합니다.")
+    config = _absolute(config_path)
+    if config.is_relative_to(installation) and not config.is_relative_to(installation / SETTINGS_DIR):
+        raise ValueError(f"설정 파일은 '{installation / SETTINGS_DIR}' 아래 또는 설치 폴더 밖에 지정하세요.")
 
 
 def _preferences_dir(preferences_dir: str | os.PathLike[str] | None = None) -> Path:
@@ -99,9 +116,9 @@ def resolve_layout(
             workspace = saved
             remembered = True
         else:
-            workspace = _preferences_dir() / "workspace"
+            workspace = default_root()
     work = _absolute(workspace)
-    config = _absolute(config_path) if config_path is not None else work / "config.json"
+    config = _absolute(config_path) if config_path is not None else config_path_for(work)
     try:
         _validate_write_paths(work, config)
     except ValueError as error:

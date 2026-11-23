@@ -14,10 +14,11 @@ AppId={{9BB91B13-A9B6-4484-B3E8-C71BC2D0088E}
 AppName=BellalunAuto
 AppVersion={#AppVersion}
 AppPublisher=Bellalun QA
-DefaultDirName={autopf}\BellalunAuto
+DefaultDirName={sd}\BellalunAuto
 DefaultGroupName=BellalunAuto
 DisableProgramGroupPage=yes
-UsePreviousAppDir=yes
+; 예전 설치(Program Files)도 업데이트 때 C:\BellalunAuto로 옮긴다. 설정·결과는 prepare-install이 복사한다(REQ-FRAME-003).
+UsePreviousAppDir=no
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
@@ -41,8 +42,17 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "바탕 화면 바로 가기 만들기"; Flags: unchecked
 
 [Dirs]
-; Reports, logs, evidence and config live here. Only this folder is user-writable; it survives update and uninstall.
-Name: "{app}\작업"; Permissions: users-modify; Flags: uninsneveruninstall
+; Settings, reports, evidence and logs live directly under {app}. Only these folders are user-writable;
+; they survive update and uninstall. prepare-install removes inherited write access from {app} itself.
+Name: "{app}\Settings"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Reports"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Evidence"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Log"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Runs"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\work"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Cache"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\Temp"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\preservation"; Permissions: users-modify; Flags: uninsneveruninstall
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\resources"; Check: IsExistingBellalunAuto
@@ -196,7 +206,7 @@ begin
   PreparationSummary := '파일 설치 완료 / 자동 준비 실패' + #13#10 +
     'BellalunAuto prepare-install을 관리자 권한으로 다시 실행하세요.';
   WizardForm.StatusLabel.Caption := 'OCR과 승인 시험 자료를 준비하고 있습니다...';
-  SummaryFile := ExpandConstant('{app}\작업\install-preparation.txt');
+  SummaryFile := ExpandConstant('{app}\install-preparation.txt');
   { Do not accept a stale summary left by an earlier installation. }
   DeleteFile(SummaryFile);
   if Exec(ExpandConstant('{app}\BellalunAuto.exe'), 'prepare-install',
