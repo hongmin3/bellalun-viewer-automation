@@ -41,11 +41,22 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 
 포터블 ZIP은 생성·배포하지 않는다. 팀원은 Setup을 사용한다. 2026-11-09 요청부터 Setup·build-info·체크섬·후보 표식·사용 안내를 묶는 설치용 릴리즈 ZIP을 지원한다.
 
+등록된 `auto` 폴더에서 실행한다. 아래 예시의 버전을 `build-info.json` 값으로 바꾼다.
+별도 작업 트리의 빌드에는 그 빌드의 버전 형식을 지원하는 작업 트리의 `tools/release_zip.py`를 사용한다.
+
 ```powershell
-python tools/release_zip.py --release release/1.0.3 --output <새 폴더>/BellalunAuto-1.0.3-release.zip
+$version = '1.0.3'
+$release = (Resolve-Path -LiteralPath "release/$version").Path
+$stage = Join-Path (Get-Location).Path ("work/release-zip-" + [Guid]::NewGuid())
+New-Item -ItemType Directory -Path $stage -ErrorAction Stop | Out-Null
+$name = "BellalunAuto-$version-release.zip"
+$zip = Join-Path $stage $name
+python tools/release_zip.py --release $release --output $zip
+if ($LASTEXITCODE -ne 0) { throw '릴리즈 ZIP 생성 실패' }
+[IO.File]::Move($zip, (Join-Path $release $name))
 ```
 
-입력 폴더는 Setup 빌더가 만든 버전별 폴더다. 추가 파일·변조·누락·기존 ZIP 덮어쓰기를 거부한다.
+입력 폴더에는 Setup과 빌드 기록만 있어야 한다. 추가 파일·변조·누락·기존 ZIP 덮어쓰기를 거부한다.
 후보 표시를 보존하고 ZIP CRC·내부 모든 파일 SHA-256을 검사한다. ZIP은 사내 자료를 포함하므로 공개 Release에 올리지 않는다.
 OCR 환경 지문과 실패 해결은 [OCR 안내](ocr-portability.md)를 따른다.
 
@@ -193,9 +204,13 @@ Baseline/PROCEDURE.bak
 현재 개인 설정·DB·환자자료·결과·증거를 포함하지 않는다.
 명시된 제3자 패키지 디렉터리의 해당 패키지 자료와 라이선스는 허용한다.
 
-최종 배포 파일은 `release/<version>/`에 둔다. 같은 버전 폴더가 비어 있지 않으면 컴파일 전에 중단하므로 다음 배포는 버전을 올린다. 컴파일·검증에 쓰는 `--output`은 이 폴더와 구분한다. 현재 파일은 [설치 준비 검증](setup-preparation-validation.md)을 따른다.
+최종 배포 경로는 등록된 `auto/release/<버전>/`이다. 별도 작업 트리에서 빌드했으면 빌더가 만든
+버전 폴더를 등록된 `auto/release/` 아래로 옮긴 뒤 ZIP을 만든다. 같은 버전 폴더가 이미 있으면
+기존 파일을 보존한다. 이전 설치판의 기록은 [설치 준비 검증](setup-preparation-validation.md)에서 확인할 수 있다.
 
-빌드 출력은 다음과 같다. Setup·외부build-info·SHA256SUMS와 후보 표식만 `release/<version>/`로 옮긴다. standalone 폴더와 중간파일은 `--output`에 남는다.
+Setup·외부 build-info·SHA256SUMS·후보 표식·검증된 ZIP은 버전 폴더에 둔다.
+standalone 폴더와 중간파일은 빌드의 `--output`에 둔다. 최신본만 남기도록 정리할 때는
+빌드 시각을 비교하고 최신 폴더의 Setup과 ZIP을 대조한 뒤 이전 버전 폴더를 휴지통으로 보낸다.
 
 - `BellalunAuto-<version>/`: 검사한 동일 standalone 배포 폴더.
 - `BellalunAuto-<version>-setup.exe`: 동일 폴더를 담은 설치 프로그램.
