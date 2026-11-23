@@ -15,6 +15,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core import dicom_settings                            # noqa: E402
 
 
+def test_storage_reachability_uses_the_same_host_as_viewer_registration():
+    cfg = {"dicom": {
+        "storage_scp": {"host": "http://192.0.2.2", "port": 1, "ae_title": "OLD",
+                        "api_url": "http://management.example:5003"},
+        "servers_to_register": [{"kind": "Storage", "ip": "192.0.2.22",
+                                 "port": 11116, "ae_title": "STORAGE_SCP"}],
+    }}
+    with mock.patch("core.storagescp.StorageServer") as client, \
+         mock.patch.object(dicom_settings, "tcp_open", side_effect=lambda host, port: (host, port) == ("192.0.2.22", 11116)):
+        client.return_value.status.return_value = {"running": True, "port": 11116, "ae_title": "STORAGE_SCP"}
+        ok, detail = dicom_settings.ensure_storage_reachable(cfg)
+    assert ok
+    assert detail["host"] == "192.0.2.22"
+    assert detail["ae_matches"] is True
+    assert cfg["dicom"]["storage_scp"]["host"] == "http://192.0.2.2"
+    client.assert_called_once_with("http://management.example:5003", timeout=15)
+
+
 class SyncUseIgnoresJobCopiesTest(unittest.TestCase):
     """2026-09-01 실측: Storage 는 전송 작업 사본 행(`SCPUseType<>0`)도 설정
     행과 같은 `Name` 을 쓰고 늘 `Use=1` 이다. `_sync_use()`가 필터 없이 DB 를

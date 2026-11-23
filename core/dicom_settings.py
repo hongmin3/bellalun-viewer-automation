@@ -32,7 +32,9 @@ def ensure_storage_reachable(cfg):
 
     반환: `(가능한가, 상세)`. 상세는 판정 `actual` 에 그대로 실을 수 있다.
     """
-    spec = (cfg.get("dicom") or {}).get("storage_scp") or {}
+    from core.storagescp import StorageServer, storage_endpoint
+
+    spec = storage_endpoint(cfg)
     host = spec.get("host")
     port = int(spec.get("port") or 0)
     detail = {"ae_title": spec.get("ae_title"), "host": host, "port": port}
@@ -40,7 +42,6 @@ def ensure_storage_reachable(cfg):
     api_url = spec.get("api_url")
     if api_url:
         try:
-            from core.storagescp import StorageServer
             status = StorageServer(api_url, timeout=15).status() or {}
             detail["api"] = {k: status.get(k) for k in
                              ("ae_title", "host", "port", "running", "tls_running")}
@@ -629,10 +630,9 @@ def setup_all(ctx, kinds=None):
 
     if "Storage" in kinds:
         ok, detail = ensure_storage_reachable(ctx.cfg)
-        spec = (ctx.cfg.get("dicom") or {}).get("storage_scp") or {}
         r.add(0, "Storage SCP 도달 확인", PASS if ok else FAIL,
-              expected=f"{spec.get('ae_title')} @ {spec.get('host')}:"
-                       f"{spec.get('port')} — SCP running + DICOM 포트 연결",
+              expected=f"{detail.get('ae_title')} @ {detail.get('host')}:"
+                       f"{detail.get('port')} — SCP running + DICOM 포트 연결",
               actual=detail,
               note="2026-08-26 Bunny(로컬 앱)를 원격 Storage SCP 웹 서버로 "
                    "대체했다. 우리가 띄울 것이 없으므로 '기동' 이 아니라 "

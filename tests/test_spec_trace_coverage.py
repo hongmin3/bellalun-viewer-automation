@@ -18,7 +18,6 @@ EXCLUDED = {
 # 2026-11-16 이 검사를 도입할 때 12절에 없던 파일. 근거(REQ 본문·Validates 표기·사양 문서) 없이 REQ에
 # 붙이지 않으려고 그대로 남겼다. 이 목록은 줄이기만 한다. 파일을 12절에 넣으면 여기서 지운다.
 UNTRACED_BASELINE = {
-    "core/dicom_settings.py",
     "core/dicomlite.py",
     "core/display.py",
     "core/imginfo.py",
@@ -29,7 +28,6 @@ UNTRACED_BASELINE = {
     "core/setting_transfer.py",
     "core/snapshot.py",
     "core/statusbar.py",
-    "core/storagescp.py",
     "core/uitext.py",
     "core/viewer_tools.py",
     "core/watchdog.py",
@@ -41,7 +39,6 @@ UNTRACED_BASELINE = {
     "tests/system_compat.py",
     "tests/test_cause_evidence_followup.py",
     "tests/test_close_examine_confirm.py",
-    "tests/test_dicom_settings.py",
     "tests/test_distribution_integration.py",
     "tests/test_export_completion_wait.py",
     "tests/test_imginfo_and_waits.py",

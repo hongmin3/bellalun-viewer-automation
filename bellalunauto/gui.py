@@ -45,6 +45,7 @@ FIELDS = (
     ("보존 / 복원", "preservation.storage_dir", "보존 저장소 경로 (선택)", "storage_dir"),
 )
 _ACTIONS = {"run-regression", "run-winupdate", "selfcheck", "portability-check"}
+_LEGACY_STORAGE_FIELDS = {"dicom.storage_scp.host", "dicom.storage_scp.ae_title", "dicom.storage_scp.port"}
 
 
 def _get(config: dict, key: str, default: Any = "") -> Any:
@@ -91,8 +92,13 @@ def form_fields(config: dict) -> tuple:
 
 def settings_fields(config: dict) -> tuple:
     """저장 주소는 설정 화면에서 호스트와 웹 포트로 표시한다."""
+    from core.storagescp import registered_storage
+
+    using_registration = registered_storage(_get(config, "dicom", {})) is not None
     fields = []
     for tab, key, label, kind in form_fields(config):
+        if using_registration and key in _LEGACY_STORAGE_FIELDS:
+            continue
         if kind == "url":
             service = label.split()[0]
             fields.extend(((tab, f"{key}.host", f"{service} 웹 호스트", "text"),
@@ -215,6 +221,9 @@ def validate_config(config: dict) -> list[str]:
     """제품 시험 시작 전 필수 설정만 확인한다. 실제 연결 점검은 CLI gate가 한다."""
     errors = []
     fields = form_fields(config)
+    from core.storagescp import registered_storage
+    if registered_storage(_get(config, "dicom", {})) is not None:
+        fields = tuple(field for field in fields if field[1] not in _LEGACY_STORAGE_FIELDS)
     for _, key, label, kind in fields:
         value = _get(config, key)
         if kind == "storage_dir":
@@ -227,6 +236,9 @@ def validate_config(config: dict) -> list[str]:
             continue
         if value is None or not str(value).strip() or "REPLACE_ME" in str(value) or "SERVER_IP" in str(value):
             errors.append(f"{label}: 값을 입력하세요.")
+        elif key.startswith("dicom.servers_to_register.") and key.endswith(".ip") and any(
+                char in str(value) for char in ("/", "\\", " ", "@", "?", "#")):
+            errors.append(f"{label}: 웹 주소 없이 호스트 이름 또는 IP만 입력하세요.")
     try:
         merge_form_config(config, {key: str(_get(config, key)) for _, key, _, kind in fields
                                    if kind in {"port", "url"}

@@ -1389,9 +1389,13 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                     break
 
         if aborted_precondition is not None:
-            failed_id = winupdate._view(aborted_precondition)["tc_id"]
+            failed = winupdate._view(aborted_precondition)
+            failed_id = failed["tc_id"]
+            failed_checks = [check["title"] for check in failed["checks"]
+                             if check["status"] in {"FAIL", "BLOCKED"}]
+            blocked_by = " · ".join([failed_id, *failed_checks])
             print("!" * 74)
-            print(f"  전제 준비 실패 — run-winupdate 를 중단합니다: {failed_id}")
+            print(f"  전제 준비 실패 — run-winupdate 를 중단합니다: {blocked_by}")
             print("!" * 74)
             shutdown = shutdown_viewer("전제 준비 실패로 run-winupdate 중단")
             print(f"  viewer-shutdown: {shutdown}")
@@ -1400,12 +1404,13 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                 ctx.execution_incomplete = True
                 _finish_combined_basic(ctx, results)
             lookup = winupdate.lookup_from_results(results)
-            wu_results = winupdate.build_wu_results(lookup)
-            return _finish_winupdate(ctx, wu_results, elapsed,
+            wu_results = winupdate.build_wu_results(lookup, blocked_by=blocked_by)
+            code = _finish_winupdate(ctx, wu_results, elapsed,
                                      source_note=("기본+WU 결합 실행(전제 실패로 조기 중단)" if with_basic
                                                   else "전용 체인(전제 실패로 조기 중단)"),
                                      execution_mode="live", chain_completed=False,
-                                     extra_meta=meta_extra())
+                                     extra_meta={**meta_extra(), "precondition_failure": blocked_by})
+            return code or 2
 
         holder = {"ui": None, "usb": checkpoint.extra("usb")}
 

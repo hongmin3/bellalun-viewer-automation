@@ -8,7 +8,7 @@ USB 있음/없음/오류 × CD SKIP 조합의 최종 판정을 표시 정책별�
 import unittest
 from unittest.mock import patch
 
-from core.result import TCResult, PASS, FAIL, MANUAL, SKIP
+from core.result import TCResult, PASS, FAIL, MANUAL, SKIP, BLOCKED
 from tests import winupdate
 
 WF09 = {"tc_id": "TC_Basic_WorkFlow_09", "verdict": "PASS",
@@ -26,6 +26,18 @@ USB_ERROR = {"drive": "E:\\", "error": "synthetic export error"}
 
 def _no_sysinfo():
     return patch.multiple("core.sysinfo", pc_info=lambda: {}, os_update_info=lambda: {})
+
+
+def test_precondition_abort_blocks_unexecuted_wu_checks_instead_of_failing_them():
+    with _no_sysinfo():
+        rows = winupdate.build_wu_results({}, blocked_by="DICOM_Server_Setup · Storage SCP 도달 확인")
+    by_id = {row.tc_id: row for row in rows}
+    for number in range(2, 12):
+        row = by_id[f"TC_WindowsUpdate_{number:02}"]
+        assert row.verdict == BLOCKED
+        assert "DICOM_Server_Setup" in row.checks[0].note
+    assert by_id["TC_WindowsUpdate_01"].verdict == SKIP
+    assert by_id["TC_WindowsUpdate_12"].verdict == SKIP
 
 
 def wu09(outcome, policy):

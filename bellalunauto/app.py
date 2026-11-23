@@ -482,14 +482,16 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
                 if not report:
                     from run import shutdown_viewer
                     cleanup = shutdown_viewer('BellalunAuto 리포트 없는 종료')
+                    detail = ('필수 준비 조건을 충족하지 못해 전체 시험을 마치지 않았습니다. '
+                              '실행 로그에서 중단 단계와 조치를 확인하세요.'
+                              if code == 2 else '새 전체 리포트가 없어 완료로 판단할 수 없습니다.')
                     health.write_state(str(layout.workspace), 'abnormal_exit', exit_code=code,
                                        cleanup=cleanup, mode=command,
                                        process=health.process_exit_message('VIEWER', started),
-                                       message='새 전체 리포트가 없어 완료로 판단할 수 없습니다.')
+                                       message=detail)
                     health.notify_windows('BellalunAuto 비정상 종료',
-                                          '새 전체 리포트가 생성되지 않았습니다. 작업 폴더의 로그를 확인하세요.',
-                                          'error', 12)
-                    print('[FAIL] 새 전체 리포트가 생성되지 않았습니다.')
+                                          detail, 'error', 12)
+                    print(f'[FAIL] {detail}')
                     return code or 3
                 health.write_state(str(layout.workspace), 'completed', exit_code=code, report=report,
                                    mode=command)

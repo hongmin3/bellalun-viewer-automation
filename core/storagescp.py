@@ -199,9 +199,27 @@ def _safe_name(uid):
 
 
 # --------------------------------------------------------------------------
+def registered_storage(dicom):
+    servers = dicom.get("servers_to_register") if isinstance(dicom, dict) else None
+    if not isinstance(servers, list):
+        return None
+    candidates = [entry for entry in servers if isinstance(entry, dict) and entry.get("kind") == "Storage"]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def storage_endpoint(cfg):
+    """Storage가 하나면 Viewer 등록값으로 검사하고, 웹 API 주소는 따로 읽는다."""
+    dicom = cfg.get("dicom") or {}
+    legacy = dicom.get("storage_scp") or {}
+    registered = registered_storage(dicom)
+    if registered is None:
+        return legacy
+    return dict(legacy, host=registered.get("ip"), port=registered.get("port"),
+                ae_title=registered.get("ae_title"))
+
+
 def config(ctx):
-    """`config.json > dicom.storage_scp` 를 돌려준다."""
-    return (ctx.cfg.get("dicom") or {}).get("storage_scp") or {}
+    return storage_endpoint(ctx.cfg)
 
 
 def server(ctx, timeout=30):

@@ -542,6 +542,8 @@ PC별 설정은 MWL·Print·Storage의 웹 접속 정보와 Viewer 등록 정보
 웹 접속은 호스트와 웹 포트로 편집한다. 저장할 때 기존 설정 파일에 쓰던 주소 형식으로 조합한다.
 기존 주소에 설정된 HTTPS와 경로는 보존한다. 같은 호스트를 쓰는 서버에는 공통 호스트를 한 번에 적용할 수 있다.
 DICOM 등록용 호스트·포트·AE Title과 등록 목록의 순서는 별도로 유지한다.
+Storage가 하나 등록된 PC에서는 그 등록값으로 Storage DICOM 연결을 확인한다.
+웹 API의 호스트·포트와 DICOM 등록값은 별도로 읽는다. Storage 등록이 없거나 여러 개인 기존 설정은 별도 확인용 값을 계속 사용한다.
 준비 점검은 실패한 항목에 맞춰 PC별 설정, Windows 서비스 관리, 디스플레이 설정 또는 복원 재개를 연다.
 실행 화면에서 해당 회차의 로그를 열 수 있다.
 한 줄이 매우 긴 증거 로그는 화면에 앞부분 4,096자 이내로 표시하고 생략 안내를 붙인다. 전체 내용은 로그 파일에 그대로 저장한다. 긴 로그를 그리느라 진행 갱신이나 완료 처리가 멈추면 안 된다.
@@ -786,7 +788,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 1. 실행하는 동안 PC가 절전이나 화면 꺼짐에 들어가지 않게 한다. Windows 전원 설정은 바꾸지 않는다.
 2. 단계마다 시간 상한을 두고 Viewer가 계속 응답하지 않는지(`SendMessageTimeoutW`, `SMTO_ABORTIFHUNG`, 120초 연속) 감시한다.
 3. 넘으면 실패 증거를 남기고 Viewer를 끝낸 뒤, 그 단계의 TC를 BLOCKED와 사유로 기록한다.
-4. 다음 단계는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다. 전제 단계(기준 DB 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 체인을 멈춘다.
+4. 다음 단계는 USB 실패 뒤와 같이 Viewer를 다시 띄워 계속한다. 전제 단계(기준 DB 복원·DICOM 서버 설정·화면 계약)가 FAIL·BLOCKED면 체인을 멈춘다. 중단 원인을 리포트에 표시하고 실행 전인 자동 WU TC는 BLOCKED로 기록한다.
 5. 단계가 끝날 때마다 `work/winupdate_checkpoint.json`에 결과를 원자적으로 저장한다(임시 파일에 쓴 뒤 바꿔 넣는다).
    Windows의 접근 거부·공유·잠금 오류(5·32·33)로 교체가 잠시 막히면 최대 8회 시도한다. 재시도 간격은 0.05초부터 두 배씩 늘려 최대 0.4초로 제한한다. 끝내 실패하면 오류를 전달하고 기존 저장점은 보존한다. 다른 파일 오류는 재시도하지 않는다.
 6. `run-winupdate --resume`은 저장점의 완료 단계 결과를 다시 쓰고 남은 단계만 실행한다. 리포트 meta에 `resumed`·`reused_stages`·`stage_trips`를 남긴다.
@@ -1689,7 +1691,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
-| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |
+| REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py`, `core/dicom_settings.py`, `core/storagescp.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py`, `tests/test_dicom_settings.py` | verified |
 | REQ-DIST-003 | `tools/build_distribution.py`, `tools/check_regression_names.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py`, `tests/test_regression_names_check.py` | verified |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | verified |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
@@ -1703,7 +1705,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-DIST-006 | `packaging/BellalunAuto.iss`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/runtime.py`, `bellalunauto/qa_dialogs.py` | TEST-DIST-006; `tests/test_distribution_app.py`, `tests/test_first_run.py`, `tests/test_distribution_build.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-DIST-007 | `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `packaging/BellalunAuto.iss`, `packaging/components.json`, `tools/build_distribution.py` | TEST-DIST-007; `tests/test_install_preparation.py`, `tests/test_distribution_build.py` | verified |
 | REQ-DIST-005 | `tools/release_gate.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `core/source_identity.py`, `core/scope_results.py`, `automation_scope.json`, `tools/build_distribution.py`, `run.py` | TEST-DIST-005; TEST-REGRESSION-002; `tests/test_release_gate.py`, `tests/test_installed_release_gate.py`, `tests/test_distribution_build.py` | verified |
-| REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
+| REQ-WU-002 | `core/wu_chain.py`, `run.py` | TEST-WU-002; `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py`, `tests/test_wu_skip_policy.py` | verified |
 | REQ-WU-003 | `core/result.py`, `tests/winupdate.py`, `core/winupdate_report.py` | TEST-WU-003; `tests/test_wu_skip_policy.py`, `tests/test_wu_tool_missing.py` | verified |
 | REQ-WU-004 | `core/env_preflight.py`, `core/environment_match.py`, `core/screen_contract.py`, `verified_environments.json`, `run.py` | TEST-WU-004; `tests/test_preflight.py`, `tests/test_environment_match.py`, `tests/test_screen_contract.py` | verified |
 | REQ-WU-005 | `core/update_evidence.py`, `core/winupdate_report.py`, `run.py` | TEST-WU-005; `tests/test_update_evidence.py` | verified |

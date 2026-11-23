@@ -207,9 +207,13 @@ def install_02(ctx):
     # Step 3. 방화벽 허용 항목
     for kw in pre["firewall_keywords"]:
         rules = sysinfo.firewall_rules(kw)
-        r.assert_true(3, f"방화벽 허용 규칙 [{kw}]", bool(rules),
-                      expected="활성 규칙 1건 이상",
-                      actual=f"{len(rules)}건: " + ", ".join(rules[:3]) if rules else "없음")
+        r.add(3, f"방화벽 허용 규칙 [{kw}]", PASS if rules else FAIL,
+              expected="활성 규칙 1건 이상",
+              actual=f"{len(rules)}건: " + ", ".join(rules[:3]) if rules else "없음",
+              note="" if rules else "Win+R에서 wf.msc를 열고 시험 PC의 승인된 제품 방화벽 규칙 이름과 활성 상태를 확인하세요.",
+              stop=False)
+        if not rules and r.stop_on_fail:
+            return r
 
     # Step 4. DICOM 통신 어댑터 IPv4
     #

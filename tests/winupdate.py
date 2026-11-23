@@ -480,11 +480,22 @@ def _wu_13():
     return r
 
 
-def build_wu_results(lookup, live_extra=None, usb_policy=None):
+def build_wu_results(lookup, live_extra=None, usb_policy=None, *, blocked_by=None):
     """13개 WU TCResult 를 만든다. `run()`/`from_regression()` 공유 진입점.
 
     두 경로가 같은 함수를 쓰므로 USB 미확인 표시 정책도 같게 적용된다.
     """
+    if blocked_by:
+        results = [_wu_01(lookup)]
+        for tc_id, title in WU_TITLES.items():
+            if tc_id in HUMAN_ONLY_TCS:
+                continue
+            row = TCResult(tc_id, title)
+            row.blocked(0, "실행 전제 미충족",
+                        f"{blocked_by}에서 중단됐습니다. 준비 점검과 실행 로그를 확인한 뒤 다시 실행하세요.")
+            results.append(row)
+        return results + [_wu_12(), _wu_13()]
+
     live_extra = live_extra or {}
     results = [
         _wu_01(lookup),
