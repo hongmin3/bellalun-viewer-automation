@@ -25,6 +25,7 @@ section,.tc-detail,.appendix{background:#fff;border:1px solid var(--line);border
 .PASS{color:#167451}.FAIL{color:#a41926}.MANUAL{color:#976a15}.SKIP{color:#334e68}.BLOCKED{color:#71419b}
 .bar{display:flex;height:8px;overflow:hidden;border-radius:8px;background:#edf1f5;margin:18px 0 12px}.bar span{display:block}
 .bPASS{background:#249576}.bFAIL{background:#a41926}.bMANUAL{background:#d1a446}.bSKIP{background:#334e68}.bBLOCKED{background:#8f67b3}
+.legend{margin-top:14px;font-size:12px}.legend summary{cursor:pointer;color:var(--mut)}.legend dl{margin:8px 0 0}.legend dl div{display:flex;gap:10px;align-items:baseline;margin:4px 0}.legend dt{min-width:84px}.legend dd{margin:0}
 .run-facts{margin-top:8px;display:flex;flex-wrap:wrap;gap:10px 24px;font-size:12px;color:var(--mut)}
 .failure-panel{border:3px solid #a41926;background:#fff4f5;box-shadow:0 3px 15px #bd303c0c}
 .manual-panel{border:3px solid #976a15;background:#fffaf0}.manual-panel h2{color:#7a5410;font-size:22px}.manual-panel .failure-card{border-top-color:#ecdcb8}.manual-panel .comparison .actual{border-left-color:#d1a446}
@@ -110,6 +111,24 @@ SCRIPT = r"""
   });
 })();
 """
+
+
+# 판정 뜻(frame/FRAME.md 2.6). HTML 레포트 첫 절과 체크리스트 결과 요약 시트가 같은 문장을 쓴다.
+VERDICT_MEANINGS = {
+    'PASS': '기대 결과대로 동작하는 것을 자동으로 확인했습니다.',
+    'FAIL': '기대 결과와 다르게 동작했습니다. 원인과 근거 화면을 확인하세요.',
+    'MANUAL': '자동으로 확정하지 못했습니다. 사람이 직접 확인해야 합니다.',
+    'BLOCKED': '앞 단계나 준비 조건 때문에 수행하지 못했습니다. 조건을 갖춘 뒤 다시 실행하세요.',
+    'SKIP': '이 환경에서는 확인 대상이 아니거나 사람만 할 수 있는 항목입니다.',
+    '미수행': '이번 실행에서 수행하지 않은 체크리스트 항목입니다.',
+}
+
+
+def render_legend(statuses=('PASS', 'FAIL', 'MANUAL', 'BLOCKED', 'SKIP')):
+    """판정 뜻 설명. 처음 읽는 사람이 배지의 뜻을 바로 알 수 있게 결과 요약에 넣는다."""
+    items = ''.join('<div><dt>' + render_badge(s) + '</dt><dd>' + escape(VERDICT_MEANINGS[s]) + '</dd></div>'
+                    for s in statuses if s in VERDICT_MEANINGS)
+    return '<details class="legend" open><summary>판정 뜻</summary><dl>' + items + '</dl></details>'
 
 
 # 두 제품이 같이 쓰는 레포트 절 순서와 목차 이름(frame/FRAME.md 2.4).
@@ -208,7 +227,7 @@ def render_tools(statuses=('PASS', 'FAIL', 'BLOCKED', 'MANUAL', 'SKIP')):
             '<span id="filter-count" aria-live="polite"></span></div>')
 
 
-def render_shell(*, title, product, subtitle, nav, body_html, overall=None):
+def render_shell(*, title, product, subtitle, nav, body_html, overall=None, legend=True):
     overall_class = str(overall) if overall in {'PASS', 'FAIL', 'MANUAL', 'SKIP', 'BLOCKED'} else ''
     header = ('<header><div class="eyebrow">' + escape(str(product)) + ' / QA RESULT</div>'
               '<div class="hero"><div><h1>' + escape(str(title)) + '</h1><div class="meta">'
@@ -221,4 +240,4 @@ def render_shell(*, title, product, subtitle, nav, body_html, overall=None):
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<meta name="report-layout-version" content="' + str(LAYOUT_VERSION) + '">'
             '<title>' + escape(str(title)) + '</title><style>' + STYLE + '</style></head><body>'
-            '<main class="wrap">' + header + navigation + body_html + '</main><script>' + SCRIPT + '</script></body></html>')
+            '<main class="wrap">' + header + navigation + (render_legend() if legend else '') + body_html + '</main><script>' + SCRIPT + '</script></body></html>')

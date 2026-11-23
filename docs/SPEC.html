@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="b2f1dd5f10b9277bb88010cdf547d4793e13edf2ea90b8ad5564765c18dd9a84">
+<meta name="spec-source-sha256" content="fae4f073db807b909739d6c7fd41018be4d13b70b2074b643107714e10889750">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>55</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>44</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>53</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>56</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>45</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>54</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -159,6 +159,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-FRAME-001">REQ-FRAME-001 <span>VXvue와 공통 자동화 프레임 유지</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FRAME-002">REQ-FRAME-002 <span>처음 쓰는 사람용 공용 실행 화면</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-FRAME-003">REQ-FRAME-003 <span>설치 위치·폴더를 VXvue와 맞추기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-FRAME-004">REQ-FRAME-004 <span>체크리스트 TC 대응과 결과 요약 시트</span></a></li>
 <li class="toc-2"><a href="#sec-6">6. 비기능 요구사항</a></li>
 <li class="toc-id kind-nfr"><a href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001 <span>비공개 자료와 공개 코드 분리</span></a></li>
 <li class="toc-2"><a href="#sec-7">7. 데이터 사양</a></li>
@@ -210,6 +211,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-FRAME-001">TEST-FRAME-001 <span>공통 프레임 사본 검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-FRAME-002">TEST-FRAME-002 <span>공용 실행 화면</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-FRAME-003">TEST-FRAME-003 <span>설치 위치·권한·예전 자료 복사</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-FRAME-004">TEST-FRAME-004 <span>결과 요약 시트</span></a></li>
 <li class="toc-2"><a href="#sec-12">12. 요구사항 추적성</a></li>
 <li class="toc-2"><a href="#sec-13">13. 미확정 사항</a></li>
 <li class="toc-2"><a href="#sec-14">14. 향후 개선 후보</a></li></ul>
@@ -289,6 +291,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="이름">VXvue와 공통 자동화 프레임 유지</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="이름">처음 쓰는 사람용 공용 실행 화면</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a></td><td data-label="이름">설치 위치·폴더를 VXvue와 맞추기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_install.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/frame_launch.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a>; <code>tests/test_frame_install.py</code>, <code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a></td><td data-label="이름">체크리스트 TC 대응과 결과 요약 시트</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/frame_checklist.py</code>, <code>core/report_layout.py</code>, <code>core/checklist.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a>; <code>tests/test_frame_checklist.py</code>, <code>tests/test_user_action_steps.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">NFR BOUNDARY</span> 비공개 자료 보호</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="이름">비공개 자료와 공개 코드 분리</td><td data-label="상태"><span class="badge st-implemented">implemented</span></td><td data-label="구현"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="테스트"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td></tr>
 </tbody>
@@ -2295,6 +2298,28 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 </ul>
 <p class="why"><span class="why-label">이유</span> <code>C:\</code> 아래 새 폴더는 기본으로 &quot;인증된 사용자 수정&quot; 권한을 물려받는다. 그대로 두면 일반 사용자가 관리자 권한으로 도는 자동화의 실행 파일·DLL을 바꿀 수 있다.</p>
 </section>
+<section class="card kind-req" id="REQ-FRAME-004">
+<h3><span class="idtag">REQ-FRAME-004</span> 체크리스트 TC 대응과 결과 요약 시트</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_checklist.py</code>, <code>core/report_layout.py</code>, <code>core/checklist.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a>; <code>tests/test_frame_checklist.py</code>, <code>tests/test_user_action_steps.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">체크리스트 결과 요약 시트와 판정 뜻 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a>(신규): 기본기능·WU 체크리스트 결과 xlsx 맨 앞에 VXvue와 같은 &quot;결과 요약&quot; 시트를 둔다(결론, 실행 정보, 레포트 링크, 판정 합계, 체크리스트 순서의 TC별 판정·확인할 내용·위치, 체크리스트 밖 준비 단계, 판정 뜻). HTML 레포트 목차 아래에 같은 판정 뜻을 보인다. 기존 결과 열은 그대로다.</li>
+</ul>
+</details>
+<p>하는 일: 체크리스트 결과 xlsx 맨 앞에 형제 제품과 같은 모양의 &quot;결과 요약&quot; 시트를 두고, HTML 레포트와 같은 판정 뜻 문장을 보인다. 규칙은 <code>frame/FRAME.md</code> 2.6절이다.</p>
+<p>순서:</p>
+<ol>
+<li>체크리스트 행과 자동화 결과를 TC ID가 정확히 같을 때만 잇는다.</li>
+<li>결과가 없는 행은 &quot;미수행&quot;과 이유, 체크리스트에 없는 자동화 단계는 &quot;체크리스트 밖 준비 단계&quot;로 적는다.</li>
+<li>결과 요약 시트에 결론 한 줄, 실행 정보, 레포트 링크, 판정 합계, TC별 판정·확인할 내용·체크리스트 위치, 판정 뜻을 넣는다.</li>
+<li>HTML 레포트는 목차 아래에 같은 판정 뜻을 보인다.</li>
+</ol>
+<p>지킬 것:</p>
+<ul>
+<li>체크리스트 시트의 기존 결과 칸 표기는 바꾸지 않는다(기본기능 결과 열, WU K~L열).</li>
+<li>판정 뜻 문장은 <code>core/report_layout.VERDICT_MEANINGS</code> 한 곳에서만 고친다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-6">
 <h2>6. 비기능 요구사항</h2>
@@ -2772,6 +2797,13 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <li><code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code>: 기본 위치, <code>Settings</code> 설정, 예전 설정 계속 사용, 쓰기 경로 제한, 설치 스크립트의 위치·권한 줄, 설치 준비의 복사·권한 정리 순서를 확인한다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-FRAME-004">
+<h3><span class="idtag">TEST-FRAME-004</span> 결과 요약 시트</h3>
+<ul>
+<li>대상: <a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a>.</li>
+<li><code>tests/test_frame_checklist.py</code>: TC ID 정확 대응(비슷한 번호는 체크리스트 밖), 체크리스트 순서·미수행 이유·위치, 판정 우선순위, 요약 시트가 첫 시트인지, 결론 색·합계·링크·판정 뜻, 다시 만들 때 교체, 레포트의 판정 뜻을 확인한다.</li>
+</ul>
+</section>
 </section>
 <section class="chapter" id="sec-12">
 <h2>12. 요구사항 추적성</h2>
@@ -2834,6 +2866,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a></td><td data-label="Implementation"><code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-002">REQ-FRAME-002</a></td><td data-label="Implementation"><code>core/frame_ui.py</code>, <code>core/frame_ui.ps1</code>, <code>bellalunauto/frame_launch.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/runs.py</code>, <code>tools/build_distribution.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-002">TEST-FRAME-002</a>; <code>tests/test_frame_ui.py</code>, <code>tests/test_frame_launch.py</code>, <code>tests/test_distribution_build.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-003">REQ-FRAME-003</a></td><td data-label="Implementation"><code>core/frame_install.py</code>, <code>bellalunauto/runtime.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/frame_launch.py</code>, <code>packaging/BellalunAuto.iss</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-003">TEST-FRAME-003</a>; <code>tests/test_frame_install.py</code>, <code>tests/test_distribution_runtime.py</code>, <code>tests/test_first_run.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a></td><td data-label="Implementation"><code>core/frame_checklist.py</code>, <code>core/report_layout.py</code>, <code>core/checklist.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a>; <code>tests/test_frame_checklist.py</code>, <code>tests/test_user_action_steps.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 </tbody>
 </table></div>
 <p>상태의 뜻:</p>

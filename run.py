@@ -650,7 +650,8 @@ def finish(ctx, results):
             out = os.path.join(ctx.reports_root,
                                f"Checklist_Result_{stamp}.xlsx")
             info = checklist.write_results(basis["path"], results, out_path=out,
-                                           sheet_name=basis["source"]["sheet"], source_bytes=basis["data"])
+                                           sheet_name=basis["source"]["sheet"], source_bytes=basis["data"],
+                                           report_path=paths.get("html"))
             paths["checklist"] = info["path"]
     except Exception as exc:
         print(f"  checklist: 기록 실패 — {exc}")
@@ -813,7 +814,9 @@ def _finish_winupdate(ctx, wu_results, elapsed_minutes=0.0, source_note="",
         try:
             info = winupdate_report.write_results(basis["path"], wu_results, env=env, out_path=out,
                                                   sheet_name=basis["source"]["sheet"],
-                                                  update_rows=update_rows, source_bytes=basis["data"])
+                                                  update_rows=update_rows, source_bytes=basis["data"],
+                                                  report_path=os.path.join(ctx.reports_root,
+                                                                           f"Result_WindowsUpdate_{stamp}.html"))
             result_paths["xlsx"] = info["path"]
             print(f"  winupdate xlsx: {info['path']} "
                   f"(기록 {len(info['written'])}건, 미매칭 {len(info['unmatched'])}건, "

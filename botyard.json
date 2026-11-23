@@ -45,6 +45,7 @@
     "tests/test_first_run.py",
     "tests/test_flow_timings.py",
     "tests/test_focus_recovery.py",
+    "tests/test_frame_checklist.py",
     "tests/test_frame_install.py",
     "tests/test_frame_launch.py",
     "tests/test_frame_sync.py",

@@ -153,7 +153,8 @@ def _find_header_row(ws, tc_col_name="TC ID"):
     raise ValueError(f"'{tc_col_name}' 헤더를 찾지 못했습니다.")
 
 
-def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, source_bytes=None):
+def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, source_bytes=None,
+                  report_path=None, info=()):
     """판정 결과를 체크리스트에 기록하고 저장 경로를 반환한다.
 
     results: TCResult 리스트. TC ID로 행을 매칭한다.
@@ -227,6 +228,12 @@ def write_results(source_xlsx, results, out_path=None, sheet_name=None, *, sourc
             ws.cell(hdr_row, col_of[name]).column_letter].width = (
             12 if name in ("자동화 판정", *STATUSES) else 40)
 
+    # 두 제품 공통 "결과 요약" 시트를 맨 앞에 둔다(REQ-FRAME-004, frame/FRAME.md 2.6).
+    from core import frame_checklist
+    rows, extras = frame_checklist.rows_from_sheet(ws, hdr_row, tc_col, results)
+    frame_checklist.add_summary_sheet(
+        wb, product="Bellalun Viewer 기본기능", rows=rows, extras=extras, report_path=report_path,
+        info=[("실행 일시", stamp), ("체크리스트 원본", os.path.basename(str(source_xlsx))), *info])
     wb.save(out_path)
     return {"path": out_path, "written": written, "extra": len(extra),
             "sheet": ws.title}

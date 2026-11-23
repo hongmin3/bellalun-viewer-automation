@@ -92,7 +92,7 @@ def _find_header_row(ws):
 
 
 def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None,
-                  issues=None, update_rows=None, *, source_bytes=None):
+                  issues=None, update_rows=None, *, source_bytes=None, report_path=None):
     """WU 판정을 체크리스트 사본에 기록한다.
 
     results: `TCResult` 리스트(`tc_id`가 `TC_WindowsUpdate_01`.. 형식). 각
@@ -267,6 +267,13 @@ def write_results(source_xlsx, results, env=None, out_path=None, sheet_name=None
                 c = uws.cell(i, col, "" if value is None else str(value))
                 c.alignment = Alignment(vertical="top", wrap_text=True)
 
+    # 두 제품 공통 "결과 요약" 시트를 맨 앞에 둔다(REQ-FRAME-004, frame/FRAME.md 2.6).
+    from core import frame_checklist
+    summary_rows, summary_extras = frame_checklist.rows_from_sheet(
+        ws, hdr_row, tc_col, results, is_tc=lambda tc_id: tc_id.startswith('TC_'))
+    frame_checklist.add_summary_sheet(
+        wb, product='Bellalun Viewer Windows Update', rows=summary_rows, extras=summary_extras,
+        report_path=report_path, info=[('체크리스트 원본', os.path.basename(str(source_xlsx)))])
     wb.save(out_path)
     return {"path": out_path, "written": written, "unmatched": unmatched,
             "issues": len(issues), "sheet": ws.title}

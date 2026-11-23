@@ -1287,6 +1287,22 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 
 이유: `C:\` 아래 새 폴더는 기본으로 "인증된 사용자 수정" 권한을 물려받는다. 그대로 두면 일반 사용자가 관리자 권한으로 도는 자동화의 실행 파일·DLL을 바꿀 수 있다.
 
+### REQ-FRAME-004 체크리스트 TC 대응과 결과 요약 시트
+
+하는 일: 체크리스트 결과 xlsx 맨 앞에 형제 제품과 같은 모양의 "결과 요약" 시트를 두고, HTML 레포트와 같은 판정 뜻 문장을 보인다. 규칙은 `frame/FRAME.md` 2.6절이다.
+
+순서:
+
+1. 체크리스트 행과 자동화 결과를 TC ID가 정확히 같을 때만 잇는다.
+2. 결과가 없는 행은 "미수행"과 이유, 체크리스트에 없는 자동화 단계는 "체크리스트 밖 준비 단계"로 적는다.
+3. 결과 요약 시트에 결론 한 줄, 실행 정보, 레포트 링크, 판정 합계, TC별 판정·확인할 내용·체크리스트 위치, 판정 뜻을 넣는다.
+4. HTML 레포트는 목차 아래에 같은 판정 뜻을 보인다.
+
+지킬 것:
+
+- 체크리스트 시트의 기존 결과 칸 표기는 바꾸지 않는다(기본기능 결과 열, WU K~L열).
+- 판정 뜻 문장은 `core/report_layout.VERDICT_MEANINGS` 한 곳에서만 고친다.
+
 ## 6. 비기능 요구사항
 
 ### NFR-BOUNDARY-001 비공개 자료와 공개 코드 분리
@@ -1643,6 +1659,11 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - `tests/test_frame_install.py`: 예전 폴더 복사(설정은 `Settings`로, 덮어쓰지 않음, 다시 실행해도 같음), icacls 명령, 임시 폴더에 실제 icacls를 실행한 뒤 Windows가 돌려주는 권한(상속 끊김, 데이터 폴더만 사용자 수정)을 확인한다.
 - `tests/test_distribution_runtime.py`, `tests/test_first_run.py`: 기본 위치, `Settings` 설정, 예전 설정 계속 사용, 쓰기 경로 제한, 설치 스크립트의 위치·권한 줄, 설치 준비의 복사·권한 정리 순서를 확인한다.
 
+### TEST-FRAME-004 결과 요약 시트
+
+- 대상: REQ-FRAME-004.
+- `tests/test_frame_checklist.py`: TC ID 정확 대응(비슷한 번호는 체크리스트 밖), 체크리스트 순서·미수행 이유·위치, 판정 우선순위, 요약 시트가 첫 시트인지, 결론 색·합계·링크·판정 뜻, 다시 만들 때 교체, 레포트의 판정 뜻을 확인한다.
+
 ## 12. 요구사항 추적성
 
 | Requirement | Implementation | Test | Status |
@@ -1703,6 +1724,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py` | verified |
 | REQ-FRAME-002 | `core/frame_ui.py`, `core/frame_ui.ps1`, `bellalunauto/frame_launch.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/build_distribution.py` | TEST-FRAME-002; `tests/test_frame_ui.py`, `tests/test_frame_launch.py`, `tests/test_distribution_build.py` | verified |
 | REQ-FRAME-003 | `core/frame_install.py`, `bellalunauto/runtime.py`, `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py`, `packaging/BellalunAuto.iss` | TEST-FRAME-003; `tests/test_frame_install.py`, `tests/test_distribution_runtime.py`, `tests/test_first_run.py` | verified |
+| REQ-FRAME-004 | `core/frame_checklist.py`, `core/report_layout.py`, `core/checklist.py`, `core/winupdate_report.py`, `run.py` | TEST-FRAME-004; `tests/test_frame_checklist.py`, `tests/test_user_action_steps.py` | verified |
 
 상태의 뜻:
 

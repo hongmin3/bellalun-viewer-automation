@@ -89,7 +89,7 @@ def test_checklist_columns_use_checklist_step_text():
         with mock.patch.object(checklist, 'read_tc_rows', return_value=ROWS):
             info = checklist.write_results(source, [result],
                                            out_path=os.path.join(directory, 'out.xlsx'))
-        sheet = load_workbook(info['path']).active
+        sheet = load_workbook(info['path'])[info['sheet']]
         header = {sheet.cell(1, c).value: c for c in range(1, sheet.max_column + 1)}
         fails = sheet.cell(2, header['실패 항목']).value
     assert fails.splitlines()[0].startswith(
