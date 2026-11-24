@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="38ac8c0a8de1b3e9efc3beae89d6b9773001d0f0d5bfedad36f0c902a856071d">
+<meta name="spec-source-sha256" content="9c97610f7f7dcefb6b9cd1f65f76428a9f03e9163c89780fcec0fcba22defd27">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>59</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>46</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>57</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>60</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>47</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>58</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -126,6 +126,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-DIST-003">REQ-DIST-003 <span>컴파일과 내부 자료 배포</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-004">REQ-DIST-004 <span>설치판 진단과 최종 실행 검증</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-005">REQ-DIST-005 <span>설치판의 승인 범위를 확인하는 릴리스 게이트</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-DIST-009">REQ-DIST-009 <span>전체 회귀는 설치판 GUI로 실행</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-007">REQ-DIST-007 <span>설치 중 자동화 구성품 준비</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-006">REQ-DIST-006 <span>관리자 설치와 첫 실행 준비</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-QA-001">REQ-QA-001 <span>실행 전 확인 화면</span></a></li>
@@ -197,6 +198,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-SPEEDUP-009">TEST-SPEEDUP-009 <span>Setting 레일·Viewer 종료 대기</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-TRACE-002">TEST-TRACE-002 <span>WU 추적성과 정적 자체검사</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-005">TEST-DIST-005 <span>릴리스 게이트</span></a></li>
+<li class="toc-id kind-test"><a href="#TEST-DIST-009">TEST-DIST-009 <span>설치판 GUI 전체 회귀</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-007">TEST-DIST-007 <span>구성품 자동 준비</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-DIST-006">TEST-DIST-006 <span>관리자 설치와 첫 실행 준비</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-REGRESSION-002">TEST-REGRESSION-002 <span>선택 범위의 설치판 검증</span></a></li>
@@ -236,6 +238,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-003">REQ-DIST-003</a></td><td data-label="이름">컴파일과 내부 자료 배포</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tools/build_distribution.py</code>, <code>tools/check_regression_names.py</code>, <code>packaging/</code>, <code>bellalunauto/resources.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-002">TEST-DIST-002</a>; <code>tests/test_distribution_build.py</code>, <code>tests/test_team_settings.py</code>, <code>tests/test_regression_names_check.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-004">REQ-DIST-004</a></td><td data-label="이름">설치판 진단과 최종 실행 검증</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/app.py</code>, <code>core/product_env.py</code>, <code>core/ui.py</code>, <code>core/xipl.py</code>, <code>core/viewer_processing.py</code>, <code>run.py</code>, <code>tools/run_installed_suites.py</code>, <code>docs/distribution-guide.md</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_product_env.py</code>, <code>tests/test_distribution_engine.py</code>, <code>tests/test_installed_suites.py</code>, <code>tests/test_xipl_ocr.py</code>, <code>tests/test_xipl_study_selection.py</code>, <code>tests/test_xipl_preparation_report.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a></td><td data-label="이름">설치판의 승인 범위를 확인하는 릴리스 게이트</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/versioning.py</code>, <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a></td><td data-label="이름">전체 회귀는 설치판 GUI로 실행</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tools/run_installed_gui.py</code>, <code>core/frame_drive.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a>; <code>tests/test_installed_release_gate.py</code>, <code>tests/test_frame_drive.py</code>, <code>tests/test_installed_gui.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-007">REQ-DIST-007</a></td><td data-label="이름">설치 중 자동화 구성품 준비</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/prerequisites.py</code>, <code>bellalunauto/app.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>packaging/components.json</code>, <code>tools/build_distribution.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-007">TEST-DIST-007</a>; <code>tests/test_install_preparation.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-DIST-006">REQ-DIST-006</a></td><td data-label="이름">관리자 설치와 첫 실행 준비</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>packaging/BellalunAuto.iss</code>, <code>bellalunauto/app.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runtime.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-DIST-006">TEST-DIST-006</a>; <code>tests/test_distribution_app.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_build.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REGRESSION</span> 기준 체크리스트 실행</th></tr>
@@ -1200,8 +1203,9 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 설치판의 승인 범위를 확인하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/versioning.py</code>, <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 16</summary>
+<details class="history"><summary>변경 이력 17</summary>
 <ul>
+<li><span class="hist">전체 회귀는 설치판 GUI로 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 게이트의 리포트 명령 대조가 마지막 단어만 보던 것을 고쳤다. 1.0.0.008 WU 기록처럼 <code>--prepared</code>로 끝나는 정상 명령이 거부됐다.</li>
 <li><span class="hist">내부 검증판 1.0.0.009 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: XIPL Save As 파일명 입력 수정(<a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>)을 담은 내부 검증판이다. 표시 버전 1.0.0.009, Windows 파일 버전 1.0.0.9로 새로 컴파일한다. 사용자 결정(2026-11-24)에 따라 설치판 WU 전체와 기본기능 전체를 각 1회 실행하고, 게이트를 통과하면 이 EXE를 다시 컴파일하지 않고 정식 1.0.0으로 지정한다.</li>
 <li><span class="hist">내부 검증판 1.0.0.008 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 판정 기준표·환경 재점검·멈춤 방지(<a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>~006)와 실행 기록 정리(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)를 담은 내부 검증판이다. 표시 버전 1.0.0.008, Windows 파일 버전 1.0.0.8로 새로 컴파일한다.</li>
 <li><span class="hist">최종 검증 회차 기준 (2026-11-23)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>에 WF·WU 단독 각 1회, TC별 기대 판정과 복원 확인을 명시했다. 최종 검증에서 결합 회차를 생략한다.</li>
@@ -1235,7 +1239,7 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 </li>
 <li>WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)인지 본다.</li>
 <li>기본기능을 선택했으면 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.</li>
-<li>WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다. 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.</li>
+<li>WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다(<a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>). 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.</li>
 <li>선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.</li>
 </ol>
 </div></section>
@@ -1247,6 +1251,48 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <aside class="callout callout-info"><span class="callout-label">참고</span>
 <p>VXvue의 &quot;전 항목 PASS·흔들림 0&quot; 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 <strong>예외</strong> 리포트 문장 완전성 검사(<code>--language</code>)는 선택 사항이다.</p>
+</aside>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-DIST-009">
+<h3><span class="idtag">REQ-DIST-009</span> 전체 회귀는 설치판 GUI로 실행</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tools/run_installed_gui.py</code>, <code>core/frame_drive.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a>; <code>tests/test_installed_release_gate.py</code>, <code>tests/test_frame_drive.py</code>, <code>tests/test_installed_gui.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">전체 회귀는 설치판 GUI로 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>(신규): 릴리스를 판정하는 기본기능·WU 전체 회귀는 후보를 설치한 뒤 설치판 실행 화면에서 시작한다(사용자 결정 2026-11-24). 사용자가 승인한 경우 에이전트가 공용 조작기(<code>core/frame_drive.py</code>)로 화면의 버튼과 동의를 누르고, <code>tools/run_installed_gui.py</code>가 실행 기록·리포트·승인 문구를 게이트 입력으로 묶는다. 게이트는 전체 범위에서 화면 동의한 GUI 회차만 받는다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>릴리스를 판정하는 기본기능 전체·WU 전체 회귀는 빌드한 후보를 실제로 설치한 뒤, 설치된 BellalunAuto의 실행 화면에서 시작한다. 사람이 쓰는 것과 같은 경로로 시험해야 설치·화면·동의·실행 기록까지 한 번에 검증된다(사용자 결정 2026-11-24).</p>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>후보 Setup으로 설치하고, 설치 파일이 build-info와 같은지 대조한다.</li>
+<li>바탕화면 바로가기처럼 인수 없이 설치된 EXE를 연다.</li>
+<li>시작 → 준비 점검 → 체크리스트 선택 → 확인 항목과 &quot;위 변경에 동의합니다&quot; 체크 → &quot;동의하고 시작&quot; 순서로 시작한다.</li>
+<li>실행 기록이 끝나면 결과 화면을 닫고, 리포트·증거·실행 기록을 게이트 입력(<code>verification.json</code>)으로 묶는다(<code>tools/run_installed_gui.py</code>).</li>
+<li>게이트(<code>release_gate.py --installed-verification</code>)는 <code>basic</code>·<code>wu</code>·<code>both</code> 범위에서 실행마다 다음을 확인한다. 하나라도 어긋나면 거부한다.
+<ul>
+<li>실행 기록 파일의 해시가 수집 때와 같다.</li>
+<li>동의 출처가 <code>GUI</code>이고 상태가 완료다.</li>
+<li>실행 번호와 명령이 리포트와 같다.</li>
+</ul>
+</li>
+</ol>
+</div></section>
+<section class="field"><h4>에이전트가 화면을 조작할 때</h4><div class="field-body">
+<ul>
+<li>사용자가 이 후보와 범위의 실행을 승인한 경우에만 에이전트가 화면의 버튼과 동의를 대신 누른다(사용자 결정 2026-11-24). 승인 문구 원문을 게이트 입력에 남기고, 문구가 없으면 화면을 열지 않는다.</li>
+<li>조작은 공용 화면 조작기(<code>core/frame_drive.py</code>, <code>frame/FRAME.md</code> 2.7)가 컨트롤에 메시지를 보내는 방식으로 한다. 물리 마우스·키보드를 쓰지 않는다.</li>
+</ul>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>소스 <code>run.py</code> 실행과 설치판 CLI 실행(<code>tools/run_installed_suites.py</code>)은 단독 TC·진단·개발 회귀에만 쓴다. 전체 범위의 릴리스 근거로 받지 않는다.</li>
+<li>리포트 명령은 옵션(<code>--restore-after</code>, <code>--prepared</code>)이 붙어도 그 안의 실행 이름(<code>run-…</code>)으로 대조한다.</li>
+</ul>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>2026-11-24 1.0.0.008 WU는 설치판 CLI 도구로 실행했다. 그 기록은 이 규칙 뒤에는 전체 범위 근거가 되지 않는다.</p>
 </aside>
 </div></section>
 </section>
@@ -1348,7 +1394,7 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <li>대상: Viewer 실행 파일과 버전, SQL 인스턴스·서비스, 복원할 DB 4개, Baseline 판(배포 자료 판과 <code>.bak</code> 파일 날짜·해시 앞부분).</li>
 <li>바뀌는 것: DB 복원, SQL 서비스 시작 유형·시작, Bellalun Service 중지·시작과 Viewer 관련 프로세스 종료, 해상도 강제 설정, XIPL <code>TEST_*</code> 파라미터 재생성, DICOM 서버 등록, WU의 USB <code>BellalunWU09</code> 폴더.</li>
 <li>복구 정책: TC가 바꾼 Viewer 설정은 TC 끝에 되돌리고 결과에 남긴다. 이번 실행의 원상복원을 선택하면 검증된 사전 DB·파일 사본으로 복원한다. 선택하지 않으면 시험 후 상태를 유지하고 다음 실행 시작 때 Baseline을 복원한다. DICOM 서버 등록·해상도와 SQL 서비스 시작 유형은 사전 상태로 되돌리지 않는다.</li>
-<li>사람이 &quot;위 변경에 동의합니다&quot;를 직접 체크해야 시작 버튼이 켜진다. 동의 시각·Windows 사용자·확인한 내용은 실행 기록(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)에 남는다.</li>
+<li>사람이 &quot;위 변경에 동의합니다&quot;를 직접 체크해야 시작 버튼이 켜진다. 사용자가 승인한 설치판 GUI 최종 검증에서는 에이전트가 대신 체크할 수 있다(<a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>). 동의 시각·Windows 사용자·확인한 내용은 실행 기록(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)에 남는다.</li>
 </ol>
 </div></section>
 <section class="field"><h4>지킬 것</h4><div class="field-body">
@@ -2761,6 +2807,21 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <li>Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.</li>
 </ul>
 </section>
+<section class="card kind-test" id="TEST-DIST-009">
+<h3><span class="idtag">TEST-DIST-009</span> 설치판 GUI 전체 회귀</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>.</li>
+<li>절차:
+<ol>
+<li><code>tests/test_installed_release_gate.py</code>가 GUI 회차 기록을 통과시키는지 확인한다. 이어서 CLI 기록, CLI 동의, 미완료, 승인 문구 없음, 바뀐 실행 기록을 각각 거부하는지 확인한다. 옵션으로 끝나는 리포트 명령도 실행 이름으로 대조한다.</li>
+<li><code>tests/test_frame_drive.py</code>가 창 제목에서 단계를 읽는 규칙을 확인한다.</li>
+<li><code>tests/test_installed_gui.py</code>가 실행 범위 제한과 실행 기록 찾기를 확인한다.</li>
+</ol>
+</li>
+<li>실측: 공용 화면을 제품 없이 띄우고 조작기로 시작부터 &quot;동의하고 시작&quot;까지 눌러, 화면이 돌려준 답에 모든 확인 항목과 복원 선택이 들어 있는지 본다.</li>
+<li>Expected Result: 전체 범위는 화면 동의한 설치판 GUI 회차만 통과한다.</li>
+</ul>
+</section>
 <section class="card kind-test" id="TEST-DIST-007">
 <h3><span class="idtag">TEST-DIST-007</span> 구성품 자동 준비</h3>
 <ul>
@@ -2978,6 +3039,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-OCR-001">REQ-OCR-001</a></td><td data-label="Implementation"><code>core/ocr_selection.py</code>, <code>core/ocr_runtime.py</code>, <code>core/print_overlay.py</code>, <code>core/combo_popup.py</code>, <code>tests/workflow03.py</code>, <code>tests/workflow08.py</code>, <code>run.py</code>, <code>bellalunauto/prerequisites.py</code>, <code>tools/ocr_replay.py</code></td><td data-label="Test"><a class="idref" href="#TEST-OCR-001">TEST-OCR-001</a>; <code>tests/test_ocr_selection.py</code>, <code>tests/test_ocr_runtime.py</code>, <code>tests/test_print_overlay_selection.py</code>, <code>tests/test_combo_popup.py</code>, <code>tests/test_ocr_replay.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-OCR-002">REQ-OCR-002</a></td><td data-label="Implementation"><code>bellalunauto/app.py</code>, <code>bellalunauto/qa_dialogs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-OCR-002">TEST-OCR-002</a>; <code>tests/test_ocr_diagnostics.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-008">REQ-DIST-008</a></td><td data-label="Implementation"><code>tools/release_zip.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-008">TEST-DIST-008</a>; <code>tests/test_release_zip.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a></td><td data-label="Implementation"><code>tools/run_installed_gui.py</code>, <code>core/frame_drive.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a>; <code>tests/test_installed_release_gate.py</code>, <code>tests/test_frame_drive.py</code>, <code>tests/test_installed_gui.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TRACE-001">REQ-TRACE-001</a></td><td data-label="Implementation"><code>traceability.json</code>, <code>automation_scope.json</code>, <code>tools/traceability.py</code>, <code>core/result.py</code>, <code>core/specs.py</code>, <code>core/tc_basis.py</code>, <code>core/tc_modules.py</code>, <code>core/evidence_evaluation.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TRACE-001">TEST-TRACE-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_specs.py</code>, <code>tests/test_evidence_basis.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="Implementation"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>

@@ -94,6 +94,8 @@ work\buildenv\Scripts\python.exe tools/build_distribution.py --assets <승인 ma
 
 ### 릴리스 게이트 (REQ-DIST-005)
 
+> **주의** `basic`·`wu`·`both` 범위는 설치판 GUI 회차(`tools/run_installed_gui.py`)만 통과한다(REQ-DIST-009). 실행 방법은 [검증 안내](testing-guide.md)의 "설치판 GUI 전체 회귀"를 따른다.
+
 소스에서는 단위시험·정적 검사만 수행하고 검증용 후보를 빌드한다. 소스의 기본기능·WU UI 전체 실행을 빌드의 선행조건으로 요구하지 않는다.
 
 ```powershell

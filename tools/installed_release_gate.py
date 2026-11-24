@@ -13,6 +13,36 @@ def selected_report(report):
     return ((report or {}).get("meta") or {}).get("run_scope") == "selected"
 
 
+def report_commands(command_line):
+    """리포트 명령에 들어 있는 실행 이름(`run-…`). 옵션(`--prepared` 등)과 경로는 뺀다."""
+    return [token for token in str(command_line or "").split() if token.startswith("run-")]
+
+
+def gui_run_problem(run, meta, launch):
+    """전체 범위 실행이 설치판 GUI에서 동의하고 시작한 회차인지(REQ-DIST-008). (통과, 설명)."""
+    import json
+    from tools.run_installed_suites import sha256
+
+    gui = run.get("gui") or {}
+    if launch.get("mode") != "gui" or not gui.get("run_record"):
+        return False, "전체 범위는 설치판 GUI 실행 기록만 받습니다(CLI·소스 실행 거부)"
+    if launch.get("operator") == "agent" and not str(launch.get("approval") or "").strip():
+        return False, "에이전트가 GUI를 조작했는데 사용자 승인 문구가 없습니다"
+    path = Path(gui["run_record"])
+    if not path.is_file() or sha256(path) != gui.get("run_record_sha256"):
+        return False, f"GUI 실행 기록이 없거나 바뀌었습니다: {path}"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    consent = (data.get("consent") or {}).get("source")
+    if consent != "GUI":
+        return False, f"화면 동의 기록이 아닙니다(동의 출처 {consent!r})"
+    if data.get("status") != "completed":
+        return False, f"GUI 실행이 완료되지 않았습니다(상태 {data.get('status')!r})"
+    if data.get("action") != run.get("command") or data.get("run_id") != meta.get("run_id"):
+        return False, (f"GUI 실행 기록과 리포트가 다른 회차입니다(기록 {data.get('action')}/{data.get('run_id')}, "
+                       f"리포트 {meta.get('run_id')})")
+    return True, f"실행 번호 {data.get('run_id')} · 화면 동의 · 조작 {launch.get('operator')}"
+
+
 def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
     from tools import release_gate as gate
     from tools.run_installed_suites import sha256, validate_selection, verify_install
@@ -84,9 +114,11 @@ def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):
                 check(f"{command} 빌드와 보고서 버전",
                       versioned and report_version == version and meta.get("windows_version") == numeric,
                       "build-info 표시 및 숫자형 버전과 보고서 대조")
-            actual_command = str(meta.get("command") or "").split()
-            check(f"{command} 명령 일치", bool(actual_command) and actual_command[-1] == command,
-                  "실행 기록과 리포트 명령 대조")
+            check(f"{command} 명령 일치", report_commands(meta.get("command")) == [command],
+                  f"실행 기록과 리포트 명령 대조: {report_commands(meta.get('command'))}")
+            if scope != "tc":
+                ok, detail = gui_run_problem(run, meta, record.get("launch") or {})
+                check(f"{command} 설치판 GUI 실행", ok, detail)
             rows = report.get("results") or []
             ids = [r.get("tc_id") for r in rows]
             valid_rows = bool(rows) and all(isinstance(tc, str) and tc for tc in ids) and len(set(ids)) == len(ids)

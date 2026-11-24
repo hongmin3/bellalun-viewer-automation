@@ -159,10 +159,67 @@ class InstalledGateTests(unittest.TestCase):
         self.report.unlink()
         self.assertFalse(self.evaluate_record()["passed"])
 
+    def gui_full_record(self, command, consent="GUI", status="completed", operator="agent",
+                        approval="1~4번 진행하고 기본기능 전체 실행도 승인할게"):
+        """REQ-DIST-008: 설치판 GUI에서 동의하고 시작한 전체 회차 기록을 만든다."""
+        run_id = "20261124-150000-0123abcd"
+        self.data["meta"].update(command=f"exe --run-id {run_id} --workspace C:/w {command} --restore-after --prepared",
+                                 execution_mode="live", chain_completed=True, run_id=run_id)
+        if command == "run-winupdate":
+            ids = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
+        else:
+            ids = ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup",
+                   "TC_Basic_WorkFlow_14", "TC_XIPL_compatibility_07"]
+        self.data["results"] = [{"tc_id": tc, "verdict": "SKIP" if tc in {
+            "TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"} else "PASS",
+            "checks": [{"status": "PASS", "actual": "확인"}]} for tc in ids]
+        self.report.write_text(json.dumps(self.data), encoding="utf-8")
+        run_json = self.root / f"run-{command}.json"
+        run_json.write_text(json.dumps({"run_id": run_id, "action": command, "status": status,
+                                        "consent": {"source": consent}}), encoding="utf-8")
+        self.record.update(selected_commands=[command], expected_tcs=[],
+                           launch={"mode": "gui", "operator": operator, "approval": approval})
+        self.record["runs"] = [{"command": command, "completed": True, "exit_code": 0,
+            "started": "2020-01-01T00:00:00+09:00", "report": {"path": str(self.report)},
+            "report_sha256": digest(self.report),
+            "gui": {"run_record": str(run_json), "run_record_sha256": digest(run_json)}}]
+
+    def test_full_scope_accepts_gui_run_with_option_flags_in_command(self):
+        """Validates: REQ-DIST-008, REQ-DIST-005 — 옵션으로 끝나는 실제 명령도 실행 이름으로 대조한다."""
+        for scope, command in (("wu", "run-winupdate"), ("basic", "run-regression")):
+            with self.subTest(scope=scope):
+                self.gui_full_record(command)
+                result = self.evaluate_record(scope, [])
+                self.assertTrue(result["passed"], result["reasons"])
+
+    def test_full_scope_rejects_cli_or_unconsented_gui_records(self):
+        """Validates: REQ-DIST-008 — 전체 범위는 화면 동의한 설치판 GUI 회차만 받는다."""
+        cases = {
+            "CLI 기록": lambda: (self.gui_full_record("run-winupdate"), self.record.pop("launch"),
+                               self.record["runs"][0].pop("gui")),
+            "CLI 동의": lambda: self.gui_full_record("run-winupdate", consent="화면 동의 없음(CLI)"),
+            "미완료": lambda: self.gui_full_record("run-winupdate", status="abnormal"),
+            "승인 없음": lambda: self.gui_full_record("run-winupdate", approval=""),
+        }
+        for name, build in cases.items():
+            with self.subTest(name):
+                build()
+                result = self.evaluate_record("wu", [])
+                self.assertFalse(result["passed"])
+                self.assertTrue(any("GUI" in reason or "승인" in reason for reason in result["reasons"]),
+                                result["reasons"])
+
+    def test_gui_record_changed_after_run_is_rejected(self):
+        """Validates: REQ-DIST-008 — 실행 기록 해시가 바뀌면 거부한다."""
+        self.gui_full_record("run-winupdate")
+        Path(self.record["runs"][0]["gui"]["run_record"]).write_text("{}", encoding="utf-8")
+        self.assertFalse(self.evaluate_record("wu", [])["passed"])
+
     def test_wu_only_and_basic_only_do_not_require_other_suite(self):
         for scope, command in (("wu", "run-winupdate"), ("basic", "run-regression")):
             with self.subTest(scope=scope):
-                self.data["meta"].update(command=f"exe {command}", execution_mode="live", chain_completed=True)
+                self.gui_full_record(command)
+                self.data["meta"].update(execution_mode="live", chain_completed=True)
                 if scope == "wu":
                     ids = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
                 else:
@@ -172,10 +229,7 @@ class InstalledGateTests(unittest.TestCase):
                     "TC_WindowsUpdate_01", "TC_WindowsUpdate_12", "TC_WindowsUpdate_13"} else "PASS",
                     "checks": [{"status": "PASS", "actual": "확인"}]} for tc in ids]
                 self.report.write_text(json.dumps(self.data), encoding="utf-8")
-                self.record.update(selected_commands=[command], expected_tcs=[])
-                self.record["runs"] = [{"command": command, "completed": True, "exit_code": 0,
-                    "started": "2020-01-01T00:00:00+09:00", "report": {"path": str(self.report)},
-                    "report_sha256": digest(self.report)}]
+                self.record["runs"][0]["report_sha256"] = digest(self.report)
                 result = self.evaluate_record(scope, [])
                 self.assertTrue(result["passed"], result["reasons"])
 

@@ -273,6 +273,18 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
         proc = subprocess.run(args, cwd=str(cwd), stdout=log, stderr=subprocess.STDOUT,
                               stdin=subprocess.DEVNULL, env=env)
     ended_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    result = {"command": command, "args": args, "cwd": str(cwd), "exit_code": proc.returncode,
+              "started": started_at, "ended": ended_at,
+              "minutes": round((time.time() - started) / 60, 1),
+              "log": str(log_path), "log_sha256": sha256(log_path)}
+    return collect_result(result, workspace, command, out_dir, started, expected_tcs)
+
+
+def collect_result(result, workspace, command, out_dir, started, expected_tcs=()):
+    """한 실행이 남긴 리포트·증거를 찾아 `result`에 더한다. CLI·GUI 실행이 함께 쓴다."""
+    from bellalunauto.app import completed_report
+    from core import automation_health as health
+
     reports = Path(workspace) / "Reports"
     if command == "run-regression":
         report = health.latest_full_regression(str(reports), since=started - 1)
@@ -282,11 +294,7 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
         report = selected_run_report(reports, started - 1, expected_tcs)
     else:
         report = selected_report(reports, command, started - 1, expected_tcs)
-    result = {"command": command, "args": args, "cwd": str(cwd), "exit_code": proc.returncode,
-              "started": started_at, "ended": ended_at,
-              "minutes": round((time.time() - started) / 60, 1),
-              "log": str(log_path), "log_sha256": sha256(log_path),
-              "report": report, "completed": bool(report)}
+    result.update(report=report, completed=bool(report))
     if report:
         result["report_sha256"] = sha256(report["path"])
         meta, rows = _report_rows(report["path"])

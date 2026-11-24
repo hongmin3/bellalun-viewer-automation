@@ -35,6 +35,17 @@
 
 실행 직전에는 기준 상태를 확인한다. 직전 실행이 중간에 강제 종료됐거나 수동 탐색으로 Viewer 설정을 바꿨다면, 그 상태를 원래 값으로 삼아 시험을 시작하지 않는다. 먼저 기준 DB 복원 또는 이전 리포트의 원래 값으로 되돌린 뒤 실행한다. 복원·원상 복구가 들어 있는 실행은 최악 소요 시간보다 짧은 시간 제한으로 감싸지 않는다. 세션과 분리해 띄우고 진행 상태를 확인한다.
 
+### 설치판 GUI 전체 회귀 (REQ-DIST-009)
+
+릴리스를 판정하는 기본기능·WU 전체 회귀는 후보를 설치한 뒤 설치판 실행 화면에서 시작한다. 사용자가 그 후보·범위를 승인했으면 에이전트가 화면을 조작한다.
+
+```powershell
+python tools/run_installed_gui.py --exe C:\BellalunAuto\BellalunAuto.exe --build-info C:\BellalunAuto\build-info.json --workspace C:\BellalunAuto --out work\gui-<버전> --suites run-winupdate,run-regression --approval "<사용자 승인 원문>"
+python tools/release_gate.py --installed-verification work\gui-<버전>erification.json --scope both --commit <빌드 SHA> --output <배포 승인 기록.json>
+```
+
+실행 중에는 마우스·키보드를 쓰지 않는다. 아래 CLI 범위는 단독 TC·진단·개발 회귀용이며 전체 범위의 릴리스 근거가 되지 않는다.
+
 ### 설치판 실행 범위
 
 `tools/run_installed_suites.py`의 `--suites`는 필수다. 다음 값 중 승인받은 것을 사용한다.

@@ -618,7 +618,7 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
    - WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
 3. WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
 4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
-5. WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다. 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.
+5. WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다(REQ-DIST-009). 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.
 6. 선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.
 #### 결과
 `python tools/release_gate.py --installed-verification <기록> --scope <범위>`가 항목별 통과·실패와 거부 사유를 보여 준다. 통과 후 같은 EXE를 배포하며 다시 컴파일하지 않는다. 후보 파일명과 build-info는 보존하고 별도 배포 승인 기록으로 검증을 연결한다. 기존 `--wu --basic`과 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다.
@@ -626,6 +626,27 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 `-candidate`를 붙이고 `게이트-미통과-후보.txt`와 build-info에 사유를 남긴다.
 > **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
 > **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
+
+### REQ-DIST-009 전체 회귀는 설치판 GUI로 실행
+
+#### 하는 일
+릴리스를 판정하는 기본기능 전체·WU 전체 회귀는 빌드한 후보를 실제로 설치한 뒤, 설치된 BellalunAuto의 실행 화면에서 시작한다. 사람이 쓰는 것과 같은 경로로 시험해야 설치·화면·동의·실행 기록까지 한 번에 검증된다(사용자 결정 2026-11-24).
+#### 순서
+1. 후보 Setup으로 설치하고, 설치 파일이 build-info와 같은지 대조한다.
+2. 바탕화면 바로가기처럼 인수 없이 설치된 EXE를 연다.
+3. 시작 → 준비 점검 → 체크리스트 선택 → 확인 항목과 "위 변경에 동의합니다" 체크 → "동의하고 시작" 순서로 시작한다.
+4. 실행 기록이 끝나면 결과 화면을 닫고, 리포트·증거·실행 기록을 게이트 입력(`verification.json`)으로 묶는다(`tools/run_installed_gui.py`).
+5. 게이트(`release_gate.py --installed-verification`)는 `basic`·`wu`·`both` 범위에서 실행마다 다음을 확인한다. 하나라도 어긋나면 거부한다.
+   - 실행 기록 파일의 해시가 수집 때와 같다.
+   - 동의 출처가 `GUI`이고 상태가 완료다.
+   - 실행 번호와 명령이 리포트와 같다.
+#### 에이전트가 화면을 조작할 때
+- 사용자가 이 후보와 범위의 실행을 승인한 경우에만 에이전트가 화면의 버튼과 동의를 대신 누른다(사용자 결정 2026-11-24). 승인 문구 원문을 게이트 입력에 남기고, 문구가 없으면 화면을 열지 않는다.
+- 조작은 공용 화면 조작기(`core/frame_drive.py`, `frame/FRAME.md` 2.7)가 컨트롤에 메시지를 보내는 방식으로 한다. 물리 마우스·키보드를 쓰지 않는다.
+#### 지킬 것
+- 소스 `run.py` 실행과 설치판 CLI 실행(`tools/run_installed_suites.py`)은 단독 TC·진단·개발 회귀에만 쓴다. 전체 범위의 릴리스 근거로 받지 않는다.
+- 리포트 명령은 옵션(`--restore-after`, `--prepared`)이 붙어도 그 안의 실행 이름(`run-…`)으로 대조한다.
+> **예시** 2026-11-24 1.0.0.008 WU는 설치판 CLI 도구로 실행했다. 그 기록은 이 규칙 뒤에는 전체 범위 근거가 되지 않는다.
 
 ### REQ-DIST-007 설치 중 자동화 구성품 준비
 
@@ -684,7 +705,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 1. 대상: Viewer 실행 파일과 버전, SQL 인스턴스·서비스, 복원할 DB 4개, Baseline 판(배포 자료 판과 `.bak` 파일 날짜·해시 앞부분).
 2. 바뀌는 것: DB 복원, SQL 서비스 시작 유형·시작, Bellalun Service 중지·시작과 Viewer 관련 프로세스 종료, 해상도 강제 설정, XIPL `TEST_*` 파라미터 재생성, DICOM 서버 등록, WU의 USB `BellalunWU09` 폴더.
 3. 복구 정책: TC가 바꾼 Viewer 설정은 TC 끝에 되돌리고 결과에 남긴다. 이번 실행의 원상복원을 선택하면 검증된 사전 DB·파일 사본으로 복원한다. 선택하지 않으면 시험 후 상태를 유지하고 다음 실행 시작 때 Baseline을 복원한다. DICOM 서버 등록·해상도와 SQL 서비스 시작 유형은 사전 상태로 되돌리지 않는다.
-4. 사람이 "위 변경에 동의합니다"를 직접 체크해야 시작 버튼이 켜진다. 동의 시각·Windows 사용자·확인한 내용은 실행 기록(REQ-QA-002)에 남는다.
+4. 사람이 "위 변경에 동의합니다"를 직접 체크해야 시작 버튼이 켜진다. 사용자가 승인한 설치판 GUI 최종 검증에서는 에이전트가 대신 체크할 수 있다(REQ-DIST-009). 동의 시각·Windows 사용자·확인한 내용은 실행 기록(REQ-QA-002)에 남는다.
 #### 지킬 것
 - UAC 승인을 데이터 변경 동의로 보지 않는다. 화면 동의 없이 화면에서 시험을 시작하지 않는다.
 - CLI 직접 실행(`BellalunAuto run-*`, 설치판 검증 도구)은 기존처럼 동작하고 실행 기록에 "화면 동의 없음(CLI)"으로 남긴다.
@@ -1616,6 +1637,16 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.
 - Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.
 
+### TEST-DIST-009 설치판 GUI 전체 회귀
+
+- 검증 대상: REQ-DIST-009.
+- 절차:
+  1. `tests/test_installed_release_gate.py`가 GUI 회차 기록을 통과시키는지 확인한다. 이어서 CLI 기록, CLI 동의, 미완료, 승인 문구 없음, 바뀐 실행 기록을 각각 거부하는지 확인한다. 옵션으로 끝나는 리포트 명령도 실행 이름으로 대조한다.
+  2. `tests/test_frame_drive.py`가 창 제목에서 단계를 읽는 규칙을 확인한다.
+  3. `tests/test_installed_gui.py`가 실행 범위 제한과 실행 기록 찾기를 확인한다.
+- 실측: 공용 화면을 제품 없이 띄우고 조작기로 시작부터 "동의하고 시작"까지 눌러, 화면이 돌려준 답에 모든 확인 항목과 복원 선택이 들어 있는지 본다.
+- Expected Result: 전체 범위는 화면 동의한 설치판 GUI 회차만 통과한다.
+
 ### TEST-DIST-007 구성품 자동 준비
 
 - 검증 대상: REQ-DIST-007.
@@ -1776,6 +1807,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
+| REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py` | verified |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
