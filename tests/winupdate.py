@@ -151,16 +151,19 @@ def _copy_checks(wu_result, view, basis_label, only_steps=None, exclude_keys=Non
         if not any(c.get('status') == 'FAIL' and (tc_id, c.get('title')) in exclude_keys
                    for c in checks):
             return False
-        if not abort_keyword or check.get("status") != "FAIL":
+        if not abort_keyword or check.get("status") not in ("FAIL", "BLOCKED"):
             return False
         if (tc_id, check.get("title")) in exclude_keys:
             return False  # 이미 title 매칭으로 빠지는 것과는 별개로 센다
         if (_PADDED_TITLE.match(str(check.get("title") or ""))
                 and str(check.get("actual") or "") == _PADDED_ACTUAL):
+            # 1.0.0.007 까지는 FAIL, 이후는 BLOCKED 로 채운다(REQ-VERDICT-004).
             # `--from-regression` 의 JSON 에는 `run.py::pad_aborted_steps` 가 채운 미수행
             # 행이 있다. 실시간 체인은 채우기 전 결과로 매핑하므로 이 행이 없다. 같은
             # 중단의 연쇄 기록으로 보고 두 경로의 판정을 맞춘다(REQ-WU-003).
             return True
+        if check.get("status") != "FAIL":
+            return False  # BLOCKED 는 채운 미수행 행만 연쇄 기록으로 본다.
         text = str(check.get("title") or "") + str(check.get("actual") or "")
         return abort_keyword in text
 

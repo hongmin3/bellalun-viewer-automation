@@ -126,7 +126,9 @@ TC 대응 규칙:
 
 레포트 문장:
 
-- 판정 뜻은 `core/report_layout.VERDICT_MEANINGS` 한 곳에 둔다. HTML 레포트(목차 아래 "판정 뜻")와 결과 요약 시트가 같은 문장을 쓴다.
+- 판정 뜻은 `core/report_layout.VERDICT_MEANINGS` 한 곳에 둔다.
+- 판정 기준(사용자 승인 2026-11-24)은 `core/report_layout.VERDICT_CRITERIA`(Step 판정 표)와 `VERDICT_PRIORITY`(TC 판정 규칙)에 둔다. HTML 레포트는 목차 바로 아래 "판정 기준" 표로, 결과 요약 시트는 판정 합계 위에 같은 표로 보인다.
+- 두 제품의 Step·TC 판정 코드는 이 표를 따른다. TC 판정은 FAIL > BLOCKED > MANUAL > PASS > SKIP이고, 판정에 필요한 범위를 건너뛴 SKIP·MANUAL이 남으면 PASS가 아니라 MANUAL이다.
 - 결론 문장은 사람이 할 일을 먼저 말한다(예: "사람이 확인할 TC가 2개 있습니다").
 
 ## 3. 한쪽에서 바꾸면 다른 쪽에도 반영하는 규칙
@@ -170,7 +172,6 @@ TC 대응 규칙:
 | 항목 | Bellalun | VXvue |
 |---|---|---|
 | 종료 코드 | FAIL 1, 설정 오류 2, 비정상 3 | FAIL 2, BLOCKED 3, 환경 중단 4 |
-| TC 판정 우선순위 | FAIL > BLOCKED > MANUAL > PASS > SKIP | FAIL이 있으면 FAIL, PASS가 없으면 BLOCKED·SKIP·MANUAL 순 |
 | EXE 빌드 | Nuitka | PyInstaller |
 
-판정 규칙과 종료 코드는 결과 의미를 바꾸므로 사용자 확인 없이 맞추지 않는다.
+종료 코드는 결과 의미를 바꾸므로 사용자 확인 없이 맞추지 않는다. TC 판정 순서는 2026-11-24 사용자 승인으로 2.6절 기준에 맞췄다.

@@ -382,6 +382,74 @@ FAIL 또는 MANUAL이 나오면 이 순서로 처리한다.
 - 자동화 원인으로 생긴 FAIL도 고칠 대상이다. 제품 결함으로 보고하지 않는다.
 - 사람이 직접 하는 TC(REQ-VERDICT-002)와 물리 장비가 필요한 항목은 기존 사용자 결정을 따른다.
 
+### REQ-VERDICT-004 다섯 판정의 기준과 레포트 상단 표시
+
+#### 하는 일
+모든 확인 항목(Step)을 아래 표의 기준으로 PASS·FAIL·MANUAL·SKIP·BLOCKED 중 하나로 정한다(사용자 승인 2026-11-24, VXvue 자동화와 같은 기준). 같은 표를 결과 레포트 맨 위와 체크리스트 결과 요약 시트에 보인다.
+
+#### Step 판정 (위에서부터 처음 맞는 조건)
+
+| 판정 | 이렇게 정한다 | 이런 경우는 해당하지 않는다 | 사람이 할 일 |
+|---|---|---|---|
+| SKIP | 수행 대상이 아님이 미리 정해진 항목이다. 사람이 직접 하는 TC(REQ-VERDICT-002)이거나 설정으로 끈 확장 범위다. 사유를 반드시 적는다. | 자동화가 시도했다가 못 한 경우는 MANUAL이나 BLOCKED다. | 없음. 사람 전용 TC는 직접 수행한다. |
+| BLOCKED | 제품 밖의 이유로 수행하지 못했거나 중간에 멈췄다. ① 필요한 시험 환경(시험 서버·DB·XIPL.SERVER·USB)이 실패 순간 다시 점검해도 안 된다 ② 전제 단계나 선행 TC가 실패했다 ③ 시간 상한 초과나 응답 없음으로 결론을 내지 못했다 ④ 같은 TC의 앞 Step이 실패해 수행하지 않았다. 원인과 다시 실행할 조건(해제 조건)을 반드시 적는다. | 환경 점검이 모두 통과했는데 제품 결과가 다르면 FAIL이다. | 원인을 해소하고 다시 실행한다. 제품 판정이 아니다. |
+| FAIL | 필요한 환경이 정상임을 확인한 상태에서 이번 실행의 제품 관찰(화면·DB·파일·수신)이 기대와 다르다. 기대값·실제값·증거를 남긴다. | 환경 장애, 자동화가 읽지 못함, 과거 결과·저장점 재사용은 FAIL이 아니다. | 증거를 보고 제품 결함인지 확인한다. |
+| MANUAL | 수행은 했지만 자동으로 확정할 근거가 부족하다. 예: OCR 판독 불가, 기준값 미확정, 교차 확인 근거 수집 실패. 판정에 필요한 범위를 건너뛴 SKIP도 여기에 든다. | 수행 자체를 못 했으면 BLOCKED다. | 표시된 Step을 직접 확인한다. |
+| PASS | 기대 결과를 이번 실행의 제품 관찰로 확인했다. | 클릭·입력 성공만으로는 PASS가 아니다. 이전 결과·저장점을 재사용한 경우도 아니다. | 없음 |
+
+#### TC 판정
+1. TC 판정은 FAIL > BLOCKED > MANUAL > PASS > SKIP 순서로 정한다. 하나라도 있으면 앞의 판정이 된다.
+2. 판정에 필요한 범위를 건너뛴 SKIP(`blocks_verdict`)이 남으면 PASS가 아니라 MANUAL이다.
+3. 앞 Step 실패로 수행하지 않은 Step은 BLOCKED("Step N 미수행")로 기록한다. 그 TC의 판정은 FAIL 그대로다.
+4. 체크리스트에 있지만 결과가 없는 행은 "미수행"과 이유로 적는다(REQ-FRAME-004).
+
+#### 레포트 표시
+- HTML 레포트의 결과 요약 바로 아래에 "판정 기준" 표(위 두 표)를 둔다.
+- 체크리스트 결과 요약 시트에도 같은 표를 판정 합계 위에 둔다.
+- 문장은 `core/report_layout.VERDICT_CRITERIA`와 `VERDICT_PRIORITY` 한 곳에서만 고친다. VXvue와 함께 쓰는 공용 파일이다(REQ-FRAME-001).
+
+#### 지킬 것
+- 종료 코드와 릴리스 게이트의 통과 조건은 바꾸지 않는다. BLOCKED가 남으면 게이트를 통과하지 않는다.
+- 예전 실행의 결과 JSON(미수행 Step이 FAIL인 판)도 그대로 읽고 게이트에서 같은 뜻으로 다룬다.
+
+### REQ-VERDICT-005 시험 환경을 다시 점검해 BLOCKED로 가리기
+
+#### 하는 일
+시험 서버가 실행 도중 멈췄을 때 그 영향을 제품 FAIL로 기록하지 않는다. 같은 서버가 필요한 이후 TC는 제품을 조작하지 않고 바로 BLOCKED로 넘겨 시간을 아낀다.
+
+#### TC별 필요한 환경
+| 환경 | 필요한 TC | 점검 대상 |
+|---|---|---|
+| Storage 서버 | WF04, WF05, WF06, WF07, WF15 | `dicom.storage_scp`의 API 주소와 DICOM 포트 |
+| MWL 서버 | WF01, WF10 | `dicom.mwl_server_url`과 `servers_to_register`의 MWL 포트 |
+| Print 서버 | WF08 | `dicom.print_server_url`과 `dicom.print_scp` 포트 |
+
+이유: TC 모듈이 실제로 해당 서버를 호출하는 곳을 기준으로 정했다(`core/env_health.py`의 `TC_REQUIREMENTS`). 단위시험이 모듈의 호출과 표가 맞는지 확인한다.
+
+#### 순서
+1. TC가 FAIL로 끝나면 그 TC에 필요한 환경을 바로 다시 점검한다. TCP 연결이 안 되거나 HTTP가 5xx를 돌려주면 그 환경은 "안 됨"이다.
+2. 하나라도 안 되면 그 TC의 FAIL Step을 BLOCKED로 바꾸고 원래 관찰값을 비고에 남긴다. "시험 환경 재점검" Step을 BLOCKED로 더해 점검 결과와 해제 조건(예: "10.13.0.222 Storage 서버 복구 후 재실행")을 적는다.
+3. 이후 같은 환경이 필요한 TC는 시작 전에 다시 점검한다. 여전히 안 되면 TC를 실행하지 않고 BLOCKED 한 건으로 기록한다. 복구됐으면 평소대로 실행한다.
+4. 환경 점검이 모두 통과하면 FAIL을 그대로 둔다.
+
+#### 지킬 것
+- 전제 단계(기준 상태 복원·DICOM 서버 설정)가 FAIL이나 BLOCKED이면 지금처럼 회귀를 멈춘다.
+- 결과 JSON meta의 `environment_outages`에 점검 시각·대상·결과를 남긴다.
+
+### REQ-VERDICT-006 TC가 무기한 멈추지 않게 하기
+
+#### 하는 일
+기본 전체 회귀(`run-regression`)도 WU 체인(REQ-WU-002)과 같은 단계 감시를 쓴다. 한 TC가 멈춰도 증거를 남기고 다음 TC로 넘어간다.
+
+> **예시** 1.0.0.007 설치판의 2026-11-23 회귀에서 XIPL_06의 Save As 버튼을 동기 호출로 눌렀다. 뒤에 뜬 창이 닫히지 않아 호출이 12.3시간 동안 돌아오지 않았다.
+
+#### 순서
+1. 단계마다 `core/wu_chain.py`의 시간 상한과 Viewer 응답 없음(120초 연속) 감시를 적용한다. 넘으면 화면·로그 증거를 남기고 Viewer와 XIPL Studio를 끝낸다.
+2. 그 단계의 TC를 BLOCKED와 사유로 기록하고 Viewer를 다시 띄워 다음 TC로 간다.
+3. 다른 프로세스의 창에 보내는 버튼 누름은 응답을 기다리지 않는 방식(`PostMessageW`)으로 보낸다. 결과는 창이 닫혔는지, 파일이 생겼는지로 확인한다.
+4. 창이 닫히지 않으면 남아 있는 대화상자의 제목과 문구, 화면을 증거로 남긴다.
+5. 외부 명령(PowerShell 등) 호출에는 시간 상한을 둔다.
+
 ### REQ-REPORT-001 체크리스트별 결과 보고
 
 #### 목적
@@ -628,6 +696,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 3. 다음 행동 예: 새 실패면 "TC 상세와 증거를 열어 수동 검토", 차단이면 "준비 점검 후 재실행", 수동 확인이면 "사람 확인 후 검토 기록".
 #### 지킬 것
 - 다른 실행의 보고서를 이번 실행 결과로 연결하지 않는다. 시작 시각 이후 만들어진 보고서만 연결한다.
+- 새 실행을 시작할 때 '실행 중'으로 남은 이전 기록을 확인한다. 기록한 감독 프로세스가 살아 있지 않거나 프로세스 번호가 없는 예전 기록이면 상태를 비정상 종료(`abnormal`)로 닫고 `closed_reason`에 이유를 남긴다. 살아 있는 실행은 건드리지 않는다.
 
 ### REQ-QA-003 수동 검토 기록과 검수 완료
 
@@ -1334,8 +1403,8 @@ Release Note·OS Build 기대값은 승인된 입력으로만 채운다.
 ## 9. 오류 처리 정책
 
 - 환경 gate 실패를 무시하고 UI 입력을 계속하지 않는다.
-- 기대/실제 불일치는 FAIL, 자료/자동화 한계는 근거가 있는 MANUAL,
-  미수행은 해당 흐름의 SKIP으로 남긴다. BLOCKED는 해제 조건과 미검증 범위를 보존한다.
+- 판정 기준은 REQ-VERDICT-004를 따른다. 기대/실제 불일치는 FAIL, 자료/자동화 한계는 근거가 있는 MANUAL,
+  앞 Step 실패나 환경 문제로 수행하지 못한 Step은 BLOCKED로 남긴다. BLOCKED는 해제 조건과 미검증 범위를 보존한다.
 - 실제 재현된 실패만 해당 실행의 이슈로 보고하며 알려진 제품 결함을 자동화 성공으로 숨기지 않는다.
 - 종료되지 않은 실행·중간 상태 파일을 전체 회귀 완료로 간주하지 않는다.
 - USB Import는 목록 표시/행 선택과 실제 되읽기 완료를 구분한다.
@@ -1387,6 +1456,18 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
   중단되는지, `tests/test_result_reports.py`로 BLOCKED와 미검증 이유가 보존되는지 검증한다.
 - Expected Result: 잘못된 창에서의 조작이 성공으로 둔갑하지 않고 검증 한계가 남는다.
   각 제품 기능의 성공 증명은 TC별 실물/저장 결과로 별도 확인한다.
+
+### TEST-VERDICT-004 판정 기준표·환경 재점검·단계 감시
+
+- 검증 대상: REQ-VERDICT-004, REQ-VERDICT-005, REQ-VERDICT-006, REQ-QA-002.
+- 절차: `tests/test_verdict_criteria.py`로 다음을 확인한다.
+  1. 기준표가 다섯 판정을 Step 판정 순서로 담고, HTML 레포트 본문보다 앞과 결과 요약 시트의 판정 합계 위에 보인다.
+  2. 앞 Step 실패 뒤 미수행 Step은 BLOCKED이고 TC는 FAIL이며 FAIL 개수는 실제 실패만 센다. 예전 FAIL 채움 행도 같은 뜻으로 읽고, 게이트는 알려진 결함 뒤 BLOCKED 채움 행을 허용하고 다른 BLOCKED는 거부한다.
+  3. 환경 표가 TC 모듈의 서버 호출과 같고, 응답 없는 서버나 5xx는 "안 됨"이다. FAIL 뒤 환경이 안 되면 BLOCKED로 바뀌고 원래 관찰값이 남는다. 같은 환경이 필요한 다음 TC는 실행하지 않고 BLOCKED가 되며, 복구되면 평소대로 실행해 실제 FAIL을 유지한다.
+  4. 기본 회귀가 각 단계를 단계 감시로 실행하고, 감시가 끊으면 XIPL Studio도 끝낸다. XIPL PowerShell 호출에 시간 상한이 있다.
+  5. 감독 프로세스가 없는 '실행 중' 기록은 새 실행 때 비정상 종료로 닫히고 살아 있는 실행은 그대로다.
+- `tests/test_xipl_save_dialog.py`: Save As 누름은 `PostMessageW`로 보내고, 닫히지 않으면 남은 대화상자 제목·문구와 함께 실패한다. 파일명 입력은 응답이 없으면 시간 상한 뒤 실패한다.
+- Expected Result: 환경 장애·멈춤이 제품 FAIL이나 무기한 대기로 남지 않고, 판정 기준이 레포트 맨 위에 보인다.
 
 ### TEST-VERDICT-002
 
@@ -1683,7 +1764,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | verified |
 | REQ-TCUP-004 | `core/run_preparation.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `run.py` | TEST-TCUP-001; `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | verified |
-| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py` | verified |
+| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py` | verified |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | verified |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | verified |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | verified |
@@ -1696,6 +1777,9 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
 | REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |
+| REQ-VERDICT-004 | `core/report_layout.py`, `core/frame_checklist.py`, `core/result.py`, `run.py`, `tools/release_gate.py`, `tests/winupdate.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_user_action_steps.py`, `tests/test_release_gate.py`, `tests/test_wu_skip_policy.py`, `tests/test_frame_checklist.py` | verified |
+| REQ-VERDICT-005 | `core/env_health.py`, `run.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py` | verified |
+| REQ-VERDICT-006 | `run.py`, `core/wu_chain.py`, `core/xipl.py`, `tests/xipl_flows.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_xipl_save_dialog.py`, `tests/test_wu_chain.py` | verified |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |

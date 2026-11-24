@@ -132,6 +132,7 @@
     "tests/test_usb_import_completion.py",
     "tests/test_usb_paths.py",
     "tests/test_user_action_steps.py",
+    "tests/test_verdict_criteria.py",
     "tests/test_viewer_reuse.py",
     "tests/test_wf15_preconditions.py",
     "tests/test_winupdate_isolation.py",

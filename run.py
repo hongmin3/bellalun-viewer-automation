@@ -116,6 +116,9 @@ def _execution_meta(ctx):
             'viewer_identity': plan.get('viewer'), 'baseline_identity': plan.get('baseline'),
             'restoration': getattr(ctx, 'restoration', {'status': 'pending'}),
             'execution_block': getattr(ctx, 'execution_block', None),
+            **({'environment_outages': ctx.environment_outages}
+               if getattr(ctx, 'environment_outages', None) else {}),
+            **({'stage_trips': ctx.stage_trips} if getattr(ctx, 'stage_trips', None) else {}),
             **({'run_scope': ctx.run_scope} if getattr(ctx, 'run_scope', None) else {}),
             **({'selection': ctx.selection} if getattr(ctx, 'selection', None) else {}),
             'performance': (ctx.performance_recorder.snapshot()
@@ -324,7 +327,63 @@ def _drain_flow_timings():
         return []
 
 
+def _record_environment(ctx, tc_id, phase, status):
+    """REQ-VERDICT-005: 환경 점검 기록을 결과 meta(`environment_outages`)에 남긴다."""
+    outages = getattr(ctx, 'environment_outages', None)
+    if outages is None:
+        outages = []
+        ctx.environment_outages = outages
+    outages.append({'tc_id': tc_id, 'phase': phase, 'status': status})
+
+
+def _environment_precheck(ctx, tc_id, title):
+    """앞에서 안 된 환경이 필요한 TC면 다시 점검한다. 아직 안 되면 실행하지 않고 BLOCKED 결과를 돌려준다."""
+    from core import env_health
+    need = set(env_health.required(tc_id))
+    known = set(getattr(ctx, 'environment_down', set()) or set())
+    if not need & known:
+        return None
+    status = env_health.check(getattr(ctx, 'cfg', {}), sorted(need))
+    _record_environment(ctx, tc_id, 'before', status)
+    down = env_health.down_of(status)
+    ctx.environment_down = (known - set(status)) | set(down)
+    if not down:
+        print(f"  [env] {tc_id}: 시험 환경이 다시 응답해 평소대로 실행합니다.")
+        return None
+    cause, _ = env_health.describe(down)
+    print(f"  [env] {tc_id}: {cause} — 실행하지 않고 BLOCKED 로 기록합니다.")
+    return env_health.blocked_result(tc_id, title, down)
+
+
+def _environment_recheck(ctx, tc_id, rows):
+    """FAIL 이 나온 TC의 필요한 환경을 바로 다시 점검한다. 안 되면 FAIL 을 BLOCKED 로 바꾼다."""
+    from core import env_health
+    need = env_health.required(tc_id)
+    failed = [r for r in rows if getattr(r, 'verdict', None) == 'FAIL']
+    if not need or not failed:
+        return
+    status = env_health.check(getattr(ctx, 'cfg', {}), need)
+    _record_environment(ctx, tc_id, 'after_fail', status)
+    down = env_health.down_of(status)
+    if not down:
+        return
+    ctx.environment_down = set(getattr(ctx, 'environment_down', set()) or set()) | set(down)
+    changed = sum(env_health.reclassify(result, down) for result in failed)
+    cause, _ = env_health.describe(down)
+    print(f"  [env] {tc_id}: {cause} — FAIL {changed}건을 BLOCKED 로 바꿨습니다.")
+
+
 def guarded(fn, ctx, tc_id, title):
+    """시험 환경 재점검(REQ-VERDICT-005)을 앞뒤에 두고 TC 하나를 실행한다."""
+    blocked = _environment_precheck(ctx, tc_id, title)
+    if blocked is not None:
+        return [blocked]
+    rows = _guarded_run(fn, ctx, tc_id, title)
+    _environment_recheck(ctx, tc_id, rows)
+    return rows
+
+
+def _guarded_run(fn, ctx, tc_id, title):
     """개별 TC 예외를 기록하고, 입력 안전성이 깨졌으면 후속 TC를 차단한다.
 
     대부분의 TC 모듈은 스스로 `try/except` 로 감싸 `TCResult.abort()` 를 남긴다.
@@ -425,7 +484,11 @@ def _checklist_step_count(text):
 
 
 def pad_aborted_steps(ctx, results):
-    """**중단된 TC 의 남은 Step 을 FAIL(미수행)로 채운다.**
+    """**중단된 TC 의 남은 Step 을 BLOCKED(미수행)로 채운다.**
+
+    REQ-VERDICT-004(사용자 승인 2026-11-24): 앞 Step 실패로 수행하지 않은 Step 은
+    제품 판정이 아니므로 BLOCKED 다. TC 판정은 앞선 FAIL 때문에 FAIL 그대로다.
+    1.0.0.007 까지는 이 행을 FAIL 로 기록했다(`core.result.is_padded`가 둘 다 읽는다).
 
     2026-08-24 사용자 요청: "step 처리 중에 다른 버그가 발견되서 문제가 있을 수
     있자나, 이후 step 은 fail 처리하고 다음 tc 를 수행해 주면 좋겠다."
@@ -441,7 +504,7 @@ def pad_aborted_steps(ctx, results):
     정하지 않는다.
     """
     from core import tc_basis
-    from core.result import FAIL
+    from core.result import BLOCKED
     rows = tc_basis.capture(ctx, "basic")["rows"]
     if not rows:
         return 0
@@ -463,16 +526,17 @@ def pad_aborted_steps(ctx, results):
         for step in range(1, total + 1):
             if step in done:
                 continue
-            result.add(step, f"Step {step} 미수행", FAIL, stop=False,
+            result.add(step, f"Step {step} 미수행", BLOCKED, stop=False,
                        expected="기준 체크리스트 Step Description 의 해당 단계 수행",
                        actual="수행하지 않음(앞선 단계에서 TC 가 중단됨)",
                        note="**제품 결함 판정이 아니다.** 이 TC 가 앞선 단계에서 "
                             "중단되어 수행되지 못한 단계다. 원인은 같은 TC 의 "
-                            "앞선 FAIL 을 본다.")
+                            "앞선 FAIL 을 본다.\n"
+                            "해제 조건: 앞선 실패 원인을 해결한 뒤 이 TC 를 다시 실행한다.")
             added += 1
     if added:
         print(f"  aborted-steps: 중단된 TC 의 미수행 Step {added}건을 "
-              f"FAIL 로 기록했습니다.")
+              f"BLOCKED 로 기록했습니다.")
     return added
 
 
@@ -2252,15 +2316,26 @@ def _dispatch(ctx, args):
                     .isoformat(timespec="seconds"))
             except OSError:
                 pass
-            produced = guarded(fn, ctx, tc_id, title)
+            # REQ-VERDICT-006: WU 체인과 같은 단계 감시. 멈추면 증거를 남기고 Viewer·XIPL Studio를
+            # 끝낸 뒤 이 단계를 BLOCKED 로 기록하고 다음 TC 로 간다.
+            from core import wu_chain
+            produced, trip = wu_chain.run_stage(fn, ctx, tc_id, title, guarded=guarded,
+                                                before_kill=_wu_trip_evidence(ctx, tc_id))
             results.extend(produced)
+            if trip:
+                trips = getattr(ctx, 'stage_trips', None) or {}
+                trips[tc_id] = trip
+                ctx.stage_trips = trips
+                if tc_id not in PRECONDITIONS:
+                    _wu_restart_after_trip(ctx, tc_id, trip)
             if getattr(ctx, 'execution_block', None):
                 aborted_precondition = produced[0]
                 break
-            recover_viewer_after_termination(
-                ctx, tc_id, produced, tc_started)
+            if not trip:
+                recover_viewer_after_termination(
+                    ctx, tc_id, produced, tc_started)
             if tc_id in PRECONDITIONS:
-                broken = [x for x in produced if x.verdict == "FAIL"]
+                broken = [x for x in produced if x.verdict in ("FAIL", "BLOCKED")]
                 if broken:
                     aborted_precondition = broken[0]
                     break

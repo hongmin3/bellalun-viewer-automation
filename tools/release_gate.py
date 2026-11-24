@@ -42,7 +42,7 @@ WU_IDS = tuple(f"TC_WindowsUpdate_{i:02}" for i in range(1, 14))
 #: (2026-11-05 사용자 결정으로 MANUAL → SKIP, REQ-VERDICT-002).
 WU_HUMAN_ONLY = frozenset(t for t in HUMAN_ONLY_TCS if t.startswith("TC_WindowsUpdate_"))
 # 리포트 요약과 같은 기준을 쓰도록 FAIL 분류는 core.result 에 둔다(2026-11-05).
-from core.result import PAD_ACTUAL, PAD_TITLE, STEPFAILED_PREFIX, classify_fail  # noqa: E402,F401
+from core.result import PAD_ACTUAL, PAD_TITLE, STEPFAILED_PREFIX, classify_fail, is_padded  # noqa: E402,F401
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 GATE_LABEL_PASSED = "게이트 통과"
@@ -135,7 +135,9 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
         rows = row.get("checks") or []
         if row.get("verdict") == "SKIP":
             (skipped if tc_id in HUMAN_ONLY_TCS else stray_skip).append(tc_id)
-        if row.get("verdict") == "BLOCKED" or any(c.get("status") == "BLOCKED" for c in rows):
+        # 앞 Step 실패로 채운 미수행 행(BLOCKED)은 그 TC 의 FAIL 판정으로 따진다(REQ-VERDICT-004).
+        if row.get("verdict") == "BLOCKED" or any(
+                c.get("status") == "BLOCKED" and not is_padded(c) for c in rows):
             blocked.append(tc_id)
         if row.get("verdict") == "MANUAL":
             manual.append(tc_id)
@@ -152,6 +154,9 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
                 tolerated.append(f"{tc_id} Step {c.get('step')} {c.get('title')}")
             elif PAD_TITLE.match(str(c.get("title") or "")):
                 unverified.append(f"{tc_id} {c.get('title')}")
+        if has_known:
+            unverified.extend(f"{tc_id} {c.get('title')}" for c in rows
+                              if c.get("status") == "BLOCKED" and is_padded(c))
     _check(checks, reasons, "기본기능 BLOCKED 없음", not blocked,
            "없음" if not blocked else f"BLOCKED TC {', '.join(blocked)}")
     _check(checks, reasons, "기본기능 알려진 결함 외 FAIL 없음", not real,

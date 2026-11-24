@@ -6,9 +6,12 @@
 
   PASS   : 자동 판정으로 기대 결과 충족
   FAIL   : 자동 판정으로 기대 결과 불충족
-  MANUAL : 자동화 대상이 아니거나 문서상 기대값이 확정되지 않아 수동 확인 필요
-  SKIP   : 사전 조건 미충족으로 수행하지 않음
-  BLOCKED: 필수 선행 환경이 없어 수행 자체가 불가능
+  MANUAL : 수행했지만 자동으로 확정할 근거가 부족해 사람이 확인해야 함
+  SKIP   : 수행 대상이 아님이 미리 정해짐(사람 전용 TC, 설정으로 끈 범위)
+  BLOCKED: 제품 밖의 이유(시험 환경·선행 단계·시간 상한·앞 Step 실패)로 수행하지 못함
+
+판정 기준 전문과 TC 판정 순서(FAIL > BLOCKED > MANUAL > PASS > SKIP)는
+SPEC REQ-VERDICT-004와 `core/report_layout.VERDICT_CRITERIA`에 있다.
 """
 
 import html
@@ -372,8 +375,9 @@ class TCResult:
 
         정책 (2026-08-21 사용자 확정)
           FAIL 이 하나라도 있으면 FAIL.
+          BLOCKED 가 남으면 BLOCKED — 제품 밖의 이유로 수행하지 못했다는 뜻이다.
           MANUAL 이 남아 있으면 MANUAL — 사람이 아직 확인할 것이 있다는 뜻이다.
-          BLOCKED 가 남으면 BLOCKED — 필수 선행 환경이 없다는 뜻이다.
+          (REQ-VERDICT-004: FAIL > BLOCKED > MANUAL > PASS > SKIP)
           **SKIP 은 판정을 끌어내리지 않는다.** SKIP 은 "이 환경에서 확인 대상이
           아니다"(예: 검증 환경서가 DICOM 전용 어댑터를 지정하지 않는 PC)이고,
           MANUAL 은 "확인해야 하는데 자동으로 못 한다"이다. 둘을 같이 취급하면
@@ -473,6 +477,13 @@ def _one_line(value, limit=200):
 #: `run.py::pad_aborted_steps` 가 채우는 미수행 Step 의 제목·실제값.
 PAD_TITLE = re.compile(r"^Step \d+ 미수행$")
 PAD_ACTUAL = "수행하지 않음(앞선 단계에서 TC 가 중단됨)"
+
+
+def is_padded(check):
+    """앞 Step 실패로 채운 미수행 Step인지. 1.0.0.007까지는 FAIL, 이후는 BLOCKED로 기록됐다(REQ-VERDICT-004)."""
+    get = check.get if isinstance(check, dict) else (lambda key: getattr(check, key, None))
+    return (get("status") in (FAIL, BLOCKED) and bool(PAD_TITLE.match(str(get("title") or "")))
+            and str(get("actual") or "") == PAD_ACTUAL)
 #: `TCResult.add(stop=True)` 가 던진 StepFailed 를 `abort()` 가 기록한 실제값 머리.
 STEPFAILED_PREFIX = "StepFailed:"
 
@@ -494,8 +505,7 @@ def classify_fail(tc_id, check, has_known_defect, known_defects):
     title, actual = check.get("title"), str(check.get("actual") or "")
     if (tc_id, title) in known_defects:
         return "known"
-    if has_known_defect and (actual.startswith(STEPFAILED_PREFIX)
-                             or (PAD_TITLE.match(str(title or "")) and actual == PAD_ACTUAL)):
+    if has_known_defect and (actual.startswith(STEPFAILED_PREFIX) or is_padded(check)):
         return "cascade"
     return "real"
 
@@ -523,15 +533,13 @@ def user_actions(results, checklist=None):
         for c in r.checks:
             if c.status not in (FAIL, MANUAL, BLOCKED):
                 continue
-            if (c.step in interrupted and PAD_TITLE.match(str(c.title or ""))
-                    and str(c.actual) == PAD_ACTUAL):
+            if c.step in interrupted and is_padded(c):
                 continue
             step = c.step
             if c.status == FAIL and c.interrupted:
                 kind = ACTION_INTERRUPTED
                 step = c.interrupted_step if c.interrupted_step is not None else c.step
-            elif (c.status == FAIL and PAD_TITLE.match(str(c.title or ""))
-                  and str(c.actual) == PAD_ACTUAL):
+            elif is_padded(c):
                 kind = ACTION_NOT_RUN
             else:
                 kind = {FAIL: ACTION_FAIL, MANUAL: ACTION_MANUAL,

@@ -26,6 +26,7 @@ section,.tc-detail,.appendix{background:#fff;border:1px solid var(--line);border
 .bar{display:flex;height:8px;overflow:hidden;border-radius:8px;background:#edf1f5;margin:18px 0 12px}.bar span{display:block}
 .bPASS{background:#249576}.bFAIL{background:#a41926}.bMANUAL{background:#d1a446}.bSKIP{background:#334e68}.bBLOCKED{background:#8f67b3}
 .legend{margin-top:14px;font-size:12px}.legend summary{cursor:pointer;color:var(--mut)}.legend dl{margin:8px 0 0}.legend dl div{display:flex;gap:10px;align-items:baseline;margin:4px 0}.legend dt{min-width:84px}.legend dd{margin:0}
+.criteria{margin:0 0 20px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 20px;font-size:12px}.criteria summary{cursor:pointer;font-weight:700;font-size:14px}.criteria table{width:100%;border-collapse:collapse;margin-top:10px}.criteria th,.criteria td{border-top:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}.criteria th{color:var(--mut);font-weight:600}.criteria ol{margin:8px 0 0 18px;padding:0}
 .run-facts{margin-top:8px;display:flex;flex-wrap:wrap;gap:10px 24px;font-size:12px;color:var(--mut)}
 .failure-panel{border:3px solid #a41926;background:#fff4f5;box-shadow:0 3px 15px #bd303c0c}
 .manual-panel{border:3px solid #976a15;background:#fffaf0}.manual-panel h2{color:#7a5410;font-size:22px}.manual-panel .failure-card{border-top-color:#ecdcb8}.manual-panel .comparison .actual{border-left-color:#d1a446}
@@ -124,11 +125,53 @@ VERDICT_MEANINGS = {
 }
 
 
+# 판정 기준(frame/FRAME.md 2.6, 사용자 승인 2026-11-24). Step 하나를 위에서부터 처음 맞는 조건으로 정한다.
+# (판정, 이렇게 정한다, 해당하지 않는 경우, 사람이 할 일). 레포트 맨 위와 결과 요약 시트가 같은 표를 쓴다.
+VERDICT_CRITERIA = (
+    ('SKIP',
+     '수행 대상이 아님이 미리 정해진 항목입니다. 사람이 직접 하는 TC이거나 설정으로 끈 확장 범위입니다. 사유를 반드시 적습니다.',
+     '자동화가 시도했다가 못 한 경우는 MANUAL이나 BLOCKED입니다.',
+     '없음. 사람 전용 TC는 직접 수행합니다.'),
+    ('BLOCKED',
+     '제품 밖의 이유로 수행하지 못했거나 중간에 멈췄습니다. ① 필요한 시험 환경(시험 서버·DB·XIPL 서버·USB 등)이 실패 순간 다시 점검해도 안 됨 '
+     '② 전제 단계나 선행 TC 실패 ③ 시간 상한 초과·응답 없음 ④ 같은 TC의 앞 Step 실패로 수행하지 않음. 원인과 다시 실행할 조건을 반드시 적습니다.',
+     '환경 점검이 모두 통과했는데 제품 결과가 다르면 FAIL입니다.',
+     '원인을 해소하고 다시 실행합니다. 제품 판정이 아닙니다.'),
+    ('FAIL',
+     '필요한 환경이 정상임을 확인한 상태에서 이번 실행의 제품 관찰(화면·DB·파일·수신)이 기대와 다릅니다. 기대값·실제값·증거를 남깁니다.',
+     '환경 장애, 자동화가 읽지 못함, 과거 결과·저장점 재사용은 FAIL이 아닙니다.',
+     '증거를 보고 제품 결함인지 확인합니다.'),
+    ('MANUAL',
+     '수행은 했지만 자동으로 확정할 근거가 부족합니다(OCR 판독 불가, 기준값 미확정, 교차 확인 근거 부족). 판정에 필요한 범위를 건너뛴 경우도 여기에 듭니다.',
+     '수행 자체를 못 했으면 BLOCKED입니다.',
+     '표시된 Step을 직접 확인합니다.'),
+    ('PASS',
+     '기대 결과를 이번 실행의 제품 관찰로 확인했습니다.',
+     '클릭·입력 성공만으로는 PASS가 아닙니다. 이전 결과·저장점을 재사용한 경우도 아닙니다.',
+     '없음'),
+)
+
+# TC 판정을 정하는 규칙. 위 표와 함께 보인다.
+VERDICT_PRIORITY = (
+    'TC 판정은 FAIL > BLOCKED > MANUAL > PASS > SKIP 순서입니다. Step에 하나라도 있으면 앞의 판정이 TC 판정이 됩니다.',
+    '판정에 필요한 범위를 건너뛴 SKIP이 남으면 PASS가 아니라 MANUAL입니다.',
+    '앞 Step 실패로 수행하지 않은 Step은 BLOCKED("Step N 미수행")로 남고, 그 TC는 FAIL 그대로입니다.',
+    '체크리스트에 있지만 이번 실행 결과가 없는 행은 "미수행"과 이유로 적습니다.',
+)
+
+
 def render_legend(statuses=('PASS', 'FAIL', 'MANUAL', 'BLOCKED', 'SKIP')):
-    """판정 뜻 설명. 처음 읽는 사람이 배지의 뜻을 바로 알 수 있게 결과 요약에 넣는다."""
-    items = ''.join('<div><dt>' + render_badge(s) + '</dt><dd>' + escape(VERDICT_MEANINGS[s]) + '</dd></div>'
-                    for s in statuses if s in VERDICT_MEANINGS)
-    return '<details class="legend" open><summary>판정 뜻</summary><dl>' + items + '</dl></details>'
+    """판정 기준 표. 처음 읽는 사람이 판정을 어떻게 정했는지 레포트 맨 위에서 바로 보게 한다."""
+    rows = ''.join('<tr><td>' + render_badge(key) + '</td><td>' + escape(VERDICT_MEANINGS.get(key, ''))
+                   + '</td><td>' + escape(rule) + '</td><td>' + escape(not_this) + '</td><td>'
+                   + escape(action) + '</td></tr>'
+                   for key, rule, not_this, action in VERDICT_CRITERIA if key in statuses)
+    priority = ''.join('<li>' + escape(line) + '</li>' for line in VERDICT_PRIORITY)
+    return ('<details class="criteria legend" id="criteria" open><summary>판정 기준</summary>'
+            '<p>Step 하나는 표의 위에서부터 처음 맞는 조건으로 정합니다.</p>'
+            '<table><thead><tr><th>판정</th><th>뜻</th><th>이렇게 정합니다</th><th>해당하지 않는 경우</th>'
+            '<th>사람이 할 일</th></tr></thead><tbody>' + rows + '</tbody></table>'
+            '<ol>' + priority + '</ol></details>')
 
 
 # 두 제품이 같이 쓰는 레포트 절 순서와 목차 이름(frame/FRAME.md 2.4).

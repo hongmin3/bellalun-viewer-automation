@@ -52,6 +52,7 @@ class RunRecord:
 
     @classmethod
     def create(cls, workspace, action, plan, *, consent=False):
+        close_stale_runs(workspace)
         stamp = time.time()
         run_id = datetime.now().strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:8]
         path = Path(workspace) / 'Runs' / run_id / 'run.json'
@@ -64,7 +65,7 @@ class RunRecord:
             'started_epoch': stamp, 'plan': plan,
             'consent': {'source': 'GUI' if consent else '화면 동의 없음(CLI)',
                         'at': _now() if consent else None, 'user': getpass.getuser()},
-            'status': 'running', 'stop_requested': False, 'progress': {},
+            'status': 'running', 'supervisor_pid': os.getpid(), 'stop_requested': False, 'progress': {},
             'reports': [], 'existing_reports': existing, 'initial_states': initial_states, 'review_status': '실행 중',
         })
         record.save()
@@ -218,6 +219,48 @@ class RunRecord:
         })
         self.data['review_status'] = status
         self.save()
+
+
+def _pid_alive(pid):
+    """Windows 프로세스가 아직 실행 중인지. 확인할 수 없으면 살아 있다고 본다(닫지 않는다)."""
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return kernel32.GetLastError() == 5       # 접근 거부면 존재하는 프로세스다
+        try:
+            code = ctypes.c_ulong(0)
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == 259                  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    except (AttributeError, OSError, ValueError):
+        return True
+
+
+def close_stale_runs(workspace, *, alive=_pid_alive, now=_now):
+    """새 실행을 시작하기 전에 '실행 중'으로 남은 예전 기록을 비정상 종료로 닫는다(REQ-QA-002).
+
+    감독 프로세스 번호가 없는 예전 기록이나 그 프로세스가 끝난 기록만 닫는다. 닫은 run_id 목록을 돌려준다.
+    """
+    closed = []
+    for path in sorted((Path(workspace) / 'Runs').glob('*/run.json')):
+        data = _read(path)
+        if data.get('run_id') != path.parent.name or data.get('status') != 'running':
+            continue
+        pid = data.get('supervisor_pid')
+        if pid and alive(pid):
+            continue
+        data.update(status='abnormal', review_status='미완료', closed_at=now(),
+                    closed_reason=('감독 프로세스가 끝났는데 실행 기록이 닫히지 않았습니다' if pid else
+                                   '감독 프로세스 번호가 없는 예전 기록이 실행 중으로 남아 있었습니다')
+                    + '. 다음 실행을 시작하며 비정상 종료로 닫았습니다.',
+                    next_action='준비 점검 후 재실행')
+        _write(path, data)
+        closed.append(data['run_id'])
+    return closed
 
 
 def latest_unseen(workspace, limit=50):

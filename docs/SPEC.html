@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="303b806af08eeebdaffcff0a00dd9eb7e2fa1c7176acffb59e6b20c534ea418b">
+<meta name="spec-source-sha256" content="634e8d1f76b32858b4d50f9bcfb4358950b1859cb29303efee07db6d034a7a76">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -93,7 +93,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
 <div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
-<div class="stats"><div class="stat"><b>56</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>45</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>54</b><span>verified</span></div></div>
+<div class="stats"><div class="stat"><b>59</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>46</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>57</b><span>verified</span></div></div>
 </header>
 <div class="layout">
 <nav class="toc" aria-label="목차">
@@ -117,6 +117,9 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-001">REQ-VERDICT-001 <span>관찰 근거에 따른 판정</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-002">REQ-VERDICT-002 <span>사람이 직접 하는 TC는 SKIP</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-VERDICT-003">REQ-VERDICT-003 <span>자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-VERDICT-004">REQ-VERDICT-004 <span>다섯 판정의 기준과 레포트 상단 표시</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-VERDICT-005">REQ-VERDICT-005 <span>시험 환경을 다시 점검해 BLOCKED로 가리기</span></a></li>
+<li class="toc-id kind-req"><a href="#REQ-VERDICT-006">REQ-VERDICT-006 <span>TC가 무기한 멈추지 않게 하기</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-REPORT-001">REQ-REPORT-001 <span>체크리스트별 결과 보고</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-001">REQ-DIST-001 <span>설치와 실행 경로</span></a></li>
 <li class="toc-id kind-req"><a href="#REQ-DIST-002">REQ-DIST-002 <span>실행 화면과 프로세스 관리</span></a></li>
@@ -171,6 +174,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <li class="toc-id kind-test"><a href="#TEST-REGRESSION-001">TEST-REGRESSION-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-TRACE-001">TEST-TRACE-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-VERDICT-001">TEST-VERDICT-001</a></li>
+<li class="toc-id kind-test"><a href="#TEST-VERDICT-004">TEST-VERDICT-004 <span>판정 기준표·환경 재점검·단계 감시</span></a></li>
 <li class="toc-id kind-test"><a href="#TEST-VERDICT-002">TEST-VERDICT-002</a></li>
 <li class="toc-id kind-test"><a href="#TEST-REPORT-001">TEST-REPORT-001</a></li>
 <li class="toc-id kind-test"><a href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></li>
@@ -250,11 +254,14 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="이름">관찰 근거에 따른 판정</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="이름">사람이 직접 하는 TC는 SKIP</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a></td><td data-label="이름">자동화 완료 기준: FAIL·MANUAL의 원인을 제품과 자동화로 가려낸다</td><td data-label="상태"><span class="badge st-draft">draft</span></td><td data-label="구현"><code>core/result.py</code></td><td data-label="테스트"><code>tests/test_result_reports.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a></td><td data-label="이름">다섯 판정의 기준과 레포트 상단 표시</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/report_layout.py</code>, <code>core/frame_checklist.py</code>, <code>core/result.py</code>, <code>run.py</code>, <code>tools/release_gate.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_release_gate.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_frame_checklist.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-005">REQ-VERDICT-005</a></td><td data-label="이름">시험 환경을 다시 점검해 BLOCKED로 가리기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/env_health.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a></td><td data-label="이름">TC가 무기한 멈추지 않게 하기</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>run.py</code>, <code>core/wu_chain.py</code>, <code>core/xipl.py</code>, <code>tests/xipl_flows.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_xipl_save_dialog.py</code>, <code>tests/test_wu_chain.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">REPORT</span> 체크리스트별 결과 보고</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="이름">체크리스트별 결과 보고</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>core/result.py</code>, <code>core/checklist.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></td></tr>
 <tr class="group"><th colspan="5"><span class="gcode">QA</span> 처음 쓰는 QA 담당자의 검수 흐름(실행 전 확인·진행·수동 검토·결과 공유·준비 실패 해결)</th></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-001">REQ-QA-001</a></td><td data-label="이름">실행 전 확인 화면</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/runplan.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runs.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-001">TEST-QA-001</a>; <code>tests/test_runplan.py</code>, <code>tests/test_qa_runs.py</code></td></tr>
-<tr><td data-label="ID"><a class="idref" href="#REQ-QA-002">REQ-QA-002</a></td><td data-label="이름">실행 번호로 진행·중단·완료·보고서 연결</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code></td></tr>
+<tr><td data-label="ID"><a class="idref" href="#REQ-QA-002">REQ-QA-002</a></td><td data-label="이름">실행 번호로 진행·중단·완료·보고서 연결</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_verdict_criteria.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-003">REQ-QA-003</a></td><td data-label="이름">수동 검토 기록과 검수 완료</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-003">TEST-QA-003</a>; <code>tests/test_qa_runs.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-004">REQ-QA-004</a></td><td data-label="이름">결과 공유 ZIP</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/share.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-004">TEST-QA-004</a>; <code>tests/test_share_package.py</code></td></tr>
 <tr><td data-label="ID"><a class="idref" href="#REQ-QA-005">REQ-QA-005</a></td><td data-label="이름">준비 실패의 해결 방법과 재점검</td><td data-label="상태"><span class="badge st-verified">verified</span></td><td data-label="구현"><code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>core/preflight.py</code></td><td data-label="테스트"><a class="idref" href="#TEST-QA-005">TEST-QA-005</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_preflight.py</code>, <code>tests/test_screen_contract.py</code>, <code>tests/test_console_stdin.py</code>, <code>tests/test_xipl_gate.py</code></td></tr>
@@ -777,7 +784,7 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 </section>
 <section class="card kind-req" id="REQ-VERDICT-002">
 <h3><span class="idtag">REQ-VERDICT-002</span> 사람이 직접 하는 TC는 SKIP</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>, <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#REQ-WU-005">REQ-WU-005</a>, <a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a></span></div>
 <details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-12 자동화 목적: 제품 결함일 때만 FAIL</span> <a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a>: 자동화의 목적을 사양에 정했다. 실제 제품 결함일 때만 FAIL, 나머지는 PASS로 끝나야 한다. FAIL·MANUAL이 나오면 저장된 증거로 원인을 제품·자동화·환경·미확정으로 가르고, 자동화 원인이면 같은 원리로 틀릴 수 있는 자리까지 고친 뒤 실제 제품 재실행으로 PASS를 확인한다. MANUAL을 다른 이름으로 바꾸거나 기준을 낮춰 PASS를 만들지 않는다. 사람이 직접 하는 TC의 SKIP(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)은 그대로다(사용자 결정, VXvue 자동화와 같은 기준).</li>
@@ -844,6 +851,112 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <li>자동화 원인으로 생긴 FAIL도 고칠 대상이다. 제품 결함으로 보고하지 않는다.</li>
 <li>사람이 직접 하는 TC(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)와 물리 장비가 필요한 항목은 기존 사용자 결정을 따른다.</li>
 </ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-VERDICT-004">
+<h3><span class="idtag">REQ-VERDICT-004</span> 다섯 판정의 기준과 레포트 상단 표시</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/report_layout.py</code>, <code>core/frame_checklist.py</code>, <code>core/result.py</code>, <code>run.py</code>, <code>tools/release_gate.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_release_gate.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_frame_checklist.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>(신규): 다섯 판정의 기준표를 HTML 레포트 맨 위와 체크리스트 결과 요약 시트의 판정 합계 위에 보인다(사용자 승인 2026-11-24). 앞 Step 실패로 수행하지 않은 Step을 FAIL 대신 BLOCKED로 기록한다. TC 판정은 FAIL 그대로이며 게이트·WU 변환은 예전 FAIL 채움 행도 같은 뜻으로 읽는다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>모든 확인 항목(Step)을 아래 표의 기준으로 PASS·FAIL·MANUAL·SKIP·BLOCKED 중 하나로 정한다(사용자 승인 2026-11-24, VXvue 자동화와 같은 기준). 같은 표를 결과 레포트 맨 위와 체크리스트 결과 요약 시트에 보인다.</p>
+</div></section>
+<section class="field"><h4>Step 판정 (위에서부터 처음 맞는 조건)</h4><div class="field-body">
+<div class="table-wrap"><table class="responsive">
+<thead><tr><th>판정</th><th>이렇게 정한다</th><th>이런 경우는 해당하지 않는다</th><th>사람이 할 일</th></tr></thead>
+<tbody>
+<tr><td data-label="판정">SKIP</td><td data-label="이렇게 정한다">수행 대상이 아님이 미리 정해진 항목이다. 사람이 직접 하는 TC(<a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)이거나 설정으로 끈 확장 범위다. 사유를 반드시 적는다.</td><td data-label="이런 경우는 해당하지 않는다">자동화가 시도했다가 못 한 경우는 MANUAL이나 BLOCKED다.</td><td data-label="사람이 할 일">없음. 사람 전용 TC는 직접 수행한다.</td></tr>
+<tr><td data-label="판정">BLOCKED</td><td data-label="이렇게 정한다">제품 밖의 이유로 수행하지 못했거나 중간에 멈췄다. ① 필요한 시험 환경(시험 서버·DB·XIPL.SERVER·USB)이 실패 순간 다시 점검해도 안 된다 ② 전제 단계나 선행 TC가 실패했다 ③ 시간 상한 초과나 응답 없음으로 결론을 내지 못했다 ④ 같은 TC의 앞 Step이 실패해 수행하지 않았다. 원인과 다시 실행할 조건(해제 조건)을 반드시 적는다.</td><td data-label="이런 경우는 해당하지 않는다">환경 점검이 모두 통과했는데 제품 결과가 다르면 FAIL이다.</td><td data-label="사람이 할 일">원인을 해소하고 다시 실행한다. 제품 판정이 아니다.</td></tr>
+<tr><td data-label="판정">FAIL</td><td data-label="이렇게 정한다">필요한 환경이 정상임을 확인한 상태에서 이번 실행의 제품 관찰(화면·DB·파일·수신)이 기대와 다르다. 기대값·실제값·증거를 남긴다.</td><td data-label="이런 경우는 해당하지 않는다">환경 장애, 자동화가 읽지 못함, 과거 결과·저장점 재사용은 FAIL이 아니다.</td><td data-label="사람이 할 일">증거를 보고 제품 결함인지 확인한다.</td></tr>
+<tr><td data-label="판정">MANUAL</td><td data-label="이렇게 정한다">수행은 했지만 자동으로 확정할 근거가 부족하다. 예: OCR 판독 불가, 기준값 미확정, 교차 확인 근거 수집 실패. 판정에 필요한 범위를 건너뛴 SKIP도 여기에 든다.</td><td data-label="이런 경우는 해당하지 않는다">수행 자체를 못 했으면 BLOCKED다.</td><td data-label="사람이 할 일">표시된 Step을 직접 확인한다.</td></tr>
+<tr><td data-label="판정">PASS</td><td data-label="이렇게 정한다">기대 결과를 이번 실행의 제품 관찰로 확인했다.</td><td data-label="이런 경우는 해당하지 않는다">클릭·입력 성공만으로는 PASS가 아니다. 이전 결과·저장점을 재사용한 경우도 아니다.</td><td data-label="사람이 할 일">없음</td></tr>
+</tbody>
+</table></div>
+</div></section>
+<section class="field"><h4>TC 판정</h4><div class="field-body">
+<ol>
+<li>TC 판정은 FAIL &gt; BLOCKED &gt; MANUAL &gt; PASS &gt; SKIP 순서로 정한다. 하나라도 있으면 앞의 판정이 된다.</li>
+<li>판정에 필요한 범위를 건너뛴 SKIP(<code>blocks_verdict</code>)이 남으면 PASS가 아니라 MANUAL이다.</li>
+<li>앞 Step 실패로 수행하지 않은 Step은 BLOCKED(&quot;Step N 미수행&quot;)로 기록한다. 그 TC의 판정은 FAIL 그대로다.</li>
+<li>체크리스트에 있지만 결과가 없는 행은 &quot;미수행&quot;과 이유로 적는다(<a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a>).</li>
+</ol>
+</div></section>
+<section class="field"><h4>레포트 표시</h4><div class="field-body">
+<ul>
+<li>HTML 레포트의 결과 요약 바로 아래에 &quot;판정 기준&quot; 표(위 두 표)를 둔다.</li>
+<li>체크리스트 결과 요약 시트에도 같은 표를 판정 합계 위에 둔다.</li>
+<li>문장은 <code>core/report_layout.VERDICT_CRITERIA</code>와 <code>VERDICT_PRIORITY</code> 한 곳에서만 고친다. VXvue와 함께 쓰는 공용 파일이다(<a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>).</li>
+</ul>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>종료 코드와 릴리스 게이트의 통과 조건은 바꾸지 않는다. BLOCKED가 남으면 게이트를 통과하지 않는다.</li>
+<li>예전 실행의 결과 JSON(미수행 Step이 FAIL인 판)도 그대로 읽고 게이트에서 같은 뜻으로 다룬다.</li>
+</ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-VERDICT-005">
+<h3><span class="idtag">REQ-VERDICT-005</span> 시험 환경을 다시 점검해 BLOCKED로 가리기</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/env_health.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-005">REQ-VERDICT-005</a>(신규): Storage·MWL·Print 서버를 쓰는 TC가 FAIL이면 그 서버를 바로 다시 점검한다. 응답이 없으면 FAIL을 BLOCKED로 바꾸고, 같은 서버가 필요한 다음 TC는 복구될 때까지 실행하지 않고 BLOCKED로 남긴다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>시험 서버가 실행 도중 멈췄을 때 그 영향을 제품 FAIL로 기록하지 않는다. 같은 서버가 필요한 이후 TC는 제품을 조작하지 않고 바로 BLOCKED로 넘겨 시간을 아낀다.</p>
+</div></section>
+<section class="field"><h4>TC별 필요한 환경</h4><div class="field-body">
+<div class="table-wrap"><table>
+<thead><tr><th>환경</th><th>필요한 TC</th><th>점검 대상</th></tr></thead>
+<tbody>
+<tr><td>Storage 서버</td><td>WF04, WF05, WF06, WF07, WF15</td><td><code>dicom.storage_scp</code>의 API 주소와 DICOM 포트</td></tr>
+<tr><td>MWL 서버</td><td>WF01, WF10</td><td><code>dicom.mwl_server_url</code>과 <code>servers_to_register</code>의 MWL 포트</td></tr>
+<tr><td>Print 서버</td><td>WF08</td><td><code>dicom.print_server_url</code>과 <code>dicom.print_scp</code> 포트</td></tr>
+</tbody>
+</table></div>
+<p class="why"><span class="why-label">이유</span> TC 모듈이 실제로 해당 서버를 호출하는 곳을 기준으로 정했다(<code>core/env_health.py</code>의 <code>TC_REQUIREMENTS</code>). 단위시험이 모듈의 호출과 표가 맞는지 확인한다.</p>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>TC가 FAIL로 끝나면 그 TC에 필요한 환경을 바로 다시 점검한다. TCP 연결이 안 되거나 HTTP가 5xx를 돌려주면 그 환경은 &quot;안 됨&quot;이다.</li>
+<li>하나라도 안 되면 그 TC의 FAIL Step을 BLOCKED로 바꾸고 원래 관찰값을 비고에 남긴다. &quot;시험 환경 재점검&quot; Step을 BLOCKED로 더해 점검 결과와 해제 조건(예: &quot;10.13.0.222 Storage 서버 복구 후 재실행&quot;)을 적는다.</li>
+<li>이후 같은 환경이 필요한 TC는 시작 전에 다시 점검한다. 여전히 안 되면 TC를 실행하지 않고 BLOCKED 한 건으로 기록한다. 복구됐으면 평소대로 실행한다.</li>
+<li>환경 점검이 모두 통과하면 FAIL을 그대로 둔다.</li>
+</ol>
+</div></section>
+<section class="field"><h4>지킬 것</h4><div class="field-body">
+<ul>
+<li>전제 단계(기준 상태 복원·DICOM 서버 설정)가 FAIL이나 BLOCKED이면 지금처럼 회귀를 멈춘다.</li>
+<li>결과 JSON meta의 <code>environment_outages</code>에 점검 시각·대상·결과를 남긴다.</li>
+</ul>
+</div></section>
+</section>
+<section class="card kind-req" id="REQ-VERDICT-006">
+<h3><span class="idtag">REQ-VERDICT-006</span> TC가 무기한 멈추지 않게 하기</h3>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>core/wu_chain.py</code>, <code>core/xipl.py</code>, <code>tests/xipl_flows.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_xipl_save_dialog.py</code>, <code>tests/test_wu_chain.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
+<details class="history"><summary>변경 이력 1</summary>
+<ul>
+<li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>(신규): 기본 전체 회귀에도 단계 시간 상한·응답 없음 감시를 적용하고, 끊을 때 XIPL Studio도 끝낸다. XIPL Save As 누름을 응답을 기다리지 않는 방식으로 바꿔 1.0.0.007에서 본 12.3시간 멈춤을 막는다. XIPL PowerShell 호출에 시간 상한을 둔다.</li>
+</ul>
+</details>
+<section class="field"><h4>하는 일</h4><div class="field-body">
+<p>기본 전체 회귀(<code>run-regression</code>)도 WU 체인(<a class="idref" href="#REQ-WU-002">REQ-WU-002</a>)과 같은 단계 감시를 쓴다. 한 TC가 멈춰도 증거를 남기고 다음 TC로 넘어간다.</p>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>1.0.0.007 설치판의 2026-11-23 회귀에서 XIPL_06의 Save As 버튼을 동기 호출로 눌렀다. 뒤에 뜬 창이 닫히지 않아 호출이 12.3시간 동안 돌아오지 않았다.</p>
+</aside>
+</div></section>
+<section class="field"><h4>순서</h4><div class="field-body">
+<ol>
+<li>단계마다 <code>core/wu_chain.py</code>의 시간 상한과 Viewer 응답 없음(120초 연속) 감시를 적용한다. 넘으면 화면·로그 증거를 남기고 Viewer와 XIPL Studio를 끝낸다.</li>
+<li>그 단계의 TC를 BLOCKED와 사유로 기록하고 Viewer를 다시 띄워 다음 TC로 간다.</li>
+<li>다른 프로세스의 창에 보내는 버튼 누름은 응답을 기다리지 않는 방식(<code>PostMessageW</code>)으로 보낸다. 결과는 창이 닫혔는지, 파일이 생겼는지로 확인한다.</li>
+<li>창이 닫히지 않으면 남아 있는 대화상자의 제목과 문구, 화면을 증거로 남긴다.</li>
+<li>외부 명령(PowerShell 등) 호출에는 시간 상한을 둔다.</li>
+</ol>
 </div></section>
 </section>
 <section class="card kind-req" id="REQ-REPORT-001">
@@ -1238,9 +1351,10 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 </section>
 <section class="card kind-req" id="REQ-QA-002">
 <h3><span class="idtag">REQ-QA-002</span> 실행 번호로 진행·중단·완료·보고서 연결</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-QA-002">TEST-QA-002</a></span></div>
-<details class="history"><summary>변경 이력 2</summary>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_verdict_criteria.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>, <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
+<details class="history"><summary>변경 이력 3</summary>
 <ul>
+<li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: 새 실행을 시작할 때 감독 프로세스가 없는 '실행 중' 기록을 비정상 종료로 닫는다.</li>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Added</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: 실행 번호별 계획·동의·진행·중단·완료·새 보고서·결론과 다음 행동을 기록한다. 정상 전체 완료의 FAIL 종료 코드 1을 비정상 종료와 구별한다.</li>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Fixed</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: NTFS 파일 시각의 정밀도 차이로 새 진행 상태를 놓치거나 같은 초의 이전 실행 상태를 읽던 문제를 시작 전 내용 해시와 새 기록 비교로 수정했다.</li>
 </ul>
@@ -1258,6 +1372,7 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="field"><h4>지킬 것</h4><div class="field-body">
 <ul>
 <li>다른 실행의 보고서를 이번 실행 결과로 연결하지 않는다. 시작 시각 이후 만들어진 보고서만 연결한다.</li>
+<li>새 실행을 시작할 때 '실행 중'으로 남은 이전 기록을 확인한다. 기록한 감독 프로세스가 살아 있지 않거나 프로세스 번호가 없는 예전 기록이면 상태를 비정상 종료(<code>abnormal</code>)로 닫고 <code>closed_reason</code>에 이유를 남긴다. 살아 있는 실행은 건드리지 않는다.</li>
 </ul>
 </div></section>
 </section>
@@ -1403,7 +1518,7 @@ PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류
 </section>
 <section class="card kind-req" id="REQ-WU-002">
 <h3><span class="idtag">REQ-WU-002</span> 실시간 WU 체인의 시간 상한·응답 없음 감지·재개</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/wu_chain.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>, <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>, <a class="idref" href="#TEST-WU-002">TEST-WU-002</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/wu_chain.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-WU-002">TEST-WU-002</a>; <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-SPEEDUP-004">REQ-SPEEDUP-004</a>, <a class="idref" href="#REQ-SPEEDUP-009">REQ-SPEEDUP-009</a>, <a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>, <a class="idref" href="#TEST-WU-002">TEST-WU-002</a></span></div>
 <details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">2026-11-13 실제 GUI 전체 검증과 실행 차단 수정</span> <a class="idref" href="#REQ-WU-002">REQ-WU-002</a>: 실제 GUI WU 실행을 중단시킨 저장점 원자 교체 WinError 5에 대응했다. Windows 5·32·33만 최대 8회, 총 대기 1.95초 이내로 재시도한다. 지속 실패·다른 오류는 숨기지 않고 기존 저장점과 판정을 보존한다. 실제 Windows 읽기 핸들로 교체 차단과 해제 후 저장을 검증했다.</li>
@@ -2218,7 +2333,7 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 </section>
 <section class="card kind-req" id="REQ-FRAME-001">
 <h3><span class="idtag">REQ-FRAME-001</span> VXvue와 공통 자동화 프레임 유지</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>frame/sync_check.py</code>, <code>frame/frame.lock.json</code>, <code>frame/FRAME.md</code>, <code>core/report_layout.py</code>, <code>core/result.py</code>, <code>AGENTS.md</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a>; <code>tests/test_frame_sync.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_result_reports.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>, <a class="idref" href="#TEST-FRAME-001">TEST-FRAME-001</a></span></div>
 <details class="history"><summary>변경 이력 3</summary>
 <ul>
 <li><span class="hist">공통 자동화 프레임 2단계 — 레포트 통일 (2026-11-23)</span> <a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a>, <a class="idref" href="#REQ-FRAME-001">REQ-FRAME-001</a>: 결과 레포트를 VXvue와 같은 HTML·JSON 두 가지로 만든다. CSV·TXT는 더 만들지 않는다(사용자 결정 2026-11-23). 이전 실행의 CSV·TXT는 공유 ZIP·실행 기록에서 그대로 읽는다.</li>
@@ -2305,7 +2420,7 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 </section>
 <section class="card kind-req" id="REQ-FRAME-004">
 <h3><span class="idtag">REQ-FRAME-004</span> 체크리스트 TC 대응과 결과 요약 시트</h3>
-<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_checklist.py</code>, <code>core/report_layout.py</code>, <code>core/checklist.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a>; <code>tests/test_frame_checklist.py</code>, <code>tests/test_user_action_steps.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a></span></div>
+<div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/frame_checklist.py</code>, <code>core/report_layout.py</code>, <code>core/checklist.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a>; <code>tests/test_frame_checklist.py</code>, <code>tests/test_user_action_steps.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>, <a class="idref" href="#TEST-FRAME-004">TEST-FRAME-004</a></span></div>
 <details class="history"><summary>변경 이력 2</summary>
 <ul>
 <li><span class="hist">공용 프레임 내부 검증판 1.0.0.007 (2026-11-23)</span> <a class="idref" href="#REQ-FRAME-004">REQ-FRAME-004</a>: 기본기능 결과 요약의 공식 TC 합계는 원본 체크리스트 행으로 계산한다. 실제 실행한 준비 단계는 별도 표에 기록한다.</li>
@@ -2357,8 +2472,8 @@ Release Note·OS Build 기대값은 승인된 입력으로만 채운다.
 <h2>9. 오류 처리 정책</h2>
 <ul>
 <li>환경 gate 실패를 무시하고 UI 입력을 계속하지 않는다.</li>
-<li>기대/실제 불일치는 FAIL, 자료/자동화 한계는 근거가 있는 MANUAL,
-미수행은 해당 흐름의 SKIP으로 남긴다. BLOCKED는 해제 조건과 미검증 범위를 보존한다.</li>
+<li>판정 기준은 <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>를 따른다. 기대/실제 불일치는 FAIL, 자료/자동화 한계는 근거가 있는 MANUAL,
+앞 Step 실패나 환경 문제로 수행하지 못한 Step은 BLOCKED로 남긴다. BLOCKED는 해제 조건과 미검증 범위를 보존한다.</li>
 <li>실제 재현된 실패만 해당 실행의 이슈로 보고하며 알려진 제품 결함을 자동화 성공으로 숨기지 않는다.</li>
 <li>종료되지 않은 실행·중간 상태 파일을 전체 회귀 완료로 간주하지 않는다.</li>
 <li>USB Import는 목록 표시/행 선택과 실제 되읽기 완료를 구분한다.</li>
@@ -2425,6 +2540,23 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 중단되는지, <code>tests/test_result_reports.py</code>로 BLOCKED와 미검증 이유가 보존되는지 검증한다.</li>
 <li>Expected Result: 잘못된 창에서의 조작이 성공으로 둔갑하지 않고 검증 한계가 남는다.
 각 제품 기능의 성공 증명은 TC별 실물/저장 결과로 별도 확인한다.</li>
+</ul>
+</section>
+<section class="card kind-test" id="TEST-VERDICT-004">
+<h3><span class="idtag">TEST-VERDICT-004</span> 판정 기준표·환경 재점검·단계 감시</h3>
+<ul>
+<li>검증 대상: <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>, <a class="idref" href="#REQ-VERDICT-005">REQ-VERDICT-005</a>, <a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>, <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>.</li>
+<li>절차: <code>tests/test_verdict_criteria.py</code>로 다음을 확인한다.
+<ol>
+<li>기준표가 다섯 판정을 Step 판정 순서로 담고, HTML 레포트 본문보다 앞과 결과 요약 시트의 판정 합계 위에 보인다.</li>
+<li>앞 Step 실패 뒤 미수행 Step은 BLOCKED이고 TC는 FAIL이며 FAIL 개수는 실제 실패만 센다. 예전 FAIL 채움 행도 같은 뜻으로 읽고, 게이트는 알려진 결함 뒤 BLOCKED 채움 행을 허용하고 다른 BLOCKED는 거부한다.</li>
+<li>환경 표가 TC 모듈의 서버 호출과 같고, 응답 없는 서버나 5xx는 &quot;안 됨&quot;이다. FAIL 뒤 환경이 안 되면 BLOCKED로 바뀌고 원래 관찰값이 남는다. 같은 환경이 필요한 다음 TC는 실행하지 않고 BLOCKED가 되며, 복구되면 평소대로 실행해 실제 FAIL을 유지한다.</li>
+<li>기본 회귀가 각 단계를 단계 감시로 실행하고, 감시가 끊으면 XIPL Studio도 끝낸다. XIPL PowerShell 호출에 시간 상한이 있다.</li>
+<li>감독 프로세스가 없는 '실행 중' 기록은 새 실행 때 비정상 종료로 닫히고 살아 있는 실행은 그대로다.</li>
+</ol>
+</li>
+<li><code>tests/test_xipl_save_dialog.py</code>: Save As 누름은 <code>PostMessageW</code>로 보내고, 닫히지 않으면 남은 대화상자 제목·문구와 함께 실패한다. 파일명 입력은 응답이 없으면 시간 상한 뒤 실패한다.</li>
+<li>Expected Result: 환경 장애·멈춤이 제품 FAIL이나 무기한 대기로 남지 않고, 판정 기준이 레포트 맨 위에 보인다.</li>
 </ul>
 </section>
 <section class="card kind-test" id="TEST-VERDICT-002">
@@ -2827,7 +2959,7 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-003">REQ-TCUP-003</a></td><td data-label="Implementation"><code>core/image_overlay.py</code>, <code>tests/workflow15.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_overlay_lines.py</code>, <code>tests/test_image_overlay.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-TCUP-004">REQ-TCUP-004</a></td><td data-label="Implementation"><code>core/run_preparation.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-TCUP-001">TEST-TCUP-001</a>; <code>tests/test_run_preparation.py</code>, <code>tests/test_qa_dialogs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-001">REQ-QA-001</a></td><td data-label="Implementation"><code>bellalunauto/runplan.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/runs.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-001">TEST-QA-001</a>; <code>tests/test_runplan.py</code>, <code>tests/test_qa_runs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
-<tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-002">REQ-QA-002</a></td><td data-label="Implementation"><code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-002">REQ-QA-002</a></td><td data-label="Implementation"><code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_verdict_criteria.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-003">REQ-QA-003</a></td><td data-label="Implementation"><code>bellalunauto/runs.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-003">TEST-QA-003</a>; <code>tests/test_qa_runs.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-004">REQ-QA-004</a></td><td data-label="Implementation"><code>bellalunauto/share.py</code>, <code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-004">TEST-QA-004</a>; <code>tests/test_share_package.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-QA-005">REQ-QA-005</a></td><td data-label="Implementation"><code>bellalunauto/qa_dialogs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>core/preflight.py</code></td><td data-label="Test"><a class="idref" href="#TEST-QA-005">TEST-QA-005</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_first_run.py</code>, <code>tests/test_distribution_app.py</code>, <code>tests/test_preflight.py</code>, <code>tests/test_screen_contract.py</code>, <code>tests/test_console_stdin.py</code>, <code>tests/test_xipl_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
@@ -2840,6 +2972,9 @@ XIPL03 전체 수용 완료가 아니다. 과거 원시 결과는 수정하지 �
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-001">REQ-VERDICT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/flows.py</code>, <code>core/usb_media.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-001">TEST-VERDICT-001</a>; <code>tests/test_primary_monitor_guard.py</code>, <code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a></td><td data-label="Implementation"><code>tests/winupdate.py</code>, <code>tests/workflow16.py</code>, <code>core/winupdate_report.py</code>, <code>tools/release_gate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-002">TEST-VERDICT-002</a>; <code>tests/test_human_only_skip.py</code>, <code>tests/test_release_gate.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-003">REQ-VERDICT-003</a></td><td data-label="Implementation"><code>core/result.py</code></td><td data-label="Test"><code>tests/test_result_reports.py</code></td><td data-label="Status"><span class="badge st-draft">draft</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a></td><td data-label="Implementation"><code>core/report_layout.py</code>, <code>core/frame_checklist.py</code>, <code>core/result.py</code>, <code>run.py</code>, <code>tools/release_gate.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_release_gate.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_frame_checklist.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-005">REQ-VERDICT-005</a></td><td data-label="Implementation"><code>core/env_health.py</code>, <code>run.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
+<tr><td data-label="Requirement"><a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a></td><td data-label="Implementation"><code>run.py</code>, <code>core/wu_chain.py</code>, <code>core/xipl.py</code>, <code>tests/xipl_flows.py</code></td><td data-label="Test"><a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_xipl_save_dialog.py</code>, <code>tests/test_wu_chain.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-REPORT-001">REQ-REPORT-001</a></td><td data-label="Implementation"><code>core/result.py</code>, <code>core/checklist.py</code>, <code>core/report_layout.py</code>, <code>core/winupdate_report.py</code>, <code>run.py</code>, <code>tests/winupdate.py</code></td><td data-label="Test"><a class="idref" href="#TEST-REPORT-001">TEST-REPORT-001</a>; <code>tests/test_result_reports.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_report_layout.py</code>, <code>tests/test_xipl_preparation_report.py</code>, <code>tests/test_report_summary.py</code>, <code>tests/test_wu_chain.py</code>, <code>tests/test_wu_checkpoint_retry.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#NFR-BOUNDARY-001">NFR-BOUNDARY-001</a></td><td data-label="Implementation"><code>.gitignore</code>, <code>config.example.json</code></td><td data-label="Test"><a class="idref" href="#TEST-BOUNDARY-001">TEST-BOUNDARY-001</a></td><td data-label="Status"><span class="badge st-implemented">implemented</span></td></tr>
 <tr><td data-label="Requirement"><a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a></td><td data-label="Implementation"><code>bellalunauto/runtime.py</code>, <code>bellalunauto/resources.py</code>, <code>packaging/BellalunAuto.iss</code>, <code>core/dbreset.py</code>, <code>core/sysinfo.py</code></td><td data-label="Test"><a class="idref" href="#TEST-DIST-001">TEST-DIST-001</a>; <code>tests/test_distribution_runtime.py</code>, <code>tests/test_distribution_resources.py</code>, <code>tests/test_baseline_output.py</code>, <code>tests/test_baseline_restore_paths.py</code>, <code>tests/test_powershell_quoting.py</code>, <code>tests/test_first_run.py</code></td><td data-label="Status"><span class="badge st-verified">verified</span></td></tr>

@@ -27,6 +27,52 @@ from PIL import Image, ImageGrab, ImageStat
 
 from .ui import ViewerUi, child_pids, children
 
+#: UI Automation 보조 PowerShell 한 번의 시간 상한(초). 넘으면 TimeoutExpired 로 TC 가 중단되고
+#: 회귀는 다음 TC 로 간다(REQ-VERDICT-006). 정상 호출은 수 초 안에 끝난다.
+UIA_TIMEOUT = 90
+#: WM_SETTEXT 같은 동기 메시지를 다른 프로세스 창에 보낼 때 기다리는 최대 시간(ms).
+SEND_TIMEOUT_MS = 5000
+
+
+def _send_message_timeout(hwnd, msg, wparam, lparam, timeout_ms=SEND_TIMEOUT_MS):
+    """SendMessageTimeoutW(SMTO_ABORTIFHUNG). 대상이 응답하지 않으면 0을 돌려준다."""
+    user32 = ctypes.windll.user32
+    result = ctypes.c_size_t(0)
+    ok = user32.SendMessageTimeoutW(hwnd, msg, wparam, lparam,
+                                    0x0002, int(timeout_ms), ctypes.byref(result))
+    return result.value if ok else 0
+
+
+def describe_popups(owned, limit=5):
+    """자동화가 띄운 창 소유의 보이는 대화상자(#32770) 제목과 문구. 닫히지 않은 원인을 증거로 남긴다."""
+    user32 = ctypes.windll.user32
+    found = []
+    proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+
+    def text_of(hwnd):
+        buffer = ctypes.create_unicode_buffer(512)
+        user32.GetWindowTextW(hwnd, buffer, 512)
+        return buffer.value.strip()
+
+    def collect(hwnd, _):
+        name = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, name, 64)
+        if name.value == "#32770" and user32.IsWindowVisible(hwnd):
+            try:
+                mine = owned(hwnd)
+            except Exception:                              # noqa: BLE001
+                mine = False
+            if mine:
+                lines = [c.text.strip() for c in children(hwnd, 3) if (c.text or "").strip()]
+                found.append(f"[{text_of(hwnd)}] " + " / ".join(lines[:6]))
+        return len(found) < limit
+
+    try:
+        user32.EnumWindows(proc(collect), 0)
+    except Exception:                                      # noqa: BLE001
+        pass
+    return "; ".join(found)
+
 
 class XiplStudio:
     PROCESS_NAME = "XIPL.STUDIO"
@@ -129,6 +175,7 @@ if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                               stdin=subprocess.DEVNULL, capture_output=True,
+                              timeout=UIA_TIMEOUT,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
@@ -152,6 +199,7 @@ if($ok){{'true'}}else{{'false'}}
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                               stdin=subprocess.DEVNULL, capture_output=True,
+                              timeout=UIA_TIMEOUT,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         return proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true")
 
@@ -179,6 +227,7 @@ if($null -ne $found){{
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                               stdin=subprocess.DEVNULL, capture_output=True,
+                              timeout=UIA_TIMEOUT,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         raw = proc.stdout.decode("utf-8", "replace").strip()
         if not raw:
@@ -415,6 +464,7 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
 '''
         proc = subprocess.run(["powershell", "-NoProfile", "-Command", script],
                               stdin=subprocess.DEVNULL, capture_output=True,
+                              timeout=UIA_TIMEOUT,
                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         out = proc.stdout.decode("utf-8", "replace").strip()
         if out.startswith("ERROR"):
@@ -467,15 +517,15 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
 
     def _set_save_filename(self, edit, target):
         # 표준 파일명 Edit에 직접 전달한다. 가려진 창에 물리 입력을 보내지 않는다.
-        accepted = ctypes.windll.user32.SendMessageW(
-            edit.hwnd, 0x000C, 0, ctypes.c_wchar_p(target))
+        # 다른 프로세스 창이라 응답이 없으면 무기한 기다리지 않는다(REQ-VERDICT-006).
+        accepted = _send_message_timeout(edit.hwnd, 0x000C, 0, ctypes.c_wchar_p(target))
         entered = (self.ui.get_text(edit) or '').strip()
         if not accepted or entered.casefold() != target.casefold():
             raise RuntimeError(
                 'XIPL Save As 파일명이 입력 후 일치하지 않습니다'
                 f'(기대={target!r}, 실제={entered!r}). 저장하지 않습니다.')
 
-    def save_as(self, path, wait=2, settle=2.5, dialog_timeout=12):
+    def save_as(self, path, wait=2, settle=2.5, dialog_timeout=12, close_timeout=10):
         """Click Save As and type a new file name in the resulting dialog."""
         # A just-committed set_pim_field() edit (SetValue + blur click) leaves
         # the WPF editor mid-relayout for a couple of seconds; invoking Save
@@ -555,12 +605,18 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
         if not self._owns_dialog(dialog_hwnd):
             raise RuntimeError('XIPL Save As 대화상자 소유 관계가 변경되었습니다.')
         self._set_save_filename(edit, os.path.abspath(path))
-        user32.SendMessageW(save_button.hwnd, 0x00F5, 0, 0)
-        close_end = time.time() + max(wait, 3)
+        # BM_CLICK 을 SendMessageW 로 보내면 저장 뒤에 뜬 확인·오류 창이 닫힐 때까지 돌아오지
+        # 않는다. 1.0.0.007 회귀(2026-11-23)에서 XIPL_06 이 이 호출에 12.3시간 묶였다.
+        # 누름은 응답을 기다리지 않고 보내고, 결과는 대화상자가 닫혔는지로 확인한다(REQ-VERDICT-006).
+        if not user32.PostMessageW(save_button.hwnd, 0x00F5, 0, 0):
+            raise RuntimeError("XIPL Save As 저장 버튼에 누름을 보내지 못했습니다.")
+        close_end = time.time() + max(wait, 3) + close_timeout
         while time.time() < close_end and user32.IsWindow(dialog_hwnd):
             time.sleep(.2)
         if user32.IsWindow(dialog_hwnd):
-            raise RuntimeError("XIPL Save As 저장 버튼 후 대화상자가 닫히지 않았습니다.")
+            popups = describe_popups(self._owns_dialog)
+            raise RuntimeError("XIPL Save As 저장 버튼 후 대화상자가 닫히지 않았습니다"
+                               f"(떠 있는 대화상자: {popups or '없음'}).")
         time.sleep(wait)
 
     def close_process_if_open(self):
@@ -578,6 +634,7 @@ foreach($e in $els){{if($e.Current.Name -match 'PIM|PureImpact'){{try{{$wp=$e.Ge
             proc = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", script],
                 stdin=subprocess.DEVNULL, capture_output=True,
+                timeout=UIA_TIMEOUT,
                 creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             if proc.stdout.decode("utf-8", "replace").strip().lower().endswith("true"):
                 time.sleep(1)

@@ -205,6 +205,28 @@ def _kill_viewer():
     return pid
 
 
+#: 자동화가 띄우는 XIPL Studio. Viewer를 끝내도 남아 있으면 그 창에 보낸 호출이 돌아오지 않을 수 있다.
+XIPL_STUDIO_IMAGE = "XIPL.STUDIO.exe"
+
+
+def _kill_xipl_studio(run=None):
+    """단계를 끊을 때 XIPL Studio도 끝낸다(REQ-VERDICT-006). 실패해도 단계 중단은 계속한다."""
+    import subprocess
+    run = run or subprocess.run
+    try:
+        run(["taskkill", "/F", "/T", "/IM", XIPL_STUDIO_IMAGE], stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _kill_product():
+    """감시자가 단계를 끊을 때 Viewer와 XIPL Studio를 끝낸다."""
+    pid = _kill_viewer()
+    _kill_xipl_studio()
+    return pid
+
+
 # ---------------------------------------------------------------------
 # 단계 감시
 # ---------------------------------------------------------------------
@@ -313,7 +335,7 @@ def run_stage(fn, ctx, stage_id, title, *, guarded, timeout=None, monitor_factor
     `before_kill(monitor)`는 Viewer를 끝내기 전에 불러 실패 증거(핸들 수 등)를 남긴다.
     """
     import _thread
-    kill = kill or _kill_viewer
+    kill = kill or _kill_product
     interrupt = interrupt or _thread.interrupt_main
     timeout = timeout if timeout is not None else stage_timeout(stage_id, getattr(ctx, "cfg", None))
     tripped = threading.Event()

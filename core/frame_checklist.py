@@ -89,6 +89,7 @@ def add_summary_sheet(wb, *, product, rows, info=(), extras=(), report_path=None
         ws.merge_cells(start_row=line, start_column=3, end_row=line, end_column=5)
         line += 1
 
+    line = _criteria_block(ws, line + 1, meanings)
     line += 1
     _cell(ws, line, 1, '판정 합계', bold=True, size=12)
     line += 1
@@ -126,17 +127,39 @@ def add_summary_sheet(wb, *, product, rows, info=(), extras=(), report_path=None
                   fill=FILL.get(row['verdict'], FILL[NOT_RUN]), center=True)
             _cell(ws, line, 5, row.get('reason', ''), wrap=True)
 
-    line += 2
-    _cell(ws, line, 1, '판정 뜻', bold=True, size=12)
-    for key in ORDER:
-        if key in meanings:
-            line += 1
-            _cell(ws, line, 1, key, bold=True, color=INK[key], fill=FILL[key], center=True)
-            ws.merge_cells(start_row=line, start_column=1, end_row=line, end_column=2)
-            _cell(ws, line, 3, meanings[key], wrap=True)
-            ws.merge_cells(start_row=line, start_column=3, end_row=line, end_column=5)
+    if NOT_RUN in meanings:
+        line += 2
+        _cell(ws, line, 1, NOT_RUN, bold=True, color=INK[NOT_RUN], fill=FILL[NOT_RUN], center=True)
+        ws.merge_cells(start_row=line, start_column=1, end_row=line, end_column=2)
+        _cell(ws, line, 3, meanings[NOT_RUN], wrap=True)
+        ws.merge_cells(start_row=line, start_column=3, end_row=line, end_column=5)
     wb.active = 0
     return ws
+
+
+def _criteria_block(ws, line, meanings):
+    """판정 기준 표(레포트 맨 위와 같은 문장, core/report_layout.VERDICT_CRITERIA). 마지막으로 쓴 줄을 돌려준다."""
+    from core.report_layout import VERDICT_CRITERIA, VERDICT_PRIORITY
+    _cell(ws, line, 1, '판정 기준 (Step은 위에서부터 처음 맞는 조건으로 정합니다)', bold=True, size=12)
+    line += 1
+    for col, name, end in ((1, '판정', 2), (3, '뜻', 3), (4, '이렇게 정합니다 / 해당하지 않는 경우', 5), (6, '사람이 할 일', 6)):
+        cell = _cell(ws, line, col, name, bold=True, fill='E8EDF6', center=True)
+        cell.border = Border(bottom=THIN)
+        if end > col:
+            ws.merge_cells(start_row=line, start_column=col, end_row=line, end_column=end)
+    for key, rule, not_this, action in VERDICT_CRITERIA:
+        line += 1
+        _cell(ws, line, 1, key, bold=True, color=INK[key], fill=FILL[key], center=True)
+        ws.merge_cells(start_row=line, start_column=1, end_row=line, end_column=2)
+        _cell(ws, line, 3, meanings.get(key, ''), wrap=True)
+        _cell(ws, line, 4, rule + '\n해당하지 않음: ' + not_this, wrap=True)
+        ws.merge_cells(start_row=line, start_column=4, end_row=line, end_column=5)
+        _cell(ws, line, 6, action, wrap=True)
+        ws.row_dimensions[line].height = 62
+    for text in VERDICT_PRIORITY:
+        line += 1
+        _cell(ws, line, 1, f'· {text}', wrap=False)
+    return line + 1
 
 
 def first_reason(result_rows):

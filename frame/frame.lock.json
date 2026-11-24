@@ -5,12 +5,12 @@
     "vxvue": "vxvue/auto"
   },
   "files": {
-    "core/frame_checklist.py": "04072bc8fc92f513dc96dad7d0f47bbcb954cf44df89f6b45c9347730e3a080d",
+    "core/frame_checklist.py": "e2460354ca134555099793948825000d527fd50fc1a1bb416e5b6a1ec1fd05d9",
     "core/frame_install.py": "77a729b4b65c3f4d45c2de4986b88140a91eff6143d575d793b56ad749da491b",
     "core/frame_ui.ps1": "5d39e05341eaa015218a1e391d512a6b1c6b0cf301bdece8464682d3fababa30",
     "core/frame_ui.py": "021631ce969be36167fe6b690ca2ea35261009b70f58825fe020d09953d35201",
-    "core/report_layout.py": "e3a213a1f750037c1e850af7be7e0ad5fee61002c5007c3bad5d47b97af732f9",
-    "frame/FRAME.md": "c696f7208f8eea4a930f0cef02190d685a3bf8b71e5a3328b573e7be207bba8f",
+    "core/report_layout.py": "75ed27ce28bfdd1117351bb61dc3cdcc19bc5510ed643ed6b3dbab3f12d608d7",
+    "frame/FRAME.md": "70ea687d65b1145344a9b607a04bd5528ea6ff8412be3a4bebef9ddaf6429d73",
     "frame/sync_check.py": "1d20e9a3bb4d72404c1a593eab1adfbcf7629c27870c77a3b48874d0c7963b62"
   }
 }
