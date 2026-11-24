@@ -131,26 +131,27 @@ def _button(hwnd, label):
     return None, False
 
 
-def click(hwnd, label, timeout=30, poll=0.5):
-    """문구가 `label`인 버튼이 사용 가능해지면 누른다. 못 누르면 RuntimeError."""
-    end = time.time() + timeout
+def click(hwnd, label, timeout=30, poll=0.5, clock=time.time, sleep=time.sleep):
+    """문구가 `label`인 버튼이 사용 가능해지면 누른다(조건 대기). 못 누르면 RuntimeError."""
+    end = clock() + timeout
     while True:
         button, enabled = _button(hwnd, label)
         if button and enabled:
             if not _user32().PostMessageW(button, BM_CLICK, 0, 0):
                 raise RuntimeError(f'"{label}" 버튼에 누름을 보내지 못했습니다.')
             return
-        if time.time() >= end:
+        if clock() >= end:
             state = '비활성' if button else '없음'
             raise RuntimeError(f'"{label}" 버튼을 누를 수 없습니다({state}). 화면 문구: {texts(hwnd)[:12]}')
-        time.sleep(poll)
+        sleep(poll)
 
 
-def check_all(hwnd, settle=0.3):
+def check_all(hwnd):
     """확인 목록(CheckedListBox)의 모든 항목을 클릭해 체크한다. 체크한 항목 수.
 
     목록은 CheckOnClick이라 항목 한 번 클릭이 체크 한 번이다. 이미 체크된 목록에 다시 부르지 않는다.
     체크 결과는 화면이 돌려주는 답(`checked`)과 다음 화면으로 확인한다.
+    클릭 메시지는 목록의 메시지 큐에 순서대로 쌓여 처리되므로 항목 사이에 고정 대기를 두지 않는다.
     """
     lists = [child for child, cls, _, _ in controls(hwnd) if 'LISTBOX' in cls.upper()]
     if len(lists) != 1:
@@ -169,5 +170,4 @@ def check_all(hwnd, settle=0.3):
         point = (y << 16) | 8
         user32.PostMessageW(box, WM_LBUTTONDOWN, 1, point)  # MK_LBUTTON
         user32.PostMessageW(box, WM_LBUTTONUP, 0, point)
-        time.sleep(settle)
     return count
