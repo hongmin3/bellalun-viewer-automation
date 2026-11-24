@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="dd635c404b327f892f5ca5af4c1daf0248cc61481c4d2576d16c372d5e202252">
+<meta name="spec-source-sha256" content="d607e9c1f14700728d22e410dfe48c7454ecb727155dceb8679485b46d31a46d">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -569,7 +569,7 @@ Station AE를 읽지 못하면 아무 job이나 고르지 않고 실패로 남�
 <li>3D Post Reconstruction의 Preview는 완료 로그가 남고 Apply·Cancel이 다시 활성일 때 끝난 것으로 본다. Apply는 활성인 버튼만 누른다.</li>
 <li>3D Apply를 누른 뒤 5초 안에 창이 닫히거나 Post Recon 로그(<code>Terminate PostReconThread normally closed</code>, <code>Do Post Reconstruction</code>)가 남아야 받아들여진 것으로 본다. 아니면 최대 3번까지 다시 누르고, 끝내 받아들여지지 않으면 TC를 중단한다.</li>
 <li>촬영 Step의 영상 Parameter를 읽기 전에, Viewer 로그(<code>Select Image ... Step ID</code>)로 그 Step이 선택됐는지 확인한다. 확인이 안 되면 최대 3번 다시 누르고, 그래도 안 되면 다른 영상을 읽지 않고 중단한다.</li>
-<li>XIPL Save As는 Studio로 이어지는 소유 창 관계와 파일명·저장 버튼이 유일한 대화상자만 사용한다. 파일명 칸에 직접 값을 전달하고 실제 표시값을 재조회한 뒤 저장한다. 입력 실패나 후보 중복이면 저장하지 않는다.</li>
+<li>XIPL Save As는 Studio로 이어지는 소유 창 관계와 파일명·저장 버튼이 유일한 대화상자만 사용한다. 파일명은 그 칸에 전체 선택 뒤 글자 메시지(<code>WM_CHAR</code>)로 보내고 실제 표시값을 재조회한 뒤 저장한다. 입력 실패나 후보 중복이면 저장하지 않는다.</li>
 </ul>
 <aside class="callout callout-example"><span class="callout-label">예시</span>
 <p>1.0.8 설치판 XIPL03은 Apply가 비활성일 때 눌러 클릭이 무시됐고 120초 뒤 timeout 됐다. XIPL04는 A 영상 썸네일 클릭이 무시된 채 B 영상의 Parameter를 읽어 FAIL이 됐다. 제품 로그상 두 영상의 Parameter는 각각 맞게 적용돼 있었다.</p>
@@ -939,8 +939,9 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <section class="card kind-req" id="REQ-VERDICT-006">
 <h3><span class="idtag">REQ-VERDICT-006</span> TC가 무기한 멈추지 않게 하기</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>run.py</code>, <code>core/wu_chain.py</code>, <code>core/xipl.py</code>, <code>tests/xipl_flows.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_xipl_save_dialog.py</code>, <code>tests/test_wu_chain.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">XIPL Save As 파일명 입력을 글자 메시지로 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>: XIPL_06 Save As 파일명을 <code>WM_SETTEXT</code> 대신 전체 선택 뒤 <code>WM_CHAR</code>로 넣는다. 1.0.0.008 WU 회차에서 칸에는 새 이름이 보였지만 대화상자는 처음 파일 <code>TEST_2D_FLOW_M.pim</code>의 덮어쓰기를 물어 FAIL했다. 예상하지 않은 덮어쓰기 확인 창은 [아니요]로 닫고 문구와 함께 FAIL한다.</li>
 <li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>(신규): 기본 전체 회귀에도 단계 시간 상한·응답 없음 감시를 적용하고, 끊을 때 XIPL Studio도 끝낸다. XIPL Save As 누름을 응답을 기다리지 않는 방식으로 바꿔 1.0.0.007에서 본 12.3시간 멈춤을 막는다. XIPL PowerShell 호출에 시간 상한을 둔다.</li>
 </ul>
 </details>
@@ -956,8 +957,12 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <li>그 단계의 TC를 BLOCKED와 사유로 기록하고 Viewer를 다시 띄워 다음 TC로 간다.</li>
 <li>다른 프로세스의 창에 보내는 버튼 누름은 응답을 기다리지 않는 방식(<code>PostMessageW</code>)으로 보낸다. 결과는 창이 닫혔는지, 파일이 생겼는지로 확인한다.</li>
 <li>창이 닫히지 않으면 남아 있는 대화상자의 제목과 문구, 화면을 증거로 남긴다.</li>
+<li>파일명은 글자만 바꾸는 <code>WM_SETTEXT</code>가 아니라 타이핑과 같은 글자 메시지로 넣는다. 저장 대상 파일은 미리 지우므로, 덮어쓰기 확인 창이 뜨면 [아니요]로 닫아 다른 파일을 보호하고 그 문구와 함께 실패한다.</li>
 <li>외부 명령(PowerShell 등) 호출에는 시간 상한을 둔다.</li>
 </ol>
+<aside class="callout callout-example"><span class="callout-label">예시</span>
+<p>2026-11-24 1.0.0.008 WU 회차에서 칸에는 <code>TEST_XIPL_SAVED_M.pim</code>이 보였지만 대화상자는 처음 파일 <code>TEST_2D_FLOW_M.pim</code>의 덮어쓰기를 물었다. 1.0.0.007의 12.3시간 멈춤도 이 확인 창에서 생겼다.</p>
+</aside>
 </div></section>
 </section>
 <section class="card kind-req" id="REQ-REPORT-001">

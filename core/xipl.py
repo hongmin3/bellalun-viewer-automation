@@ -43,6 +43,39 @@ def _send_message_timeout(hwnd, msg, wparam, lparam, timeout_ms=SEND_TIMEOUT_MS)
     return result.value if ok else 0
 
 
+def find_yes_no_prompt(owned, exclude=None):
+    """자동화가 띄운 창 소유의 예(6)·아니요(7) 확인 대화상자. (hwnd, 문구, 아니요 버튼 hwnd) 또는 None."""
+    user32 = ctypes.windll.user32
+    found = []
+    proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+
+    def collect(hwnd, _):
+        if hwnd == exclude:
+            return True
+        name = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, name, 64)
+        if name.value != "#32770" or not user32.IsWindowVisible(hwnd):
+            return True
+        try:
+            if not owned(hwnd):
+                return True
+        except Exception:                                  # noqa: BLE001
+            return True
+        nodes = children(hwnd, 3)
+        buttons = {c.ctrl_id: c for c in nodes if c.cls == "Button" and c.visible}
+        if 6 in buttons and 7 in buttons:
+            text = " / ".join(c.text.strip() for c in nodes if c.cls != "Button" and (c.text or "").strip())
+            found.append((hwnd, text, buttons[7].hwnd))
+            return False
+        return True
+
+    try:
+        user32.EnumWindows(proc(collect), 0)
+    except Exception:                                      # noqa: BLE001
+        return None
+    return found[0] if found else None
+
+
 def describe_popups(owned, limit=5):
     """자동화가 띄운 창 소유의 보이는 대화상자(#32770) 제목과 문구. 닫히지 않은 원인을 증거로 남긴다."""
     user32 = ctypes.windll.user32
@@ -515,12 +548,29 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
             hwnd = user32.GetWindow(hwnd, 4)  # GW_OWNER
         return False
 
-    def _set_save_filename(self, edit, target):
-        # 표준 파일명 Edit에 직접 전달한다. 가려진 창에 물리 입력을 보내지 않는다.
-        # 다른 프로세스 창이라 응답이 없으면 무기한 기다리지 않는다(REQ-VERDICT-006).
-        accepted = _send_message_timeout(edit.hwnd, 0x000C, 0, ctypes.c_wchar_p(target))
-        entered = (self.ui.get_text(edit) or '').strip()
-        if not accepted or entered.casefold() != target.casefold():
+    def _set_save_filename(self, edit, target, settle_timeout=5.0):
+        """파일명 Edit 하나에 타이핑과 같은 메시지를 보낸다. 가려진 창에 물리 입력을 보내지 않는다.
+
+        WM_SETTEXT 로 글자만 바꾸면 Windows 저장 대화상자가 변경을 입력으로 받지 않아, 저장할 때
+        처음 이름을 쓴다. 2026-11-24 1.0.0.008 WU 회차에서 칸에는 TEST_XIPL_SAVED_M.pim 이
+        보였는데 대화상자는 TEST_2D_FLOW_M.pim 덮어쓰기를 물었다. 그래서 전체 선택(EM_SETSEL) 뒤
+        글자를 WM_CHAR 로 보내 대화상자가 입력 변경 알림을 받게 한다(REQ-VERDICT-006).
+        """
+        user32 = ctypes.windll.user32
+        # 다른 프로세스 창이라 응답이 없으면 무기한 기다리지 않는다.
+        if not _send_message_timeout(edit.hwnd, 0x00B1, 0, -1) and (self.ui.get_text(edit) or ''):
+            raise RuntimeError('XIPL Save As 파일명 칸이 응답하지 않습니다. 저장하지 않습니다.')
+        for char in target:
+            if not user32.PostMessageW(edit.hwnd, 0x0102, ord(char), 1):
+                raise RuntimeError('XIPL Save As 파일명 칸에 글자를 보내지 못했습니다. 저장하지 않습니다.')
+        deadline = time.time() + settle_timeout
+        entered = ''
+        while True:
+            entered = (self.ui.get_text(edit) or '').strip()
+            if entered.casefold() == target.casefold() or time.time() >= deadline:
+                break
+            time.sleep(.1)
+        if entered.casefold() != target.casefold():
             raise RuntimeError(
                 'XIPL Save As 파일명이 입력 후 일치하지 않습니다'
                 f'(기대={target!r}, 실제={entered!r}). 저장하지 않습니다.')
@@ -612,6 +662,14 @@ Write-Output ("OK|{{0}}|{{1}}" -f $oldVal, $newVal)
             raise RuntimeError("XIPL Save As 저장 버튼에 누름을 보내지 못했습니다.")
         close_end = time.time() + max(wait, 3) + close_timeout
         while time.time() < close_end and user32.IsWindow(dialog_hwnd):
+            # 저장 대상은 실행 전에 지웠으므로 덮어쓰기 확인이 뜨면 다른 파일에 저장하려는 것이다.
+            # [아니요]로 닫아 기존 파일을 보호하고 그 문구와 함께 실패한다.
+            prompt = find_yes_no_prompt(self._owns_dialog, exclude=dialog_hwnd)
+            if prompt:
+                prompt_hwnd, text, no_button = prompt
+                user32.PostMessageW(no_button, 0x00F5, 0, 0)
+                raise RuntimeError("XIPL Save As 가 예상하지 않은 덮어쓰기 확인을 띄워 [아니요]로 닫았습니다"
+                                   f"(기대 파일={os.path.abspath(path)!r}, 확인 창 문구={text!r}).")
             time.sleep(.2)
         if user32.IsWindow(dialog_hwnd):
             popups = describe_popups(self._owns_dialog)
