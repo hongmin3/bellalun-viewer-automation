@@ -230,10 +230,11 @@ def test_stage_trip_also_stops_xipl_studio(monkeypatch):
 
 
 def test_xipl_powershell_calls_have_a_time_limit():
-    source = (ROOT / "core/xipl.py").read_text(encoding="utf-8")
-    calls = re.findall(r"subprocess\.run\((.*?)\)\n", source, re.S)
-    assert calls and all("timeout=" in call for call in calls)
-    assert "SendMessageW(save_button" not in source
+    for path in ("core/xipl.py", "tests/xipl_flows.py"):
+        source = (ROOT / path).read_text(encoding="utf-8")
+        calls = re.findall(r"subprocess\.run\((.*?)\)\n", source, re.S)
+        assert calls and all("timeout=" in call for call in calls), path
+    assert "SendMessageW(save_button" not in (ROOT / "core/xipl.py").read_text(encoding="utf-8")
 
 
 # --- REQ-QA-002 남은 '실행 중' 기록 ----------------------------------------------------
