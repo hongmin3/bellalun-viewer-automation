@@ -3,8 +3,8 @@
 
 Bellalun 정책은 VXvue 의 "전 항목 PASS·flake 0" 정책과 **다르다.**
 
-* 사람이 직접 하는 TC 는 SKIP 이다. WU 는 사람 전용 TC(WU_01·12·13)만 SKIP 을 허용하고,
-  기본기능 회귀는 사람 전용 TC(WF_16)만 SKIP 을 허용하고, MANUAL TC 는 그대로 허용하고 목록만 보고한다.
+* WU 는 사람 전용 TC(WU_01·12·13)만 SKIP 을 허용한다. 기본기능은 REQ-DIST-005의
+  지정 목록만 SKIP 을 허용한다. MANUAL TC 는 그대로 허용하고 목록을 보고한다.
 * FAIL 은 `tests/winupdate.py::KNOWN_DEFECT_EXCLUDE` 에 등록된 (tc_id, check
   title) 기존 알려진 제품 결함만 허용한다. 그 결함 때문에 TC 가 중단되며 생긴
   연쇄 기록도 허용한다(아래 `classify_fail`). 그 밖의 FAIL·BLOCKED 는 거부한다.
@@ -41,6 +41,13 @@ WU_IDS = tuple(f"TC_WindowsUpdate_{i:02}" for i in range(1, 14))
 #: 사람이 직접 하는 TC. 이 셋만 SKIP 이어야 하고 나머지 10건은 PASS 여야 한다
 #: (2026-11-05 사용자 결정으로 MANUAL → SKIP, REQ-VERDICT-002).
 WU_HUMAN_ONLY = frozenset(t for t in HUMAN_ONLY_TCS if t.startswith("TC_WindowsUpdate_"))
+# REQ-DIST-005: 기존 WF_16과 2026-11-24 사용자 승인으로 임시 허용한 9건.
+BASIC_ALLOWED_SKIPS = frozenset({
+    "TC_Basic_WorkFlow_16",
+    "TC_Basic_Install_03", "TC_Basic_Install_04", "TC_Basic_Install_05", "TC_Basic_Install_06",
+    "TC_Basic_QC_01", "TC_Basic_QC_02",
+    "TC_Basic_Performance_01", "TC_Basic_Performance_02", "TC_Basic_Performance_03",
+})
 # 리포트 요약과 같은 기준을 쓰도록 FAIL 분류는 core.result 에 둔다(2026-11-05).
 from core.result import PAD_ACTUAL, PAD_TITLE, STEPFAILED_PREFIX, classify_fail, is_padded  # noqa: E402,F401
 _SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -134,7 +141,7 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
         tc_id = row.get("tc_id")
         rows = row.get("checks") or []
         if row.get("verdict") == "SKIP":
-            (skipped if tc_id in HUMAN_ONLY_TCS else stray_skip).append(tc_id)
+            (skipped if tc_id in BASIC_ALLOWED_SKIPS else stray_skip).append(tc_id)
         # 앞 Step 실패로 채운 미수행 행(BLOCKED)은 그 TC 의 FAIL 판정으로 따진다(REQ-VERDICT-004).
         if row.get("verdict") == "BLOCKED" or any(
                 c.get("status") == "BLOCKED" and not is_padded(c) for c in rows):
@@ -161,9 +168,9 @@ def _evaluate_basic(report, checks, reasons, known_defects, *, require_full=True
            "없음" if not blocked else f"BLOCKED TC {', '.join(blocked)}")
     _check(checks, reasons, "기본기능 알려진 결함 외 FAIL 없음", not real,
            "없음" if not real else f"허용 목록 밖 FAIL {len(real)}건: {'; '.join(real)}")
-    _check(checks, reasons, "기본기능 SKIP 은 사람 전용 TC 만", not stray_skip,
+    _check(checks, reasons, "기본기능 SKIP 허용 목록", not stray_skip,
            ", ".join(skipped) or "SKIP 없음" if not stray_skip else
-           f"사람 전용이 아닌 TC 가 SKIP 입니다: {', '.join(stray_skip)}")
+           f"허용 목록 밖 TC 가 SKIP 입니다: {', '.join(stray_skip)}")
     checks.append({"name": "허용된 알려진 결함", "passed": True,
                    "detail": "; ".join(tolerated) or "없음"})
     checks.append({"name": "알려진 결함 중단으로 미검증된 Step", "passed": True,

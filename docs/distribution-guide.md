@@ -4,9 +4,8 @@ BellalunAuto 설치판은 Python·Git·개발 소스 없이 기존 기본기능 
 Viewer·제품 SQL/Server/XIPL과 시험에 필요한 외부 서버/USB는 대상 QA PC에 준비한다. 새 Setup은 OCR을 자동 준비하고 승인 Baseline·체크리스트·매뉴얼을 포함한다.
 설치 성공, 프로그램 기동, 제품 시험 성공은 각각 구분하여 기록한다.
 
-현재 소스는1.0.20 후보, 설치판은1.0.19 후보다. 최신 설치 파일 대조·실제 회귀·복구 상태는
-[progress.md](../progress.md), 구현과 남은 수용 범위는 [후속 구현 정리](issue137-implementation-summary.md)를 따른다.
-현재 후보의 전체 기본/WU·다른 버튼과 키보드 자동 닫기 취소 수용은 미완료다.
+현재 정식판은 BellalunAuto 1.0.0이다. 설치판 GUI 두 회차의 결과는 [정식 1.0.0 배포 기록](#정식-100-배포-기록)에서 확인한다.
+이전 1.0.19·1.0.20 후보의 검증 범위는 [후속 구현 정리](issue137-implementation-summary.md)에 남아 있다.
 
 **다음은1.0.14 당시 기록이다.** Setup·자동 준비 종료0, 설치 runtime1,010개 해시 일치와 기존 작업1,614개 변경·누락0, config 보존을 확인했다. 당시 제품 전체 회귀는 아직 시작하지 않았다. 1.0.13 Setup·자동 준비·설치 파일 해시와 GUI 실행을 확인했지만 실제 DB 사전 보존 조회가 막혀 전체 회귀는 시작하지 않았다. 1.0.14는 해당 쿼리를 수정했으며 ZIP·해제·런타임 파일 대조와 EXE 기본 CLI 확인을 마쳤다. 아래1.0.3~1.0.5 기록도 역사 자료다.
 
@@ -113,7 +112,7 @@ python tools/release_gate.py --installed-verification <verification.json> --scop
 - EXE·설치 파일·build-info가 시험 때와 같고 컴파일·소스 시험을 생략하지 않았다. 선택한 실행이 완료됐으며 새 리포트의 해시·명령이 기록과 같다.
 - 선택한 리포트의 `source_commit`이 빌드 커밋과 같고 `source_dirty`가 `false`, 출처가 `build-info`다. 소스 실행 결과를 설치판 결과로 받지 않는다.
 - WU를 선택했으면 실시간 실행(`live`)이고 `chain_completed`가 참이며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13)이다.
-- 기본기능을 선택했으면 전체 회귀이며 `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없다. 단독 TC는 지정 TC를 모두 수행했는지와 같은 FAIL·BLOCKED·사람 전용 SKIP 기준을 확인한다.
+- 기본기능을 선택했으면 전체 회귀이며 `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없다. 기본기능 SKIP 허용 목록은 `WF_16`, `Install_03~06`, `QC_01~02`, `Performance_01~03`이다. 단독 TC는 지정 TC를 모두 포함했는지와 같은 FAIL·BLOCKED·SKIP 기준을 확인한다.
 
 선택하지 않은 묶음의 리포트는 요구하지 않는다. 시험 범위·미수행 범위와 선택 이유를 승인 기록과 함께 전달한다. 통과한 EXE·설치 파일을 다시 빌드하거나 build-info를 고치지 않는다. 후보 파일명은 그대로 두고 `--output`으로 만든 배포 판정 기록을 함께 전달한다. `build-info.release_gate`는 빌드 당시의 상태이며 최종 설치판 검증은 별도 기록으로 확인한다.
 
@@ -123,6 +122,24 @@ python tools/release_gate.py --installed-verification <verification.json> --scop
 기존 `tools/release_gate.py --wu <WU json> --basic <기본 json> --commit <SHA>` 및 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다. 이 경로를 새 작업의 필수 선행조건으로 사용하지 않는다.
 
 > **참고** 2026-11-04 전의 리포트에는 `source_commit`이 없어 게이트가 거부한다. 후보11 결과도 이 사유 하나로 거부된다.
+
+### 정식 1.0.0 배포 기록
+
+2026-11-24 PC2에서 검증한 후보 1.0.0.009를 정식 1.0.0으로 지정했다. 빌드 커밋은 `a6b8f1cef755534147fc61094ebb19a3f7932719`이다.
+
+| 파일 | SHA-256 |
+| --- | --- |
+| `BellalunAuto-1.0.0.009-candidate-setup.exe` | `dae3a5147be5ce430816f1ccd253dcdcd3f530a0855f64857dfdfb9d858a2dff` |
+| 설치 후 `BellalunAuto.exe` | `3ca0bd8473d64daf06d3288d08f45d479d419edeec8a32560519f223bbc74118` |
+
+| 설치판 GUI 회차 | 실행 번호 | 판정 | 원상복원 |
+| --- | --- | --- | --- |
+| Windows Update 전체 | `20261124-151416-48b4bb5c` | PASS 10 · SKIP 3 | 검증 완료 |
+| 기본기능 전체 | `20261124-161528-b8f18f15` | PASS 25 · MANUAL 1 · SKIP 10 | 검증 완료 |
+
+설치판 게이트(`both`)는 36개 검사를 모두 통과했다. Setup 파일명과 내장 버전은 빌드 당시 값으로 보존했다. 원본 리포트 경로와 해시, 승인 원문은 사내 후보 폴더 `release/1.0.0.009/정식-1.0.0-지정.json`에서 확인할 수 있다.
+
+### 빌드 세부 확인
 
 저장소가 한글 경로(예: `C:\자동화\...`) 아래에 있어도 빌드할 수 있다.
 

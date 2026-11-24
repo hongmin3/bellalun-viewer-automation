@@ -5,8 +5,8 @@
 | 항목 | 값 |
 |---|---|
 | Document Version | 1.4.1 |
-| Project Version | BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음 |
-| Last Updated | 2026-11-15 |
+| Project Version | BellalunAuto 정식 1.0.0(내부 검증판 1.0.0.009와 동일한 설치 파일) |
+| Last Updated | 2026-11-24 |
 | Status | current |
 | Owner | Bellalun Viewer 자동화 유지보수 담당자 |
 
@@ -617,14 +617,17 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 
    - WU 재개(`--resume`)는 처음 실행의 시작 값을 저장점에서 읽어 쓴다. 설치판은 작업 폴더가 저장소여도 EXE 옆 build-info 값을 쓴다.
 3. WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, REQ-VERDICT-002)인지 본다.
-4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
+4. 기본기능을 선택했으면 전체 회귀인지, `KNOWN_DEFECT_EXCLUDE` 밖의 FAIL·BLOCKED가 없는지, SKIP이 허용 목록에만 있는지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
+
+   - 기본기능 SKIP 허용 목록은 `WF_16`, `Install_03~06`, `QC_01~02`, `Performance_01~03`이다. 신규 OS 설치 환경·실물 장비·촬영 및 성능 기준이 필요한 9건을 2026-11-24 사용자 승인으로 임시 허용한다.
+   - 배포 판정 기록에 허용한 SKIP 목록을 남긴다. 각 항목의 판정과 사유는 원본 리포트에서 확인한다.
 5. WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다(REQ-DIST-009). 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.
 6. 선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.
 #### 결과
 `python tools/release_gate.py --installed-verification <기록> --scope <범위>`가 항목별 통과·실패와 거부 사유를 보여 준다. 통과 후 같은 EXE를 배포하며 다시 컴파일하지 않는다. 후보 파일명과 build-info는 보존하고 별도 배포 승인 기록으로 검증을 연결한다. 기존 `--wu --basic`과 빌드의 `--gate-wu --gate-basic`은 과거 전체 회귀 기록 호환용이다.
 #### 안 될 때
 게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 `-candidate`를 붙이고 `게이트-미통과-후보.txt`와 build-info에 사유를 남긴다.
-> **참고** VXvue의 "전 항목 PASS·흔들림 0" 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
+> **참고** Bellalun은 각 범위의 SKIP 허용 목록과 등록된 알려진 결함을 적용한다.
 > **예외** 리포트 문장 완전성 검사(`--language`)는 선택 사항이다.
 
 ### REQ-DIST-009 전체 회귀는 설치판 GUI로 실행
@@ -1634,7 +1637,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 ### TEST-DIST-005 릴리스 게이트
 
 - 검증 대상: REQ-DIST-005.
-- 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.
+- 절차: `tests/test_release_gate.py`로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하는지 확인한다. 기본기능에서 허용 목록 10건의 SKIP은 통과하고, 목록 밖 SKIP은 거부하는지 확인한다. 게이트 미통과 빌드의 후보 표시도 확인한다.
 - Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.
 
 ### TEST-DIST-009 설치판 GUI 전체 회귀

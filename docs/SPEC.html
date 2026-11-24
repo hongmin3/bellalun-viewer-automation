@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="9c97610f7f7dcefb6b9cd1f65f76428a9f03e9163c89780fcec0fcba22defd27">
+<meta name="spec-source-sha256" content="2fe80627e7861f73738caed1d855bc2eea65c10f98d60cc97d6a9a1bf03db50f">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -92,7 +92,7 @@ footer{max-width:1800px;margin:0 auto;padding:8px 24px 40px;color:var(--muted);f
 <body>
 <header class="top">
 <h1>Bellalun Viewer 자동화 사양서</h1>
-<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 소스 1.0.21 후보·설치판 1.0.20 후보(기본·WU 전체 수용 완료); Viewer 제품 릴리스 변경 없음</b></span><span class="chip"><span>Last Updated</span><b>2026-11-15</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
+<div class="chips"><span class="chip"><span>Document Version</span><b>1.4.1</b></span><span class="chip"><span>Project Version</span><b>BellalunAuto 정식 1.0.0(내부 검증판 1.0.0.009와 동일한 설치 파일)</b></span><span class="chip"><span>Last Updated</span><b>2026-11-24</b></span><span class="chip"><span>Status</span><b>current</b></span><span class="chip"><span>Owner</span><b>Bellalun Viewer 자동화 유지보수 담당자</b></span></div>
 <div class="stats"><div class="stat"><b>60</b><span>기능 요구사항 REQ</span></div><div class="stat"><b>1</b><span>비기능 NFR</span></div><div class="stat"><b>47</b><span>테스트 TEST</span></div><div class="stat st-draft"><b>1</b><span>draft</span></div><div class="stat st-implemented"><b>2</b><span>implemented</span></div><div class="stat st-verified"><b>58</b><span>verified</span></div></div>
 </header>
 <div class="layout">
@@ -1203,8 +1203,10 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 설치판의 승인 범위를 확인하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/versioning.py</code>, <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 17</summary>
+<details class="history"><summary>변경 이력 19</summary>
 <ul>
+<li><span class="hist">정식 1.0.0 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 사용자 승인에 따라 기본기능 게이트에서 기존 <code>WF_16</code>과 함께 <code>Install_03~06</code>, <code>QC_01~02</code>, <code>Performance_01~03</code>의 SKIP을 허용한다. SKIP 목록은 배포 판정 기록에 남긴다.</li>
+<li><span class="hist">정식 1.0.0 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>: 내부 검증판 1.0.0.009와 동일한 바이너리를 정식 1.0.0으로 지정했다. 설치판 GUI의 WU 전체(<code>20261124-151416-48b4bb5c</code>)와 기본기능 전체(<code>20261124-161528-b8f18f15</code>) 리포트로 게이트 36개를 통과했고, 두 회차 모두 DB·대상 파일 원상복원을 확인했다.</li>
 <li><span class="hist">전체 회귀는 설치판 GUI로 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 게이트의 리포트 명령 대조가 마지막 단어만 보던 것을 고쳤다. 1.0.0.008 WU 기록처럼 <code>--prepared</code>로 끝나는 정상 명령이 거부됐다.</li>
 <li><span class="hist">내부 검증판 1.0.0.009 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: XIPL Save As 파일명 입력 수정(<a class="idref" href="#REQ-VERDICT-006">REQ-VERDICT-006</a>)을 담은 내부 검증판이다. 표시 버전 1.0.0.009, Windows 파일 버전 1.0.0.9로 새로 컴파일한다. 사용자 결정(2026-11-24)에 따라 설치판 WU 전체와 기본기능 전체를 각 1회 실행하고, 게이트를 통과하면 이 EXE를 다시 컴파일하지 않고 정식 1.0.0으로 지정한다.</li>
 <li><span class="hist">내부 검증판 1.0.0.008 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 판정 기준표·환경 재점검·멈춤 방지(<a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>~006)와 실행 기록 정리(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)를 담은 내부 검증판이다. 표시 버전 1.0.0.008, Windows 파일 버전 1.0.0.8로 새로 컴파일한다.</li>
@@ -1238,7 +1240,12 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 </ul>
 </li>
 <li>WU를 선택했으면 실시간 실행이고 체인을 끝까지 수행했으며 PASS 10 / SKIP 3(사람이 직접 하는 WU_01·12·13, <a class="idref" href="#REQ-VERDICT-002">REQ-VERDICT-002</a>)인지 본다.</li>
-<li>기본기능을 선택했으면 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지, SKIP이 사람이 직접 하는 TC(WF_16)뿐인지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.</li>
+<li>기본기능을 선택했으면 전체 회귀인지, <code>KNOWN_DEFECT_EXCLUDE</code> 밖의 FAIL·BLOCKED가 없는지, SKIP이 허용 목록에만 있는지 본다. 단독 TC는 지정한 TC가 모두 포함됐는지와 같은 판정 기준을 확인한다.
+<ul>
+<li>기본기능 SKIP 허용 목록은 <code>WF_16</code>, <code>Install_03~06</code>, <code>QC_01~02</code>, <code>Performance_01~03</code>이다. 신규 OS 설치 환경·실물 장비·촬영 및 성능 기준이 필요한 9건을 2026-11-24 사용자 승인으로 임시 허용한다.</li>
+<li>배포 판정 기록에 허용한 SKIP 목록을 남긴다. 각 항목의 판정과 사유는 원본 리포트에서 확인한다.</li>
+</ul>
+</li>
 <li>WF와 WU 모두 최종 검증할 때는 동일 후보의 설치판 GUI에서 기본기능(WF) 전체와 Windows Update(WU) 전체를 각각 단독으로 한 번씩 실행한다(<a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>). 두 리포트의 TC별 PASS·SKIP과 SKIP 사유가 승인된 기대 판정에 맞고 각 회차의 복원이 확인되면 최종 검증을 마친다. 결합 회차는 추가하지 않는다.</li>
 <li>선택하지 않은 묶음의 리포트는 요구하지 않는다. 승인 기록에 시험 범위·미수행 범위·EXE 해시를 남긴다. 부분 시험 통과를 전체 회귀 통과로 표시하지 않는다.</li>
 </ol>
@@ -1249,7 +1256,7 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="field"><h4>안 될 때</h4><div class="field-body">
 <p>게이트 입력이 없거나 통과하지 못해도 후보 빌드는 만든다. 산출물 이름에 <code>-candidate</code>를 붙이고 <code>게이트-미통과-후보.txt</code>와 build-info에 사유를 남긴다.</p>
 <aside class="callout callout-info"><span class="callout-label">참고</span>
-<p>VXvue의 &quot;전 항목 PASS·흔들림 0&quot; 기준과 다르다. Bellalun은 사람이 직접 하는 TC의 SKIP과 등록된 알려진 결함만 허용한다.
+<p>Bellalun은 각 범위의 SKIP 허용 목록과 등록된 알려진 결함을 적용한다.
 <strong>예외</strong> 리포트 문장 완전성 검사(<code>--language</code>)는 선택 사항이다.</p>
 </aside>
 </div></section>
@@ -1257,8 +1264,9 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-009">
 <h3><span class="idtag">REQ-DIST-009</span> 전체 회귀는 설치판 GUI로 실행</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>tools/run_installed_gui.py</code>, <code>core/frame_drive.py</code>, <code>tools/installed_release_gate.py</code>, <code>tools/run_installed_suites.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a>; <code>tests/test_installed_release_gate.py</code>, <code>tests/test_frame_drive.py</code>, <code>tests/test_installed_gui.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-DIST-009">TEST-DIST-009</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">정식 1.0.0 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>: 내부 검증판 1.0.0.009와 동일한 바이너리를 정식 1.0.0으로 지정했다. 설치판 GUI의 WU 전체(<code>20261124-151416-48b4bb5c</code>)와 기본기능 전체(<code>20261124-161528-b8f18f15</code>) 리포트로 게이트 36개를 통과했고, 두 회차 모두 DB·대상 파일 원상복원을 확인했다.</li>
 <li><span class="hist">전체 회귀는 설치판 GUI로 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>(신규): 릴리스를 판정하는 기본기능·WU 전체 회귀는 후보를 설치한 뒤 설치판 실행 화면에서 시작한다(사용자 결정 2026-11-24). 사용자가 승인한 경우 에이전트가 공용 조작기(<code>core/frame_drive.py</code>)로 화면의 버튼과 동의를 누르고, <code>tools/run_installed_gui.py</code>가 실행 기록·리포트·승인 문구를 게이트 입력으로 묶는다. 게이트는 전체 범위에서 화면 동의한 GUI 회차만 받는다.</li>
 </ul>
 </details>
@@ -2803,7 +2811,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 <h3><span class="idtag">TEST-DIST-005</span> 릴리스 게이트</h3>
 <ul>
 <li>검증 대상: <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>.</li>
-<li>절차: <code>tests/test_release_gate.py</code>로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하고 조건을 채운 결과는 통과하는지, 게이트 미통과 빌드가 후보로 표시되는지 확인한다.</li>
+<li>절차: <code>tests/test_release_gate.py</code>로 다른 커밋·수정된 소스·제외 대상 밖 FAIL/BLOCKED·체인 미완료·목표 미달을 거부하는지 확인한다. 기본기능에서 허용 목록 10건의 SKIP은 통과하고, 목록 밖 SKIP은 거부하는지 확인한다. 게이트 미통과 빌드의 후보 표시도 확인한다.</li>
 <li>Expected Result: 거부 사유가 항목별로 남고 통과 조건이 위 규칙과 같다.</li>
 </ul>
 </section>
