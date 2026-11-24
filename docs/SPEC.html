@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="634e8d1f76b32858b4d50f9bcfb4358950b1859cb29303efee07db6d034a7a76">
+<meta name="spec-source-sha256" content="dd635c404b327f892f5ca5af4c1daf0248cc61481c4d2576d16c372d5e202252">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -856,8 +856,9 @@ WU_09의 USB Import 되읽기는 완료 신호·재생성 UID·영상 파일·Ex
 <section class="card kind-req" id="REQ-VERDICT-004">
 <h3><span class="idtag">REQ-VERDICT-004</span> 다섯 판정의 기준과 레포트 상단 표시</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>core/report_layout.py</code>, <code>core/frame_checklist.py</code>, <code>core/result.py</code>, <code>run.py</code>, <code>tools/release_gate.py</code>, <code>tests/winupdate.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a>; <code>tests/test_verdict_criteria.py</code>, <code>tests/test_user_action_steps.py</code>, <code>tests/test_release_gate.py</code>, <code>tests/test_wu_skip_policy.py</code>, <code>tests/test_frame_checklist.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
-<details class="history"><summary>변경 이력 1</summary>
+<details class="history"><summary>변경 이력 2</summary>
 <ul>
+<li><span class="hist">내부 검증판 1.0.0.008 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 판정 기준표·환경 재점검·멈춤 방지(<a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>~006)와 실행 기록 정리(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)를 담은 내부 검증판이다. 표시 버전 1.0.0.008, Windows 파일 버전 1.0.0.8로 새로 컴파일한다.</li>
 <li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>(신규): 다섯 판정의 기준표를 HTML 레포트 맨 위와 체크리스트 결과 요약 시트의 판정 합계 위에 보인다(사용자 승인 2026-11-24). 앞 Step 실패로 수행하지 않은 Step을 FAIL 대신 BLOCKED로 기록한다. TC 판정은 FAIL 그대로이며 게이트·WU 변환은 예전 FAIL 채움 행도 같은 뜻으로 읽는다.</li>
 </ul>
 </details>
@@ -1193,8 +1194,9 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 설치판의 승인 범위를 확인하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/versioning.py</code>, <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 14</summary>
+<details class="history"><summary>변경 이력 15</summary>
 <ul>
+<li><span class="hist">내부 검증판 1.0.0.008 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 판정 기준표·환경 재점검·멈춤 방지(<a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>~006)와 실행 기록 정리(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)를 담은 내부 검증판이다. 표시 버전 1.0.0.008, Windows 파일 버전 1.0.0.8로 새로 컴파일한다.</li>
 <li><span class="hist">최종 검증 회차 기준 (2026-11-23)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>에 WF·WU 단독 각 1회, TC별 기대 판정과 복원 확인을 명시했다. 최종 검증에서 결합 회차를 생략한다.</li>
 <li><span class="hist">공용 프레임 내부 검증판 1.0.0.007 (2026-11-23)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 내부 검증판은 표시 버전 1.0.0.007과 Windows 파일 버전 1.0.0.7로 새로 컴파일한다. 설치 파일과 ZIP에는 내부 후보 상태를 기록한다.</li>
 <li><span class="hist">2026-11-15 문서 정리 — 후속 안정화의 구현·검증 범위 연결</span> <a class="idref" href="#REQ-DIST-001">REQ-DIST-001</a>, <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: SPEC 표지와 배포·보존 안내의 현재 버전을1.0.18 후보로 정정하고 README의 후보 Setup 경로를 맞췄다. 제어 이슈 정리와 잔여 이관은 전체 수용 완료를 뜻하지 않는다.</li>
@@ -1352,8 +1354,9 @@ Tesseract가 없으면 설치를 안내한다. <code>XIPL_PATH</code>가 실패�
 <section class="card kind-req" id="REQ-QA-002">
 <h3><span class="idtag">REQ-QA-002</span> 실행 번호로 진행·중단·완료·보고서 연결</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/runs.py</code>, <code>bellalunauto/gui.py</code>, <code>bellalunauto/app.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>; <code>tests/test_qa_runs.py</code>, <code>tests/test_verdict_criteria.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-QA-001">REQ-QA-001</a>, <a class="idref" href="#TEST-QA-002">TEST-QA-002</a>, <a class="idref" href="#TEST-VERDICT-004">TEST-VERDICT-004</a></span></div>
-<details class="history"><summary>변경 이력 3</summary>
+<details class="history"><summary>변경 이력 4</summary>
 <ul>
+<li><span class="hist">내부 검증판 1.0.0.008 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 판정 기준표·환경 재점검·멈춤 방지(<a class="idref" href="#REQ-VERDICT-004">REQ-VERDICT-004</a>~006)와 실행 기록 정리(<a class="idref" href="#REQ-QA-002">REQ-QA-002</a>)를 담은 내부 검증판이다. 표시 버전 1.0.0.008, Windows 파일 버전 1.0.0.8로 새로 컴파일한다.</li>
 <li><span class="hist">판정 기준표·환경 재점검·멈춤 방지 (2026-11-24)</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: 새 실행을 시작할 때 감독 프로세스가 없는 '실행 중' 기록을 비정상 종료로 닫는다.</li>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Added</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: 실행 번호별 계획·동의·진행·중단·완료·새 보고서·결론과 다음 행동을 기록한다. 정상 전체 완료의 FAIL 종료 코드 1을 비정상 종료와 구별한다.</li>
 <li><span class="hist">2026-11-05 (첫 사용자 QA 흐름, 1.0.1 후보) · Fixed</span> <a class="idref" href="#REQ-QA-002">REQ-QA-002</a>: NTFS 파일 시각의 정밀도 차이로 새 진행 상태를 놓치거나 같은 초의 이전 실행 상태를 읽던 문제를 시작 전 내용 해시와 새 기록 비교로 수정했다.</li>
