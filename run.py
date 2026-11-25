@@ -2080,6 +2080,17 @@ def _finish_generated_image_cleanup(ctx, args, session, code, started, reports, 
     if (normal and code in (0, 1) and not getattr(ctx, 'execution_incomplete', False)
             and session is not None and hasattr(session, 'finish_execution_finalization')):
         session.finish_execution_finalization()
+    # 마무리된 실행의 보존본은 최근 N회만 남긴다(REQ-FOLLOWUP-004). 정리 결과는 판정을 바꾸지 않는다.
+    if session is not None and getattr(session, 'workspace', None) is not None:
+        from core.preservation_retention import keep_runs_from_options, prune_old_runs
+        retention = prune_old_runs(session.workspace, keep_runs_from_options(options),
+                                   current_run_id=getattr(session, 'run_id', None))
+        ctx.restoration['retention'] = retention
+        try:
+            if session.run_dir.exists():
+                _write_json(session.run_dir / 'restoration.json', ctx.restoration)
+        except OSError:
+            pass
     return code
 
 

@@ -77,6 +77,7 @@
     "tests/test_preflight.py",
     "tests/test_preservation_db_schema.py",
     "tests/test_preservation_settings.py",
+    "tests/test_preservation_retention.py",
     "tests/test_preview_readiness.py",
     "tests/test_primary_monitor_guard.py",
     "tests/test_print_overlay_empty_lists.py",

@@ -1,5 +1,11 @@
 # 진행 상태
 
+## 2026-11-25 보존본 최근 3회 유지
+
+- 사용자 결정(2026-11-25): 실행마다 쌓인 이미지 사본으로 C: 여유가 부족해 보존본을 최근 3회만 남긴다(REQ-FOLLOWUP-004 개정). `core/preservation_retention.py`를 실행 끝(`run.py` `_finish_generated_image_cleanup`)에 연결했다. 단위시험 `tests/test_preservation_retention.py`.
+- 같은 날 사용자 승인으로 PC의 기존 보존본 21회분(`C:\Program Files\BellalunAuto\작업\preservation`)과 격리 사본 109개(`C:\BellalunData\.*.bellalun-*`)를 수동으로 지웠다. 삭제 전 모두 마무리된 실행이었고, 삭제 후 `RunPreservation.pending` = [] 확인. `Reports`·`Evidence`는 남김.
+- 설치판에는 다음 빌드부터 적용된다. 현재 설치된 1.0.0은 이전 정책(자동 삭제 안 함)대로 동작한다.
+
 ## 2026-11-24 정식 1.0.0 지정
 
 - PC2에서 1.0.0.009 설치판 GUI로 WU 전체(`20261124-151416-48b4bb5c`, PASS 10 · SKIP 3)와 기본기능 전체(`20261124-161528-b8f18f15`, PASS 25 · MANUAL 1 · SKIP 10)를 각 1회 완료했다. 두 회차의 DB·대상 파일 원상복원이 검증됐다.

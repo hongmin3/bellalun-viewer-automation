@@ -1178,7 +1178,18 @@ TEST-KNOW-001
 
 ### REQ-FOLLOWUP-004 공용 보존과 볼륨별 용량 기준
 
-PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검증해 보존한다. 로컬 journal은 공유 연결이 끊겨도 미완료 실행을 발견해야 한다. 공유 사본을 검증한 뒤 변경 파일만 순차 복원하며 변경 없는 파일은 다시 복사하지 않는다. 이전 사본과 archive를 덮어쓰거나 자동 삭제하지 않는다. 기존 로컬 기록도 복구할 수 있어야 한다.
+PC별로 지정한 공용 저장소에 사전 사본과 시험 후 자료를 검증해 보존한다. 로컬 journal은 공유 연결이 끊겨도 미완료 실행을 발견해야 한다. 공유 사본을 검증한 뒤 변경 파일만 순차 복원하며 변경 없는 파일은 다시 복사하지 않는다.
+
+이전 사본과 archive를 덮어쓰지 않는다. 기존 로컬 기록도 복구할 수 있어야 한다.
+
+실행이 끝나면 마무리된 실행의 보존본을 최근 N회(설정 `preservation.keep_runs`, 기본 3)만 남긴다.
+- 마무리된 실행: journal 상태가 completed·verified이고, 마무리 대기·이미지 정리 대기 표시가 없는 실행. 실행 번호(`날짜-시각-…`) 순으로 최근 것을 남기고, 이번 실행은 항상 남긴다.
+- 더 오래된 실행은 `preservation/<실행>`, 그 실행이 보존 범위 폴더 옆에 만든 격리 사본(`.<폴더>.bellalun-<실행>-<번호|quarantine|stage>`), 공용 저장소의 `<실행>` 사본을 지운다. 다른 실행·다른 이름의 폴더와 제품 원본 폴더는 지우지 않는다.
+- 마무리되지 않은 실행(마무리 대기, 정리 대기, journal 없음·손상)은 세지도 지우지도 않는다.
+- 실행 폴더는 먼저 `.preservation-pruning/`으로 옮긴 뒤 지운다. 지우다 멈춘 것은 다음 정리 때 이어서 지우며, 다음 실행 시작을 막지 않는다.
+- `keep_runs`가 0이면 정리하지 않는다. 정리 결과는 `restoration.json`의 `retention`에 남기고, 정리 실패는 시험 판정을 바꾸지 않는다.
+
+이유: 실행마다 이미지 사본이 수 GB씩 쌓여 제품 PC의 C: 여유가 부족해졌다(사용자 결정 2026-11-25, 최근 3회 보존).
 
 제품 볼륨·USB의 여유와 시험 생성량을 구분하고, 공용 저장소 및 최대 단일 파일 복원 임시량·DB staging을 각각 계산한다. 기본 여유는 제품 볼륨 2GiB, USB 256MiB이며 USB 생성량은 별도 512MiB다. 조회 실패와 실제 부족은 차단한다. 설정값은 조정할 수 있으나 검증해야 할 자료 범위를 줄여 용량을 맞추지 않는다.
 
@@ -1742,9 +1753,11 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 자동 절차: `tests/test_shared_preservation.py`, `tests/test_image_cleanup.py`,
   `tests/test_execution_session.py`, `tests/test_recover_preservation_cli.py`,
   `tests/test_resource_budget.py`, `tests/test_preservation_settings.py`,
-  `tests/test_preservation_db_schema.py`, `tests/test_interrupted_recovery_finalization.py`.
+  `tests/test_preservation_db_schema.py`, `tests/test_interrupted_recovery_finalization.py`,
+  `tests/test_preservation_retention.py`.
 - 기대: 원본·사전/시험 후 사본 보존, 저장소 단절·불일치 차단, 순차 복원·정리 재개,
   완료 증명/서비스/최종 저장 실패의 durable pending, 볼륨별 최대 단일 파일 예산이 맞는다.
+- 기대(보존 개수): 마무리된 실행은 최근 N회만 남고, 오래된 실행의 격리·공용 사본이 함께 지워진다. 마무리되지 않은 실행·다른 실행의 폴더는 남는다. 멈춘 정리는 이어서 지워지고 다음 실행을 막지 않는다.
 - 실제 SMB의 합성 파일·긴 UNC 시험과 설치판 사용자 흐름은 별도로 확인한다.
 
 ### TEST-TCUP-005 사양에 맞는 Import와 Post Reconstruction
@@ -1793,7 +1806,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-FOLLOWUP-001 | `run.py`, `core/execution_session.py`, `core/run_preservation.py`, `core/resource_budget.py`, `core/artifact_archive.py`, `tools/recover_preservation.py`, `tools/archive_artifacts.py`, `bellalunauto/runs.py`, `core/source_identity.py`, `core/wu_chain.py` | `tests/test_run_preservation.py`, `tests/test_resource_budget.py`, `tests/test_artifact_archive.py`, `tests/test_recover_preservation_cli.py`, `tests/test_execution_session.py`, `tests/test_checkpoint_partial_report.py`, `tests/test_source_identity_followup.py`, `tests/test_report_identity_followup.py` | verified |
 | REQ-FOLLOWUP-002 | `bellalunauto/qa_dialogs.py`, `core/product_lifecycle.py`, `core/release_note_baseline.py`, `core/performance.py`, `core/failure_evidence.py`, `remote/coordinator.py`, `remote/bundles.py`, `remote/interlock.py`, `remote/service.py`, `remote/result_views.py`, `remote/winrm_executor.py`, `tools/scope_summary.py` | `tests/test_qa_dialogs.py`, `tests/test_product_lifecycle.py`, `tests/test_release_note_baseline.py`, `tests/test_remote_execution.py`, `tests/test_remote_result_paths.py`, `tests/test_performance_followup.py`, `tests/test_environment_failure_gate.py` | verified |
 | REQ-FOLLOWUP-003 | `bellalunauto/auto_close.py`, `bellalunauto/completion_notice.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/launch_gui.py`, `tools/run_installed_suites.py`, `remote/winrm_executor.py` | `tests/test_auto_close.py`, `tests/test_completion_notice.py`, `tests/test_qa_runs.py`, `tests/test_installed_suites.py`, `tests/test_remote_execution.py` | verified |
-| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py` | verified |
+| REQ-FOLLOWUP-004 | `core/run_preservation.py`, `core/preservation_retention.py`, `core/atomic_metadata.py`, `bellalunauto/runs.py`, `core/preservation_storage.py`, `core/resource_budget.py`, `core/execution_session.py`, `bellalunauto/gui.py`, `tools/recover_preservation.py` | TEST-FOLLOWUP-004; `tests/test_shared_preservation.py`, `tests/test_atomic_metadata.py`, `tests/test_image_cleanup.py`, `tests/test_resource_budget.py`, `tests/test_execution_session.py`, `tests/test_preservation_settings.py`, `tests/test_recover_preservation_cli.py`, `tests/test_preservation_retention.py` | verified |
 | REQ-FOLLOWUP-005 | `core/system_toasts.py`, `core/ui.py`, `run.py` | `tests/test_system_toasts.py`, `tests/test_focus_recovery.py` | verified |
 | REQ-TCUP-005 | `tests/workflow14.py`, `tests/xipl_flows.py`, `tests/winupdate.py`, `automation_scope.json` | TEST-TCUP-005; `tests/test_workflow14_evidence.py`, `tests/test_xipl_post_recon.py`, `tests/test_wu_skip_policy.py`, `tests/test_installed_release_gate.py` | verified |
 | REQ-TCUP-001 | `automation_scope.json`, `core/scope_results.py`, `core/result.py`, `run.py` | TEST-TCUP-001; `tests/test_scope_skips.py` | verified |
