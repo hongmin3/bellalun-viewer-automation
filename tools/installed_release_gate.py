@@ -19,17 +19,17 @@ def report_commands(command_line):
 
 
 def gui_run_problem(run, meta, launch):
-    """전체 범위 실행이 설치판 GUI에서 동의하고 시작한 회차인지(REQ-DIST-008). (통과, 설명)."""
+    """전체 범위 실행이 설치판 GUI에서 동의하고 시작한 회차인지(REQ-DIST-009). (통과, 설명)."""
     import json
-    from tools.run_installed_suites import sha256
+    from core.frame_evidence import file_matches
 
     gui = run.get("gui") or {}
     if launch.get("mode") != "gui" or not gui.get("run_record"):
         return False, "전체 범위는 설치판 GUI 실행 기록만 받습니다(CLI·소스 실행 거부)"
     if launch.get("operator") == "agent" and not str(launch.get("approval") or "").strip():
         return False, "에이전트가 GUI를 조작했는데 사용자 승인 문구가 없습니다"
-    path = Path(gui["run_record"])
-    if not path.is_file() or sha256(path) != gui.get("run_record_sha256"):
+    path = Path(gui["run_record"]).absolute()
+    if not file_matches(path, {"sha256": gui.get("run_record_sha256")}):
         return False, f"GUI 실행 기록이 없거나 바뀌었습니다: {path}"
     data = json.loads(path.read_text(encoding="utf-8"))
     consent = (data.get("consent") or {}).get("source")
@@ -37,10 +37,30 @@ def gui_run_problem(run, meta, launch):
         return False, f"화면 동의 기록이 아닙니다(동의 출처 {consent!r})"
     if data.get("status") != "completed":
         return False, f"GUI 실행이 완료되지 않았습니다(상태 {data.get('status')!r})"
-    if data.get("action") != run.get("command") or data.get("run_id") != meta.get("run_id"):
+    run_id = data.get("run_id")
+    if (not run_id or data.get("action") != run.get("command") or run_id != meta.get("run_id")
+            or ("run_id" in gui and gui["run_id"] != run_id)):
         return False, (f"GUI 실행 기록과 리포트가 다른 회차입니다(기록 {data.get('action')}/{data.get('run_id')}, "
                        f"리포트 {meta.get('run_id')})")
-    return True, f"실행 번호 {data.get('run_id')} · 화면 동의 · 조작 {launch.get('operator')}"
+    if launch.get("binding") == "run-id" or data.get("identity_bound") is True:
+        from bellalunauto.runs import engine_log_path
+        pid = data.get("supervisor_pid")
+        if (data.get("identity_bound") is not True or gui.get("run_id") != run_id
+                or type(pid) is not int or pid <= 0 or gui.get("supervisor_pid") != pid
+                or path.parent.name != run_id or path.parent.parent.name != "Runs"):
+            return False, "지정한 GUI 실행 번호와 프로세스의 기록이 일치하지 않습니다"
+        primary = data.get("primary_report") or {}
+        if (primary.get("sha256") != run.get("report_sha256")
+                or not file_matches(run["report"]["path"], primary)):
+            return False, "GUI 실행 기록의 원본 보고서와 수집한 보고서가 다릅니다"
+        log_path = engine_log_path(path.parents[2], run_id)
+        if (str(log_path) != run.get("log")
+                or not file_matches(log_path, {"sha256": run.get("log_sha256")})):
+            return False, "GUI 실행 로그가 없거나 같은 회차의 로그와 다릅니다"
+        restore = meta.get("restoration") or {}
+        if restore.get("run_id") != run_id or restore.get("status") != "verified":
+            return False, "같은 회차의 원상복원 완료 기록이 없습니다"
+    return True, f"실행 번호 {run_id} · 화면 동의 · 조작 {launch.get('operator')}"
 
 
 def evaluate(path, expected_commit, scope, *, expected_tcs=(), language=False):

@@ -68,7 +68,7 @@ def _parse_manifest(text, allowed):
     return entries
 
 
-def _inspect_release(release):
+def inspect_release(release):
     if not release.is_dir():
         raise ValueError('release 폴더 누락')
     paths = list(release.iterdir())
@@ -150,7 +150,7 @@ def create_release_zip(release, output):
         raise ValueError('존재하는 폴더의 새 .zip 경로를 지정하십시오')
     if output.is_relative_to(release):
         raise ValueError('output은 release 폴더 밖에 지정하십시오')
-    version, candidate, app_hash, hashes = _inspect_release(release)
+    version, candidate, app_hash, hashes = inspect_release(release)
     guide = (f'BellalunAuto {version} 설치용 릴리즈 ZIP\n'
              '압축을 푼 뒤 함께 있는 Setup(-setup.exe)을 실행하여 설치하십시오.\n'
              '기존 설정은 보존됩니다. 기존 config.json을 삭제하거나 덮어쓰지 마십시오.\n'

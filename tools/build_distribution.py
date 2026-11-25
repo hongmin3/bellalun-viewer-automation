@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
-import hashlib
 from importlib import metadata
 import json
 import os
@@ -19,12 +18,15 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
+from zipfile import BadZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from bellalunauto.versioning import is_development_version, windows_version
+from core.frame_evidence import sha256
 
 PYTHON_VERSION = '3.12.10'
 INNO_VERSION = '6.7.3'
@@ -47,14 +49,6 @@ ASSET_ROLES = {'checklist': {'basic-checklist', 'windows-update-checklist'},
 # Nuitka can legitimately copy data owned by these third-party packages.
 # Their Python source/bytecode, if present, must remain under their package root.
 THIRD_PARTY_ROOTS = {'pil', 'pytesseract', 'openpyxl', 'pypdf', 'et_xmlfile', 'packaging'}
-
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with Path(path).open('rb') as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b''):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def _not_link(path):
@@ -355,7 +349,7 @@ def stage_team_settings(source, resources):
     payload = team_settings_payload(json.loads(source.read_text(encoding='utf-8-sig')))
     target = Path(resources) / TEAM_SETTINGS
     _write_json(target, payload)
-    return {'included': True, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
+    return {'included': True, 'sha256': sha256(target),
             'sections': sorted(payload), 'dicom_keys': sorted(payload['dicom']),
             'has_test_account': 'viewer' in payload}
 
@@ -472,9 +466,36 @@ def write_candidate_marker(directory, gate):
     return path
 
 
+def primary_release_root(checkout):
+    """Resolve the Git main worktree and validate its registration when present."""
+    git = shutil.which('git')
+    if git is None:
+        raise ValueError('릴리즈 기준 작업 트리를 확인할 Git이 없습니다.')
+    listing = subprocess.check_output([git, 'worktree', 'list', '--porcelain', '-z'],
+                                      cwd=checkout, encoding='utf-8')
+    records = [record.split('\0') for record in listing.split('\0\0') if record.startswith('worktree ')]
+    if not records or 'bare' in records[0]:
+        raise ValueError('기본 작업 트리를 확인하지 못했습니다.')
+    worktrees = [Path(record[0].removeprefix('worktree ')).resolve() for record in records]
+    if Path(checkout).resolve() not in worktrees:
+        raise ValueError('현재 빌드 경로가 Git 작업 트리 목록에 없습니다.')
+    primary = worktrees[0]
+    for parent in primary.parents:
+        registry = parent / 'workspace-projects.json'
+        if not registry.is_file():
+            continue
+        projects = json.loads(registry.read_text(encoding='utf-8-sig')).get('projects', [])
+        relative = primary.relative_to(parent).as_posix().casefold()
+        if not any(item['path'].casefold() == relative and item.get('status') == 'active'
+                   for item in projects):
+            raise ValueError(f'등록된 기본 작업 트리가 아닙니다: {primary}')
+        break
+    return primary / 'release'
+
+
 def release_destination(version, release_root=None):
     windows_version(version)
-    base = Path(release_root) if release_root is not None else ROOT / 'release'
+    base = Path(release_root) if release_root is not None else primary_release_root(ROOT)
     _not_link(base.absolute())
     target = base.absolute() / version
     reserved = [target]
@@ -483,27 +504,66 @@ def release_destination(version, release_root=None):
         reserved.append(target.with_name(f'{base_version}.({number})'))
     for destination in reserved:
         _not_link(destination)
-        if destination.exists() and any(destination.iterdir()):
+        if destination.exists():
             raise ValueError('해당 버전 릴리즈가 이미 있습니다. 새 개발 번호를 확인하세요.')
     return target
 
 
-def publish_release(output, version, artifacts, *, release_root=None):
+def publish_release(output, version, artifacts, *, release_root=None, include_zip=False):
+    from tools.release_zip import create_release_zip, inspect_release
+
     target = release_destination(version, release_root)
-    output = Path(output).resolve()
-    files = [Path(file).resolve() for file in artifacts] + [output / 'SHA256SUMS.txt']
-    if (output / CANDIDATE_MARKER).is_file():
-        files.append(output / CANDIDATE_MARKER)
+    output = Path(output).absolute()
+    _not_link(output)
+    files = [Path(file).absolute() for file in artifacts] + [output / 'SHA256SUMS.txt']
+    marker = output / CANDIDATE_MARKER
+    _not_link(marker)
+    if marker.exists():
+        files.append(marker)
     if len({file.name.casefold() for file in files}) != len(files):
         raise ValueError('중복 릴리즈 파일 이름')
     for file in files:
         _not_link(file)
         if file.parent != output or not file.is_file():
-            raise ValueError('작업 폴더의 릴리즈 파일만 옮길 수 있습니다.')
-    target.mkdir(parents=True, exist_ok=True)
-    for file in files:
-        shutil.move(str(file), str(target / file.name))
+            raise ValueError('작업 폴더의 릴리즈 일반 파일만 보관할 수 있습니다.')
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Package everything on the destination filesystem before a single rename.
+    temporary = tempfile.TemporaryDirectory(prefix=f'.staging-{version}-', dir=target.parent)
+    try:
+        stage = Path(temporary.name) / version
+        stage.mkdir()
+        for source in files:
+            copied = stage / source.name
+            shutil.copy2(source, copied)
+            if sha256(copied) != sha256(source):
+                raise ValueError(f'릴리즈 복사 SHA256 불일치: {source.name}')
+        if include_zip:
+            archive = Path(temporary.name) / f'BellalunAuto-{version}-release.zip'
+            create_release_zip(stage, archive)
+            archive.rename(stage / archive.name)
+        else:
+            inspect_release(stage)
+        release_destination(version, target.parent)
+        stage.rename(target)
+    finally:
+        try:
+            temporary.cleanup()
+        except OSError as error:
+            print(f'임시 보관 폴더 정리 실패: {temporary.name} ({error})', file=sys.stderr)
     return target
+
+
+def publish_prepared(output, *, release_root=None, include_zip=False):
+    output = Path(output).expanduser().absolute()
+    info_path = output / 'build-info.json'
+    _not_link(info_path)
+    info = json.loads(info_path.read_text(encoding='utf-8-sig'))
+    version = info['version']
+    windows_version(version)
+    installer = output / installer_filename(version, info['release_gate'])
+    return publish_release(output, version, [installer, info_path], release_root=release_root,
+                           include_zip=include_zip)
 
 
 def build(args):
@@ -511,7 +571,8 @@ def build(args):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     from bellalunauto import __version__
-    release_destination(__version__)  # fail before expensive compilation
+    release_root = primary_release_root(root)
+    release_destination(__version__, release_root)  # fail before expensive compilation
     if is_development_version(__version__) and args.skip_compile:
         raise ValueError('개발 검증판에는 새 EXE 컴파일이 필요합니다.')
     output = Path(args.output).expanduser().absolute()
@@ -603,8 +664,11 @@ def build(args):
     if installer.name != installer_name:
         installer = installer.rename(output / installer_name)
     artifacts = [installer, output / 'build-info.json']
-    (output / 'SHA256SUMS.txt').write_text(''.join(f'{sha256(file)}  {file.name}\n' for file in artifacts), encoding='utf-8')
-    released = publish_release(output, __version__, artifacts)
+    checksummed = artifacts if gate['passed'] else [*artifacts, output / CANDIDATE_MARKER]
+    (output / 'SHA256SUMS.txt').write_text(
+        ''.join(f'{sha256(file)}  {file.name}\n' for file in checksummed), encoding='utf-8')
+    released = publish_release(output, __version__, artifacts, release_root=release_root,
+                               include_zip=getattr(args, 'release_zip', False))
     print(f"빌드 완료({gate['label']}): {released} (중간파일: {output})")
     return 0
 
@@ -614,9 +678,11 @@ def main(argv=None):
         if hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', errors='replace')
     parser = argparse.ArgumentParser(description='BellalunAuto 내부 배포 빌드')
-    parser.add_argument('--assets', required=True, type=Path)
+    parser.add_argument('--assets', type=Path)
     parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--iscc', required=True, type=Path)
+    parser.add_argument('--iscc', type=Path)
+    parser.add_argument('--release-zip', action='store_true', help='설치용 ZIP도 검증해 같은 버전 폴더에 보관')
+    parser.add_argument('--publish-only', action='store_true', help='준비된 --output으로 보관 단계만 재시도')
     parser.add_argument('--ocr-installer', type=Path, help='검증된 고정 OCR 설치 파일. 생략하면 빌드 PC에서 공식 파일을 받습니다.')
     parser.add_argument('--skip-tests', action='store_true', help='개발용: 생략 내역을 build-info에 기록')
     parser.add_argument('--skip-compile', action='store_true', help='개발용: 기존 standalone 재사용, build-info 기록')
@@ -628,8 +694,15 @@ def main(argv=None):
     parser.add_argument('--team-settings', type=Path, help='사내 전용: 팀 공통 서버·시험 계정을 뽑을 설정 JSON(Git 밖 파일)')
     args = parser.parse_args(argv)
     try:
+        if args.publish_only:
+            released = publish_prepared(args.output, include_zip=args.release_zip)
+            print(f'릴리즈 보관 완료: {released}')
+            return 0
+        if args.assets is None or args.iscc is None:
+            parser.error('빌드에는 --assets와 --iscc가 필요합니다.')
         return build(args)
-    except (ValueError, OSError, subprocess.CalledProcessError, metadata.PackageNotFoundError) as error:
+    except (ValueError, OSError, KeyError, TypeError, BadZipFile, subprocess.CalledProcessError,
+            metadata.PackageNotFoundError) as error:
         print(f'빌드 중단: {error}', file=sys.stderr)
         return 1
 

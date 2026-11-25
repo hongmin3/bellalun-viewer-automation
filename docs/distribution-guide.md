@@ -42,8 +42,9 @@ Setup은 파일 복사 뒤 OCR 실행·언어 파일과 승인 자료 SHA-256을
 
 내부 검증판의 표시 버전은 `1.0.0.007`처럼 세 자리 개발 번호를 붙이고 Windows 파일 버전은 `1.0.0.7`로 기록한다. 내부 검증판은 새로 컴파일한 후보로 보관한다.
 
-등록된 `auto` 폴더에서 실행한다. 아래 예시의 버전을 `build-info.json` 값으로 바꾼다.
-별도 작업 트리의 빌드에는 그 빌드의 버전 형식을 지원하는 작업 트리의 `tools/release_zip.py`를 사용한다.
+새 빌드에서 `--release-zip`을 지정하면 Setup과 ZIP을 함께 검증해 같은 버전 폴더에 보관한다.
+이미 보관한 버전에 ZIP을 추가할 때는 등록된 `auto`에서 아래 예시를 실행하고 버전은 `build-info.json` 값으로 바꾼다.
+해당 빌드의 버전 형식을 지원하는 작업 트리의 `tools/release_zip.py`를 쓴다.
 
 ```powershell
 $version = '1.0.3'
@@ -66,6 +67,7 @@ OCR 환경 지문과 실패 해결은 [OCR 안내](ocr-portability.md)를 따른
 후보8의 WF_02 조기 판정은 [촬영 대기 조사](wf02-acquisition-investigation.md)에서 원인과 미확정 범위를 구분했다. 수정 후보는 새 그룹의 Raw/Recon/Syn 완료 대기를 사용한다. 후보9의 두 전체에서는 WU_09 제품 충돌로 게이트가 거부됐으나, 이후 소스173eb3c 설치판의 WU 전체는 PASS10/SKIP3·WU 게이트14개 통과였다. 기본기능 전체의 새 실행은 수행하지 않았다. 상세는 [WU 검증](wu-installed-validation.md)과 [이전 WU_09 조사](wu09-export-crash-investigation.md)를 따른다.
 
 Windows x64 CPython **3.12.10**, Nuitka **4.3**, Inno Setup **6.7.3**을 사용한다.
+빌드와 보관에는 PATH에서 실행할 수 있는 Git이 필요하다. Git에서 소스 커밋과 기본 작업 트리 위치를 읽는다.
 지원 대상 OS는 Windows 10/11 x64이며 설치 프로그램은 최소 Windows 10을 요구한다.
 최근 후보(후보8·10·11)의 빌드와 전체 실행 호스트는 Windows 11 Pro(빌드 26200)이다.
 Windows 11 IoT Enterprise LTSC(26100) 실측은 후보5·6까지이며 후보7 이후는 LTSC에서 실행하지 않았다.
@@ -225,9 +227,14 @@ Baseline/PROCEDURE.bak
 현재 개인 설정·DB·환자자료·결과·증거를 포함하지 않는다.
 명시된 제3자 패키지 디렉터리의 해당 패키지 자료와 라이선스는 허용한다.
 
-최종 배포 경로는 등록된 `auto/release/<버전>/`이다. 별도 작업 트리에서 빌드했으면 빌더가 만든
-버전 폴더를 등록된 `auto/release/` 아래로 옮긴 뒤 ZIP을 만든다. 같은 버전 폴더가 이미 있으면
-기존 파일을 보존한다. 이전 설치판의 기록은 [설치 준비 검증](setup-preparation-validation.md)에서 확인할 수 있다.
+빌더는 별도 작업 트리에서 실행해도 등록된 기본 작업 트리의 `auto/release/<버전>/`에 산출물을 보관한다.
+같은 파일 시스템의 임시 폴더에서 Setup·빌드 정보·체크섬·후보 표식과 요청한 ZIP을 검증한 뒤 버전 폴더를 한 번에 공개한다.
+보관 단계가 중단되면 작업 폴더의 원본을 사용해 아래처럼 다시 시도한다. ZIP도 함께 보관하려면 `--release-zip`을 붙인다.
+이미 보관한 버전은 보존한다. 이전 설치판의 기록은 [설치 준비 검증](setup-preparation-validation.md)에서 확인할 수 있다.
+
+```powershell
+python tools/build_distribution.py --publish-only --output "D:/작업/빌드-출력" --release-zip
+```
 
 Setup·외부 build-info·SHA256SUMS·후보 표식·검증된 ZIP은 버전 폴더에 둔다.
 standalone 폴더와 중간파일은 빌드의 `--output`에 둔다. 최신본만 남기도록 정리할 때는

@@ -555,6 +555,13 @@ Nuitka standalone으로 자체 진입점·core·실제 TC 시나리오를 컴파
 등록된 벨라룬오토 프로젝트의 `auto/release/` 아래에 버전마다 폴더를 만든다. 폴더 이름은
 `build-info.json`의 버전을 그대로 쓴다. 최종 Setup·build-info·SHA256SUMS와 후보 표식을 그곳에 보관한다.
 별도 작업 트리에서 빌드한 파일도 등록된 `auto/release/<버전>/`에 모은다.
+
+빌더는 Git의 작업 트리 목록에서 기본 작업 트리를 확인하고, 등록 정보가 있는 환경에서는 등록 경로와 대조한다.
+최종 버전 폴더와 같은 파일 시스템의 임시 폴더에 Setup·build-info·체크섬·후보 표식과 요청된 설치용 ZIP을 모아 검증한다.
+검증이 끝난 폴더를 한 번의 이름 변경으로 공개한다. 중단·복사 실패·검증 실패 시 최종 버전 경로는 만들지 않으며
+원본 작업 폴더와 기존 버전을 보존한다. 원본이 온전하면 컴파일 없이 보관 단계만 다시 실행할 수 있다.
+보관이 끝난 뒤 임시 폴더 정리가 실패하면 보관 결과는 성공으로 기록하고 남은 임시 경로를 알린다.
+
 배포 작업은 `auto/release/<버전>/`에서 최종 설치 파일·ZIP·빌드 정보와 해시를 다시 읽어 검증한 뒤 마무리한다. 검증에 성공하면 해당 빌드 전용 작업 폴더 전체(컴파일 결과, 압축 전 배포 트리, 임시 도구·캐시, 로그, 중복 배포 사본)를 삭제하고 경로가 사라졌는지 확인한다. 시험 결과·복원 백업·승인 원본이나 편집 중인 소스가 들어 있는 상위 폴더는 보존한다. 정리 실패 시 남은 경로를 기록한다.
 
 컴파일 중간파일과 로그는 `--output` 작업 폴더에 둔다. 빌더는 같은 버전의 출력 폴더에
@@ -639,10 +646,16 @@ USB를 쓰는 묶음(`run-winupdate`·`run-combined`)은 실행자가 준비 체
 2. 바탕화면 바로가기처럼 인수 없이 설치된 EXE를 연다.
 3. 시작 → 준비 점검 → 체크리스트 선택 → 확인 항목과 "위 변경에 동의합니다" 체크 → "동의하고 시작" 순서로 시작한다.
 4. 실행 기록이 끝나면 결과 화면을 닫고, 리포트·증거·실행 기록을 게이트 입력(`verification.json`)으로 묶는다(`tools/run_installed_gui.py`).
+
+   수집기가 실행 전에 고른 회차 번호를 환경으로 넘긴다. 같은 회차 번호와 GUI 프로세스의 실행 기록을 기다리고,
+   엔진이 완료한 회차의 보고서·로그와 연결한다. 동시 생성된 다른 회차의 파일이나 공유 저장점은 시각만으로 고르지 않는다.
+   기록을 잠시 읽을 수 없는 경우 주어진 대기 시간 안에서 다시 읽는다. 다른 회차·프로세스의 기록은 즉시 거부한다.
+   수집한 원본 보고서의 준비 점검·복원·저장점 재개 정보를 실행 기록과 함께 남긴다.
 5. 게이트(`release_gate.py --installed-verification`)는 `basic`·`wu`·`both` 범위에서 실행마다 다음을 확인한다. 하나라도 어긋나면 거부한다.
    - 실행 기록 파일의 해시가 수집 때와 같다.
    - 동의 출처가 `GUI`이고 상태가 완료다.
    - 실행 번호와 명령이 리포트와 같다.
+   - 실행 번호를 미리 지정한 기록은 원본 보고서·로그가 같은 회차에 연결되며, 이번 회차의 복원 완료 원본도 확인한다.
 #### 에이전트가 화면을 조작할 때
 - 사용자가 이 후보와 범위의 실행을 승인한 경우에만 에이전트가 화면의 버튼과 동의를 대신 누른다(사용자 결정 2026-11-24). 승인 문구 원문을 게이트 입력에 남기고, 문구가 없으면 화면을 열지 않는다.
 - 조작은 공용 화면 조작기(`core/frame_drive.py`, `frame/FRAME.md` 2.7)가 컨트롤에 메시지를 보내는 방식으로 한다. 물리 마우스·키보드를 쓰지 않는다.
@@ -780,8 +793,13 @@ Import 완료 신호와 전후 DB/영상 식별자 및 Examined 재검색 등 �
 기존 검사 검색이나 Import 클릭만으로 PASS를 주지 않는다. USB 부재·예외·수행 실패를 구분한다.
 드라이브 루트/지원하지 않는 경로 선택과 창 범위를 벗어나는 1102 사용을 금지한다.
 
+전용 폴더 정리 뒤 Export 직전에 비어 있는지 확인하고, 이번 호출에서 생성된 읽을 수 있는 IMG만 Import에 쓴다.
+복사·되읽기 실패 시에도 Export 전 상태와 시도한 창 정리의 결과를 판정 근거에 보존한다.
+
 WU_10은 기존 설정 그룹/하위 페이지 전수 순회와 빠른 탭 전환을 수행한다. 빈 결과나 일부 순회로
 PASS를 주지 않는다. 오류 시 가능한 정리를 수행하고 TC9 오류가 TC10 실행을 막지 않게 한다.
+버튼 위주 등 읽을 값이 적은 페이지에도 실제 콘텐츠 렌더 근거가 필요하다. 빠른 전환은 인접 그룹의 A→B→A 순서 전체를 확인하며
+숨김·중복·비활성 그룹 탭은 전환 대상으로 클릭하지 않는다. 페이지 안의 옵션 값이나 활성 상태는 제품 판정 기준으로 추가하지 않는다.
 과거 회귀 변환을 실시간 TC9/10 실행으로 표시하지 않는다.
 
 기존 수동 범위 WU_01/12/13을 제외한 WU 10건의 PASS가 배포 완료의 제품 시험 기준이다.
@@ -1540,6 +1558,10 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 
 ### TEST-DIST-002 패키지 경계
 
+- 임시 Git 기본/연결 작업 트리와 합성 Setup·빌드 정보를 사용해 기본 트리에만 보관하는지 확인한다.
+  중단·변조·중복 버전에서 최종 폴더를 노출하거나 덮어쓰지 않고, 준비된 원본으로 다시 시도해 보관할 수 있는지 확인한다.
+  보관 뒤 임시 폴더 정리 권한 오류에서는 결과와 임시 경로 안내를 확인한다.
+
 허용 목록의 경로 탈출·해시 불일치·소스/민감파일 혼입을 거부하는지 테스트한다.
 완성 배포 폴더의 목록과 SHA256 및 빌드 정보로 자체 소스·현재 설정·기존 결과의 부재를 확인한다.
 
@@ -1547,6 +1569,8 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 
 기존 검사만 존재하거나 완료 신호가 없을 때 USB Import가 PASS가 되지 않는지 테스트한다.
 USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시간 전체 체인에서 TC9/10 증거를 남긴다.
+합성 USB 폴더에 Export 시작 전 파일이 다시 나타나면 Import에 쓰지 않는지와 실패에도 정리 결과를 남기는지 확인한다.
+빠른 탭 목록의 중복·순서 누락·비활성 탭을 거부하고, 전수 순회에서 실제 버튼 콘텐츠가 있는 값 없는 페이지를 허용하는지 확인한다.
 
 ### TEST-WU-002 체인 시간 상한·재개
 
@@ -1658,6 +1682,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
   1. `tests/test_installed_release_gate.py`가 GUI 회차 기록을 통과시키는지 확인한다. 이어서 CLI 기록, CLI 동의, 미완료, 승인 문구 없음, 바뀐 실행 기록을 각각 거부하는지 확인한다. 옵션으로 끝나는 리포트 명령도 실행 이름으로 대조한다.
   2. `tests/test_frame_drive.py`가 창 제목에서 단계를 읽는 규칙을 확인한다.
   3. `tests/test_installed_gui.py`가 실행 범위 제한과 실행 기록 찾기를 확인한다.
+     합성 실행에 다른 프로세스·회차의 보고서·로그를 섞어도 이번 회차만 모으는지와 일시 읽기 오류에서 다시 읽는지를 확인한다.
+     `tests/test_qa_runs.py`는 지정 회차의 실행 기록과 원본 보고서 연결을 확인한다.
 - 실측: 공용 화면을 제품 없이 띄우고 조작기로 시작부터 "동의하고 시작"까지 눌러, 화면이 돌려준 답에 모든 확인 항목과 복원 선택이 들어 있는지 본다.
 - Expected Result: 전체 범위는 화면 동의한 설치판 GUI 회차만 통과한다.
 
@@ -1823,7 +1849,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
-| REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py` | verified |
+| REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `bellalunauto/runs.py`, `bellalunauto/gui.py`, `core/frame_evidence.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py`, `tests/test_qa_runs.py` | verified |
 | REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
@@ -1835,7 +1861,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |
-| REQ-DIST-003 | `tools/build_distribution.py`, `tools/check_regression_names.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py`, `tests/test_regression_names_check.py` | verified |
+| REQ-DIST-003 | `tools/build_distribution.py`, `tools/release_zip.py`, `tools/check_regression_names.py`, `packaging/`, `bellalunauto/resources.py` | TEST-DIST-002; `tests/test_distribution_build.py`, `tests/test_team_settings.py`, `tests/test_regression_names_check.py` | verified |
 | REQ-DIST-004 | `bellalunauto/app.py`, `core/product_env.py`, `core/ui.py`, `core/xipl.py`, `core/viewer_processing.py`, `run.py`, `tools/run_installed_suites.py`, `docs/distribution-guide.md` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_product_env.py`, `tests/test_distribution_engine.py`, `tests/test_installed_suites.py`, `tests/test_xipl_ocr.py`, `tests/test_xipl_study_selection.py`, `tests/test_xipl_preparation_report.py` | verified |
 | REQ-KNOW-001 | `core/knowledge_sync.py`, `run.py`, `config.example.json` | TEST-KNOW-001; `tests/test_knowledge_sync.py` | verified |
 | REQ-TRACE-002 | `automation_scope.json`, `traceability.json`, `tools/wu_selfcheck.py`, `tools/traceability.py`, `tools/report_numbers.py`, `run.py` | TEST-TRACE-002; `tests/test_wu_selfcheck.py` | verified |

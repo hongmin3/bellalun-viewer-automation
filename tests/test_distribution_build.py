@@ -306,22 +306,131 @@ class DistributionBuildTests(unittest.TestCase):
             self.builder.stage_components(ROOT, self.home / 'bad-dist', source, manifest=manifest)
         self.assertFalse((self.home / 'bad-dist/resources/installers/fixture.exe').exists())
 
-    def test_release_artifacts_publish_under_version_without_intermediates(self):
-        output = self.home / 'build'
+    def release_inputs(self, version='1.0.2'):
+        output = self.home / 'output'
         output.mkdir()
-        for name in ['setup.exe', 'build-info.json', 'SHA256SUMS.txt', 'compile.log']:
-            (output / name).write_bytes(name.encode())
-        target = self.builder.publish_release(output, '1.0.2',
-                    [output / name for name in ['setup.exe', 'build-info.json']],
-                    release_root=self.home / 'release')
+        setup = output / f'BellalunAuto-{version}-candidate-setup.exe'
+        setup.write_bytes(b'synthetic installer')
+        info = output / 'build-info.json'
+        info.write_text(json.dumps({'version': version,
+            'application': {'path': 'BellalunAuto.exe', 'sha256': 'e' * 64},
+            'release_gate': {'status': 'candidate', 'passed': False}}), encoding='utf-8')
+        marker = output / self.builder.CANDIDATE_MARKER
+        marker.write_text('synthetic candidate', encoding='utf-8')
+        (output / 'SHA256SUMS.txt').write_text(
+            ''.join(f'{self.builder.sha256(path)}  {path.name}\n' for path in [setup, info, marker]),
+            encoding='utf-8')
+        (output / 'compile.log').write_bytes(b'keep in output')
+        return output, [setup, info]
+
+    def test_release_artifacts_publish_under_version_without_intermediates(self):
+        output, artifacts = self.release_inputs()
+        target = self.builder.publish_release(output, '1.0.2', artifacts,
+                                              release_root=self.home / 'release')
         self.assertEqual(target, self.home / 'release/1.0.2')
-        self.assertEqual({p.name for p in target.iterdir()},
-                         {'setup.exe', 'build-info.json', 'SHA256SUMS.txt'})
+        self.assertEqual({p.name for p in target.iterdir()}, {artifacts[0].name,
+            'build-info.json', 'SHA256SUMS.txt', self.builder.CANDIDATE_MARKER})
+        self.assertTrue(all(path.is_file() for path in artifacts))
         self.assertTrue((output / 'compile.log').exists())
         with self.assertRaisesRegex(ValueError, '이미'):
             self.builder.publish_release(output, '1.0.2', [], release_root=self.home / 'release')
         with self.assertRaises(ValueError):
             self.builder.publish_release(output, '../escape', [], release_root=self.home / 'release')
+
+    def test_interrupted_copy_leaves_no_version_and_source_can_be_retried(self):
+        output, artifacts = self.release_inputs()
+        release = self.home / 'release'
+        other = release / '1.0.1'
+        other.mkdir(parents=True)
+        (other / 'keep').write_bytes(b'other version')
+        original = {path.name: path.read_bytes() for path in output.iterdir()}
+        copy = self.builder.shutil.copy2
+        def interrupt(source, destination):
+            if Path(source).name == 'build-info.json':
+                raise OSError('synthetic interrupt')
+            return copy(source, destination)
+
+        with patch.object(self.builder.shutil, 'copy2', side_effect=interrupt):
+            with self.assertRaisesRegex(OSError, 'synthetic interrupt'):
+                self.builder.publish_release(output, '1.0.2', artifacts, release_root=release)
+        self.assertEqual(list(release.iterdir()), [other])
+        self.assertEqual({path.name: path.read_bytes() for path in output.iterdir()}, original)
+        self.assertEqual((other / 'keep').read_bytes(), b'other version')
+        target = self.builder.publish_release(output, '1.0.2', artifacts, release_root=release,
+                                              include_zip=True)
+        self.assertTrue((target / 'BellalunAuto-1.0.2-release.zip').is_file())
+
+    def test_failed_final_rename_can_be_retried_by_publish_only_cli(self):
+        output, artifacts = self.release_inputs()
+        release = self.home / 'release'
+        destination = release / '1.0.2'
+        rename = Path.rename
+        def interrupt(source, target):
+            if Path(target) == destination:
+                raise OSError('synthetic rename failure')
+            return rename(source, target)
+
+        with patch.object(Path, 'rename', interrupt):
+            with self.assertRaisesRegex(OSError, 'synthetic rename failure'):
+                self.builder.publish_release(output, '1.0.2', artifacts, release_root=release, include_zip=True)
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(release.iterdir()), [])
+        with patch.object(self.builder, 'primary_release_root', return_value=release):
+            self.assertEqual(self.builder.main(['--output', str(output), '--publish-only', '--release-zip']), 0)
+        self.assertEqual((destination / artifacts[0].name).read_bytes(), artifacts[0].read_bytes())
+        self.assertTrue((destination / 'BellalunAuto-1.0.2-release.zip').is_file())
+
+    def test_cleanup_denial_preserves_published_result_and_warns_with_staging_path(self):
+        from contextlib import redirect_stderr
+        from io import StringIO
+        output, artifacts = self.release_inputs()
+        release = self.home / 'release'
+        warning = StringIO()
+
+        class StageWithCleanupDenied:
+            def __init__(self, **kwargs):
+                self.name = tempfile.mkdtemp(**kwargs)
+
+            def __enter__(self):
+                return self.name
+
+            def __exit__(self, *_):
+                self.cleanup()
+
+            def cleanup(self):
+                raise PermissionError('synthetic locked staging folder')
+
+        with patch.object(self.builder.tempfile, 'TemporaryDirectory', StageWithCleanupDenied), redirect_stderr(warning):
+            destination = self.builder.publish_release(output, '1.0.2', artifacts, release_root=release)
+        staging = next(path for path in release.iterdir() if path.name.startswith('.staging-'))
+        self.assertIn(str(staging), warning.getvalue())
+        self.assertEqual((destination / artifacts[0].name).read_bytes(), artifacts[0].read_bytes())
+
+    def test_manifest_mismatch_does_not_publish(self):
+        output, artifacts = self.release_inputs()
+        artifacts[0].write_bytes(b'changed after checksum')
+        with self.assertRaisesRegex(ValueError, 'SHA256'):
+            self.builder.publish_release(output, '1.0.2', artifacts, release_root=self.home / 'release')
+        self.assertFalse((self.home / 'release/1.0.2').exists())
+        self.assertTrue(artifacts[0].is_file())
+
+    def test_linked_worktree_publishes_to_registered_primary_checkout(self):
+        workspace = self.home / 'workspace'
+        primary = workspace / 'projects' / 'Bellalun Viewer' / 'auto'
+        primary.mkdir(parents=True)
+        linked = workspace / 'linked worktree'
+        (workspace / 'workspace-projects.json').write_text(json.dumps({'version': 1,
+            'projects': [{'path': 'projects/Bellalun Viewer/auto', 'status': 'active', 'spec': True}]}),
+            encoding='utf-8')
+        for args in (['init', '-q'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                                    'commit', '-q', '--allow-empty', '-m', 'fixture'],
+                     ['worktree', 'add', '-q', '--detach', str(linked)]):
+            subprocess.run(['git', *args], cwd=primary, check=True, capture_output=True)
+        output, artifacts = self.release_inputs()
+        with patch.object(self.builder, 'ROOT', linked):
+            target = self.builder.publish_release(output, '1.0.2', artifacts)
+        self.assertEqual(target, primary / 'release/1.0.2')
+        self.assertFalse((linked / 'release').exists())
 
     def compiler_reports(self):
         compiler = self.home / 'toolchain with spaces/gcc.exe'

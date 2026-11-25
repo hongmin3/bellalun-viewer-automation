@@ -267,3 +267,22 @@ def test_fresh_complete_report_from_other_run_cannot_complete_current_run(tmp_pa
         'results': complete_rows([])}), encoding='utf-8')
     record.finish(0)
     assert record.data['status'] == 'abnormal'
+
+
+def test_explicit_run_reserves_identity_without_overwrite_or_legacy_report_fallback(tmp_path):
+    from bellalunauto.runs import RunRecord
+    run_id = '20261125-091000-012345ab'
+    record = RunRecord.create(tmp_path, 'run-regression', {}, consent=True, run_id=run_id)
+    original = record.path.read_bytes()
+    with pytest.raises(FileExistsError):
+        RunRecord.create(tmp_path, 'run-regression', {}, consent=True, run_id=run_id)
+    assert record.path.read_bytes() == original
+    with pytest.raises(ValueError):
+        RunRecord.create(tmp_path, 'run-regression', {}, consent=True, run_id='../outside')
+    reports = tmp_path / 'Reports'
+    reports.mkdir()
+    (reports / 'Result_legacy.json').write_text(json.dumps({'results': complete_rows([])}),
+                                               encoding='utf-8')
+    record.finish(0)
+    assert record.data['reports'] == []
+    assert record.data['status'] == 'abnormal'

@@ -215,6 +215,50 @@ class InstalledGateTests(unittest.TestCase):
         Path(self.record["runs"][0]["gui"]["run_record"]).write_text("{}", encoding="utf-8")
         self.assertFalse(self.evaluate_record("wu", [])["passed"])
 
+    def test_new_gui_binding_checks_report_origin_log_and_restore(self):
+        from bellalunauto.runs import engine_log_path
+        self.gui_full_record("run-winupdate")
+        run_id = self.data["meta"]["run_id"]
+        run = self.record["runs"][0]
+        run_json = self.root / "Runs" / run_id / "run.json"
+        run_json.parent.mkdir(parents=True)
+        self.data["meta"]["restoration"] = {"run_id": run_id, "status": "verified"}
+        self.report.write_text(json.dumps(self.data), encoding="utf-8")
+        report_sha = digest(self.report)
+        data = {"run_id": run_id, "identity_bound": True, "supervisor_pid": 10,
+                "action": "run-winupdate", "status": "completed", "consent": {"source": "GUI"},
+                "primary_report": {"path": str(self.report), "sha256": report_sha}}
+        run_json.write_text(json.dumps(data), encoding="utf-8")
+        log = engine_log_path(self.root, run_id)
+        log.parent.mkdir()
+        log.write_text("owned engine", encoding="utf-8")
+        run.update(report_sha256=report_sha, log=str(log), log_sha256=digest(log),
+                   gui={"run_id": run_id, "supervisor_pid": 10, "run_record": str(run_json),
+                        "run_record_sha256": digest(run_json)})
+        self.record["launch"]["binding"] = "run-id"
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(result["passed"], result["reasons"])
+        relocated = self.root / "same-report-moved.json"
+        relocated.write_bytes(self.report.read_bytes())
+        run["report"]["path"] = str(relocated)
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(result["passed"], result["reasons"])
+        run["report"]["path"] = str(self.report)
+        log.write_text("changed engine", encoding="utf-8")
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(any("실행 로그" in reason for reason in result["reasons"]), result)
+        log.write_text("owned engine", encoding="utf-8")
+        self.data["meta"]["restoration"]["status"] = "preserved"
+        self.report.write_text(json.dumps(self.data), encoding="utf-8")
+        run["report_sha256"] = digest(self.report)
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(any("원본 보고서" in reason for reason in result["reasons"]), result)
+        data["primary_report"]["sha256"] = run["report_sha256"]
+        run_json.write_text(json.dumps(data), encoding="utf-8")
+        run["gui"]["run_record_sha256"] = digest(run_json)
+        result = self.evaluate_record("wu", [])
+        self.assertTrue(any("원상복원" in reason for reason in result["reasons"]), result)
+
     def test_wu_only_and_basic_only_do_not_require_other_suite(self):
         for scope, command in (("wu", "run-winupdate"), ("basic", "run-regression")):
             with self.subTest(scope=scope):

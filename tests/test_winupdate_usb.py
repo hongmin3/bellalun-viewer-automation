@@ -1,11 +1,8 @@
-"""TC9/10 evidence contracts. These tests never touch USB, Viewer, files or DB.
-
-The engine integration cases deliberately remain RED until the parent changes
-tests/winupdate.py after the currently running source regression finishes.
-"""
+"""TC9/10 evidence contracts using temporary files and simulated product state."""
 from copy import deepcopy
 import importlib
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -331,13 +328,20 @@ class WindowsUpdateUSBSafetyTests(unittest.TestCase):
             for name in result['pages']}
         return result
 
-    def setting_result(self, sweep, quick_count=24):
+    def quick_rows(self):
+        from core import flows
+        groups = list(flows.SETTING_GROUPS)
+        return [{'pair': f'{first}->{second}', 'clicked': clicked, 'ok': True}
+                for first, second in zip(groups, groups[1:])
+                for clicked in (first, second, first)]
+
+    def setting_result(self, sweep, quick_count=24, quick=None):
         # Bound every UI entry point before calling the real verdict function.
         from core import flows, setting_changes, setting_values
         with patch.object(flows, 'ensure_patient_screen', return_value=True), \
              patch.object(flows, 'open_setting'), \
              patch.object(setting_values, 'read_all', return_value=sweep), \
-             patch.object(self.wu, '_quick_tab_check', return_value=[{'ok': True}] * quick_count), \
+             patch.object(self.wu, '_quick_tab_check', return_value=self.quick_rows()[:quick_count] if quick is None else quick), \
              patch.object(setting_changes, 'close_setting'):
             return self.wu.run_setting_display(SimpleNamespace(cfg={}), object())
 
@@ -383,6 +387,65 @@ class WindowsUpdateUSBSafetyTests(unittest.TestCase):
     def test_tc10_partial_quick_tabs_must_fail_after_engine_integration(self):
         result = self.setting_result(self.complete_sweep(), quick_count=1)
         self.assertEqual(result.checks[1].status, FAIL)
+
+    def test_tc10_duplicated_or_out_of_order_quick_evidence_cannot_pass(self):
+        quick = self.quick_rows()
+        quick[1] = quick[0]
+        result = self.setting_result(self.complete_sweep(), quick=quick)
+        self.assertEqual(result.checks[1].status, FAIL)
+
+    def test_tc10_disabled_group_tabs_are_observed_without_click(self):
+        from unittest.mock import Mock
+        ui = Mock()
+        ui.by_id.return_value = [SimpleNamespace(visible=True, enabled=False)]
+        with patch('core.screen.radio_selected', return_value=True):
+            rows = self.wu._quick_tab_check(ui)
+        ui.click.assert_not_called()
+        self.assertTrue(rows)
+        self.assertTrue(all(not row['ok'] and '비활성' in row['reason'] for row in rows))
+
+    def test_usb_reappearing_file_is_not_credited_and_cleanup_is_reported(self):
+        from contextlib import ExitStack
+        from unittest.mock import Mock
+        from core import export_manager, flows, usb_media, usb_paths
+        ui = Mock()
+        ui.by_id.return_value = [SimpleNamespace(visible=True)]
+        manager = Mock()
+        manager.dialog.return_value = None
+        with tempfile.TemporaryDirectory() as name, ExitStack() as stack:
+            target = Path(name) / 'BellalunWU09'
+            target.mkdir()
+            stale = target / 'reappeared.img'
+            stale.write_bytes(b'other operation')
+            for module, entry, value in (
+                (usb_media, 'find_usb_drive', 'synthetic drive'),
+                (usb_paths, 'prepare_export_folder', (str(target), ['old.img'])),
+                (flows, 'ensure_patient_screen', True),
+                (flows, 'examined_search', [object()]),
+                (export_manager, 'attach', manager),
+                (export_manager, 'set_path', str(target)),
+                (export_manager, 'set_portable_viewer', {'final': False}),
+                (export_manager, 'set_anonymous', {'final': False}),
+                (export_manager, 'select_only_format', {'selected': {'final': True}}),
+                (export_manager, 'ViewerUi', manager),
+                (export_manager, 'cancel', True),
+            ):
+                stack.enter_context(patch.object(module, entry, return_value=value))
+            stack.enter_context(patch('tests.workflow03._open_examined'))
+            stack.enter_context(patch.object(export_manager, 'is_checked',
+                side_effect=lambda _manager, option: option == export_manager.FORMAT_IMG))
+            export = stack.enter_context(patch.object(export_manager, 'export', return_value={'closed': True}))
+            import_ = stack.enter_context(patch.object(usb_media, 'attempt_import'))
+            outcome = self.wu.run_usb_export_import(SimpleNamespace(), ui)
+            export.assert_not_called()
+            import_.assert_not_called()
+            self.assertEqual(stale.read_bytes(), b'other operation')
+            self.assertEqual(outcome['export']['before_entries'], ['reappeared.img'])
+            result = self.wu._wu_09(self.lookup, outcome)
+            check = next(item for item in result.checks if item.title == 'USB Export/Import')
+            self.assertEqual(check.status, FAIL)
+            self.assertTrue(check.actual['cleanup']['export_closed'])
+            self.assertEqual(check.actual['export']['cleared'], ['old.img'])
 
     def test_tc10_all_pages_nonempty_and_complete_quick_tabs_can_pass(self):
         result = self.setting_result(self.complete_sweep())

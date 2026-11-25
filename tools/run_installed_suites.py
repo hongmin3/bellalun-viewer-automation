@@ -18,7 +18,6 @@ REQ-DIST-004 의 최종 실행 검증 도구다. 하는 일:
         --out "D:/실행 기록/run-01" --suites run-winupdate
 """
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -31,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from core.frame_evidence import sha256
 
 WU_IDS = [f"TC_WindowsUpdate_{i:02}" for i in range(1, 14)]
 #: 사람이 직접 하는 범위(REQ-VERDICT-002, 판정 SKIP). 목표 판정에서 빼고 나머지 10건의 PASS 를 요구한다.
@@ -175,14 +175,6 @@ def clean_environment(base=None):
     return env
 
 
-def sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as stream:
-        for block in iter(lambda: stream.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def verify_install(exe, build_info):
     """설치 폴더 파일이 build-info 와 같은지. 다른 파일 목록을 돌려준다."""
     info = json.loads(Path(build_info).read_text(encoding="utf-8"))
@@ -206,25 +198,23 @@ def verify_install(exe, build_info):
 
 def snapshot(workspace, since, destination):
     """`since` 이후 바뀐 Reports/Evidence/Log 파일을 복사하고 해시를 다시 대조한다."""
+    candidates = (path for top in SNAPSHOT_DIRS for path in sorted((Path(workspace) / top).rglob("*"))
+                  if path.is_file() and path.stat().st_mtime >= since)
+    return snapshot_files(workspace, candidates, destination)
+
+
+def snapshot_files(workspace, paths, destination):
+    """Copy an explicit list of workspace files and recheck their bytes."""
     files = []
-    verified = True
-    for top in SNAPSHOT_DIRS:
-        base = Path(workspace) / top
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*")):
-            if not path.is_file() or path.stat().st_mtime < since:
-                continue
-            rel = path.relative_to(workspace).as_posix()
-            target = Path(destination) / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, target)
-            src_hash, dst_hash = sha256(path), sha256(target)
-            same = src_hash == dst_hash and path.stat().st_size == target.stat().st_size
-            verified = verified and same
-            files.append({"path": rel, "size": path.stat().st_size,
-                          "sha256": src_hash, "copy_matches": same})
-    return {"files": files, "count": len(files), "verified": verified}
+    for path in sorted(set(paths)):
+        rel = path.relative_to(workspace).as_posix()
+        target = Path(destination) / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        src_hash = sha256(path)
+        same = src_hash == sha256(target) and path.stat().st_size == target.stat().st_size
+        files.append({"path": rel, "size": path.stat().st_size, "sha256": src_hash, "copy_matches": same})
+    return {"files": files, "count": len(files), "verified": all(item["copy_matches"] for item in files)}
 
 
 def wu_target(rows):
@@ -280,6 +270,21 @@ def run_suite(exe, workspace, config, command, out_dir, cwd, clean_env=False, ex
     return collect_result(result, workspace, command, out_dir, started, expected_tcs)
 
 
+def attach_report(result, command, report, *, payload=None):
+    """Collect the digest and verdicts of an already selected report."""
+    result.update(report=report, completed=bool(report))
+    if report:
+        result["report_sha256"] = sha256(report["path"])
+        meta, rows = _report_rows(report["path"]) if payload is None else (
+            payload.get("meta") or {}, payload.get("results") or [])
+        result["meta"] = {k: meta.get(k) for k in ("execution_mode", "chain_completed", "command",
+                                                   "source_commit", "source_dirty",
+                                                   "source_identity_origin")}
+        result["tc_verdicts"] = {row.get("tc_id"): row.get("verdict") for row in rows}
+        if command in ("run-winupdate", COMBINED_COMMAND):
+            result["wu_target"] = wu_target(rows)
+
+
 def collect_result(result, workspace, command, out_dir, started, expected_tcs=()):
     """한 실행이 남긴 리포트·증거를 찾아 `result`에 더한다. CLI·GUI 실행이 함께 쓴다."""
     from bellalunauto.app import completed_report
@@ -294,16 +299,7 @@ def collect_result(result, workspace, command, out_dir, started, expected_tcs=()
         report = selected_run_report(reports, started - 1, expected_tcs)
     else:
         report = selected_report(reports, command, started - 1, expected_tcs)
-    result.update(report=report, completed=bool(report))
-    if report:
-        result["report_sha256"] = sha256(report["path"])
-        meta, rows = _report_rows(report["path"])
-        result["meta"] = {k: meta.get(k) for k in ("execution_mode", "chain_completed", "command",
-                                                   "source_commit", "source_dirty",
-                                                   "source_identity_origin")}
-        result["tc_verdicts"] = {row.get("tc_id"): row.get("verdict") for row in rows}
-        if command in ("run-winupdate", COMBINED_COMMAND):
-            result["wu_target"] = wu_target(rows)
+    attach_report(result, command, report)
     if command == COMBINED_COMMAND:
         # 같은 실행 번호로 남긴 기본 리포트를 함께 기록한다. 없으면 완료로 보지 않는다.
         basic = health.latest_full_regression(str(reports), since=started - 1)

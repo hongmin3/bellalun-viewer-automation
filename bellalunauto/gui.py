@@ -454,8 +454,9 @@ class RunController:
         if action in {"run-regression", "run-winupdate"}:
             from core.run_preparation import validate_preparation
             validate_preparation(action, (plan or {}).get('preparation_checked', []))
-            from .runs import RunRecord
-            self.record = RunRecord.create(self.layout.workspace, action, plan or {}, consent=True)
+            from .runs import GUI_VERIFICATION_RUN_ID, RunRecord
+            run_id = os.environ.pop(GUI_VERIFICATION_RUN_ID, None)
+            self.record = RunRecord.create(self.layout.workspace, action, plan or {}, consent=True, run_id=run_id)
         self.stop_path = Path(self.layout.workspace) / "work" / f"stop-{uuid.uuid4().hex}.json"
         try:
             arguments = command_arguments(self.layout, action, stop_file=self.stop_path)
@@ -476,7 +477,15 @@ class RunController:
             raise RuntimeError("이전 실행 로그를 마무리하고 있습니다.")
         log_dir = Path(self.layout.workspace) / "Log"
         log_dir.mkdir(parents=True, exist_ok=True)
-        self.log_path = log_dir / ("BellalunAuto-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".log")
+        bound = self.record is not None and self.record.data.get('identity_bound') is True
+        if bound:
+            from .runs import engine_log_path
+            self.log_path = engine_log_path(self.layout.workspace, self.record.data['run_id'])
+            # Reserve the exact log before starting the engine. A stale file may
+            # not be reused even if its run directory has been removed.
+            self.log_path.touch(exist_ok=False)
+        else:
+            self.log_path = log_dir / ("BellalunAuto-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".log")
         environment = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
         if self.record:
             environment['BELLALUN_QA_RUN'] = self.record.data['run_id']
@@ -492,7 +501,7 @@ class RunController:
 
         def read_output():
             try:
-                with path.open("w", encoding="utf-8", newline="\n") as output:
+                with path.open("a" if bound else "w", encoding="utf-8", newline="\n") as output:
                     for line in stream:
                         safe_line = scrub(line)
                         output.write(safe_line)

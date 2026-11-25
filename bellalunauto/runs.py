@@ -7,11 +7,25 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import time
 import uuid
 
 from core.atomic_metadata import replace_metadata
+from core.frame_evidence import file_record
+
+GUI_VERIFICATION_RUN_ID = 'BELLALUN_GUI_VERIFICATION_RUN_ID'
+
+
+def new_run_id():
+    return datetime.now().strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:8]
+
+
+def engine_log_path(workspace, run_id):
+    if not re.fullmatch(r'[0-9]{8}-[0-9]{6}-[a-f0-9]{8}', run_id):
+        raise ValueError('실행 번호 형식이 올바르지 않습니다.')
+    return Path(workspace) / 'Log' / f'BellalunAuto-{run_id}.log'
 
 
 def _now():
@@ -51,11 +65,15 @@ class RunRecord:
         self.workspace, self.path, self.data = Path(workspace), Path(path), data
 
     @classmethod
-    def create(cls, workspace, action, plan, *, consent=False):
+    def create(cls, workspace, action, plan, *, consent=False, run_id=None):
+        identity_bound = run_id is not None
+        if identity_bound:
+            engine_log_path(workspace, run_id)  # validate before touching the workspace
+        run_id = run_id if identity_bound else new_run_id()
+        path = Path(workspace) / 'Runs' / run_id / 'run.json'
+        path.parent.mkdir(parents=True, exist_ok=False)
         close_stale_runs(workspace)
         stamp = time.time()
-        run_id = datetime.now().strftime('%Y%m%d-%H%M%S-') + uuid.uuid4().hex[:8]
-        path = Path(workspace) / 'Runs' / run_id / 'run.json'
         existing = {str(p): [p.stat().st_mtime_ns, p.stat().st_size]
                     for p in (Path(workspace) / 'Reports').glob('*') if p.is_file()}
         initial_states = {name: _fingerprint(Path(workspace) / 'work' / name)
@@ -68,6 +86,8 @@ class RunRecord:
             'status': 'running', 'supervisor_pid': os.getpid(), 'stop_requested': False, 'progress': {},
             'reports': [], 'existing_reports': existing, 'initial_states': initial_states, 'review_status': '실행 중',
         })
+        if identity_bound:
+            record.data['identity_bound'] = True
         record.save()
         return record
 
@@ -106,7 +126,8 @@ class RunRecord:
         # 구형 기본기능 엔진만 작은 상태 파일로 보완한다. WU 저장점은 읽지 않는다.
         # NTFS의 파일 시각과 time.time()의 세부 정밀도가 달라도 새 기록을 놓치지 않는다.
         # 같은 초에 남은 이전 실행은 시작 전 내용 해시로 배제한다.
-        elif (self.data['action'] == 'run-regression' and path.is_file()
+        elif (not self.data.get('identity_bound') and self.data['action'] == 'run-regression'
+              and path.is_file()
                 and path.stat().st_mtime >= int(self.data['started_epoch'])
                 and _fingerprint(path) != self.data.get('initial_states', {}).get(name)):
             state = _read(path)
@@ -122,6 +143,8 @@ class RunRecord:
         self.refresh_progress()
         reports = []
         report_stamps = {}
+        bound = self.data.get('identity_bound') is True
+        report_data = {}
         for path in sorted((self.workspace / 'Reports').glob('*')):
             if not path.is_file() or path.suffix.lower() not in {'.json', '.html', '.txt', '.csv', '.xlsx'}:
                 continue
@@ -133,18 +156,35 @@ class RunRecord:
             is_wu = 'WindowsUpdate' in path.name
             if is_wu != (self.data['action'] == 'run-winupdate'):
                 continue
+            if bound:
+                json_path = path.with_suffix('.json')
+                if json_path not in report_data:
+                    report_data[json_path] = _read(json_path)
+                meta = report_data[json_path].get('meta')
+                if not isinstance(meta, dict) or meta.get('run_id') != self.data['run_id']:
+                    continue
             reports.append(str(path))
             report_stamps[str(path)] = stat.st_mtime_ns
         from .app import completed_report
         # 엔진은 전체 시험을 마쳐도 FAIL TC가 있으면 1을 반환한다.
         scope = 'selected' if (self.data.get('plan') or {}).get('run_scope') == 'selected' else None
-        primary = completed_report(self.workspace / 'Reports', self.data['action'],
-                                   int(self.data['started_epoch']), scope=scope)
-        complete = bool(primary and str(Path(primary['path'])) in reports)
-        if primary:
-            report_meta = (_read(primary['path']).get('meta') or {})
-            if report_meta.get('run_id') not in (None, self.data['run_id']):
-                complete = False
+        if bound:
+            from core.automation_health import completed_report_data
+            primary = next((path for path in sorted(report_data,
+                             key=lambda path: report_stamps.get(str(path), 0), reverse=True)
+                            if str(path) in report_stamps
+                            and completed_report_data(report_data[path], self.data['action'], scope)), None)
+            complete = primary is not None
+            if complete:
+                self.data['primary_report'] = file_record(primary)
+        else:
+            primary = completed_report(self.workspace / 'Reports', self.data['action'],
+                                       int(self.data['started_epoch']), scope=scope)
+            complete = bool(primary and str(Path(primary['path'])) in reports)
+            if primary:
+                report_meta = (_read(primary['path']).get('meta') or {})
+                if report_meta.get('run_id') not in (None, self.data['run_id']):
+                    complete = False
         # 정리 실패로 chain_completed=False가 된 보고서도 복원 사유는 보존한다.
         # 이 경로는 완료 판정을 바꾸지 않고 현재 실행의 메타데이터만 읽는다.
         for report in sorted(reports, key=lambda path: report_stamps[path], reverse=True):

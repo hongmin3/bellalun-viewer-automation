@@ -77,7 +77,16 @@ def sibling_problems(repo: Path, lock: dict, other: Path) -> list[str]:
     return problems
 
 
-def check(repo: Path = REPO, out=sys.stdout) -> int:
+def selected_siblings(repo, lock, peer):
+    if peer is None:
+        return siblings(repo, lock)
+    other = Path(peer).resolve()
+    if other == repo.resolve() or not (other / LOCK_NAME).is_file():
+        raise ValueError(f"다른 제품의 작업 트리와 잠금 파일을 지정하세요: {other}")
+    return [("지정한 형제 작업 트리", other)]
+
+
+def check(repo: Path = REPO, out=sys.stdout, peer=None) -> int:
     lock = load_lock(repo)
     failed = False
     problems = local_problems(repo, lock)
@@ -88,7 +97,7 @@ def check(repo: Path = REPO, out=sys.stdout) -> int:
             print(f"  - {p}", file=out)
         print("  해결 방법: 의도한 변경이면 python frame/sync_check.py --update-lock 뒤 "
               "--propagate로 형제 저장소에도 반영하세요(frame/FRAME.md 3절).", file=out)
-    for name, other in siblings(repo, lock):
+    for name, other in selected_siblings(repo, lock, peer):
         if not other.is_dir():
             print(f"[안내] 형제 저장소({name}) 없음: {other} — 사본 비교를 건너뜁니다.", file=out)
             continue
@@ -120,14 +129,14 @@ def update_lock(repo: Path = REPO, out=sys.stdout) -> int:
     return 0
 
 
-def propagate(repo: Path = REPO, out=sys.stdout) -> int:
+def propagate(repo: Path = REPO, out=sys.stdout, peer=None) -> int:
     lock = load_lock(repo)
     problems = local_problems(repo, lock)
     if problems:
         print("[FAIL] 먼저 --update-lock으로 이 저장소의 잠금을 맞추세요: " + "; ".join(problems), file=out)
         return 1
     copied = 0
-    for name, other in siblings(repo, lock):
+    for name, other in selected_siblings(repo, lock, peer):
         if not other.is_dir():
             print(f"[안내] 형제 저장소({name}) 없음: {other}", file=out)
             continue
@@ -138,7 +147,7 @@ def propagate(repo: Path = REPO, out=sys.stdout) -> int:
         copied += 1
         print(f"[OK] {name}에 공유 프레임 {len(lock['files'])}개 파일과 잠금을 복사했습니다: {other}", file=out)
         print(f"     다음: {other}에서 그 저장소의 검증을 실행하고 커밋하세요.", file=out)
-    return 0 if copied or not siblings(repo, lock) else 1
+    return 0 if copied or not selected_siblings(repo, lock, peer) else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -146,13 +155,14 @@ def main(argv: list[str] | None = None) -> int:
     group = ap.add_mutually_exclusive_group()
     group.add_argument("--update-lock", action="store_true", help="공유 파일 해시로 잠금 파일 갱신")
     group.add_argument("--propagate", action="store_true", help="공유 파일과 잠금을 형제 저장소에 복사")
+    ap.add_argument("--peer", type=Path, help="비교하거나 반영할 형제 제품의 작업 트리")
     args = ap.parse_args(argv)
     try:
         if args.update_lock:
             return update_lock()
         if args.propagate:
-            return propagate()
-        return check()
+            return propagate(peer=args.peer)
+        return check(peer=args.peer)
     except (OSError, ValueError) as exc:
         print(f"[FAIL] {exc}")
         return 2

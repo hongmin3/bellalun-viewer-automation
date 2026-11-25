@@ -346,7 +346,8 @@ def _wu_09(lookup, usb_outcome, policy=None):
     elif usb_outcome.get("error"):
         r.add(0, "USB Export/Import", FAIL,
              expected="USB 드라이브로 Export 후 되읽기 Import",
-             actual=usb_outcome["error"], stop=False,
+             actual={key: usb_outcome[key] for key in ("error", "errors", "export", "cleanup")
+                     if key in usb_outcome}, stop=False,
              note=f"드라이브 {usb_outcome.get('drive')} 실행 중 예외 발생.")
     elif usb_outcome.get("drive") is None:
         r.skip(0, "USB Export/Import",
@@ -523,31 +524,31 @@ def _handle_growth(page_handles):
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
-def _quick_tab_check(ui):
-    """탭을 빠르게 오가도 선택한 탭 화면이 바르게 표시되는지 본다(신규 로직).
+def _quick_tab_targets():
+    from core import flows
+    groups = list(flows.SETTING_GROUPS.items())
+    return [(f"{name_a}->{name_b}", name, ctrl_id)
+            for (name_a, id_a), (name_b, id_b) in zip(groups, groups[1:])
+            for name, ctrl_id in ((name_a, id_a), (name_b, id_b), (name_a, id_a))]
 
-    인접한 두 그룹을 A→B→A 순서로 **정상보다 훨씬 짧은 대기(0.15초)**로 빠르게
-    전환하며, 매 클릭 뒤 (1) 그 탭이 활성 강조 표시인지(`screen.radio_selected`)
-    (2) 공통 Update 버튼(2226)이 보여 콘텐츠가 실제로 그려졌는지를 함께 본다.
-    """
+
+def _quick_tab_check(ui):
+    """인접 그룹을 A→B→A로 전환하고 활성 표시와 렌더를 대조한다."""
     from core import flows, screen
-    order = list(flows.SETTING_GROUPS.items())
     results = []
-    for i in range(len(order) - 1):
-        (name_a, id_a), (name_b, id_b) = order[i], order[i + 1]
-        for name, cid in ((name_a, id_a), (name_b, id_b), (name_a, id_a)):
-            hits = [c for c in ui.by_id(cid) if c.visible]
-            if not hits:
-                results.append({"pair": f"{name_a}->{name_b}", "clicked": name,
-                                "ok": False, "reason": "탭 컨트롤 없음"})
-                continue
+    for pair, name, ctrl_id in _quick_tab_targets():
+        hits = [control for control in ui.by_id(ctrl_id) if control.visible]
+        record = {"pair": pair, "clicked": name}
+        if len(hits) != 1:
+            record.update(ok=False, reason="보이는 탭이 없거나 여러 개입니다.")
+        elif not hits[0].enabled:
+            record.update(ok=False, reason="탭이 비활성 상태입니다.")
+        else:
             ui.click(hits[0], settle=0.15)
-            active = screen.radio_selected(hits[0])
-            rendered = bool([c for c in ui.by_id(flows.SETTING_UPDATE_BUTTON)
-                            if c.visible])
-            results.append({"pair": f"{name_a}->{name_b}", "clicked": name,
-                            "ok": bool(active) and rendered,
-                            "active": active, "content_rendered": rendered})
+            active = bool(screen.radio_selected(hits[0]))
+            rendered = any(control.visible for control in ui.by_id(flows.SETTING_UPDATE_BUTTON))
+            record.update(ok=active and rendered, active=active, content_rendered=rendered)
+        results.append(record)
     return results
 
 
@@ -596,15 +597,16 @@ def run_setting_display(ctx, ui):
             raise flows.FlowError("Setting 순회 후 Patient 화면으로 돌아오지 못했습니다.")
         flows.open_setting(ui)
         quick = _quick_tab_check(ui) or []
-        expected_quick_count = (len(flows.SETTING_GROUPS) - 1) * 3
-        failed_quick = [item for item in quick if not isinstance(item, dict)
-                        or item.get("ok") is not True]
-        ok = (bool(quick) and len(quick) == expected_quick_count and not failed_quick)
+        expected_quick = [(pair, group) for pair, group, _ in _quick_tab_targets()]
+        observed_quick = [(item.get("pair"), item.get("clicked")) for item in quick if isinstance(item, dict)]
+        failed_quick = [item for item in quick if not isinstance(item, dict) or item.get("ok") is not True]
+        ok = bool(expected_quick) and observed_quick == expected_quick and not failed_quick
         r.assert_true(
             2, "탭을 빠르게 클릭해도 선택한 탭 화면이 바르게 표시",
             ok,
             expected="인접 탭 빠른 전환(A→B→A, 0.15초 간격) 전 구간 활성표시+콘텐츠 렌더",
-            actual={"checked": len(quick), "expected": expected_quick_count,
+            actual={"checked": len(quick), "expected": len(expected_quick),
+                    "expected_sequence": expected_quick, "observed_sequence": observed_quick,
                     "failed": failed_quick},
             note="신규 로직 — 대응하는 기존 TC가 없다(매핑 표에 '신규 필요'로 "
                  "명시). Setting > System 탭(177)부터 QC 탭(185)까지 인접 쌍을 "
@@ -669,6 +671,7 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
         # Guarded cleanup rejects path escapes, links/junctions and traversal
         # before touching the sole automation-owned child of a USB drive root.
         target, cleared = usb_paths.prepare_export_folder(drive)
+        result["export"] = {"path": target, "cleared": cleared}
         if not flows.ensure_patient_screen(ui, wait=3):
             raise flows.FlowError("Patient 화면이 준비되지 않았습니다(USB Export 전).")
         _open_examined(ui)
@@ -695,6 +698,11 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
                 or any(checked is not (format_id == em.FORMAT_IMG) for format_id, checked in format_states.items())
                 or any(value.get("final") is not False for value in fmt.get("turned_off", {}).values())):
             raise flows.FlowError("IMG 단독·Anonymous 해제·Portable Viewer 해제 상태를 확인하지 못했습니다.")
+        before = sorted(path.name for path in Path(target).iterdir())
+        result["export"].update(path=path, before_entries=before, format=fmt, format_states=format_states,
+                                anonymous=anonymous, portable_viewer=portable)
+        if before:
+            raise flows.FlowError("Export 시작 직전 USB 전용 폴더에 다른 파일 또는 폴더가 생겼습니다.")
         outcome = em.export(manager, wait=180)
         inventory = []
         for image in sorted(Path(target).rglob("*")):
@@ -709,10 +717,7 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
                 item["error"] = f"{type(error).__name__}: {error}"
             inventory.append(item)
         files = [item["path"] for item in inventory if item["exists"] and item["readable"] and item["size"] > 0]
-        result["export"] = {"path": path, "files": files, "inventory": inventory, "format": fmt,
-                            "format_states": format_states,
-                            "anonymous": anonymous, "portable_viewer": portable,
-                            "cleared": cleared, "outcome_files": outcome.get("files")}
+        result["export"].update(files=files, inventory=inventory, outcome_files=outcome.get("files"))
         if not inventory or len(files) != len(inventory):
             raise flows.FlowError("Export된 IMG 파일이 없거나 비어 있거나 읽을 수 없습니다.")
         if outcome.get("closed") is not True:
@@ -764,15 +769,20 @@ def run_usb_export_import(ctx, ui, patient_id="DATA_FLOW_MWL_01"):
         record_error("USB Export/Import", error)
     finally:
         if export_opened:
+            result["cleanup"]["export_closed"] = False
             try:
                 remaining_manager = em.ViewerUi(em.PROCESS)
-                if remaining_manager.pid:
+                if not remaining_manager.pid:
+                    result["cleanup"]["export_closed"] = True
+                else:
                     # em.cancel can dismiss a modal. Unknown modals are kept
                     # for controlled recovery rather than clicking a guess.
                     if remaining_manager.dialog() is not None:
                         cleanup_error("Export Manager에 미확인 대화상자가 남아 자동으로 닫지 않았습니다.")
                     elif em.cancel(remaining_manager, timeout=10) is False:
                         cleanup_error("Export Manager 창을 닫지 못했습니다.")
+                    else:
+                        result["cleanup"]["export_closed"] = True
             except Exception as error:
                 cleanup_error(f"Export Manager 정리: {type(error).__name__}: {error}")
         if import_requested:
