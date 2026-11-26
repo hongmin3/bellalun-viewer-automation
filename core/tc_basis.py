@@ -21,7 +21,7 @@ def _read_json(path):
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
-def _source(ctx, key, name, bundled):
+def _source(ctx, key, name, bundled, approved=None):
     override = (ctx.cfg.get(key) or "").strip()
     if override and override not in ("REPLACE_ME", r"C:\QA\Bellalun_Viewer_Checklist.xlsx"):
         return Path(override)
@@ -36,6 +36,18 @@ def _source(ctx, key, name, bundled):
             candidate = parent / subdirectory / name
             if candidate.is_file():
                 return candidate
+    if approved:
+        # 이름이 바뀐 같은 원본(승인 SHA256 일치)만 받는다. 지식 폴더와 이 자동화 설치판의 기준서 폴더를 본다.
+        from core import specs
+        import os
+        directories = [str(parent / sub) for parent in (root, *list(root.parents)[:4])
+                       for sub in ("지식", "Bellalun Viewer 지식파일")]
+        program_files = os.environ.get("ProgramFiles")
+        if program_files:
+            directories.append(os.path.join(program_files, "BellalunAuto", "resources", "assets", "checklists"))
+        found = specs.find_by_sha256(directories, approved, (".xlsx",))
+        if found:
+            return Path(found)
     return None
 
 
@@ -67,7 +79,7 @@ def resolve(ctx, kind):
             if not bundled.is_relative_to(assets):
                 raise ValueError("패키지 체크리스트 경로가 자료 폴더 밖입니다.")
             approved = entries[0]["sha256"]
-        path = _source(ctx, key, name, bundled)
+        path = _source(ctx, key, name, bundled, approved)
         if path is None or not path.is_file():
             origin["reason"] = "기준 체크리스트 파일을 찾지 못했습니다."
             return basis

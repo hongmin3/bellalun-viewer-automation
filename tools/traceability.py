@@ -139,8 +139,11 @@ def _verified_document(ctx, source):
             if hashlib.file_digest(stream, "sha256").hexdigest() == ref["sha256"]:
                 return path
     except OSError:
-        return None
-    return None
+        pass
+    # 기록한 이름의 파일이 없거나 다르면, 같은 SHA256의 파일(이름만 바뀐 같은 원본)을 찾는다.
+    # 예: 2026-11-26 지식 폴더 개편으로 `사양서(261030).pdf`가 `기존 원노트 사양서(261030).pdf`가 됐다.
+    found = specs.find_by_sha256([directory], ref["sha256"], (Path(ref["file"]).suffix.lower(),))
+    return Path(found) if found else None
 
 
 def spec_pages(ctx, source):

@@ -271,6 +271,7 @@ TC ID, 기준 체크리스트, 사양 문서·인용·쪽·Step 근거.
 같은 문장이 변경 메모와 요구사항 본문에 함께 있으면 SRS ID가 붙은 쪽(추적성은 기록된 쪽)을 인용한다.
 리포트에도 해당 기준 수행 절차와 기대 결과를 전달한다.
 기본·WU 기준서는 패키지 자료 매니페스트 또는 추적표에 핀한 SHA256으로 확인한다.
+지식 폴더는 `지식` 또는 서버 관리형 `Bellalun Viewer 지식파일`을 쓴다. 기록한 이름의 파일이 없으면 핀한 SHA256과 같은 파일(이름만 바뀐 같은 원본)을 지식 폴더에서 찾는다. 기본 기준서는 이 자동화 설치판의 기준서 폴더도 SHA256이 같을 때만 쓴다.
 승인된 해시, 기준 시트, TC ID 집합과 Title이 맞을 때 같은 원본 바이트에서 Step·Expected 셀 위치를 읽는다.
 새 TC도 같은 방식으로 연결한다. 완전자동(`FULL`) TC에는 `파일.py::함수`가 있어야 하며, 빠지면 해당 기준서의 상태를 `invalid`로 기록한다. 추적성 검사에서 등록된 함수가 파일에 존재하는지도 확인한다.
 지식 폴더의 동명 또는 동일 ID 구판은 해시가 다르면 기준으로 채택하지 않는다.
@@ -1852,7 +1853,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
 | REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `bellalunauto/runs.py`, `bellalunauto/gui.py`, `core/frame_evidence.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py`, `tests/test_qa_runs.py` | verified |
-| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
+| REQ-TRACE-001 | `traceability.json`, `automation_scope.json`, `tools/traceability.py`, `core/result.py`, `core/specs.py`, `core/tc_basis.py`, `core/tc_modules.py`, `core/evidence_evaluation.py` | TEST-TRACE-001; `tests/test_source_by_hash.py`, `tests/test_result_reports.py`, `tests/test_specs.py`, `tests/test_evidence_basis.py` | verified |
 | REQ-VERDICT-001 | `core/result.py`, `core/flows.py`, `core/usb_media.py`, `tests/winupdate.py` | TEST-VERDICT-001; `tests/test_primary_monitor_guard.py`, `tests/test_result_reports.py` | verified |
 | REQ-VERDICT-002 | `tests/winupdate.py`, `tests/workflow16.py`, `core/winupdate_report.py`, `tools/release_gate.py` | TEST-VERDICT-002; `tests/test_human_only_skip.py`, `tests/test_release_gate.py` | verified |
 | REQ-VERDICT-003 | `core/result.py` | `tests/test_result_reports.py` | draft |

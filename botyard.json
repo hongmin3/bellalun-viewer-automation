@@ -121,6 +121,7 @@
     "tests/test_setting_render.py",
     "tests/test_share_package.py",
     "tests/test_shared_preservation.py",
+    "tests/test_source_by_hash.py",
     "tests/test_source_identity_followup.py",
     "tests/test_spec_sync_check.py",
     "tests/test_spec_trace_coverage.py",

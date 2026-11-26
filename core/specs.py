@@ -29,6 +29,8 @@ import tempfile
 
 # `지식` 폴더에 함께 관리되는 근거 문서.
 KNOWLEDGE_DIR = "지식"
+#: 지식 폴더로 인정하는 이름. 서버 관리형 지식 폴더는 `Bellalun Viewer 지식파일`이다(2026-11-26 확인).
+KNOWLEDGE_DIRS = (KNOWLEDGE_DIR, "Bellalun Viewer 지식파일")
 # 끝 번호는 2자리도 3자리도 있다(`SRS 01-10-130`). `\d\d` 로 두면 3자리가 잘려
 # **존재하지 않는 번호**가 인용된다 — 분권이던 옛 사양서1 전체에 3자리 끝 번호가 38건이었다
 # (2026-08-20 실측).
@@ -67,10 +69,33 @@ def knowledge_dir(ctx):
             here = os.path.dirname(here)
             if not here:
                 break
-            candidate = os.path.join(here, KNOWLEDGE_DIR)
-            if os.path.isdir(candidate):
-                return candidate
+            for name in KNOWLEDGE_DIRS:
+                candidate = os.path.join(here, name)
+                if os.path.isdir(candidate):
+                    return candidate
     return ""
+
+
+def find_by_sha256(directories, sha256, suffixes=None):
+    """폴더들에서 SHA256이 같은 파일 하나를 찾는다. 이름이 바뀐 같은 원본을 찾을 때 쓴다.
+
+    같은 해시의 파일이 여러 개면 첫 번째를 쓴다(내용이 같으므로 결과가 같다). 못 찾으면 None.
+    """
+    import hashlib
+    for directory in directories:
+        if not directory or not os.path.isdir(directory):
+            continue
+        for name in sorted(os.listdir(directory)):
+            path = os.path.join(directory, name)
+            if not os.path.isfile(path) or (suffixes and not name.lower().endswith(tuple(suffixes))):
+                continue
+            try:
+                with open(path, "rb") as stream:
+                    if hashlib.file_digest(stream, "sha256").hexdigest() == sha256:
+                        return path
+            except OSError:
+                continue
+    return None
 
 
 def spec_paths(ctx):
