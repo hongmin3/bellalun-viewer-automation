@@ -84,6 +84,7 @@
     "tests/test_print_overlay_empty_lists.py",
     "tests/test_print_overlay_selection.py",
     "tests/test_printscp_jobs.py",
+    "tests/test_process_alive.py",
     "tests/test_process_window_wait.py",
     "tests/test_product_env.py",
     "tests/test_product_lifecycle.py",

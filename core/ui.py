@@ -622,11 +622,20 @@ class ViewerUi:
 
     @staticmethod
     def _alive(pid):
-        h = k32.OpenProcess(0x1000, False, pid)
-        if h:
+        # 종료된 프로세스도 다른 프로세스(예: Export Manager 를 띄운 Viewer)가
+        # 핸들을 쥐고 있으면 열린다. 열림만으로 판정하지 않고 종료 코드를 본다.
+        if not pid:
+            return False
+        h = k32.OpenProcess(0x1000, False, pid)   # QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        try:
+            code = w.DWORD()
+            if not k32.GetExitCodeProcess(h, ctypes.byref(code)):
+                return True                        # 판정 불가: 기존처럼 살아 있다고 본다
+            return code.value == 259               # STILL_ACTIVE
+        finally:
             k32.CloseHandle(h)
-            return True
-        return False
 
     @timed('ui.launch')
     def launch(self, exe_path, wait=15):
