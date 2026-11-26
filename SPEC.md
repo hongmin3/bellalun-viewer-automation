@@ -1264,6 +1264,7 @@ XIPL03은 우측 조정툴의 선택 XTP 기본값과 영상에 실제 적용된
 우측 10개 값이 변경값을 유지해야 한다는 기대를 쓰지 않는다. Apply 후 DB·결과 파일과
 `.img`의 Recon/Syn 10개 저장값, 선택 파일명·Overlay 증거를 판정 중단 전에 보존한다.
 재진입 기본값과 실제 저장값을 각각 대조한다(SRS 03-50-230 물리765–768쪽).
+영상 Overlay 10개 값은 두 판독 방식(반전 회색조·흑백 변환)이 같은 값을 낸 칸만 쓴다(`core/frame_ocr.py`, `frame/FRAME.md` 2.8). 정하지 못하면 같은 창을 다시 캡처해 배율을 바꿔 최대 3회차까지 읽는다. 합의한 값이 다르고 어느 판독도 기대값을 읽지 못했을 때만 FAIL이고, 끝까지 정하지 못하거나 기대값을 읽은 판독이 있으면 MANUAL이다.
 Apply 직후의 파일은 관찰 증거로 보존한다. 저장값과 파일 변경 판정은 제품의 정상 저장·재시작 후 수행하며,
 저장 전 디스크 값으로 Apply 실패를 판정하지 않는다. 재진입 팝업은 제목 문자열 대신 고유 컨트롤과 창 내부 위치로 확인한다.
 재시작 전 해당 검사의 신규 정상 저장 로그와 모달 부재를 확인한다. 확인 실패는 후속 UI 실행을 차단하며 강제 종료로 저장 성공을 추정하지 않는다.
@@ -1368,6 +1369,7 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 - 줄바꿈(CRLF/LF) 차이는 내용 차이로 보지 않는다.
 - VXvue 저장소 폴더가 이 PC에 없으면 사본 비교를 건너뛰고 안내만 출력한다. 폴더가 있는데 공유 프레임이 없으면 실패한다.
 - 공유 파일에는 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다. 제품 값은 호출하는 쪽이 넘긴다.
+- OCR로 화면 글자를 읽어 판정하는 자리는 공용 엔진(`core/frame_ocr.py`)의 다방식 합의·재캡처 재판독 규칙을 따른다(`frame/FRAME.md` 2.8).
 - 화면 흐름·레포트 절 순서·산출물의 목표와 맞추는 단계는 `frame/FRAME.md` 2·4절을 따른다. 판정 규칙과 종료 코드는 사용자 확인 없이 VXvue에 맞추지 않는다.
 
 ### REQ-FRAME-002 처음 쓰는 사람용 공용 실행 화면
@@ -1886,7 +1888,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-SPECSYNC-001 | `tools/spec_sync_check.py`, `tools/install_git_hooks.py`, `AGENTS.md` | TEST-SPECSYNC-001; `tests/test_spec_sync_check.py` | verified |
 | REQ-SPECSYNC-002 | `tests/test_spec_trace_coverage.py`, `SPEC.md` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
 | REQ-SPECSYNC-003 | `botyard.json` | TEST-SPECSYNC-001; `tests/test_spec_trace_coverage.py` | verified |
-| REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py` | verified |
+| REQ-FRAME-001 | `frame/sync_check.py`, `frame/frame.lock.json`, `frame/FRAME.md`, `core/report_layout.py`, `core/result.py`, `core/frame_ocr.py`, `AGENTS.md` | TEST-FRAME-001; `tests/test_frame_sync.py`, `tests/test_report_layout.py`, `tests/test_result_reports.py`, `tests/test_frame_ocr.py` | verified |
 | REQ-FRAME-002 | `core/frame_ui.py`, `core/frame_ui.ps1`, `bellalunauto/frame_launch.py`, `bellalunauto/app.py`, `bellalunauto/runs.py`, `tools/build_distribution.py` | TEST-FRAME-002; `tests/test_frame_ui.py`, `tests/test_frame_launch.py`, `tests/test_distribution_build.py` | verified |
 | REQ-FRAME-003 | `core/frame_install.py`, `bellalunauto/runtime.py`, `bellalunauto/prerequisites.py`, `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py`, `packaging/BellalunAuto.iss` | TEST-FRAME-003; `tests/test_frame_install.py`, `tests/test_distribution_runtime.py`, `tests/test_first_run.py` | verified |
 | REQ-FRAME-004 | `core/frame_checklist.py`, `core/report_layout.py`, `core/checklist.py`, `core/winupdate_report.py`, `run.py` | TEST-FRAME-004; `tests/test_frame_checklist.py`, `tests/test_user_action_steps.py` | verified |

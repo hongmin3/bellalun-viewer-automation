@@ -301,3 +301,46 @@ def test_compatibility03_checks_files_after_product_save_not_dirty_memory(tmp_pa
     assert not any('after_apply' in check.title and 'img' in check.title for check in result.checks)
     assert next(check for check in result.checks if check.step == 10).status == (
         'FAIL' if persist_fault == 'unchanged_files' else 'PASS')
+
+
+def _overlay_record(overlays):
+    result = TCResult('TC_XIPL_compatibility_03', 'synthetic')
+    flow._record_post_recon_applied(result, DEFAULT, DEFAULT, CHANGED,
+        'TEST_3D_FLOW.xtp', 'TEST_3D_FLOW.xtp', {'instances': []}, {}, 'after_apply', overlays,
+        verify_saved=False)
+    return result.checks[-1].status
+
+
+def test_overlay_unsettled_value_is_manual_not_fail():
+    # 두 판독 방식이 합의하지 못하면 판독 불가(MANUAL)다(frame/FRAME.md 2.8).
+    syn = {'values': None, 'unsure': ['Contrast'], 'seen': {'Contrast': ['6', '8']}}
+    assert _overlay_record({'Recon': OVERLAYS['Recon'], 'Syn': syn}) == 'MANUAL'
+
+
+def test_overlay_mismatch_with_expected_seen_is_manual():
+    values = {**OVERLAYS['Syn']['values'], 'Contrast': 8}
+    syn = {'values': values, 'unsure': [], 'seen': {'Contrast': ['6', '8']}}
+    assert _overlay_record({'Recon': OVERLAYS['Recon'], 'Syn': syn}) == 'MANUAL'
+
+
+def test_overlay_confirmed_mismatch_is_fail():
+    values = {**OVERLAYS['Syn']['values'], 'Contrast': 8}
+    syn = {'values': values, 'unsure': [], 'seen': {'Contrast': ['8']}}
+    assert _overlay_record({'Recon': OVERLAYS['Recon'], 'Syn': syn}) == 'FAIL'
+
+
+def test_saved_post_recon_captures_read_every_value():
+    """저장된 실제 Post Recon 캡처를 기대값으로 채점한다. 표본이 없는 PC에서는 건너뛴다."""
+    import glob, os
+    root = os.environ.get('BELLALUN_EVIDENCE_ROOT', r'C:/Program Files/BellalunAuto/작업/Evidence')
+    paths = sorted(glob.glob(os.path.join(root, 'Viewer_XIPL', 'TC_XIPL_compatibility_03_*_overlay.png')))
+    paths = [p for p in paths if not p.endswith(('_r2.png', '_r3.png'))]
+    if not paths or not os.path.isfile(flow.vp.TESSERACT_EXE):
+        pytest.skip('저장 표본 또는 Tesseract 없음: %s' % root)
+    problems = []
+    for path in paths:
+        label = 'Recon' if '_Recon_' in path else 'Syn'
+        got = flow._read_post_recon_overlay(path)
+        if got['values'] != OVERLAYS[label]['values']:
+            problems.append((os.path.basename(path), got['values'], got['votes']))
+    assert problems == []

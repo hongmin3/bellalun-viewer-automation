@@ -793,17 +793,72 @@ def _parse_post_recon_overlay(text):
     return values
 
 
-def _read_post_recon_overlay(path):
+#: 회차별 확대 배율. 흑백 판독은 배율 5에서 글자를 놓쳤다(2026-11-26 저장 캡처 4장 실측).
+_POST_RECON_SCALES = (3, 4, 3)
+_POST_RECON_KEYS = ('Background Masking', 'Contrast', 'Sharpness', 'Brightness', 'Tone type')
+
+
+def _post_recon_reads(image, scale):
+    """한 캡처를 두 방식으로 읽는다. 반환: ({칸: [(방식, 값)]}, [원문]).
+
+    - gray: 반전 회색조를 부드럽게 확대해 읽는다(기존 판독).
+    - bin: 밝기 기준 두 개로 흑백 변환해 읽는다. 같은 회차의 두 기준은 한 표다(`core/frame_ocr`).
+    """
     import pytesseract
+    crop = image.crop((0, 0, int(image.width * .37), int(image.height * .25))).convert('L')
+    reads, texts = {}, []
+    variants = [('gray', ImageOps.invert(crop).resize((crop.width * scale, crop.height * scale),
+                                                     Image.Resampling.LANCZOS))]
+    for cut in (150, 120):
+        mask = crop.point(lambda v, cut=cut: 0 if v >= cut else 255)
+        variants.append(('bin', mask.resize((mask.width * scale, mask.height * scale), Image.Resampling.NEAREST)))
+    for method, img in variants:
+        text = pytesseract.image_to_string(img, lang='eng', config='--psm 6')
+        texts.append(text)
+        for key, value in (_parse_post_recon_overlay(text) or {}).items():
+            reads.setdefault(key, []).append((method, str(value)))
+    return reads, texts
+
+
+def _read_post_recon_overlay(path, regrab=None):
+    """Post Reconstruction Overlay 5칸을 판독 방식별 표로 정한다(`frame/FRAME.md` 2.8).
+
+    정하지 못한 칸이 있고 `regrab(새 경로)`가 있으면 화면을 다시 캡처해 배율을 바꿔 다시 읽는다.
+    반환 `values`는 5칸을 모두 정했을 때만 채운다. `seen`은 칸별로 한 번이라도 읽힌 값 목록이다
+    (기대값을 읽은 판독이 있으면 불일치를 확정하지 않는 데 쓴다).
+    """
+    import pytesseract
+    from core import frame_ocr
     if os.path.isfile(vp.TESSERACT_EXE):
         pytesseract.pytesseract.tesseract_cmd = vp.TESSERACT_EXE
-    with Image.open(path) as image:
-        # 확인한 Post Reconstruction 창의 좌측 원본 pane 상단 Overlay만 읽는다.
-        crop = image.crop((0, 0, int(image.width * .37), int(image.height * .25)))
-        crop = ImageOps.invert(ImageOps.grayscale(crop))
-        crop = crop.resize((crop.width * 3, crop.height * 3), Image.Resampling.LANCZOS)
-        text = pytesseract.image_to_string(crop, lang='eng', config='--psm 6')
-    return {'values': _parse_post_recon_overlay(text), 'ocr': text, 'image': str(path)}
+    texts, images = [], []
+
+    def one_round(index):
+        target = str(path) if not index else re.sub(r'(\.png)?$', '_r%d.png' % (index + 1), str(path), count=1)
+        if index:
+            if regrab is None:
+                return None
+            regrab(target)
+        if not os.path.isfile(target):
+            return None
+        images.append(target)
+        with Image.open(target) as image:
+            reads, round_texts = _post_recon_reads(image, _POST_RECON_SCALES[index % len(_POST_RECON_SCALES)])
+        texts.extend(round_texts)
+        return reads
+
+    result = frame_ocr.reread(one_round, max_rounds=len(_POST_RECON_SCALES) if regrab else 1)
+    settled = {key: result['ballots'][key].settle() if key in result['ballots'] else None
+               for key in _POST_RECON_KEYS}
+    values = None
+    if all(value is not None for value in settled.values()):
+        values = {key: (value if key == 'Background Masking' else int(value)) for key, value in settled.items()}
+    return {'values': values, 'ocr': '\n---\n'.join(texts), 'image': str(path), 'images': images,
+            'rounds': result['rounds'],
+            'unsure': [key for key, value in settled.items() if value is None],
+            'seen': {key: sorted({raw for _m, raw, _n, _r in ballot.reads})
+                     for key, ballot in result['ballots'].items()},
+            'votes': {key: ballot.describe() for key, ballot in result['ballots'].items()}}
 
 
 def _collect_post_recon_overlays(ctx, ui, phase):
@@ -848,7 +903,7 @@ def _collect_post_recon_overlays(ctx, ui, phase):
             if vp._pink_count(selected) <= vp._pink_count(min(other, key=lambda c: c.rect[0])):
                 raise RuntimeError(f'{label} 영상 종류 선택을 확인하지 못했습니다')
             screen.grab(popup.rect, path=path)
-            evidence[label] = _read_post_recon_overlay(path)
+            evidence[label] = _read_post_recon_overlay(path, lambda target: screen.grab(popup.rect, path=target))
         except (OSError, RuntimeError, ValueError) as error:
             evidence[label] = {'error': type(error).__name__, 'image': path if Path(path).exists() else None}
     return evidence
@@ -880,11 +935,30 @@ def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
     for item in overlays.values():
         if item.get('image'):
             result.attach(item['image'])
-    result.add(9, f'{phase}: Recon/Syn 영상 Overlay 10개 실제 적용값',
-        PASS if all(overlays.get(label, {}).get('values') == expected_overlay[label]
-                    for label in ('Recon', 'Syn')) else FAIL,
+    status = PASS
+    for label in ('Recon', 'Syn'):
+        item, want = overlays.get(label, {}), expected_overlay[label]
+        got = item.get('values')
+        if got == want:
+            continue
+        if item.get('error') or 'seen' not in item:
+            status = FAIL                       # 캡처·선택 실패: 기존과 같이 FAIL
+            break
+        # 판독 방식 합의로 정한 값이 다르고 어느 판독도 기대값을 읽지 못한 칸이 있을 때만 FAIL이다.
+        seen = item.get('seen') or {}
+        confirmed = got is not None and any(
+            got.get(key) != value and str(value) not in seen.get(key, []) for key, value in want.items())
+        status = FAIL if confirmed else MANUAL
+        if confirmed:
+            break
+    for item in overlays.values():
+        for extra in (item.get('images') or [])[1:]:
+            result.attach(extra)
+    result.add(9, f'{phase}: Recon/Syn 영상 Overlay 10개 실제 적용값', status,
         expected=expected_overlay, actual=overlays,
-        note='좌측 원본 영상의 Recon/Syn 각각을 선택해 Overlay를 읽는다. 우측 조정툴은 이 판정의 근거가 아니다.',
+        note='좌측 원본 영상의 Recon/Syn 각각을 선택해 Overlay를 읽는다. 우측 조정툴은 이 판정의 근거가 아니다. '
+             '두 판독 방식(회색조·흑백)이 같은 값을 낸 칸만 쓰고, 정하지 못하면 화면을 다시 캡처해 최대 3회차까지 읽는다. '
+             '끝까지 정하지 못하거나 기대값을 읽은 판독이 있으면 판독 불가(MANUAL)다.',
         stop=False)
 
 
