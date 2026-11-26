@@ -22,10 +22,68 @@ def configure_ocr(executable):
 
 
 
+#: 잠깐 떴다 사라지는 콘솔·터미널 창의 클래스.
+#: 2026-11-27 job270: 10분마다 도는 다른 예약 작업이 `-WindowStyle Hidden` 으로
+#: powershell 을 띄웠는데, 기본 터미널(Windows Terminal) 창이 약 2초간 Viewer 를 덮었다.
+TRANSIENT_CONSOLE_CLASSES = ("CASCADIA_HOSTING_WINDOW_CLASS", "ConsoleWindowClass")
+#: 콘솔 창이 사라지기를 기다리는 최대 시간(초). 이보다 오래 남은 창은 사람이
+#: 일부러 띄운 창으로 보고 다시 기다리지 않는다(매 캡처가 느려지지 않게).
+TRANSIENT_CONSOLE_WAIT = 5.0
+_persistent_consoles = set()
+
+
+def _console_over(box, cols=4, rows=4):
+    """캡처 영역 위를 덮은 콘솔·터미널 최상위 창 hwnd. 없으면 None."""
+    try:
+        from core import ui as ui_mod
+    except Exception:                                   # noqa: BLE001 - 캡처는 계속한다
+        return None
+    l, t, r, b = (int(v) for v in box)
+    if r - l < 4 or b - t < 4:
+        return None
+    for j in range(rows):
+        y = t + 1 + (b - t - 2) * j // (rows - 1)
+        for i in range(cols):
+            x = l + 1 + (r - l - 2) * i // (cols - 1)
+            try:
+                hwnd = ui_mod._window_at_point((x, y))
+                if hwnd and hwnd not in _persistent_consoles \
+                        and ui_mod._class_of(hwnd) in TRANSIENT_CONSOLE_CLASSES:
+                    return hwnd
+            except Exception:                           # noqa: BLE001
+                return None
+    return None
+
+
+def wait_console_clear(box, timeout=None, *, clock=None, sleep=None):
+    """영역 위의 일시 콘솔 창이 사라질 때까지 기다린다. 기다린 초를 돌려준다."""
+    import time
+    clock = clock or time.monotonic
+    sleep = sleep or time.sleep
+    timeout = TRANSIENT_CONSOLE_WAIT if timeout is None else timeout
+    start = clock()
+    hwnd = _console_over(box)
+    while hwnd is not None:
+        if clock() - start >= timeout:
+            _persistent_consoles.add(hwnd)
+            break
+        sleep(0.25)
+        hwnd = _console_over(box)
+    return clock() - start
+
+
 def grab(box, path=None, scale=1):
-    """화면 영역을 캡처한다. path를 주면 파일로 저장한다."""
+    """화면 영역을 캡처한다. path를 주면 파일로 저장한다.
+
+    잠깐 뜬 콘솔·터미널 창이 영역을 덮고 있으면 사라질 때까지(최대
+    `TRANSIENT_CONSOLE_WAIT`초) 기다렸다가 뜨고, 뜨는 사이에 새로 덮이면 한 번 더 뜬다.
+    """
     from PIL import ImageGrab
-    img = ImageGrab.grab(bbox=tuple(box), all_screens=True).convert("RGB")
+    for _ in range(3):
+        wait_console_clear(box)
+        img = ImageGrab.grab(bbox=tuple(box), all_screens=True).convert("RGB")
+        if _console_over(box) is None:
+            break
     if scale != 1:
         img = img.resize((img.width * scale, img.height * scale))
     if path:

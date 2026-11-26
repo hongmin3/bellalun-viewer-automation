@@ -284,6 +284,7 @@ class SettingSweepHandleTests(unittest.TestCase):
             stack.enter_context(patch.object(sv, 'children', return_value=[]))
             stack.enter_context(patch.object(sv, '_wait_page_settled', return_value=([], True)))
             stack.enter_context(patch.object(sv.screen, 'grab', return_value=object()))
+            stack.enter_context(patch.object(sv, '_pane_occluder', return_value=None))
             stack.enter_context(patch.object(sv.flows, 'open_setting'))
             stack.enter_context(patch.object(sv.flows, 'open_setting_group'))
             stack.enter_context(patch.object(sv.flows, 'setting_pages',

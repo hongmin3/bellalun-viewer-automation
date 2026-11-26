@@ -302,6 +302,62 @@ def page_rendered(observation):
     return False
 
 
+#: 다른 창이 패널을 가렸을 때 다시 캡처하기까지 기다리는 최대 시간(초).
+#: 2026-11-27 job270: 10분마다 도는 다른 예약 작업의 콘솔 창이 약 2초간 Setting 패널을
+#: 덮었고, 그 순간 뜬 캡처로 라디오 9개를 False 로 읽어 WU_11 이 FAIL 했다.
+OCCLUSION_WAIT = 20.0
+OCCLUSION_POLL = 0.5
+
+
+def _sample_points(pane, cols=4, rows=4):
+    """패널 안쪽에 고르게 흩은 점들(가장자리 2px 안쪽)."""
+    l, t, r, b = pane
+    xs = [l + 2 + (r - l - 4) * i // (cols - 1) for i in range(cols)]
+    ys = [t + 2 + (b - t - 4) * j // (rows - 1) for j in range(rows)]
+    return [(x, y) for y in ys for x in xs]
+
+
+def _pane_occluder(pane, pid):
+    """패널 위를 덮은 **다른 프로세스** 창. 가린 것이 없으면 None.
+
+    반환: {"point": (x, y), "pid": .., "title": .., "class": ..}
+    """
+    from core import ui as ui_mod
+    for point in _sample_points(pane):
+        hwnd = ui_mod._window_at_point(point)
+        owner = ui_mod._pid_of(hwnd) if hwnd else None
+        if owner != pid:
+            return {"point": point, "pid": owner,
+                    "title": ui_mod._text_of(hwnd) if hwnd else "",
+                    "class": ui_mod._class_of(hwnd) if hwnd else ""}
+    return None
+
+
+def grab_unobscured(pane, pid, timeout=None, poll=None, *, clock=time.monotonic,
+                    sleep=time.sleep):
+    """다른 창이 가리지 않은 상태에서 패널을 캡처한다.
+
+    캡처 **전과 후** 모두 패널 위가 Viewer(pid) 창이어야 그 캡처를 쓴다. 가려져
+    있으면 기다렸다가 다시 뜬다. 끝까지 가려져 있으면 (None, 가린 창 정보)를
+    돌려주고 값을 추측하지 않는다.
+    """
+    timeout = OCCLUSION_WAIT if timeout is None else timeout
+    poll = OCCLUSION_POLL if poll is None else poll
+    end = clock() + max(0.0, timeout)
+    retries = 0
+    while True:
+        occluder = _pane_occluder(pane, pid)
+        if occluder is None:
+            image = screen.grab(pane)
+            occluder = _pane_occluder(pane, pid)
+            if occluder is None:
+                return image, None if not retries else {"retries": retries}
+        if clock() >= end:
+            return None, dict(occluder, retries=retries)
+        retries += 1
+        sleep(poll)
+
+
 def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
              capture_dir=None, on_event=None, record_handles=True,
              handle_probe=None):
@@ -329,7 +385,7 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
     한참 걸렸다. 사라진 것을 확인하면 **거기서 멈추고** 그 사실을 남긴다.
     """
     pages, missing, shots, renders = {}, {}, {}, {}
-    page_handles = {}
+    page_handles, occlusions = {}, {}
     pane = None
     died = False
     start_pid = ui.pid
@@ -382,7 +438,13 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
             controls, settled = _wait_page_settled(ui, pane_ctrl,
                                                    pane_controls(pane_ctrl))
             renders[key] = page_render(pane_ctrl, controls, settled)
-            pane_image = screen.grab(pane)
+            pane_image, occlusion = grab_unobscured(pane, start_pid)
+            if occlusion:
+                occlusions[key] = occlusion
+            if pane_image is None:
+                missing[key] = ("다른 프로그램 창이 Setting 패널을 가려 값을 읽지 않았습니다: "
+                                f"{occlusion}")
+                continue
             pages[key] = read_page(ui, pane, ocr_combos=ocr_combos,
                                    tesseract_exe=tesseract_exe,
                                    controls=controls, pane_image=pane_image)
@@ -397,6 +459,7 @@ def read_all(ui, groups=None, ocr_combos=False, tesseract_exe=None,
     return {"pages": pages, "missing": missing, "shots": shots,
             "page_render": renders,
             "page_handles": page_handles,
+            "occlusions": occlusions,
             "pane": list(pane) if pane else None,
             "viewer_died": died or _viewer_gone(ui, start_pid)}
 
