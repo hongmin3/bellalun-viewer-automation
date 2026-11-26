@@ -271,3 +271,63 @@ def read_all(ui, evidence_dir, prefix, tesseract_exe, study=None,
 def labels_seen(marks, labels):
     """항목별로 **한 패널 이상에서** 보였는지."""
     return {label: any(v.get(label) for v in marks.values()) for label in labels}
+
+
+#: 항목 라벨이 화면에 찍히는 글자(OCR 판독 대조표의 기대 텍스트).
+LABEL_TEXT = {"Dose kVp": "kVp", "Dose mAs": "mAs"}
+
+
+def panel_crop(evidence_dir, prefix, index, tag):
+    """`read_all`이 저장한 패널 크롭 경로(`<prefix><index>_<tag>.png`)."""
+    return os.path.join(evidence_dir, f"{prefix}{index}_{tag}.png")
+
+
+def _region_reads(panel_reads, tag):
+    return {key: text for key, text in (panel_reads or {}).items()
+            if key.startswith(tag + "_")}
+
+
+def _panel_for(marks, label):
+    """`label`을 찾은 첫 패널 번호. 어느 패널에서도 못 찾았으면 1번 패널."""
+    names = sorted(marks or {}, key=lambda name: int(re.sub(r"\D", "", name) or 0))
+    for name in names:
+        if (marks.get(name) or {}).get(label):
+            return name
+    return names[0] if names else None
+
+
+def reading_rows(marks, reads, labels, evidence_dir, prefix, tag, expected_text,
+                 miss_outcome, notes=None):
+    """항목(라벨)별 OCR 판독 대조표 줄(REQ-REPORT-002).
+
+    결과는 판정 코드가 쓴 `labels_seen`을 그대로 옮긴다. 보였으면 일치, 못 찾았으면 `miss_outcome`이다
+    (판정이 FAIL이면 `mismatch`, MANUAL이면 `unread`). 패널이 하나도 없으면 읽지 못한 것이라 `unread`다.
+    칸 캡처는 그 항목을 찾은 패널(못 찾았으면 1번 패널)의 `tag` 크롭이다.
+    """
+    from core import reading_evidence
+    seen = labels_seen(marks, labels)
+    rows = []
+    for label in labels:
+        panel = _panel_for(marks, label)
+        region = _region_reads((reads or {}).get(panel), tag) if panel else {}
+        outcome = "match" if seen.get(label) else (miss_outcome if marks else "unread")
+        pattern = OVERLAY_MARKERS.get(label)
+        read = ""
+        if seen.get(label):
+            want = norm(expected_text.get(label))
+            read = next((text for text in region.values()
+                         if (pattern and (pattern.search(text.lower())
+                                          or pattern.search(text.lower().replace(" ", ""))))
+                         or (want and want in norm(text))
+                         or (label == "Patient ID" and want and want[:PID_PREFIX] in norm(text))), "")
+        image = (panel_crop(evidence_dir, prefix, int(re.sub(r"\D", "", panel)), tag)
+                 if panel else None)
+        note = (notes or {}).get(label, "")
+        if not marks:
+            note = " ".join(part for part in (note, "영상 패널을 찾지 못했다.") if part)
+        elif not seen.get(label):
+            note = " ".join(part for part in (note, "어느 패널의 OCR 판독문에서도 찾지 못했다.") if part)
+        rows.append(reading_evidence.row(
+            f"{label} ({panel or '패널 없음'})", expected_text.get(label, label), outcome, read=read,
+            reads=reading_evidence.ocr_reads(region), image=image, note=note))
+    return rows

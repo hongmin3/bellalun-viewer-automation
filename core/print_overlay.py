@@ -244,6 +244,45 @@ def film_expectations(target):
     }
 
 
+def film_expected_text(target):
+    """영역·항목별로 화면에 보여야 하는 글자(OCR 판독 대조표의 기대 텍스트, REQ-REPORT-002).
+
+    판정은 `film_expectations`가 한다. 이 표는 사람이 캡처와 비교할 글자만 적는다.
+    """
+    return {
+        "header": {"Patient ID": str(target.get("PatientID") or ""),
+                   "Birth Date": str(target.get("PatientBirthDate") or "")},
+        "top": {"Thickness": "0.0 cm", "Compression Force": "35 N"},
+        "bottom": {"HVL": "HVL: Not valid", "AGD": "AGD: Not valid"},
+    }
+
+
+def film_reading(texts, seen, expect, target, path_prefix):
+    """필름 영역 OCR 판정의 대조표 기록(REQ-REPORT-002). 판정에는 쓰지 않는다.
+
+    결과는 `judge_film_areas`가 낸 `seen`을 그대로 옮긴다. 찾았으면 일치, 못 찾았으면 불일치다
+    (그 Step 판정이 FAIL이다). 그 영역의 판독문이 모두 비어 있으면 읽지 못한 것이라 판독 불가다.
+    칸 캡처는 `ocr_film_areas`가 저장한 영역 크롭(`<path_prefix>_<영역>.png`)이다.
+    """
+    from core import reading_evidence
+    wanted = film_expected_text(target)
+    rows = []
+    for area, checks in expect.items():
+        reads = texts.get(area) or {}
+        blank = not any(str(text or "").strip() for text in reads.values())
+        for label, test in checks.items():
+            ok = bool((seen.get(area) or {}).get(label))
+            outcome = "match" if ok else ("unread" if blank else "mismatch")
+            read = next((text for text in reads.values() if test(film_norm(text))), "") if ok else ""
+            rows.append(reading_evidence.row(
+                f"{area.capitalize()} · {label}", wanted.get(area, {}).get(label, label), outcome,
+                read=read, reads=[[f"{name} 확대 판독", text] for name, text in reads.items()],
+                image=f"{path_prefix}_{area}.png",
+                note="" if ok else ("이 영역의 판독문이 비어 있다." if blank
+                                    else "영역 판독문에서 기대 글자를 찾지 못했다.")))
+    return reading_evidence.pack(rows)
+
+
 def judge_film_areas(texts, expect):
     """영역별 판정 결과 `{area: {label: bool}}`."""
     seen = {}

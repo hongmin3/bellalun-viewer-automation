@@ -155,8 +155,9 @@ switch ($d.screen) {
             for ($i = 0; $i -lt @($opt.choices).Count; $i++) { if ($opt.choices[$i].key -eq $opt.value) { $cb.SelectedIndex = $i } }
             $body.Controls.Add($cb); $script:combos[$opt.key] = $cb
         }
+        # Hint goes above the table: below it, the fixed-height window hides it behind the footer.
+        $hint = Add-Text ' ' 9 $false '#66778a'
         $grid = Add-Table $d.columns $d.rows 280
-        $hint = Add-Text '' 9 $false '#66778a'
         foreach ($t in @($d.targets)) { Add-Button $footer $t | Out-Null }
         $script:viewRefresh = {
             if (-not $d.view_option) { return }
@@ -194,9 +195,13 @@ switch ($d.screen) {
         }
         Add-Text $d.checks_label 10 $true '#a41926' | Out-Null
         $checks = New-Object Windows.Forms.CheckedListBox
-        $checks.Width = $width; $checks.Height = [Math]::Min(220, 26 * @($d.checks).Count + 10); $checks.CheckOnClick = $true
+        # Show every item without scrolling (hidden items get missed); capped at 360px to stay inside the window.
+        $checks.Width = $width; $checks.CheckOnClick = $true
         foreach ($c in @($d.checks)) { [void]$checks.Items.Add($c.label) }
         $body.Controls.Add($checks)
+        # Measure after the list joins the form so the inherited font applies; rows are at least one font line tall.
+        $row = [Math]::Max($checks.GetItemHeight(0), $checks.Font.Height + 3)
+        $checks.Height = [Math]::Min(360, $row * ([Math]::Max(1, $checks.Items.Count) + 1))
     }
     'progress' {
         foreach ($line in @($d.lines)) { Add-Text $line 10 | Out-Null }

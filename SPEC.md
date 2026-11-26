@@ -505,6 +505,36 @@ Windows Update의 원문 Step 접이식 설명이 비어 있는 기존 한계를
 #### 관련 테스트
 TEST-REPORT-001, `tests/test_result_reports.py`.
 
+### REQ-REPORT-002 OCR 판독 대조표
+
+#### 하는 일
+화면 글자를 OCR로 읽어 판정한 Step이 MANUAL이나 FAIL이 되면, 사람이 리포트에서 기대 텍스트와 실제 화면 캡처를 나란히 보고 바로 판단하게 한다.
+사용자 요청(2026-11-27): VXvue에 만든 이 기준을 Bellalun에도 적용한다. 두 제품은 같은 공용 표를 쓴다(`frame/FRAME.md` 2.9).
+
+#### 순서
+1. 판정 코드가 칸마다 정한 결과(일치·불일치·판독 불가·잘림)를 Step의 판독 기록(`reading_evidence`)에 옮긴다(`core/reading_evidence.py`).
+2. 칸 캡처는 이미 저장한 크롭을 쓴다. 표에는 글자 부분만 잘라 최대 3배로 키운 사본(`*_view.png`)을 보이고 원본 파일은 그대로 둔다.
+3. 리포트는 공용 표(`core/report_layout.render_reading_evidence`)로 칸 · 기대 텍스트 · 화면 캡처 · 자동화 판독 · 결과를 보인다.
+4. 실패 원인·수동 확인 카드에서는 펼쳐 보이고, 상세 근거의 Step 표에서는 접어 둔다.
+5. JSON 결과에는 같은 기록을 Step의 `reading_evidence`로 남긴다. 캡처는 파일 경로로 둔다. 저장점·부분 리포트에서 결과를 되살려도 기록이 남는다.
+
+#### 적용 범위
+| 판정 자리 | 칸 | 캡처 |
+|---|---|---|
+| XIPL_03 Step 9 영상 Overlay 10개 실제 적용값 | Recon·Syn 각 5칸 | 판독 영역 캡처(`*_ocr_region.png`)를 넓은 캡처로 보인다. Overlay를 한 영역으로 읽어 칸별 캡처는 없다 |
+| WF_03 Step 5 Image Overlay 항목 표시와 환자 정보 교차 확인 | `Dose kVp`·`Dose mAs`, `Patient ID`·`Birth Date` | 항목을 찾은 패널의 아래·위 크롭 |
+| WF_03 Step 6, WF_08 Step 5·6 Print Overlay 영역별 표시 | Header·Top·Bottom의 6개 항목 | 영역 크롭 |
+
+> **참고** 아직 붙이지 않은 OCR 판정 자리(WF_15 Preview·View 선량 표시 등)는 `progress.md`에 남은 일로 적는다.
+
+#### 지킬 것
+- 판정은 바꾸지 않는다. 판정 코드가 불일치로 단정하지 않은 칸을 불일치로 표시하지 않는다. MANUAL로 끝나는 자리에서 못 찾은 칸은 판독 불가다.
+- 표를 만들지 못하거나 캡처가 없어도 Step 판정과 진행은 그대로다.
+- 대조표를 얻으려고 화면 조작이나 대기를 더하지 않는다.
+- 캡처는 리포트 HTML 안에 넣어 리포트 파일만 옮겨도 보이게 한다. 한 장이 공용 상한보다 크면 넣지 않고 "캡처 없음"으로 보인다.
+
+> **참고** 캡처에는 시험 환자 이름·ID가 보인다. 리포트 공유 범위는 지금의 증거 폴더와 같게 본다.
+
 ### REQ-DIST-001 설치와 실행 경로
 
 Windows x64 팀원 PC에 `BellalunAuto-<version>-setup.exe`로 설치한다. 실행파일 이름은
@@ -1371,6 +1401,7 @@ No GPUS 문구만으로 결과 생성을 SKIP하거나 전체 PASS로 승격하�
 - VXvue 저장소 폴더가 이 PC에 없으면 사본 비교를 건너뛰고 안내만 출력한다. 폴더가 있는데 공유 프레임이 없으면 실패한다.
 - 공유 파일에는 제품 이름·컨트롤 ID·판정 근거를 넣지 않는다. 제품 값은 호출하는 쪽이 넘긴다.
 - OCR로 화면 글자를 읽어 판정하는 자리는 공용 엔진(`core/frame_ocr.py`)의 다방식 합의·재캡처 재판독 규칙을 따른다(`frame/FRAME.md` 2.8).
+- OCR 판정 Step의 판독 대조표는 공용 표(`core/report_layout.render_reading_evidence`)로 그린다(`frame/FRAME.md` 2.9, REQ-REPORT-002).
 - 화면 흐름·레포트 절 순서·산출물의 목표와 맞추는 단계는 `frame/FRAME.md` 2·4절을 따른다. 판정 규칙과 종료 코드는 사용자 확인 없이 VXvue에 맞추지 않는다.
 
 ### REQ-FRAME-002 처음 쓰는 사람용 공용 실행 화면
@@ -1542,6 +1573,15 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
   기본기능/WU 메타데이터 비교에서는 각 제목·source document·source sheet와 Fail/Manual 이유를 대조한다.
 - Expected Result: 기본기능/WU 문맥이 섞이지 않고 기존 수기 Comment가 보존된다.
   기존 공통 단위 테스트만으로 WU XLSX/제목 조합 전체가 검증됐다고 주장하지 않는다.
+
+### TEST-REPORT-002 OCR 판독 대조표
+
+- 검증 대상: REQ-REPORT-002.
+- `tests/test_reading_evidence.py`: 칸 캡처가 HTML 안에 들어가는지, 값이 이스케이프되는지, 없는 파일·큰 파일·그림이 아닌 파일은 넣지 않는지 본다.
+- 같은 시험으로 JSON과 저장점 복원(`result_from_dict`)에서 기록이 남는지, 실패·수동 확인 카드에서는 펼치고 Step 표에서는 접는지 본다.
+- XIPL_03 Overlay, WF_03·WF_08 영상·Print Overlay 표의 칸별 결과가 판정 코드의 결과와 같은지 본다. MANUAL로 끝난 칸은 불일치로 표시하지 않는다.
+- 표를 만들다 실패해도 Step 판정과 FAIL 중단이 그대로인지 본다.
+- Expected Result: 수동 확인·실패 카드에 기대 텍스트, 칸 캡처, 판독 값이 한 줄로 보이고 판정은 바뀌지 않는다.
 
 ### TEST-BOUNDARY-001
 
@@ -1861,6 +1901,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-005 | `core/env_health.py`, `run.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py` | verified |
 | REQ-VERDICT-006 | `run.py`, `core/wu_chain.py`, `core/xipl.py`, `tests/xipl_flows.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_xipl_save_dialog.py`, `tests/test_wu_chain.py` | verified |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
+| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |

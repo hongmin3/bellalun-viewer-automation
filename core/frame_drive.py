@@ -17,7 +17,7 @@ import time
 from core.frame_ui import STEPS
 
 BM_CLICK = 0x00F5
-LB_GETCOUNT, LB_GETITEMHEIGHT, LB_GETTOPINDEX = 0x018B, 0x01A1, 0x018E
+LB_GETCOUNT, LB_GETITEMHEIGHT, LB_GETTOPINDEX, LB_SETTOPINDEX = 0x018B, 0x01A1, 0x018E, 0x0197
 WM_LBUTTONDOWN, WM_LBUTTONUP, WM_GETTEXT, WM_GETTEXTLENGTH = 0x0201, 0x0202, 0x000D, 0x000E
 SEPARATOR = ' · '
 SEND_TIMEOUT_MS = 3000
@@ -40,6 +40,7 @@ def _user32():
         dll.GetClassNameW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
         dll.EnumWindows.argtypes = (_ENUM_PROC, wintypes.LPARAM)
         dll.EnumChildWindows.argtypes = (wintypes.HWND, _ENUM_PROC, wintypes.LPARAM)
+        dll.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
         for name in ('IsWindowVisible', 'IsWindowEnabled', 'IsWindow'):
             getattr(dll, name).argtypes = (wintypes.HWND,)
         _USER32 = dll
@@ -146,12 +147,14 @@ def click(hwnd, label, timeout=30, poll=0.5, clock=time.time, sleep=time.sleep):
         sleep(poll)
 
 
-def check_all(hwnd):
+def check_all(hwnd, settle=0.5, sleep=time.sleep):
     """확인 목록(CheckedListBox)의 모든 항목을 클릭해 체크한다. 체크한 항목 수.
 
     목록은 CheckOnClick이라 항목 한 번 클릭이 체크 한 번이다. 이미 체크된 목록에 다시 부르지 않는다.
     체크 결과는 화면이 돌려주는 답(`checked`)과 다음 화면으로 확인한다.
-    클릭 메시지는 목록의 메시지 큐에 순서대로 쌓여 처리되므로 항목 사이에 고정 대기를 두지 않는다.
+    지금 보이는 항목들을 서로 다른 위치에서 차례로 누르고(클릭 메시지는 목록의 메시지 큐에 순서대로 쌓인다),
+    처리될 때까지 기다린 뒤 남은 항목이 보이게 한 번 스크롤해 다음 묶음을 누른다. 항목이 목록 높이보다
+    많은 화면(예: baseline 안내 줄이 더해진 경우)에서도 모든 항목을 누른다.
     """
     lists = [child for child, cls, _, _ in controls(hwnd) if 'LISTBOX' in cls.upper()]
     if len(lists) != 1:
@@ -161,13 +164,25 @@ def check_all(hwnd):
     height = _send(box, LB_GETITEMHEIGHT, 0, 0)
     if not count or not height:
         raise RuntimeError('확인 목록의 항목 수나 높이를 읽지 못했습니다.')
+    rect = wintypes.RECT()
+    if not _user32().GetClientRect(box, ctypes.byref(rect)):
+        raise RuntimeError('확인 목록의 크기를 읽지 못했습니다.')
+    visible = max(1, rect.bottom // height)
     user32 = _user32()
-    for index in range(count):
+    done = 0
+    while done < count:
+        if done:
+            _send(box, LB_SETTOPINDEX, done)
+            sleep(settle)
         top = _send(box, LB_GETTOPINDEX) or 0
-        if index < top:
-            raise RuntimeError('확인 목록이 스크롤돼 항목 위치를 알 수 없습니다.')
-        y = (index - top) * height + height // 2
-        point = (y << 16) | 8
-        user32.PostMessageW(box, WM_LBUTTONDOWN, 1, point)  # MK_LBUTTON
-        user32.PostMessageW(box, WM_LBUTTONUP, 0, point)
+        last = min(count, top + visible)
+        if not top <= done < last:
+            raise RuntimeError(f'확인 목록 {done + 1}번째 항목을 화면에 보이게 하지 못했습니다.')
+        for index in range(done, last):
+            y = (index - top) * height + height // 2
+            point = (y << 16) | 8
+            user32.PostMessageW(box, WM_LBUTTONDOWN, 1, point)  # MK_LBUTTON
+            user32.PostMessageW(box, WM_LBUTTONUP, 0, point)
+        done = last
+        sleep(settle)
     return count

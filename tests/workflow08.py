@@ -29,7 +29,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageGrab, ImageOps
 
-from core import flows, print_overlay, screen
+from core import flows, print_overlay, reading_evidence, screen
 from core.printscp import PrintServer
 from core.result import FAIL, PASS, TCResult
 from core.ui import children
@@ -524,6 +524,9 @@ def run(ctx):
         result.assert_true(
             5, "Film 프리뷰에 Header/Top/Bottom 영역별 Print Overlay 표시",
             _all_ok(film_labels),
+            reading_evidence=reading_evidence.safe(
+                print_overlay.film_reading, film_texts, film_labels, expect, target,
+                os.path.splitext(film_path)[0]),
             expected={area: sorted(checks) for area, checks in expect.items()},
             actual={"areas": film_labels, "ocr": film_texts,
                     "regions": print_overlay.film_regions(*film_image.size)})
@@ -569,6 +572,9 @@ def run(ctx):
             6, "Print 서버 웹 프리뷰 Overlay가 Film 프리뷰와 영역별로 일치",
             _all_ok(web_values) and web_values == film_labels and
             similarity["similarity"] >= .96,
+            reading_evidence=reading_evidence.safe(
+                print_overlay.film_reading, web_texts, web_values, expect, target,
+                os.path.splitext(web_path)[0]),
             expected={"areas": film_labels, "image_similarity": ">= 0.96"},
             actual={"job_url": f"{server.base}/viewer.html?id={job['id']}",
                     "film_ocr": film_texts, "web_ocr": web_texts,

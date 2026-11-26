@@ -123,7 +123,7 @@ def step_label(step):
 
 class Check:
     def __init__(self, step, title, status, expected="", actual="", note="",
-                 blocks_verdict=None):
+                 blocks_verdict=None, reading_evidence=None):
         self.step = step
         self.title = title
         self.status = status
@@ -141,6 +141,9 @@ class Check:
         #: 판정을 기록한 시각(REQ-SPEEDUP-008). 리포트 JSON에만 남기고 화면·문서
         #: 리포트에는 표시하지 않는다(2026-09-08 사용자 요청: Step 소요 표시 제거).
         self.recorded_at = datetime.now().isoformat(timespec="milliseconds")
+        #: OCR 판독 대조표(REQ-REPORT-002): 칸별 기대 텍스트·캡처·판독. 판정에는 쓰지 않는다.
+        from . import reading_evidence as _reading
+        self.reading_evidence = reading_evidence if _reading.valid(reading_evidence) else None
 
     def as_dict(self):
         data = {
@@ -156,6 +159,8 @@ class Check:
             data["blocks_verdict"] = bool(self.blocks_verdict)
         if self.interrupted_step is not None:
             data["interrupted_step"] = self.interrupted_step
+        if self.reading_evidence:
+            data["reading_evidence"] = self.reading_evidence
         data["recorded_at"] = self.recorded_at
         return data
 
@@ -219,7 +224,7 @@ class TCResult:
 
     # --- 등록 헬퍼 -----------------------------------------------------
     def add(self, step, title, status, expected="", actual="", note="",
-            stop=True, blocks_verdict=None):
+            stop=True, blocks_verdict=None, reading_evidence=None):
         """판정 하나를 기록한다.
 
         `stop=False` 는 **중단 신호를 내지 않는다.** `abort()` 와 `run.py` 의
@@ -235,7 +240,8 @@ class TCResult:
         now = time.perf_counter()
         self._step_cursor_wall, self._step_cursor = now_wall, now
         self.checks.append(Check(step, title, status, expected, actual, note,
-                                 blocks_verdict=blocks_verdict))
+                                 blocks_verdict=blocks_verdict,
+                                 reading_evidence=reading_evidence))
         check = self.checks[-1]
         if (status == FAIL and stop and self.stop_on_fail
                 and not self._stopped):
@@ -289,9 +295,11 @@ class TCResult:
         ok = str(expected).strip().lower() == str(actual).strip().lower()
         return self.add(step, title, PASS if ok else FAIL, expected, actual, note)
 
-    def assert_true(self, step, title, cond, expected="True", actual=None, note=""):
+    def assert_true(self, step, title, cond, expected="True", actual=None, note="",
+                    reading_evidence=None):
         return self.add(step, title, PASS if cond else FAIL,
-                        expected, actual if actual is not None else cond, note)
+                        expected, actual if actual is not None else cond, note,
+                        reading_evidence=reading_evidence)
 
     def abort(self, step, title, exc, note=""):
         """TC 가 **중간에 중단**됐음을 기록한다(예외 처리 자리).
@@ -699,6 +707,26 @@ def write_reports(results, out_dir, run_name=None, meta=None):
     return {"json": json_path, "html": html_path}
 
 
+def _reading_html(check, folded=False):
+    """OCR 판독 대조표(REQ-REPORT-002, FRAME.md 2.9). 실패·수동 확인 카드는 펼치고 Step 표에서는 접는다.
+
+    표를 그리지 못해도 리포트와 판정은 그대로 둔다.
+    """
+    evidence = getattr(check, "reading_evidence", None)
+    if not evidence:
+        return ""
+    from .report_layout import render_reading_evidence
+    try:
+        table = render_reading_evidence(evidence)
+    except Exception:                                   # noqa: BLE001 - 표시용 표가 리포트를 깨지 않게 한다
+        return ""
+    if not table or not folded:
+        return table
+    count = len(evidence.get("rows") or [])
+    return ("<details class='more'><summary>판독 대조표 · 칸 %d개 (기대 텍스트와 화면 캡처)</summary>%s</details>"
+            % (count, table))
+
+
 def _render_html(results, meta, siblings=None):
     """상세 HTML 리포트를 만든다.
 
@@ -986,7 +1014,8 @@ def _render_html(results, meta, siblings=None):
                      + (('<p class="k">기준: ' + e(source['source_expected_result']) + '</p>')
                         if source['source_expected_result'] else '')
                      + view.render_value(c.expected) + '</div><div class="actual"><h3>확인 결과 / 실제값</h3>'
-                     + view.render_value(c.actual) + '</div></div><p><b>기록된 판정 근거</b> '
+                     + view.render_value(c.actual) + '</div></div>' + _reading_html(c)
+                     + '<p><b>기록된 판정 근거</b> '
                      + view.render_note(c.note) + '</p><p><a href="#' + e(result_keys[id(r)])
                      + '">TC 상세와 증거 확인</a></p></article>')
         P.append('</section>')
@@ -1016,7 +1045,7 @@ def _render_html(results, meta, siblings=None):
                          + ' · ' + e(c.title) + '</p>')
                 P.append('<div class="comparison"><div><h3>확인할 기준 / 기대값</h3>'
                          + view.render_value(c.expected) + '</div><div class="actual"><h3>자동화가 확인한 것</h3>'
-                         + view.render_value(c.actual) + '</div></div>')
+                         + view.render_value(c.actual) + '</div></div>' + _reading_html(c))
             # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
             # 중복을 접어 **서로 다른 사유만** 남긴다.
             reasons, seen = [], set()
@@ -1137,7 +1166,8 @@ def _render_html(results, meta, siblings=None):
                                    expected=c.expected, actual=c.actual, note=c.note,
                                    source_description=source['step_description'],
                                    source_expected=source['source_expected_result'],
-                                   unblock_condition=c.unblock_condition, not_verified=c.not_verified)
+                                   unblock_condition=c.unblock_condition, not_verified=c.not_verified,
+                                   evidence_html=_reading_html(c, folded=True))
             (pass_rows if c.status == PASS else attention_rows).append(row)
         if attention_rows:
             P.append(step_header + ''.join(attention_rows) + '</tbody></table></div>')

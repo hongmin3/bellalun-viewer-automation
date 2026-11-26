@@ -546,7 +546,9 @@ def result_from_dict(data):
                               item.get("expected_data", item.get("expected", "")),
                               item.get("actual_data", item.get("actual", "")),
                               item.get("note", ""),
-                              blocks_verdict=item.get("blocks_verdict")))
+                              blocks_verdict=item.get("blocks_verdict"),
+                              # OCR 판독 대조표(REQ-REPORT-002)도 저장점·부분 리포트에서 다시 보인다.
+                              reading_evidence=item.get("reading_evidence")))
         # 기록 시각은 처음 판정한 시각을 유지한다(REQ-SPEEDUP-008). 저장점에서 다시
         # 읽을 때 새로 찍으면 결합·WU 리포트의 모든 판정이 리포트 작성 시각이 된다.
         if item.get("recorded_at"):
