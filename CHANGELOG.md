@@ -1,5 +1,12 @@
 # Changelog
 
+## OCR 판독 대조표 (2026-11-27)
+
+- REQ-REPORT-002: OCR로 읽어 판정한 Step이 MANUAL·FAIL이면 리포트의 수동 확인·실패 원인 카드에 판독 대조표를 펼쳐 보인다. 칸마다 기대 텍스트, 글자 부분을 확대한 화면 캡처, 판정에 쓴 값과 판독 방식별 값, 결과가 한 줄에 있다. 상세 근거의 Step 표에는 같은 표를 접어 둔다.
+- REQ-REPORT-002: 캡처는 리포트 HTML 안에 넣는다. JSON 결과에는 Step의 `reading_evidence`로 경로와 값을 남기고, 저장점·부분 리포트에서 결과를 되살려도 남는다. 판정은 바꾸지 않으며 표를 만들지 못해도 Step 판정은 그대로다.
+- REQ-REPORT-002: XIPL_03 Step 9 영상 Overlay(Recon·Syn 10칸, 판독 영역 캡처), WF_03 Step 5 Image Overlay 항목·환자 정보, WF_03 Step 6과 WF_08 Step 5·6 Print Overlay 영역별 항목에 적용했다.
+- REQ-FRAME-001: VXvue 커밋 `abb5462`의 공용 표(`core/report_layout.render_reading_evidence`)와 `frame/FRAME.md` 2.9를 받았다. 같은 묶음의 확인 목록 높이·스크롤 조작 보완(`core/frame_ui.ps1`, `core/frame_drive.py`)도 함께 받았다.
+
 ## 내부 검증판 1.0.0.011 (2026-11-26)
 
 - REQ-DIST-005: 프로세스 종료 판정 수정(`d87f510`)을 담은 내부 검증판이다. 표시 버전 1.0.0.011, Windows 파일 버전 1.0.0.11로 새로 컴파일한다. 1.0.0.010 설치판의 WU 실행 `20261126-201908-5b356489`에서 WU_09가 자동화 판정 결함으로 FAIL했다. 같은 회차의 기본기능 실행 `20261126-212919-0d538f93`은 게이트 기준을 모두 통과했다. 사용자 요청(2026-11-26)에 따라 이 판에서 WU 전체와 기본기능 전체를 각각 2회 반복한다. 정식 지정은 하지 않는다.

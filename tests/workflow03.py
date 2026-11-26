@@ -54,7 +54,7 @@ import time
 
 from PIL import ImageGrab
 
-from core import flows, image_overlay, print_overlay, screen
+from core import flows, image_overlay, print_overlay, reading_evidence, screen
 from core import viewer_processing as vp
 from core.result import TCResult, FAIL, MANUAL, PASS
 from core.ui import children
@@ -320,9 +320,14 @@ def workflow_03(ctx):
             attach=r.attach)
         want_labels = list(IMAGE_OVERLAY_ADD)
         label_seen = image_overlay.labels_seen(marks, want_labels)
+        # OCR 판독 대조표(REQ-REPORT-002): 판정이 쓴 labels_seen을 칸별로 옮긴다.
+        label_reading = reading_evidence.safe(lambda: reading_evidence.pack(
+            image_overlay.reading_rows(marks, reads, want_labels, evidence, "05_panel", "bottom",
+                                       image_overlay.LABEL_TEXT, "mismatch")))
         r.assert_true(
             5, "2D 영상에 추가한 Image Overlay 항목 표시",
             bool(seen_panels) and all(label_seen.values()),
+            reading_evidence=label_reading,
             expected={"영상 패널(203)": ">=1",
                       f"{IMAGE_OVERLAY_POSITION} Overlay 라벨": want_labels},
             actual={"panels": len(seen_panels), "labels_seen": label_seen,
@@ -342,8 +347,15 @@ def workflow_03(ctx):
         # 렌더링하고 있다는 독립 증거가 된다.
         patient_seen = image_overlay.labels_seen(
             marks, list(image_overlay.PATIENT_MARKERS))
+        patient_reading = reading_evidence.safe(lambda: reading_evidence.pack(
+            image_overlay.reading_rows(
+                marks, reads, list(image_overlay.PATIENT_MARKERS), evidence, "05_panel", "top",
+                {"Patient ID": patient_id, "Birth Date": birth}, "unread",
+                notes={"Patient ID": "ID 일치 방식: %s" % ", ".join(
+                    "%s=%s" % (k, v.get("_pid_match")) for k, v in sorted(marks.items()))})))
         r.add(5, "영상 Overlay 의 환자 정보 값이 DB 와 일치(교차 확인)",
               PASS if all(patient_seen.values()) else MANUAL,
+              reading_evidence=patient_reading,
               expected={"DB 대조": list(image_overlay.PATIENT_MARKERS),
                         "PatientID": patient_id, "PatientBirthDate": birth},
               actual={"seen": patient_seen,
@@ -379,6 +391,9 @@ def workflow_03(ctx):
             r.assert_true(
                 6, "Film 창에 설정한 Print Overlay 표시",
                 print_overlay.film_all_ok(film_labels),
+                reading_evidence=reading_evidence.safe(
+                    print_overlay.film_reading, film_texts, film_labels, expect,
+                    overlay_study, os.path.splitext(film_path)[0]),
                 expected={area: sorted(checks)
                           for area, checks in expect.items()},
                 actual={"areas": film_labels, "layout": layout,

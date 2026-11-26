@@ -53,6 +53,7 @@ input,select,button{font:inherit;border:1px solid #cdd8e3;border-radius:7px;padd
 .gh td{background:var(--head);font-weight:700}.caveats{font-size:12px;color:var(--mut);margin-top:10px}.caveats ul{margin:0;padding-left:18px}
 .glossary{font-size:12px}.glossary dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}.glossary dt{font-weight:700}.glossary dd{margin:0}
 .appendix{font-size:12px}.appendix[open]>summary{margin-bottom:18px}.appendix h2{font-size:16px}.artifacts{font-size:12px;margin-top:14px}.empty{text-align:center;padding:36px;color:var(--mut)}
+.reading{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}.reading h3{margin:0 0 4px;font-size:13px}.reading .reading-guide{font-size:12px;color:var(--mut);margin:0 0 8px}.reading table{min-width:620px}.reading td{vertical-align:middle}.reading tr.reading-attention{background:#fffaf0}.reading .reading-expected code{font-size:16px;font-weight:700;color:var(--fg)}.reading img{image-rendering:pixelated;border:1px solid #b9c6d3;background:#fff}.reading img.reading-cell{max-height:150px;max-width:460px}.reading figure{margin:0 0 10px}.reading figure img{max-width:100%;height:auto}.reading figcaption{font-size:11px;color:var(--mut)}.reading .reading-reads{margin:4px 0 0;padding-left:16px;font-size:11px;color:var(--mut)}
 @media(max-width:760px){.wrap{padding:18px 12px 40px}h1{font-size:23px}.hero{display:block}.hero-status{margin-top:12px;min-width:0}.metrics{grid-template-columns:repeat(3,1fr)}.metric{border:0;padding:8px}.metric .n{font-size:25px}section{padding:18px}.comparison,.spec{grid-template-columns:1fr}.tc-detail>summary{padding:14px 12px;flex-wrap:wrap}.tc-detail .detail-body{padding:0 12px 18px}input{max-width:100%;width:180px}}
 @media print{details::details-content{content-visibility:visible!important}details:not([open])>*:not(summary){display:block}#filter-empty{display:none!important}body{background:white;font-size:10pt}.wrap{max-width:none;padding:0}nav,.tools{display:none}.table-wrap{overflow:visible}.sum,table.steps{min-width:0;font-size:8pt}section,.tc-detail,.appendix{border-radius:0;margin-bottom:12px;box-shadow:none}.failure-card{break-inside:avoid}.tc-detail>summary{font-size:12pt}.comparison{grid-template-columns:1fr 1fr}a{color:inherit}.metrics{grid-template-columns:repeat(6,1fr)}th{print-color-adjust:exact}.failure-panel,.manual-panel{print-color-adjust:exact}.hero-status{print-color-adjust:exact}}
 
@@ -239,8 +240,96 @@ def render_note(note, limit=180):
             '<summary>비고 전체</summary><div class="note">' + escape(text) + '</div></details>')
 
 
+#: OCR 판독 대조표의 칸별 결과(FRAME.md 2.9). 제품 코드가 칸마다 하나를 고르고, 표는 이름과 색만 정한다.
+READING_OUTCOMES = {
+    'match': ('일치', 'PASS'),
+    'mismatch': ('기대값과 다르게 읽음', 'FAIL'),
+    'unread': ('판독 불가 · 캡처로 확인', 'MANUAL'),
+    'truncated': ('잘려 보임 · 캡처로 확인', 'MANUAL'),
+}
+#: 보고서에 넣을 캡처 한 장의 최대 크기. 이보다 크면 넣지 않고 "캡처 없음"으로 보인다.
+READING_IMAGE_MAX_BYTES = 400_000
+_IMAGE_TYPES = {'.png': 'png', '.jpg': 'jpeg', '.jpeg': 'jpeg', '.gif': 'gif', '.bmp': 'bmp'}
+
+
+def image_data_uri(path, max_bytes=READING_IMAGE_MAX_BYTES):
+    """캡처 파일을 보고서 안에 넣을 `data:` 주소로 바꾼다. 없거나, 그림이 아니거나, 크면 None이다.
+
+    보고서 파일만 다른 PC로 옮겨도 캡처가 보이게 하려고 파일 링크 대신 내용을 넣는다.
+    """
+    import base64
+    import os
+    if not path:
+        return None
+    text = str(path)
+    if text.startswith('data:image/'):
+        return text
+    kind = _IMAGE_TYPES.get(os.path.splitext(text)[1].lower())
+    try:
+        if kind is None or not os.path.isfile(text) or os.path.getsize(text) > max_bytes:
+            return None
+        with open(text, 'rb') as stream:
+            data = stream.read()
+    except (OSError, ValueError):
+        return None
+    return 'data:image/' + kind + ';base64,' + base64.b64encode(data).decode('ascii')
+
+
+def _reading_text(value):
+    text = '' if value is None else str(value)
+    return '<code>' + escape(text) + '</code>' if text.strip() else '<span class="k">(빈 판독)</span>'
+
+
+def render_reading_evidence(evidence, title='판독 대조표 · 기대 텍스트와 화면 캡처'):
+    """OCR로 읽은 칸마다 기대 텍스트, 화면 캡처, 자동화 판독, 결과를 한 줄로 보인다(FRAME.md 2.9).
+
+    `evidence`는 `{"rows": [...], "context": [...]}`이다.
+    - row: `field`(칸 이름), `expected`(기대 텍스트), `read`(자동화가 쓴 값), `reads`(`[라벨, 값]` 목록),
+      `image`(칸 캡처 경로 또는 data 주소), `outcome`(`READING_OUTCOMES`의 키), `note`(선택)
+    - context: `label`, `image` — 칸이 어느 행·화면에서 나왔는지 보이는 넓은 캡처
+    확인이 필요한 칸(일치가 아닌 칸)을 먼저 보인다. 판정은 바꾸지 않고 기록된 값만 보인다.
+    """
+    if not isinstance(evidence, Mapping):
+        return ''
+    rows = [row for row in (evidence.get('rows') or []) if isinstance(row, Mapping)]
+    contexts = [item for item in (evidence.get('context') or []) if isinstance(item, Mapping)]
+    if not rows and not contexts:
+        return ''
+    rows = sorted(rows, key=lambda row: row.get('outcome') == 'match')
+    attention = sum(1 for row in rows if row.get('outcome') != 'match')
+    parts = ['<div class="reading"><h3>' + escape(str(title)) + '</h3><p class="reading-guide">'
+             + ('확인할 칸 %d개가 위에 있습니다. ' % attention if attention else '')
+             + '캡처 속 글자가 기대 텍스트와 같은지 눈으로 확인하세요. 자동 판정은 바뀌지 않습니다.</p>']
+    for item in contexts:
+        uri = image_data_uri(item.get('image'))
+        label = escape(str(item.get('label') or '화면 캡처'))
+        parts.append('<figure>' + ('<img src="' + escape(uri, quote=True) + '" alt="' + label + '">' if uri else
+                                   '<span class="k">캡처 없음</span>') + '<figcaption>' + label + '</figcaption></figure>')
+    if rows:
+        parts.append('<div class="table-wrap"><table><thead><tr><th>칸</th><th>기대 텍스트</th><th>화면 캡처</th>'
+                     '<th>자동화 판독</th><th>결과</th></tr></thead><tbody>')
+        for row in rows:
+            outcome = str(row.get('outcome') or '')
+            label, status = READING_OUTCOMES.get(outcome, ('기록 없음', 'MANUAL'))
+            field = escape(str(row.get('field') or ''))
+            uri = image_data_uri(row.get('image'))
+            image = ('<img class="reading-cell" src="' + escape(uri, quote=True) + '" alt="' + field + ' 화면 캡처">'
+                     if uri else '<span class="k">칸 캡처 없음' + (' · 위 넓은 캡처 참조' if contexts else '') + '</span>')
+            reads = [pair for pair in (row.get('reads') or []) if isinstance(pair, (list, tuple)) and len(pair) == 2]
+            detail = ('<ul class="reading-reads">' + ''.join('<li>' + escape(str(name)) + ': ' + _reading_text(value) + '</li>'
+                                                             for name, value in reads) + '</ul>') if reads else ''
+            note = ('<div class="k">' + escape(str(row.get('note'))) + '</div>') if row.get('note') else ''
+            parts.append('<tr class="' + ('' if outcome == 'match' else 'reading-attention') + '"><td>' + field
+                         + '</td><td class="reading-expected">' + _reading_text(row.get('expected')) + '</td><td>' + image
+                         + '</td><td>' + _reading_text(row.get('read')) + detail + '</td><td>' + render_badge(status)
+                         + ' ' + escape(label) + note + '</td></tr>')
+        parts.append('</tbody></table></div>')
+    parts.append('</div>')
+    return ''.join(parts)
+
+
 def render_step(*, order, step, title, status, expected, actual, note='', source_description='',
-                source_expected='', unblock_condition='', not_verified=''):
+                source_expected='', unblock_condition='', not_verified='', evidence_html=''):
     context = ('<div class="k">수행 절차: ' + escape(str(source_description)) + '</div>') if source_description else ''
     source = ('<div class="k">기준 기대 결과: ' + escape(str(source_expected)) + '</div>') if source_expected else ''
     extra = ''.join('<p><b>' + label + '</b> ' + escape(str(value)) + '</p>' for label, value in
@@ -248,7 +337,7 @@ def render_step(*, order, step, title, status, expected, actual, note='', source
     return ('<tr data-step-order="' + str(int(order)) + '"><td>' + escape(str(step)) + '</td><td>'
             + escape(str(title)) + context + '</td><td>' + render_badge(status) + '</td><td>'
             + source + render_value(expected) + '</td><td>' + render_value(actual) + '</td><td>'
-            + render_note(note) + extra + '</td></tr>')
+            + render_note(note) + extra + evidence_html + '</td></tr>')
 
 
 def render_tc_detail(*, key, tc_id, title, status, body_html):

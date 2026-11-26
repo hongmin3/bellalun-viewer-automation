@@ -796,6 +796,14 @@ def _parse_post_recon_overlay(text):
 #: 회차별 확대 배율. 흑백 판독은 배율 5에서 글자를 놓쳤다(2026-11-26 저장 캡처 4장 실측).
 _POST_RECON_SCALES = (3, 4, 3)
 _POST_RECON_KEYS = ('Background Masking', 'Contrast', 'Sharpness', 'Brightness', 'Tone type')
+#: 판독 영역: 창 캡처의 왼쪽 위 폭 37%·높이 25%(Overlay 글자가 있는 곳).
+_POST_RECON_REGION = (.37, .25)
+#: 판독 방식의 사람이 읽는 이름(OCR 판독 대조표, REQ-REPORT-002).
+_POST_RECON_METHODS = {'gray': '반전 회색조', 'bin': '흑백 변환'}
+
+
+def _post_recon_region(image):
+    return image.crop((0, 0, int(image.width * _POST_RECON_REGION[0]), int(image.height * _POST_RECON_REGION[1])))
 
 
 def _post_recon_reads(image, scale):
@@ -805,7 +813,7 @@ def _post_recon_reads(image, scale):
     - bin: 밝기 기준 두 개로 흑백 변환해 읽는다. 같은 회차의 두 기준은 한 표다(`core/frame_ocr`).
     """
     import pytesseract
-    crop = image.crop((0, 0, int(image.width * .37), int(image.height * .25))).convert('L')
+    crop = _post_recon_region(image).convert('L')
     reads, texts = {}, []
     variants = [('gray', ImageOps.invert(crop).resize((crop.width * scale, crop.height * scale),
                                                      Image.Resampling.LANCZOS))]
@@ -858,6 +866,10 @@ def _read_post_recon_overlay(path, regrab=None):
             'unsure': [key for key, value in settled.items() if value is None],
             'seen': {key: sorted({raw for _m, raw, _n, _r in ballot.reads})
                      for key, ballot in result['ballots'].items()},
+            'settled': settled,
+            'reads': {key: [['%s %d회차' % (_POST_RECON_METHODS.get(method, method), round_index + 1), raw]
+                            for method, raw, _n, round_index in ballot.reads]
+                      for key, ballot in result['ballots'].items()},
             'votes': {key: ballot.describe() for key, ballot in result['ballots'].items()}}
 
 
@@ -947,19 +959,96 @@ def _record_post_recon_applied(result, defaults, reopened, changed, name, shown,
         # 판독 방식 합의로 정한 값이 다르고 어느 판독도 기대값을 읽지 못한 칸이 있을 때만 FAIL이다.
         seen = item.get('seen') or {}
         confirmed = got is not None and any(
-            got.get(key) != value and str(value) not in seen.get(key, []) for key, value in want.items())
+            _post_recon_mismatch(got, seen, key, value) for key, value in want.items())
         status = FAIL if confirmed else MANUAL
         if confirmed:
             break
     for item in overlays.values():
         for extra in (item.get('images') or [])[1:]:
             result.attach(extra)
+    from core import reading_evidence
     result.add(9, f'{phase}: Recon/Syn 영상 Overlay 10개 실제 적용값', status,
+        reading_evidence=reading_evidence.safe(_post_recon_reading, overlays, expected_overlay),
         expected=expected_overlay, actual=overlays,
         note='좌측 원본 영상의 Recon/Syn 각각을 선택해 Overlay를 읽는다. 우측 조정툴은 이 판정의 근거가 아니다. '
              '두 판독 방식(회색조·흑백)이 같은 값을 낸 칸만 쓰고, 정하지 못하면 화면을 다시 캡처해 최대 3회차까지 읽는다. '
              '끝까지 정하지 못하거나 기대값을 읽은 판독이 있으면 판독 불가(MANUAL)다.',
         stop=False)
+
+
+def _post_recon_mismatch(got, seen, key, value):
+    """확정 불일치: 합의한 값이 기대값과 다르고 어느 판독도 기대값을 읽지 못했다(판정과 대조표가 같이 쓴다)."""
+    return got.get(key) != value and str(value) not in seen.get(key, [])
+
+
+def _post_recon_outcomes(item, want):
+    """칸별 대조표 결과. `_record_post_recon_applied`의 판정을 옮겨 적을 뿐 새로 판정하지 않는다.
+
+    - 캡처·선택 실패: 모든 칸이 판독 불가(Step은 FAIL).
+    - 5칸을 모두 정했으면: 같으면 일치, 확정 불일치(`_post_recon_mismatch`)면 불일치,
+      다르지만 기대값을 읽은 판독이 있으면 판독 불가(Step은 MANUAL).
+    - 정하지 못한 칸이 있으면(Step은 MANUAL 또는 일치): 정한 칸은 기대값과 같을 때만 일치, 나머지는 판독 불가.
+    반환: {칸: (결과, 비고)}
+    """
+    if item.get('error') or 'seen' not in item:
+        reason = item.get('error') or '판독 기록 없음'
+        return {key: ('unread', '캡처·영상 선택 실패(%s)로 읽지 못했다.' % reason) for key in want}
+    got, seen = item.get('values'), item.get('seen') or {}
+    settled = item.get('settled') or {}
+    out = {}
+    for key, value in want.items():
+        if got is not None:
+            if got.get(key) == value:
+                out[key] = ('match', '')
+            elif _post_recon_mismatch(got, seen, key, value):
+                out[key] = ('mismatch', '두 판독 방식이 기대값과 다른 값으로 합의했고 기대값을 읽은 판독이 없다.')
+            else:
+                out[key] = ('unread', '기대값을 읽은 판독이 있어 불일치로 확정하지 않았다.')
+            continue
+        raw = settled.get(key)
+        if raw is None:
+            out[key] = ('unread', '판독 방식들이 같은 값을 내지 못했다.')
+            continue
+        try:
+            same = (raw if key == 'Background Masking' else int(raw)) == value
+        except (TypeError, ValueError):
+            same = False
+        out[key] = ('match', '') if same else (
+            'unread', '이 칸은 합의했지만 다른 칸을 정하지 못해 불일치로 확정하지 않았다.')
+    return out
+
+
+def _post_recon_reading(overlays, expected_overlay):
+    """Post Recon Overlay Step의 OCR 판독 대조표(REQ-REPORT-002). 판정에는 쓰지 않는다.
+
+    Overlay 글자는 한 영역을 통째로 읽으므로 칸별 캡처 대신 판독 영역 캡처를 넓은 캡처로 보인다.
+    영역 캡처는 원본 캡처 옆에 `*_ocr_region.png`로 저장한다(원본은 그대로 둔다).
+    """
+    from core import reading_evidence
+    rows, context = [], []
+    for label in ('Recon', 'Syn'):
+        item = (overlays or {}).get(label) or {}
+        want = expected_overlay.get(label) or {}
+        got = item.get('values') or {}
+        settled = item.get('settled') or {}
+        for key, (outcome, note) in _post_recon_outcomes(item, want).items():
+            value = want[key]
+            read = got.get(key, settled.get(key))
+            if key == 'Background Masking':
+                note = ' '.join(part for part in (note, '화면에는 사용 안 함이 X, 사용이 O로 보인다.') if part)
+            rows.append(reading_evidence.row(
+                '%s · %s' % (label, key), value, outcome, read='' if read is None else read,
+                reads=(item.get('reads') or {}).get(key, []), note=note))
+        images = list(item.get('images') or ([item['image']] if item.get('image') else []))
+        for index, path in enumerate(images, 1):
+            if not os.path.isfile(str(path)):
+                continue
+            target = re.sub(r'(\.png)?$', '_ocr_region.png', str(path), count=1)
+            if not os.path.isfile(target):
+                with Image.open(path) as image:
+                    _post_recon_region(image).save(target)
+            context.append(('%s 영상 Overlay 판독 영역 · %d회차 캡처' % (label, index), target))
+    return reading_evidence.pack(rows, context)
 
 
 def compatibility_03(ctx, session):
