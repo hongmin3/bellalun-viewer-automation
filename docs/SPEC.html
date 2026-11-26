@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="botyard render-spec-html v8">
 <meta name="spec-html-renderer" content="v8">
-<meta name="spec-source-sha256" content="20fa3b83af6ae84c294bc398c4073dfd6b974af71e13ba3adf68bd643b4452dc">
+<meta name="spec-source-sha256" content="ec95d8ab0d13e5a0b033af8cc362a24c8b715d354fb4ddaf29cfe82d4b4e5e29">
 <title>Bellalun Viewer 자동화 사양서</title>
 <style>:root{--bg:#f7f8fa;--panel:#fff;--text:#1d2330;--muted:#5d6678;--line:#e2e6ee;--accent:#2f6fde;--code:#f1f3f7;
 --req:#2f6fde;--nfr:#8a4fd8;--test:#15907a;--draft:#8a93a6;--implemented:#c98a12;--verified:#1f9d55;--deprecated:#c2413a;--active:#2f6fde;
@@ -1211,8 +1211,9 @@ USB를 쓰는 묶음(<code>run-winupdate</code>·<code>run-combined</code>)은 �
 <section class="card kind-req" id="REQ-DIST-005">
 <h3><span class="idtag">REQ-DIST-005</span> 설치판의 승인 범위를 확인하는 릴리스 게이트</h3>
 <div class="card-meta"><span class="badge st-verified">verified</span><span class="meta"><b>구현</b> <code>bellalunauto/versioning.py</code>, <code>tools/release_gate.py</code>, <code>tools/installed_release_gate.py</code>, <code>core/source_identity.py</code>, <code>tools/build_distribution.py</code>, <code>run.py</code></span><span class="meta"><b>테스트</b> <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>; <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a>; <code>tests/test_release_gate.py</code>, <code>tests/test_installed_release_gate.py</code>, <code>tests/test_distribution_build.py</code></span><span class="meta"><b>참조됨</b> <a class="idref" href="#REQ-SPEEDUP-001">REQ-SPEEDUP-001</a>, <a class="idref" href="#REQ-WU-003">REQ-WU-003</a>, <a class="idref" href="#TEST-DIST-005">TEST-DIST-005</a>, <a class="idref" href="#TEST-REGRESSION-002">TEST-REGRESSION-002</a></span></div>
-<details class="history"><summary>변경 이력 19</summary>
+<details class="history"><summary>변경 이력 20</summary>
 <ul>
+<li><span class="hist">내부 검증판 1.0.0.010 (2026-11-26)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: <code>fix/harness-evidence-20261125</code>(설치판 회귀 근거 보강, OCR 판독 합의 엔진·XIPL_03 Post Recon, 사양서 SHA256 탐색)을 병합한 main으로 만드는 내부 검증판이다. 표시 버전 1.0.0.010, Windows 파일 버전 1.0.0.10으로 새로 컴파일한다. 사용자 요청(2026-11-26)에 따라 설치판 GUI에서 WU 전체와 기본기능 전체를 각각 단독으로 2회 반복하고 회차별 게이트와 TC별 판정 일치를 확인한다. 정식 지정은 하지 않는다.</li>
 <li><span class="hist">정식 1.0.0 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 사용자 승인에 따라 기본기능 게이트에서 기존 <code>WF_16</code>과 함께 <code>Install_03~06</code>, <code>QC_01~02</code>, <code>Performance_01~03</code>의 SKIP을 허용한다. SKIP 목록은 배포 판정 기록에 남긴다.</li>
 <li><span class="hist">정식 1.0.0 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>, <a class="idref" href="#REQ-DIST-009">REQ-DIST-009</a>: 내부 검증판 1.0.0.009와 동일한 바이너리를 정식 1.0.0으로 지정했다. 설치판 GUI의 WU 전체(<code>20261124-151416-48b4bb5c</code>)와 기본기능 전체(<code>20261124-161528-b8f18f15</code>) 리포트로 게이트 36개를 통과했고, 두 회차 모두 DB·대상 파일 원상복원을 확인했다.</li>
 <li><span class="hist">전체 회귀는 설치판 GUI로 (2026-11-24)</span> <a class="idref" href="#REQ-DIST-005">REQ-DIST-005</a>: 게이트의 리포트 명령 대조가 마지막 단어만 보던 것을 고쳤다. 1.0.0.008 WU 기록처럼 <code>--prepared</code>로 끝나는 정상 명령이 거부됐다.</li>
