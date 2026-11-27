@@ -2,7 +2,20 @@
 
 이 표는 설치 성공·프로그램 기동·제품 시험·사람 검수를 따로 기록한다. 기준은 SPEC의 REQ-DIST-001~007, REQ-QA-001~005와 TEST-QA-001~005다.
 
-현재 설치판은 소스5004de0의1.0.2 후보다. OCR·Baseline 준비를 포함한 업데이트와 파일1,010개 대조·기존 작업381개 보존을 확인했다. 이후 사용자 GUI 실행의 WU 전체111.5분·PASS10/SKIP3·종료0·live/chain_completed를 보고서와 로그에서 확인했다. 이번 보고서 소스 개편은 새 EXE로 빌드하지 않았다. 기본기능 새 전체·다른PC 누락OCR 설치와1.0.2 WU 릴리즈 게이트 재평가는 미완료다. [보고서 검증](report-unification.md), [설치 준비 검증](setup-preparation-validation.md)을 따른다. 아래1.0.1과 후보9는 해당 과거 EXE에 한정한다.
+## 1.0.0.014 검증판 (2026-11-27)
+
+빌드 커밋은 `c59a5d449f56ba3d0a787a141f348ec2d1ac5c98`이다. 빌드에 사용한 소스 자체검사는 1,983개 통과, 4개 건너뜀, 하위 검사 348개 통과다. 준비 검사와 배포 ZIP 검사도 통과했다. ZIP 안의 설치기와 빌드 정보가 함께 보관된 원본과 일치한다.
+
+| 전달물 | 파일 | SHA-256 |
+|---|---|---|
+| 설치기 | `release/1.0.0.014/BellalunAuto-1.0.0.014-candidate-setup.exe` | `3884bcdf32426a0b1bd50af4dffd1759ce09e724bfbbdd2ed8cc717b7d6de6d9` |
+| 배포 ZIP | `release/1.0.0.014/BellalunAuto-1.0.0.014-release.zip` | `f6c6d9ed59b53f561e50a93c024fb7c4951b68df8d8a3d1d7b0288c135114ad0` |
+
+WF03·WF08의 OCR 대조 보고서와 후속 TC 진행 조건을 검사했다. 이 후보의 설치판 WU·기본기능 시험 및 Windows 11 Pro와 Windows 11 IoT Enterprise LTSC 24H2 실측은 대기 중이다.
+
+## 과거 1.0.2 설치판 검증
+
+당시 설치판은 소스5004de0의1.0.2 후보다. OCR·Baseline 준비를 포함한 업데이트와 파일1,010개 대조·기존 작업381개 보존을 확인했다. 이후 사용자 GUI 실행의 WU 전체111.5분·PASS10/SKIP3·종료0·live/chain_completed를 보고서와 로그에서 확인했다. 이번 보고서 소스 개편은 새 EXE로 빌드하지 않았다. 기본기능 새 전체·다른PC 누락OCR 설치와1.0.2 WU 릴리즈 게이트 재평가는 미완료다. [보고서 검증](report-unification.md), [설치 준비 검증](setup-preparation-validation.md)을 따른다. 아래1.0.1과 후보9는 해당 과거 EXE에 한정한다.
 
 ## 이전1.0.1 설치판의 WU 검증
 

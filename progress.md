@@ -4,6 +4,7 @@
 
 - Bellalun 검증 대상은 Windows 11 Pro와 Windows 11 IoT Enterprise LTSC 24H2다. VXvue의 네 대상 및 이전 후보의 결과와 별도로 기록한다.
 - 오판 시나리오, 화면과 기대값 대조표, 실제 중단과 후속 미실행 집계를 기본 [하네스](docs/harness.md)에 연결했다. 지원 대상 지정은 이번 후보의 두 OS 실측을 의미하지 않는다.
+- 1.0.0.014 검증판을 빌드하고 설치기와 ZIP 내부 파일의 해시를 확인했다. Windows 실측 상태와 산출물은 [설치판 인수표](docs/installation-acceptance.md#100014-검증판-2026-11-27)에 기록했다.
 
 ## 2026-11-27 PC1 설치판 GUI 2회 반복 검증 (AI-Remote-Control #246, 취소로 중단)
 
