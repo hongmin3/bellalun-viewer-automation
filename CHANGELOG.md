@@ -1,5 +1,10 @@
 # Changelog
 
+## 내부 검증판 1.0.0.013 (2026-11-27)
+
+- REQ-DIST-005: XIPL_03, WF_03, WF_08, WF_15의 OCR 판독 대조표를 포함한 설치 후보를 개발 번호 013으로 빌드한다.
+- REQ-FRAME-001: VXvue와 같은 상세 근거 표 너비와 펼침 표시를 사용한다.
+
 ## WF_15 선량 Overlay 판독 대조표 (2026-11-27)
 
 - REQ-REPORT-002: WF_15 Step 3 Pre-send Preview의 패널마다 `Dose kVp`·`Dose mAs`·`Birth Date`·`Patient ID` 칸을 판독 대조표로 붙인다. 선량은 패널 종류(View Position의 `3D-N` 표기)별 사양대로 2D는 값, 3D Recon은 `--`를 기대 텍스트로 보이고, 판정 코드와 같은 규칙으로 일치·불일치·판독 불가를 적는다(`core/image_overlay.dose_reading_rows`).
