@@ -74,3 +74,18 @@ class DoseSpecTableTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_wf15_dose_does_not_join_numeric_top_with_bottom_unit():
+    # 1.0.0.015 기본 회귀 두 회차의 WF_15 Step 3 3D 패널처럼 상단 OCR은 숫자로 끝난다.
+    reads = {
+        "top_auto_x6_psm6": "LCC (3D-N)\nW1 1920 W2 68355",
+        "bottom_auto_x6_psm7": "mas",
+        "bottom_invert_x6_psm7": "mas",
+        "bottom_bin150_x6_psm6": "--k¥p\n-- mAs",
+        "bottom_line2_auto_x6_psm7": "-- mAs",
+    }
+    assert io_.dose_state(reads) == {"Dose kVp": "dash", "Dose mAs": "dash"}
+    rows = io_.dose_reading_rows({"panel2": reads}, {"panel2": "3D"}, "", "preview")
+    assert len(rows) == 2
+    assert all(row["outcome"] == "match" and "--" in row["read"] for row in rows)

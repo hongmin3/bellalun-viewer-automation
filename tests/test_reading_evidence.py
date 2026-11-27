@@ -418,3 +418,49 @@ def test_xipl05_selection_evidence_and_custom_title_in_report(tmp_path):
     assert flow.QC_SELECTION_TITLE in html
     assert "<summary>%s · 2개</summary>" % flow.QC_SELECTION_TITLE in html
     assert not reading_evidence.valid(dict(evidence, title=3))
+
+
+def test_reading_view_stays_bound_to_capture_when_source_path_is_reused(tmp_path):
+    from pathlib import Path
+
+    capture = tmp_path / 'field.png'
+    first = reading_evidence.view_image(_glyph_png(capture, '14'))
+    first_bytes = Path(first).read_bytes()
+    second = reading_evidence.view_image(_glyph_png(capture, '68'))
+
+    assert first != second and second != str(capture)
+    assert Path(first).read_bytes() == first_bytes
+    assert Path(second).read_bytes() != first_bytes
+    assert reading_evidence.view_image(capture) == second
+
+
+def test_post_recon_region_and_cells_use_new_capture_at_same_path(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    import pytesseract
+
+    monkeypatch.setattr(pytesseract, 'image_to_data', lambda *args, **kwargs: {
+        'text': ['Contrast:'], 'block_num': [1], 'par_num': [1], 'line_num': [1],
+        'left': [260], 'top': [50], 'width': [190], 'height': [50],
+    })
+    capture = tmp_path / 'recon_overlay.png'
+
+    def capture_evidence(value):
+        image = _glyph_png(capture, f'Contrast: {value}', size=(600, 220))
+        return flow._post_recon_reading(
+            {'Recon': _overlay({'Contrast': value}, image=image)}, {'Recon': {'Contrast': value}})
+
+    first = capture_evidence(14)
+    first_region = Path(first['context'][0]['image'])
+    first_crop = Path(first['rows'][0]['source_image'])
+    first_region_bytes, first_crop_bytes = first_region.read_bytes(), first_crop.read_bytes()
+    second = capture_evidence(68)
+    second_region = Path(second['context'][0]['image'])
+    second_crop = Path(second['rows'][0]['source_image'])
+
+    assert second_region != first_region and second_crop != first_crop
+    assert first_region.read_bytes() == first_region_bytes
+    assert first_crop.read_bytes() == first_crop_bytes
+    assert second_crop.read_bytes() != first_crop_bytes
+    with Image.open(capture) as actual, Image.open(second_region) as region:
+        assert flow._post_recon_region(actual).tobytes() == region.tobytes()

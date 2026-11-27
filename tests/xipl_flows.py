@@ -1034,6 +1034,8 @@ def _post_recon_cells(region_path):
     칸 이름이 있는 줄을 자른다. 칸을 찾지 못하면 그 칸은 빠지고 넓은 캡처가 남는다. 판정은 바꾸지 않는다.
     """
     import pytesseract
+    from core.reading_evidence import save_capture
+
     if os.path.isfile(vp.TESSERACT_EXE):
         pytesseract.pytesseract.tesseract_cmd = vp.TESSERACT_EXE
     scale, cells = 3, {}
@@ -1061,7 +1063,7 @@ def _post_recon_cells(region_path):
             continue
         target = re.sub(r'(\.png)?$', '_%s.png' % found[0].replace(' ', '_'), str(region_path), count=1)
         if not os.path.isfile(target):
-            region.crop(box).save(target)
+            save_capture(region.crop(box), target)
         cells[found[0]] = target
     return cells
 
@@ -1085,10 +1087,10 @@ def _post_recon_reading(overlays, expected_overlay):
         for index, path in enumerate(images, 1):
             if not os.path.isfile(str(path)):
                 continue
-            target = re.sub(r'(\.png)?$', '_ocr_region.png', str(path), count=1)
+            target, capture = reading_evidence.capture_derivative(path, '_ocr_region.png')
             if not os.path.isfile(target):
-                with Image.open(path) as image:
-                    _post_recon_region(image).save(target)
+                with Image.open(capture) as image:
+                    reading_evidence.save_capture(_post_recon_region(image), target)
             regions.append(target)
             context.append(('%s 영상 Overlay 판독 영역 · %d회차 캡처' % (label, index), target))
         cells = {}

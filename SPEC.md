@@ -523,7 +523,7 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 
 #### 순서
 1. 판정 코드가 칸마다 정한 결과(일치·불일치·판독 불가·잘림)를 Step의 판독 기록(`reading_evidence`)에 옮긴다(`core/reading_evidence.py`).
-2. 칸 캡처는 이미 저장한 크롭을 쓴다. 표에는 글자 부분만 잘라 최대 3배로 키운 사본(`*_view.png`)을 보이고 원본 파일은 그대로 둔다.
+2. 칸 캡처는 이미 저장한 크롭을 쓴다. 표에는 글자 부분만 잘라 최대 3배로 키운 사본(`*_view.png`)을 보이고 원본 파일은 그대로 둔다. 이전 실행과 캡처 경로가 같아도 새 캡처의 바이트가 다르면 판독 영역·칸별 크롭·표시용 사본은 새 캡처에서 만들고 이전 사본은 보존한다.
 3. 리포트는 공용 표(`core/report_layout.render_reading_evidence`)로 칸 · 기대 텍스트 · 화면 캡처 · 자동화 판독 · 결과를 보인다.
    확인이 필요한 칸은 왼쪽에 확인할 진짜 텍스트, 오른쪽에 화면 캡처를 둔 카드로 보인다. 캡처를 누르면 크게 확대되고, 일치한 칸은 접은 표에 모은다(`frame/FRAME.md` 2.9, 2026-11-27).
    기록에 선택 필드 `compare`(진짜 텍스트·읽은 글자)가 있으면 다른 글자를 강조한다.
@@ -540,7 +540,7 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 | WF_03 Step 6, WF_08 Step 5·6 Print Overlay 영역별 표시 | Header·Top·Bottom의 6개 항목(`compare`: 환자 정보는 DB 값, 나머지는 실측 표시 문구) | 영역 크롭 |
 | WF_03·WF_08 Print Overlay 이름을 정하지 못한 MANUAL | 선택 후보마다(`compare`: 자동화가 만든 Overlay 이름) | 후보 원본 크롭 |
 | WF_08 Step 7 3D 필름의 Print Overlay Header | Header 2개 항목(`compare`: DB 값) | Header 영역 크롭 |
-| WF_15 Step 3 Pre-send Preview 패널별 Overlay | 패널마다 `Dose kVp`·`Dose mAs`(2D는 값, 3D Recon은 `--`가 일치), `Birth Date`·`Patient ID`(`compare`: DB 값) | 패널 아래·위 크롭 |
+| WF_15 Step 3 Pre-send Preview 패널별 Overlay | 패널마다 `Dose kVp`·`Dose mAs`(2D는 값, 3D Recon은 `--`가 일치). 값이나 대시와 단위는 같은 OCR 판독에서 읽혀야 한다. 상단 OCR과 하단 OCR 또는 서로 다른 판독을 이어 붙여 값으로 분류하지 않는다. `Birth Date`·`Patient ID`(`compare`: DB 값) | 패널 아래·위 크롭 |
 | WF_15 Step 4 Preview·View 항목 관찰 비교 | 선량·환자 정보 4개 항목(두 화면의 보임·안 보임이 같으면 일치) | View 화면에서 항목을 찾은 패널의 아래·위 크롭 |
 | 3D 촬영 보조 TC(`run-sys3d`) Step 1 카드 라벨, Step 2 상단 Patient ID | `LCC (3D-N)`·`LCC (3D-W)`, DB Patient ID(`compare`) | 판독에 쓴 화면 조각을 그대로 저장한 파일(`01_card_label_*.png`, `02_header_*.png`). 조작은 바꾸지 않는다 |
 
@@ -830,7 +830,7 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 1. 감독 프로세스는 중지 파일 경로를 작업 프로세스에 넘긴다(`BELLALUN_STOP_FILE`). 중지 파일을 보면 작업 프로세스를 바로 끝내지 않고 리포트·원상복원을 마칠 때까지 기다린다.
 2. 진행 중인 TC는 단계 감시자(REQ-VERDICT-006, `wu_chain.run_stage`)가 5초 간격 검사에서 중지 파일을 보고 끊는다. 실패 증거 수집 없이 Viewer·XIPL Studio를 끝내고, 단계 코드가 10초 안에 빠져나오지 않으면 주 스레드에 중단 신호를 보낸다. 그 TC는 BLOCKED(`<단계> 사용자 안전 중단`, `actual.kind=user_stop`)로 남는다. 제품 판정이 아니다.
 3. TC 사이에서도 다음 TC(단계)를 시작하기 전에 중지 파일을 확인한다. 있으면 다음 TC를 시작하지 않는다. 기본기능과 WU·결합 실행(USB·WU_10 단계 포함)이 같다.
-4. 지금까지의 결과로 리포트를 만든다. 남은 TC는 결과에 넣지 않아 체크리스트 결과에 미수행으로 보인다. WU 결과에서 근거 TC를 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다. WU 저장점에는 도중에 멈춘 단계를 완료로 남기지 않아 `--resume`이 그 단계부터 다시 실행한다.
+4. 지금까지의 결과로 리포트를 만든다. 남은 TC는 결과에 넣지 않아 체크리스트 결과에 미수행으로 보인다. WU 결과에서 근거 TC를 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다. WU 부분 리포트에는 실제 중단된 원본 단계의 BLOCKED 행을 한 번 넣는다. 중단된 단계의 결과를 WU 체크리스트 항목의 완료·실패 근거로 쓰지 않는다. WU 저장점에는 도중에 멈춘 단계를 완료로 남기지 않는다. 같은 실행 지문에서 `--resume`을 하면 그 단계부터 다시 실행한다. DB·파일 원상복원 뒤에는 실행 지문이 달라지므로 새로 실행한다.
 5. 리포트 메타에 멈춘 위치(`user_stop`: 멈춘 TC, 도중에 멈췄으면 `interrupted_tc`, 순번)를 남기고 완주 표시(`chain_completed`)는 거짓이다. 선택한 원상복원은 평소 마무리 경로가 한다.
 6. 작업 프로세스는 종료 코드 130으로 끝나고 실행 기록은 중단(`stopped`)과 중단 요청(`stop_requested`)을 남긴다.
 
@@ -1970,7 +1970,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | verified |
 | REQ-TCUP-004 | `core/run_preparation.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `run.py` | TEST-TCUP-001; `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | verified |
-| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/frame_launch.py`, `run.py`, `core/wu_chain.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py`, `tests/test_user_stop.py`, `tests/test_combined_run.py` | verified |
+| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/frame_launch.py`, `run.py`(WU 부분 결과 포함), `core/wu_chain.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py`, `tests/test_user_stop.py`, `tests/test_combined_run.py` | verified |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py`, `tests/test_manual_review.py` | verified |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py` | TEST-QA-004; `tests/test_share_package.py`, `tests/test_frame_launch.py` | verified |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | verified |
@@ -1988,7 +1988,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-005 | `core/env_health.py`, `run.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py` | verified |
 | REQ-VERDICT-006 | `run.py`, `core/wu_chain.py`, `core/xipl.py`, `tests/xipl_flows.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_xipl_save_dialog.py`, `tests/test_wu_chain.py` | verified |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
-| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py`, `tests/workflow15.py`, `tests/system_compat.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
+| REQ-REPORT-002 | `core/reading_evidence.py`, `core/atomic_metadata.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py`, `tests/workflow15.py`, `tests/system_compat.py` | TEST-REPORT-002; `tests/test_reading_evidence.py`, `tests/test_image_overlay.py` | verified |
 | REQ-REPORT-003 | `core/manual_review.py`, `core/result.py`, `core/automation_health.py`, `bellalunauto/qa_dialogs.py`, `tools/reviewed_report.py` | TEST-REPORT-003; `tests/test_manual_review.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |

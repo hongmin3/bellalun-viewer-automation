@@ -182,3 +182,40 @@ def test_tc_ignoring_viewer_exit_is_interrupted_after_short_grace(tmp_path, monk
     assert time.monotonic() - started < 3             # 주 스레드 중단 신호로 바로 빠져나왔다.
     assert trip['kind'] == 'user_stop'
     assert [r.verdict for r in produced] == [BLOCKED]
+
+
+@pytest.mark.parametrize('stage_id,earlier', [
+    ('TC_Basic_WorkFlow_01', ()),
+    ('TC_Basic_WorkFlow_02', ('TC_Basic_WorkFlow_01',)),
+    ('TC_Basic_WorkFlow_03', ()),
+    ('TC_Basic_WorkFlow_06', ('TC_Basic_WorkFlow_04', 'TC_Basic_WorkFlow_05')),
+    ('TC_Basic_WorkFlow_08', ()),
+    ('TC_XIPL_compatibility_subset', ()),
+])
+def test_wu_partial_report_keeps_interrupted_stage_once(tmp_path, monkeypatch, stage_id, earlier):
+    from contextlib import nullcontext
+
+    ctx = SimpleNamespace(root=tmp_path, cfg={}, partial_results=[_wu(tc_id) for tc_id in earlier])
+    interrupted = wu_chain.blocked_results(stage_id, '재현', 'user_stop', '사용자 안전 중단')
+    report = []
+
+    def finish(_ctx, rows, _elapsed, **_kwargs):
+        report.extend(rows)
+
+    monkeypatch.delenv('BELLALUN_STOP_FILE', raising=False)
+    monkeypatch.delenv('BELLALUN_QA_RUN', raising=False)
+    monkeypatch.setattr(run, '_wu_chain_stages', lambda: [(None, stage_id, '재현')])
+    monkeypatch.setattr(run, '_wu_preflight', lambda _ctx: {
+        'blocked': False, 'items': [], 'environment': {}, 'fingerprint': {}})
+    monkeypatch.setattr(run, 'shutdown_viewer', lambda *_: {})
+    monkeypatch.setattr(run, '_finish_winupdate', finish)
+    monkeypatch.setattr(wu_chain, 'keep_awake', nullcontext)
+    monkeypatch.setattr(wu_chain, 'run_stage', lambda *args, **kwargs: (interrupted, {'kind': 'user_stop', 'reason': '사용자 안전 중단'}))
+    monkeypatch.setattr('core.env_preflight.summary_for_report', lambda _: {})
+
+    assert run._run_winupdate_chain_impl(ctx) == 130
+    blocked = [row for row in report if row.verdict == BLOCKED]
+    assert all(row.verdict != FAIL for row in report)
+    assert [row.tc_id for row in blocked] == [stage_id]
+    assert all(row.checks[0].actual['kind'] == 'user_stop' for row in blocked)
+    assert not any(row.tc_id in ('TC_WindowsUpdate_09', 'TC_WindowsUpdate_10') for row in report)

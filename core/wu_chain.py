@@ -327,7 +327,7 @@ def blocked_results(stage_id, title, kind, reason):
     from core.result import TCResult
     outputs = STAGE_OUTPUTS.get(stage_id) or [(stage_id, title)]
     if kind == "user_stop":
-        return [_user_stop_result(tc_id, tc_title, stage_id, reason) for tc_id, tc_title in outputs]
+        return [user_stop_result(tc_id, tc_title, stage_id, reason) for tc_id, tc_title in outputs]
     label = "단계 시간 상한 초과" if kind == "timeout" else "Viewer 응답 없음"
     produced = []
     for tc_id, tc_title in outputs:
@@ -343,7 +343,7 @@ def blocked_results(stage_id, title, kind, reason):
     return produced
 
 
-def _user_stop_result(tc_id, tc_title, stage_id, reason):
+def user_stop_result(tc_id, tc_title, stage_id, reason):
     """안전 중단으로 도중에 멈춘 TC의 결과. 제품 판정이 아니라 미완료임을 남긴다."""
     from core.result import TCResult
     r = TCResult(tc_id, tc_title)

@@ -38,7 +38,8 @@ HTML 보고서는 VXvue와 같은 양식으로 결론·시간·실패·수동 �
 
 실행 화면의 **기본기능 체크리스트 자동화 수행** 또는 **Windows Update 체크리스트 자동화 수행**을 선택하면 해당 체크리스트만 수행합니다. 대상 Viewer·SQL·DB·Baseline 판과 변경·복구 범위를 확인한 뒤 직접 동의합니다.
 탐색기나 바로가기에서는 프로그램 창만 열도록 GUI 실행 파일로 빌드합니다. PowerShell에서 CLI를 사용할 때는 `& 'C:\Program Files\BellalunAuto\BellalunAuto.exe' --version | Out-Default`처럼 파이프로 호출해 출력과 종료를 기다립니다.
-실행 번호별 진행·보고서는 `C:\BellalunAuto\Runs\<run_id>un.json`에 연결됩니다. 자동 실행이 끝나면
+실행 번호별 진행·보고서는 `C:\BellalunAuto\Runs\<run_id>
+un.json`에 연결됩니다. 자동 실행이 끝나면
 화면의 **수동 검토**에서 PASS가 아닌 TC를 확인하고 검수 완료를 별도로 기록하세요.
 **공유 ZIP**에서는 스크린샷·DICOM·Viewer 로그 구간을 선택하며, 기본은 모두 제외입니다.
 받은 파일은 `BellalunAuto.exe verify-share <ZIP 경로>`로 무결성과 상대 링크를 점검합니다.
@@ -239,7 +240,7 @@ python run.py update-watch                        # OS 빌드·KB가 바뀌었�
 
 실시간 체인은 시작 전에 해상도·DPI·메모리·USB 유무·재부팅 대기·검증된 환경을 점검합니다.
 단계마다 시간 상한과 Viewer 응답 없음을 감시하고, 끝난 단계를 `work/winupdate_checkpoint.json`에 저장합니다.
-끊긴 실행은 `--resume`으로 남은 단계만 이어 실행하며 재개 여부를 리포트에 적습니다.
+실행 지문이 같으면 `--resume`으로 남은 단계를 이어 실행하고 리포트에 재개 여부를 적습니다. 시험 전 DB·파일 상태로 원상복원한 뒤에는 WU를 처음부터 실행하세요.
 
 USB 연결 흐름: 후보8 이후 실시간 WU 체인에서 USB 왕복을 PASS로 확인했습니다.
 2026-10-21 후보11에서 이전과 다른 USB로 다시 수행해 Export와 Import 되읽기(완료 신호·재생성 UID·파일·Examined 재검색)가 PASS였습니다.

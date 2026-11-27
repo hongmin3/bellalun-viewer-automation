@@ -8,7 +8,11 @@
 기록을 만들다 실패해도 Step 판정은 그대로 남아야 하므로 호출하는 쪽은 `safe()`로 감싼다.
 """
 
+from hashlib import sha256
+from io import BytesIO
 import os
+from pathlib import Path
+import tempfile
 
 #: 칸별 결과. 뜻과 색은 `core/report_layout.READING_OUTCOMES`가 정한다.
 OUTCOMES = ('match', 'mismatch', 'unread', 'truncated')
@@ -22,6 +26,30 @@ READS_LIMIT = 6
 READ_TEXT_LIMIT = 160
 
 
+
+def capture_derivative(path, suffix):
+    """같은 파일명이 다시 쓰여도 읽은 캡처 바이트에 일치하는 파생 경로를 고른다."""
+    source = Path(path)
+    data = source.read_bytes()
+    digest = sha256(data).hexdigest()[:16]
+    return str(source.with_name(f'{source.stem}_{digest}{suffix}')), BytesIO(data)
+
+
+def save_capture(image, target):
+    """완전히 쓴 PNG만 파생 캡처 경로에 공개한다."""
+    from .atomic_metadata import replace_metadata
+
+    with tempfile.NamedTemporaryFile(dir=Path(target).parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            image.save(stream, format='PNG')
+            stream.close()
+            replace_metadata(temporary, target)
+        finally:
+            stream.close()
+            temporary.unlink(missing_ok=True)
+
+
 def view_image(path):
     """칸 캡처에서 글자 부분만 남겨 확대한 표시용 사본(`*_view.png`)을 만든다. 못 만들면 원본 경로다.
 
@@ -32,9 +60,9 @@ def view_image(path):
         from PIL import Image, ImageChops
         from core.report_layout import READING_IMAGE_MAX_BYTES
         source = str(path)
-        target = os.path.splitext(source)[0] + '_view.png'
+        target, capture = capture_derivative(source, '_view.png')
         if not os.path.isfile(target):
-            with Image.open(source) as opened:
+            with Image.open(capture) as opened:
                 image = opened.convert('RGB')
             colors = image.getcolors(image.width * image.height) or []
             if len(colors) <= 1:
@@ -48,7 +76,7 @@ def view_image(path):
             view = image.crop(box)
             scale = max(1, min(VIEW_SCALE, VIEW_MAX_WIDTH // max(view.width, 1)))
             view = view.resize((view.width * scale, view.height * scale), Image.NEAREST)
-            view.save(target)
+            save_capture(view, target)
         return target if os.path.getsize(target) <= READING_IMAGE_MAX_BYTES else source
     except (ImportError, OSError, ValueError):
         return str(path)

@@ -1474,6 +1474,7 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                 "checkpoint": path, "preflight": preflight_meta}
 
     aborted_precondition = None
+    interrupted, interrupted_ids = None, set()
     with wu_chain.keep_awake():
         for stage_index, (fn, stage_id, title) in enumerate(stages, start=1):
             if _user_stop_requested(ctx, stage_id, stage_index, len(stage_ids)):
@@ -1491,6 +1492,8 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                 if _user_stop_trip(trip):
                     # 저장점에 완료로 남기지 않는다. `--resume`이 이 단계부터 다시 실행한다.
                     results.extend(produced)
+                    interrupted_ids.update(row.tc_id for row in produced)
+                    interrupted = wu_chain.user_stop_result(stage_id, title, stage_id, trip["reason"])
                     _user_stop_requested(ctx, stage_id, stage_index, len(stage_ids), interrupted=True)
                     break
                 if trip:
@@ -1539,9 +1542,14 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
             spent = (datetime.now() - started).total_seconds() / 60
             if with_basic:
                 _finish_combined_basic(ctx, results)
-            stop_results = winupdate.build_wu_results(winupdate.lookup_from_results(results),
-                                                      **({"live_extra": live_extra} if live_extra else {}))
+            lookup = winupdate.lookup_from_results(results)
+            # 중단된 단계의 합성 결과로 WU 항목을 FAIL/중복 BLOCKED로 만들지 않는다.
+            for tc_id in interrupted_ids:
+                lookup.pop(tc_id, None)
+            stop_results = winupdate.build_wu_results(lookup, live_extra=live_extra)
             stop_results = user_stop_wu_rows(stop_results, live_extra)
+            if interrupted is not None:
+                stop_results.append(interrupted)
             _finish_winupdate(ctx, stop_results, spent,
                               source_note=("기본+WU 결합 실행(사용자 안전 중단)" if with_basic
                                            else "전용 체인(사용자 안전 중단)"),

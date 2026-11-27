@@ -230,19 +230,9 @@ def dose_state(reads):
     찍힌 것**으로 보는 편이 안전하다 — 값이 있는데 `dash` 로 판정하면 사양을
     지킨 제품을 결함으로 만든다.
     """
-    raw = _recognized_text(reads).lower()
-    squeezed = raw.replace(" ", "")
-    out = {}
-    for label in DOSE_VALUE_MARKERS:
-        value_rx = DOSE_VALUE_MARKERS[label]
-        dash_rx = DOSE_DASH_MARKERS[label]
-        if value_rx.search(raw) or value_rx.search(squeezed):
-            out[label] = "value"
-        elif dash_rx.search(raw) or dash_rx.search(squeezed):
-            out[label] = "dash"
-        else:
-            out[label] = "none"
-    return out
+    observations = {key: text for key, text in reads.items()
+                    if not key.startswith("top_")}
+    return {label: _dose_observation(observations, label)[0] for label in DOSE_VALUE_MARKERS}
 
 
 def dose_expected(instance_type):
@@ -345,15 +335,14 @@ def reading_rows(marks, reads, labels, evidence_dir, prefix, tag, expected_text,
 DOSE_EXPECTED_TEXT = {"2D": "<숫자> {unit} (값 표시)", "3D": "-- {unit} (값 미표시)"}
 
 
-def _dose_read(region, label):
-    """판정에 쓴 선량 표기(`28 kVp`·`-- kVp`)가 들어 있는 판독 원문 한 줄. 없으면 빈 문자열."""
-    value_rx, dash_rx = DOSE_VALUE_MARKERS[label], DOSE_DASH_MARKERS[label]
-    for rx in (value_rx, dash_rx):
-        for text in region.values():
+def _dose_observation(reads, label):
+    """한 판독에서 값 또는 대시와 단위가 함께 읽힌 경우만 근거로 쓴다."""
+    for state, marker in (("value", DOSE_VALUE_MARKERS[label]), ("dash", DOSE_DASH_MARKERS[label])):
+        for text in reads.values():
             low = text.lower()
-            if rx.search(low) or rx.search(low.replace(" ", "")):
-                return text
-    return ""
+            if not low.lstrip().startswith("<ocr err") and (marker.search(low) or marker.search(low.replace(" ", ""))):
+                return state, text
+    return "none", ""
 
 
 def dose_reading_rows(reads, kinds, evidence_dir, prefix):
@@ -369,13 +358,12 @@ def dose_reading_rows(reads, kinds, evidence_dir, prefix):
     for name in names:
         panel_reads = reads.get(name) or {}
         kind = (kinds or {}).get(name) or panel_kind(panel_reads)
-        state = dose_state(panel_reads)
         region = _region_reads(panel_reads, "bottom")
         image = panel_crop(evidence_dir, prefix, int(re.sub(r"\D", "", name) or 0), "bottom")
         for label in DOSE_VALUE_MARKERS:
             unit = LABEL_TEXT[label]
             want = "value" if kind == "2D" else "dash"
-            got = state[label]
+            got, observed = _dose_observation(region, label)
             outcome = ("unread" if got == "none"
                        else "match" if got == want else "mismatch")
             note = f"패널 종류 {kind}(View Position 표기로 판별). {DOSE_SPEC_CITE}."
@@ -383,7 +371,7 @@ def dose_reading_rows(reads, kinds, evidence_dir, prefix):
                 note += " 값도 `--`도 읽지 못했다."
             rows.append(reading_evidence.row(
                 f"{label} ({name}, {kind})", DOSE_EXPECTED_TEXT[kind].format(unit=unit), outcome,
-                read=_dose_read(region, label), reads=reading_evidence.ocr_reads(region),
+                read=observed, reads=reading_evidence.ocr_reads(region),
                 image=image, note=note))
     return rows
 
