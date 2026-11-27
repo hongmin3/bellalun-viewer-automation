@@ -331,3 +331,78 @@ def reading_rows(marks, reads, labels, evidence_dir, prefix, tag, expected_text,
             f"{label} ({panel or '패널 없음'})", expected_text.get(label, label), outcome, read=read,
             reads=reading_evidence.ocr_reads(region), image=image, note=note))
     return rows
+
+
+#: 선량 칸의 기대 텍스트. 영상 종류마다 사양(`DOSE_VALUE_BY_INSTANCE_TYPE`)이 정한 표시가 다르다.
+DOSE_EXPECTED_TEXT = {"2D": "<숫자> {unit} (값 표시)", "3D": "-- {unit} (값 미표시)"}
+
+
+def _dose_read(region, label):
+    """판정에 쓴 선량 표기(`28 kVp`·`-- kVp`)가 들어 있는 판독 원문 한 줄. 없으면 빈 문자열."""
+    value_rx, dash_rx = DOSE_VALUE_MARKERS[label], DOSE_DASH_MARKERS[label]
+    for rx in (value_rx, dash_rx):
+        for text in region.values():
+            low = text.lower()
+            if rx.search(low) or rx.search(low.replace(" ", "")):
+                return text
+    return ""
+
+
+def dose_reading_rows(reads, kinds, evidence_dir, prefix):
+    """WF_15 선량 Overlay 판정을 패널·항목별 판독 대조표 줄로 옮긴다(REQ-REPORT-002).
+
+    결과는 판정 코드와 같은 규칙이다. 2D는 값, 3D(Recon)는 `--`가 사양대로의 일치다.
+    반대로 찍혔으면 불일치, 값도 `--`도 읽지 못했으면 판독 불가다.
+    칸 캡처는 `read_panel`이 저장한 패널 아래 크롭이다.
+    """
+    from core import reading_evidence
+    rows = []
+    names = sorted(reads or {}, key=lambda name: int(re.sub(r"\D", "", name) or 0))
+    for name in names:
+        panel_reads = reads.get(name) or {}
+        kind = (kinds or {}).get(name) or panel_kind(panel_reads)
+        state = dose_state(panel_reads)
+        region = _region_reads(panel_reads, "bottom")
+        image = panel_crop(evidence_dir, prefix, int(re.sub(r"\D", "", name) or 0), "bottom")
+        for label in DOSE_VALUE_MARKERS:
+            unit = LABEL_TEXT[label]
+            want = "value" if kind == "2D" else "dash"
+            got = state[label]
+            outcome = ("unread" if got == "none"
+                       else "match" if got == want else "mismatch")
+            note = f"패널 종류 {kind}(View Position 표기로 판별). {DOSE_SPEC_CITE}."
+            if got == "none":
+                note += " 값도 `--`도 읽지 못했다."
+            rows.append(reading_evidence.row(
+                f"{label} ({name}, {kind})", DOSE_EXPECTED_TEXT[kind].format(unit=unit), outcome,
+                read=_dose_read(region, label), reads=reading_evidence.ocr_reads(region),
+                image=image, note=note))
+    return rows
+
+
+def comparison_reading_rows(preview_any, view_any, view_marks, view_reads, labels, evidence_dir, prefix):
+    """WF_15 Step 4의 Preview·View 항목 관찰 비교를 판독 대조표 줄로 옮긴다(REQ-REPORT-002).
+
+    판정과 같이 두 화면의 관찰 결과(보임·안 보임)가 같으면 일치, 다르면 불일치다.
+    칸 캡처는 View 화면에서 그 항목을 찾은 패널(못 찾았으면 1번 패널)의 크롭이다.
+    선량 항목은 아래, 환자 정보는 위 크롭이다.
+    """
+    from core import reading_evidence
+
+    def seen(flag):
+        return "보임" if flag else "안 보임"
+
+    rows = []
+    for label in labels:
+        tag = "top" if label in PATIENT_MARKERS else "bottom"
+        panel = _panel_for(view_marks, label)
+        region = _region_reads((view_reads or {}).get(panel), tag) if panel else {}
+        image = (panel_crop(evidence_dir, prefix, int(re.sub(r"\D", "", panel)), tag)
+                 if panel else None)
+        same = bool(preview_any.get(label)) == bool(view_any.get(label))
+        rows.append(reading_evidence.row(
+            f"{label} ({panel or '패널 없음'})", f"Preview와 같음 (Preview: {seen(preview_any.get(label))})",
+            "match" if same else "mismatch", read=f"View: {seen(view_any.get(label))}",
+            reads=reading_evidence.ocr_reads(region), image=image,
+            note="" if panel else "View 화면에서 영상 패널을 찾지 못했다."))
+    return rows

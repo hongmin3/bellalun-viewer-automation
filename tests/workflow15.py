@@ -55,7 +55,7 @@ import time
 # 크롭/OCR/PIL 사용은 `core/image_overlay.py` 로 옮겼다(2026-08-21) — 여기서
 # 다시 import 하면 쓰지 않는 이름이 남아 "이 모듈이 직접 OCR 한다"고 오해된다.
 from core import dicom_settings as ds
-from core import flows, image_overlay, screen, setting_changes
+from core import flows, image_overlay, reading_evidence, screen, setting_changes
 from core import viewer_processing as vp
 from core import send_verify as sv
 from core import uitext, usb_evidence
@@ -376,9 +376,27 @@ def run(ctx):
         dose_expected_n = sum(
             1 for i in study["sendable"]
             if image_overlay.dose_expected(i["InstanceType"]))
+        # 판독 대조표(REQ-REPORT-002): 위 판정을 패널·항목별로 옮겨 적는다. 판정은 바꾸지 않는다.
+        # 생년월일은 모든 패널에서 보여야 하므로 패널마다 불일치(FAIL)로, 환자 ID는 못 읽은 패널을
+        # 수동 확인(MANUAL)으로 남기므로 판독 불가로 적는다.
+        def _step3_reading():
+            rows = image_overlay.dose_reading_rows(
+                preview_reads, preview_kind, evidence, "02_preview_panel")
+            for name in sorted(preview_hits, key=lambda k: int(k.replace("panel", "") or 0)):
+                one = {name: preview_hits[name]}
+                rows += image_overlay.reading_rows(
+                    one, preview_reads, ["Birth Date"], evidence, "02_preview_panel", "top",
+                    {"Birth Date": study.get("PatientBirthDate")}, "mismatch")
+                rows += image_overlay.reading_rows(
+                    one, preview_reads, ["Patient ID"], evidence, "02_preview_panel", "top",
+                    {"Patient ID": study.get("PatientID")}, "unread",
+                    notes={"Patient ID": "ID 일치 방식: %s" % preview_hits[name].get("_pid_match")})
+            return reading_evidence.pack(rows)
+
         r.assert_true(
             3, "각 Step 영상과 설정한 Overlay 항목 표시",
             bool(panels) and birth_ok and bool(pid_panels) and dose_spec_ok,
+            reading_evidence=reading_evidence.safe(_step3_reading),
             expected={"영상 패널": "보이는 패널마다 종류에 맞는 선량 표시 "
                                 "(2D=값 / 3D Recon=`--`)",
                       "생년월일": "모든 패널",
@@ -708,6 +726,10 @@ def run(ctx):
             r.assert_true(
                 4, "View 화면에 Preview 와 동일한 Overlay 항목 표시",
                 bool(view_panels) and not diff_labels,
+                reading_evidence=reading_evidence.safe(lambda: reading_evidence.pack(
+                    image_overlay.comparison_reading_rows(
+                        preview_any, view_any, view_hits, view_reads, labels,
+                        evidence, "04_view_panel"))),
                 expected={"Overlay 항목 관찰 결과": labels},
                 actual={"일치 항목": same_labels,
                         "불일치 항목": diff_labels,

@@ -524,8 +524,10 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 | XIPL_03 Step 9 영상 Overlay 10개 실제 적용값 | Recon·Syn 각 5칸 | 판독 영역 캡처(`*_ocr_region.png`)를 넓은 캡처로 보인다. Overlay를 한 영역으로 읽어 칸별 캡처는 없다 |
 | WF_03 Step 5 Image Overlay 항목 표시와 환자 정보 교차 확인 | `Dose kVp`·`Dose mAs`, `Patient ID`·`Birth Date` | 항목을 찾은 패널의 아래·위 크롭 |
 | WF_03 Step 6, WF_08 Step 5·6 Print Overlay 영역별 표시 | Header·Top·Bottom의 6개 항목 | 영역 크롭 |
+| WF_15 Step 3 Pre-send Preview 패널별 Overlay | 패널마다 `Dose kVp`·`Dose mAs`(2D는 값, 3D Recon은 `--`가 일치), `Birth Date`·`Patient ID` | 패널 아래·위 크롭 |
+| WF_15 Step 4 Preview·View 항목 관찰 비교 | 선량·환자 정보 4개 항목(두 화면의 보임·안 보임이 같으면 일치) | View 화면에서 항목을 찾은 패널의 아래·위 크롭 |
 
-> **참고** 아직 붙이지 않은 OCR 판정 자리(WF_15 Preview·View 선량 표시 등)는 `progress.md`에 남은 일로 적는다.
+> **참고** 아직 붙이지 않은 OCR 판정 자리는 `progress.md`에 남은 일로 적는다.
 
 #### 지킬 것
 - 판정은 바꾸지 않는다. 판정 코드가 불일치로 단정하지 않은 칸을 불일치로 표시하지 않는다. MANUAL로 끝나는 자리에서 못 찾은 칸은 판독 불가다.
@@ -1580,6 +1582,7 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - `tests/test_reading_evidence.py`: 칸 캡처가 HTML 안에 들어가는지, 값이 이스케이프되는지, 없는 파일·큰 파일·그림이 아닌 파일은 넣지 않는지 본다.
 - 같은 시험으로 JSON과 저장점 복원(`result_from_dict`)에서 기록이 남는지, 실패·수동 확인 카드에서는 펼치고 Step 표에서는 접는지 본다.
 - XIPL_03 Overlay, WF_03·WF_08 영상·Print Overlay 표의 칸별 결과가 판정 코드의 결과와 같은지 본다. MANUAL로 끝난 칸은 불일치로 표시하지 않는다.
+- WF_15 선량 표가 패널 종류별 사양(2D 값·3D `--`)대로 일치·불일치·판독 불가를 가르는지, Step 4 비교 표가 두 화면의 관찰 결과를 그대로 옮기는지 본다.
 - 표를 만들다 실패해도 Step 판정과 FAIL 중단이 그대로인지 본다.
 - Expected Result: 수동 확인·실패 카드에 기대 텍스트, 칸 캡처, 판독 값이 한 줄로 보이고 판정은 바뀌지 않는다.
 
@@ -1901,7 +1904,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-005 | `core/env_health.py`, `run.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py` | verified |
 | REQ-VERDICT-006 | `run.py`, `core/wu_chain.py`, `core/xipl.py`, `tests/xipl_flows.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_xipl_save_dialog.py`, `tests/test_wu_chain.py` | verified |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
-| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
+| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py`, `tests/workflow15.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |

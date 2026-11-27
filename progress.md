@@ -18,7 +18,8 @@
 - 사용자 요청: VXvue에 만든 OCR 판독 대조표(`frame/FRAME.md` 2.9)를 Bellalun에도 적용한다. 작업 브랜치 `frame/reading-evidence-20261127`.
 - 완료: 공용 파일(VXvue `abb5462`) 반영, `core/reading_evidence.py`, 결과 모델·JSON·저장점 복원·HTML 카드 연결, 단위시험 `tests/test_reading_evidence.py`.
 - 붙인 자리: XIPL_03 Step 9 영상 Overlay, WF_03 Step 5(Image Overlay 항목, 환자 정보 교차 확인), WF_03 Step 6·WF_08 Step 5·6(Print Overlay 영역별 항목).
-- 남은 자리: WF_15 Preview·View 선량 Overlay(값·`--` 구분과 패널 종류별 판정이라 칸 정의를 따로 정해야 함), WF_08 Step 7 3D 인쇄(OCR 판정이 아니라 픽셀 유사도), XIPL_05 Q.C 점수 항목 OCR(화면 선택용 판독이라 기대 텍스트 대조가 아님), XIPL_03 Overlay의 칸별 크롭(한 영역을 통째로 읽어 칸 위치가 없음), 3D 촬영 TC(`tests/system_compat.py`)의 Step 카드 라벨·환자 정보 OCR(크롭을 파일로 저장하지 않아 조작을 바꾸지 않고는 캡처가 없음).
+- WF_15 추가(2026-11-27, 사용자 답 "2, ㅇ해주고"): Step 3 패널별 선량(2D 값·3D `--`)·생년월일·환자 ID 칸, Step 4 Preview·View 항목 비교 칸을 붙였다(`core/image_overlay.dose_reading_rows`·`comparison_reading_rows`, 단위시험 `tests/test_reading_evidence.py` 2건). 실제 제품 실행 리포트로는 아직 확인하지 않았다. 같은 날 `frame/reading-evidence-20261127`을 main에 병합했다.
+- 남은 자리: WF_08 Step 7 3D 인쇄(OCR 판정이 아니라 픽셀 유사도), XIPL_05 Q.C 점수 항목 OCR(화면 선택용 판독이라 기대 텍스트 대조가 아님), XIPL_03 Overlay의 칸별 크롭(한 영역을 통째로 읽어 칸 위치가 없음), 3D 촬영 TC(`tests/system_compat.py`)의 Step 카드 라벨·환자 정보 OCR(크롭을 파일로 저장하지 않아 조작을 바꾸지 않고는 캡처가 없음).
 - 실제 제품 실행으로 리포트 모양을 확인하지 않았다. 다음 설치판 회귀 리포트에서 MANUAL·FAIL 카드의 표를 확인한다.
 
 ## 2026-11-25 배포 보관과 설치판 회귀 증거

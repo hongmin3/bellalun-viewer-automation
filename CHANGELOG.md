@@ -1,5 +1,10 @@
 # Changelog
 
+## WF_15 선량 Overlay 판독 대조표 (2026-11-27)
+
+- REQ-REPORT-002: WF_15 Step 3 Pre-send Preview의 패널마다 `Dose kVp`·`Dose mAs`·`Birth Date`·`Patient ID` 칸을 판독 대조표로 붙인다. 선량은 패널 종류(View Position의 `3D-N` 표기)별 사양대로 2D는 값, 3D Recon은 `--`를 기대 텍스트로 보이고, 판정 코드와 같은 규칙으로 일치·불일치·판독 불가를 적는다(`core/image_overlay.dose_reading_rows`).
+- REQ-REPORT-002: WF_15 Step 4 Preview·View 비교는 항목마다 두 화면의 관찰 결과(보임·안 보임)와 View 화면 크롭을 붙인다(`core/image_overlay.comparison_reading_rows`). 판정은 바꾸지 않는다.
+
 ## 내부 검증판 1.0.0.012 (2026-11-27)
 
 - REQ-DIST-005: 다른 창에 가린 화면 캡처를 판정에 쓰지 않는 수정(`46dfdac`)을 담은 내부 검증판이다. 표시 버전 1.0.0.012, Windows 파일 버전 1.0.0.12로 새로 컴파일한다. 1.0.0.011 설치판 WU 실행 `20261126-235011-75e81904`에서 WU_09는 PASS했다(프로세스 종료 판정 수정 확인). WU_11은 다른 예약 작업의 창이 Setting 패널을 가려 FAIL했다. 사용자 요청(2026-11-26)에 따라 이 판에서 WU 전체와 기본기능 전체를 각각 2회 반복한다. 정식 지정은 하지 않는다.

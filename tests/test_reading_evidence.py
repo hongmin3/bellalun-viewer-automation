@@ -222,3 +222,39 @@ def test_print_overlay_rows_copy_judged_areas(tmp_path):
     assert force['expected'] == '35 N' and force['source_image'] == prefix + '_top.png'
     assert reading_evidence.valid(evidence)
     assert re.search(r'x12 확대 판독', json.dumps(evidence, ensure_ascii=False))
+
+
+def test_wf15_dose_rows_follow_the_panel_kind_spec(tmp_path):
+    # 2D는 값, 3D(Recon)는 `--`가 사양대로의 일치다(사양서 723쪽 SRS 03-50-10). 판정 코드와 같은 규칙이다.
+    crop1 = _glyph_png(tmp_path / '02_preview_panel1_bottom.png', '28 kVp 32 mAs')
+    _glyph_png(tmp_path / '02_preview_panel2_bottom.png', '-- kVp')
+    reads = {'panel1': {'top_bin150_psm6': 'LCC', 'bottom_bin150_psm6': '28 kVp 32 mAs'},
+             'panel2': {'top_bin150_psm6': 'LCC (3D-N)', 'bottom_bin150_psm6': '-- kVp 28 mAs'},
+             'panel3': {'top_bin150_psm6': 'RCC (3D-W)', 'bottom_bin150_psm6': 'smudge'}}
+    kinds = {name: image_overlay.panel_kind(value) for name, value in reads.items()}
+    rows = image_overlay.dose_reading_rows(reads, kinds, str(tmp_path), '02_preview_panel')
+    outcomes = {row['field']: row['outcome'] for row in rows}
+    assert outcomes == {'Dose kVp (panel1, 2D)': 'match', 'Dose mAs (panel1, 2D)': 'match',
+                        'Dose kVp (panel2, 3D)': 'match', 'Dose mAs (panel2, 3D)': 'mismatch',
+                        'Dose kVp (panel3, 3D)': 'unread', 'Dose mAs (panel3, 3D)': 'unread'}
+    first = rows[0]
+    assert first['expected'] == '<숫자> kVp (값 표시)' and first['read'] == '28 kVp 32 mAs'
+    assert first['source_image'] == crop1
+    assert rows[2]['expected'] == '-- kVp (값 미표시)'
+    assert reading_evidence.valid(reading_evidence.pack(rows))
+
+
+def test_wf15_view_comparison_rows_copy_the_observation_verdict(tmp_path):
+    view_marks = {'panel1': {'Dose kVp': True, 'Dose mAs': False, 'Patient ID': True, 'Birth Date': True}}
+    view_reads = {'panel1': {'bottom_bin150_psm6': '28 kVp', 'top_bin150_psm6': 'DATAFLOW 19800101'}}
+    preview_any = {'Dose kVp': True, 'Dose mAs': True, 'Patient ID': True, 'Birth Date': True}
+    view_any = {'Dose kVp': True, 'Dose mAs': False, 'Patient ID': True, 'Birth Date': True}
+    labels = ['Dose kVp', 'Dose mAs', 'Patient ID', 'Birth Date']
+    rows = image_overlay.comparison_reading_rows(preview_any, view_any, view_marks, view_reads, labels,
+                                                 str(tmp_path), '04_view_panel')
+    assert [row['outcome'] for row in rows] == ['match', 'mismatch', 'match', 'match']
+    assert rows[1]['expected'] == 'Preview와 같음 (Preview: 보임)' and rows[1]['read'] == 'View: 안 보임'
+    assert rows[0]['source_image'].endswith('04_view_panel1_bottom.png')
+    assert rows[2]['source_image'].endswith('04_view_panel1_top.png')
+    empty = image_overlay.comparison_reading_rows(preview_any, {}, {}, {}, ['Dose kVp'], str(tmp_path), 'x')
+    assert empty[0]['outcome'] == 'mismatch' and 'image' not in empty[0]
