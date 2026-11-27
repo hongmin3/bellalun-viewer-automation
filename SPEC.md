@@ -521,6 +521,8 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 1. 판정 코드가 칸마다 정한 결과(일치·불일치·판독 불가·잘림)를 Step의 판독 기록(`reading_evidence`)에 옮긴다(`core/reading_evidence.py`).
 2. 칸 캡처는 이미 저장한 크롭을 쓴다. 표에는 글자 부분만 잘라 최대 3배로 키운 사본(`*_view.png`)을 보이고 원본 파일은 그대로 둔다.
 3. 리포트는 공용 표(`core/report_layout.render_reading_evidence`)로 칸 · 기대 텍스트 · 화면 캡처 · 자동화 판독 · 결과를 보인다.
+   확인이 필요한 칸은 왼쪽에 확인할 진짜 텍스트, 오른쪽에 화면 캡처를 둔 카드로 보인다. 캡처를 누르면 크게 확대되고, 일치한 칸은 접은 표에 모은다(`frame/FRAME.md` 2.9, 2026-11-27).
+   기록에 선택 필드 `compare`(진짜 텍스트·읽은 글자)가 있으면 다른 글자를 강조한다. Bellalun은 아직 `compare`를 넣지 않는다.
 4. 실패 원인·수동 확인 카드에서는 펼쳐 보이고, 상세 근거의 Step 표에서는 접어 둔다.
 5. JSON 결과에는 같은 기록을 Step의 `reading_evidence`로 남긴다. 캡처는 파일 경로로 둔다. 저장점·부분 리포트에서 결과를 되살려도 기록이 남는다.
 

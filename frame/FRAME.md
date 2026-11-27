@@ -183,6 +183,9 @@ GUI 검증 후보와 게시한 파일이 다른 경우 양쪽의 해시를 별�
 1. 표는 공용 함수 `core/report_layout.render_reading_evidence`가 그린다. 제품 코드는 `{"rows": [...], "context": [...]}` 기록만 넘긴다. `context`에는 칸이 어느 행·화면에서 나왔는지 보이는 넓은 캡처를 둔다.
 2. 캡처는 `image_data_uri`로 레포트 HTML 안에 넣는다. 레포트 파일만 다른 PC로 옮겨도 보인다. 한 장이 `READING_IMAGE_MAX_BYTES`보다 크면 넣지 않고 "캡처 없음"으로 보인다.
 3. 실패 원인(`failures`)과 수동 확인(`manual`) 카드에서는 펼쳐 보이고, 상세 근거(`tc-details`)의 Step 표에서는 접어 둔다. 확인이 필요한 칸을 먼저 보인다.
+   - 확인이 필요한 칸(일치가 아닌 칸)은 표 한 줄이 아니라 카드 한 장으로 보인다. 왼쪽에 "확인할 진짜 텍스트", 오른쪽에 화면 캡처를 둔다. 캡처를 누르면 크게 확대된다(2026-11-27).
+   - 기록에 선택 필드 `compare`(`{"expected": 진짜 텍스트, "read": 읽은 글자, "label": 설명}`)가 있으면 두 글자를 한 글자씩 맞대어 다른 글자를 강조한다. 없으면 기대 텍스트와 자동화 판독을 그대로 보인다.
+   - 일치한 칸은 "일치한 칸 N개" 접힌 표에 모은다.
 4. 결과 칸은 판정 코드가 이미 정한 결과를 옮겨 적는다. 표를 만들면서 판정을 다시 하거나 바꾸지 않는다. 판정 코드가 불일치로 단정하지 않은 칸을 "기대값과 다르게 읽음"으로 표시하지 않는다.
 5. JSON 결과에는 같은 기록을 Step의 `reading_evidence`로 남기고, 캡처는 파일 경로로 둔다.
 
@@ -227,6 +230,8 @@ GUI 검증 후보와 게시한 파일이 다른 경우 양쪽의 해시를 별�
 | 6 | 설치판 GUI 최종 검증(2.7): 공용 조작기, 제품별 GUI 실행 도구와 게이트 | Bellalun 완료, VXvue 진행 |
 | 6-보완 | 확인 목록 높이를 항목 수에 맞춤, 준비 점검 안내 줄을 표 위로 옮김, 확인 목록이 스크롤되는 화면에서도 조작기가 모든 항목을 누름(`core/frame_ui.ps1`, `core/frame_drive.py`, 2026-11-26) | 두 제품 반영(Bellalun은 2026-11-27 `frame/reading-evidence-20261127` 브랜치) |
 | 7 | OCR 판독 대조표(2.9). VXvue는 TC02 Scheduled·Database 목록과 영상 Overlay, TC07 Print Overlay, TC08 Import 결과 팝업, TC12 Queue, TC13 Reserved 목록에 적용했다. Bellalun은 XIPL_03 Overlay, WF_03 Image Overlay, WF_03·WF_08 Print Overlay, WF_15 선량 Overlay와 Preview·View 비교에 적용했다. | 두 제품의 저장된 판독 캡처에 적용 |
+| 7-보완 | 대조표 모양(2.9 3항): 확인할 칸은 "진짜 텍스트 \| 화면 캡처" 카드, 캡처 확대, `compare` 글자 차이 강조, 일치한 칸 접기. 공용 `core/report_layout.py`라 두 제품 레포트에 함께 적용된다. VXvue는 TC04 슬라이더·팔레트, TC12 Step Analysis, TC13 열 판독, 라이선스 Information 칸, 목록 판독 예외 경로까지 넓혔다(2026-11-27). | 공용 표시 두 제품 반영. Bellalun의 `compare` 기록 추가는 남은 일 |
+| 8 | 사람 확인 반영 레포트(VXvue REQ-REPORT-007): MANUAL·SKIP·FAIL·BLOCKED 항목마다 PASS/FAIL 선택과 메모, 브라우저 안에서 `_reviewed.html` 내려받기, FAIL·BLOCKED 사유 필수, 종합 판정·요약·결과표·상세를 사람 판정으로 바꿈, 원본 보존(2026-11-27). 제품 쪽 `core/manual_review.py`에 있어 공유 파일이 아니다 | VXvue 완료. Bellalun 대응은 남은 일 |
 
 알려진 차이(맞출지 정하지 않은 것):
 

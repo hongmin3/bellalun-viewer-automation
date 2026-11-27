@@ -54,6 +54,11 @@ input,select,button{font:inherit;border:1px solid #cdd8e3;border-radius:7px;padd
 .glossary{font-size:12px}.glossary dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px}.glossary dt{font-weight:700}.glossary dd{margin:0}
 .appendix{font-size:12px}.appendix[open]>summary{margin-bottom:18px}.appendix h2{font-size:16px}.artifacts{font-size:12px;margin-top:14px}.empty{text-align:center;padding:36px;color:var(--mut)}
 .reading{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}.reading h3{margin:0 0 4px;font-size:13px}.reading .reading-guide{font-size:12px;color:var(--mut);margin:0 0 8px}.reading table{min-width:620px}.reading td{vertical-align:middle}.reading tr.reading-attention{background:#fffaf0}.reading .reading-expected code{font-size:16px;font-weight:700;color:var(--fg)}.reading img{image-rendering:pixelated;border:1px solid #b9c6d3;background:#fff}.reading img.reading-cell{max-height:150px;max-width:460px}.reading figure{margin:0 0 10px}.reading figure img{max-width:100%;height:auto}.reading figcaption{font-size:11px;color:var(--mut)}.reading .reading-reads{margin:4px 0 0;padding-left:16px;font-size:11px;color:var(--mut)}
+.read-card{border:1px solid #e7d6ad;border-radius:10px;background:#fffdf7;padding:12px 14px;margin:10px 0}.read-card-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-weight:700;font-size:13px;margin-bottom:8px}.read-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.read-pair>div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;min-width:0}.read-pair h4{margin:0 0 6px;font-size:11px;color:var(--mut);font-weight:700}.read-truth{font:700 20px/1.5 Consolas,monospace;letter-spacing:1px;color:var(--fg);overflow-wrap:anywhere;white-space:pre-wrap}.read-shot img{max-width:100%;max-height:220px;cursor:zoom-in}.read-ocr{margin-top:8px;font-size:12px;color:var(--mut)}.read-ocr code{font-size:14px;color:var(--fg)}.read-ocr .read-truth{font-size:14px;letter-spacing:.5px}mark.diff{background:#ffd5d9;color:#8f1020;border-radius:2px;padding:0 1px}mark.diff.miss{background:#ffe9b8;color:#6b4800}.read-hint{margin-top:6px;font-size:12px;color:#7a5410}.read-done{margin-top:8px}.read-done summary{cursor:pointer;font-size:12px;color:var(--mut)}
+img.zoomed{position:fixed!important;inset:0;margin:auto;max-width:96vw!important;max-height:94vh!important;width:auto;height:auto;z-index:1000;background:#fff;box-shadow:0 0 0 100vmax rgba(15,23,42,.72);cursor:zoom-out;image-rendering:pixelated}
+.review-panel{background:#f2f7fd;border:1px solid #c8dcf2;border-radius:12px;padding:14px 18px;margin:0 0 16px;font-size:13px}.review-panel p{margin:0 0 10px}.rv-panel-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.rv-reviewer{display:flex;gap:8px;align-items:center;font-weight:700}.rv-reviewer input{width:200px;padding:7px 10px;border:1px solid #b9c6d3;border-radius:8px;font:13px 'Malgun Gothic',sans-serif}.rv-save{padding:8px 18px;border:0;border-radius:8px;background:#186b96;color:#fff;font:700 13px 'Malgun Gothic',sans-serif;cursor:pointer}.rv-save:hover{background:#12597e}.rv-count{font-size:12px;color:var(--mut)}.review-box{border:1px solid #c8dcf2;border-left:4px solid #8fb3d6;background:#f7fbff;border-radius:10px;padding:12px 14px;margin:14px 0;max-width:760px}.review-box.done{border-left-color:#186b96}.rv-head{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:13px;color:#1d4f7a}.rv-state{font-size:11px;font-weight:700;padding:2px 10px;border-radius:12px;background:#e3e9f0;color:#526174}.rv-state.PASS{background:#dff3ea;color:#16734a}.rv-state.FAIL{background:#fbe2e5;color:#a41926}.rv-choices{display:flex;gap:10px;margin-bottom:10px}.rv-choice{position:relative;cursor:pointer}.rv-choice input{position:absolute;opacity:0;width:1px;height:1px}.rv-choice span{display:inline-block;min-width:96px;text-align:center;padding:8px 16px;border:2px solid #c3cfdb;border-radius:8px;background:#fff;font-weight:700;font-size:14px;color:#526174}.rv-choice.pass span:hover{border-color:#1f8a5c;color:#1f8a5c}.rv-choice.fail span:hover{border-color:#b4232f;color:#b4232f}.rv-choice.pass input:checked+span{background:#1f8a5c;border-color:#1f8a5c;color:#fff}.rv-choice.fail input:checked+span{background:#b4232f;border-color:#b4232f;color:#fff}.rv-choice input:focus-visible+span{outline:2px solid #186b96;outline-offset:2px}.review-memo{display:block;width:100%;min-height:54px;padding:8px 10px;border:1px solid #c3cfdb;border-radius:8px;font:13px/1.5 'Malgun Gothic',sans-serif;resize:vertical;background:#fff}.review-memo:focus{outline:none;border-color:#186b96;box-shadow:0 0 0 3px rgba(24,107,150,.15)}tr.review-row td{background:#fbfdff;padding-top:0}@media print{.rv-save{display:none}.review-memo{min-height:0}}.review-result{margin:12px 0;padding:8px 12px;border-radius:8px;font-size:13px;background:#f3f6fa;border-left:4px solid #9aa9b8}.review-result.PASS{background:#eef8f3;border-left-color:#1f8a5c}.review-result.FAIL{background:#fdf0f2;border-left-color:#b4232f}.human-review{border:3px solid #186b96;background:#f5f9fd}.human-review h2{color:#12597e}.review-stamp ul{margin:4px 0 0;padding-left:18px}.review-stamp,.human-note{margin:6px 0 12px;padding:8px 12px;border-radius:8px;background:#eef8f3;border-left:4px solid #1f8a5c;font-size:13px}.rv-warn{margin-top:6px;color:#a41926;font-size:12px;font-weight:700}.review-box.need-reason{border-left-color:#b4232f}.review-box.need-reason .review-memo{border-color:#b4232f;box-shadow:0 0 0 3px rgba(180,35,47,.12)}.manual-overview{background:#fffaf0;border:1px solid #ecdcb8;border-radius:10px;padding:10px 16px;margin:12px 0}.manual-overview ul{margin:6px 0 0;padding-left:18px}.manual-overview li{margin:6px 0;font-size:13px}.manual-overview li b{color:#7a5410;margin-right:6px}.manual-summary{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}.manual-summary a{display:inline-flex;gap:6px;align-items:center;background:#fff;border:1px solid #e3cf9e;border-radius:18px;padding:5px 12px;font-size:12px;color:#5b3f0b}.manual-summary a b{color:#976a15}.manual-kinds{font-size:13px;margin:0 0 10px;color:#5b3f0b}.manual-step{border-top:1px dashed #ecdcb8;padding-top:12px;margin-top:12px}.manual-step:first-of-type{border:0;margin-top:0;padding-top:0}.manual-step h3{margin:0 0 6px;font-size:14px}.manual-ask{font-size:14px;background:#fff3d6;border-radius:8px;padding:8px 12px;margin:0 0 10px}.manual-ask b{margin-right:6px}.evidence-shots{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}.evidence-shots figure{margin:0;max-width:100%}.evidence-shots img{max-width:520px;max-height:260px;border:1px solid #b9c6d3;cursor:zoom-in;background:#fff}.evidence-shots figcaption{font-size:11px;color:var(--mut)}
+@media(max-width:760px){.read-pair{grid-template-columns:1fr}}
+@media print{img.zoomed{position:static!important;box-shadow:none}}
 @media(max-width:760px){.wrap{padding:18px 12px 40px}h1{font-size:23px}.hero{display:block}.hero-status{margin-top:12px;min-width:0}.metrics{grid-template-columns:repeat(3,1fr)}.metric{border:0;padding:8px}.metric .n{font-size:25px}section{padding:18px}.comparison,.spec{grid-template-columns:1fr}.tc-detail>summary{padding:14px 12px;flex-wrap:wrap}.tc-detail .detail-body{padding:0 12px 18px}input{max-width:100%;width:180px}}
 @media print{details::details-content{content-visibility:visible!important}details:not([open])>*:not(summary){display:block}#filter-empty{display:none!important}body{background:white;font-size:10pt}.wrap{max-width:none;padding:0}nav,.tools{display:none}.table-wrap{overflow:visible}.sum,table.steps{min-width:0;font-size:8pt}section,.tc-detail,.appendix{border-radius:0;margin-bottom:12px;box-shadow:none}.failure-card{break-inside:avoid}.tc-detail>summary{font-size:12pt}.comparison{grid-template-columns:1fr 1fr}a{color:inherit}.metrics{grid-template-columns:repeat(6,1fr)}th{print-color-adjust:exact}.failure-panel,.manual-panel{print-color-adjust:exact}.hero-status{print-color-adjust:exact}}
 
@@ -280,14 +285,76 @@ def _reading_text(value):
     return '<code>' + escape(text) + '</code>' if text.strip() else '<span class="k">(빈 판독)</span>'
 
 
+#: 캡처를 누르면 화면 가운데에 크게 보이고 다시 누르면 돌아온다(레포트 파일 하나로 동작).
+ZOOM_ATTR = ' onclick="this.classList.toggle(&#39;zoomed&#39;)" title="누르면 크게 보기"'
+
+
+def diff_marks(truth, read):
+    """두 글자열을 글자 단위로 맞춰 서로 다른 글자에 `<mark class="diff">`를 씌운 HTML 두 개를 돌려준다.
+
+    표시만 돕고 판정은 바꾸지 않는다. `truth`에만 있는 글자는 `miss`, 값이 다른 글자는 `diff`로 표시한다.
+    """
+    from difflib import SequenceMatcher
+    truth, read = str(truth or ''), str(read or '')
+    left, right = [], []
+    for op, a1, a2, b1, b2 in SequenceMatcher(None, truth, read, autojunk=False).get_opcodes():
+        a, b = escape(truth[a1:a2]), escape(read[b1:b2])
+        if op == 'equal':
+            left.append(a)
+            right.append(b)
+            continue
+        if a:
+            left.append('<mark class="diff%s">%s</mark>' % (' miss' if op == 'delete' else '', a))
+        if b:
+            right.append('<mark class="diff">%s</mark>' % b)
+    return ''.join(left), ''.join(right)
+
+
+def _zoom_img(uri, alt, css=''):
+    return ('<img' + (' class="' + css + '"' if css else '') + ' src="' + escape(uri, quote=True) + '" alt="'
+            + alt + '"' + ZOOM_ATTR + '>')
+
+
+def _reading_card(row, contexts):
+    """확인이 필요한 칸 하나: 확인할 진짜 텍스트와 화면 캡처를 크게 나란히 보인다."""
+    outcome = str(row.get('outcome') or '')
+    label, status = READING_OUTCOMES.get(outcome, ('기록 없음', 'MANUAL'))
+    field = escape(str(row.get('field') or ''))
+    uri = image_data_uri(row.get('image'))
+    shot = (_zoom_img(uri, field + ' 화면 캡처', 'reading-cell') if uri else
+            '<span class="k">칸 캡처 없음' + (' · 아래 넓은 캡처 참조' if contexts else '') + '</span>')
+    compare = row.get('compare') if isinstance(row.get('compare'), Mapping) else None
+    truth_text = str((compare or {}).get('expected') or row.get('expected') or '')
+    read_text = str((compare or {}).get('read') or '')
+    if read_text and truth_text:
+        truth_html, read_html = diff_marks(truth_text, read_text)
+        read_line = ('<div class="read-ocr">자동화가 읽은 글자 (다른 글자 강조): <span class="read-truth">'
+                     + read_html + '</span></div>')
+    else:
+        truth_html = escape(truth_text) if truth_text.strip() else '<span class="k">(기대 텍스트 없음)</span>'
+        read_line = ''
+    reads = [pair for pair in (row.get('reads') or []) if isinstance(pair, (list, tuple)) and len(pair) == 2]
+    detail = ('<ul class="reading-reads">' + ''.join('<li>' + escape(str(name)) + ': ' + _reading_text(value) + '</li>'
+                                                     for name, value in reads) + '</ul>') if reads else ''
+    caption = ('<div class="k">' + escape(str(compare.get('label'))) + '</div>') if compare and compare.get('label') else ''
+    note = ('<div class="read-hint">' + escape(str(row.get('note'))) + '</div>') if row.get('note') else ''
+    return ('<div class="read-card"><div class="read-card-head">' + field + ' ' + render_badge(status) + ' '
+            + escape(label) + '</div><div class="read-pair"><div><h4>확인할 진짜 텍스트</h4>' + caption
+            + '<div class="read-truth">' + truth_html + '</div></div><div class="read-shot"><h4>화면 캡처 '
+            '(누르면 확대)</h4>' + shot + '</div></div>' + read_line + '<div class="read-ocr">자동화 판독 기록: '
+            + _reading_text(row.get('read')) + detail + '</div>' + note + '</div>')
+
+
 def render_reading_evidence(evidence, title='판독 대조표 · 기대 텍스트와 화면 캡처'):
-    """OCR로 읽은 칸마다 기대 텍스트, 화면 캡처, 자동화 판독, 결과를 한 줄로 보인다(FRAME.md 2.9).
+    """OCR로 읽은 칸마다 기대 텍스트, 화면 캡처, 자동화 판독, 결과를 보인다(FRAME.md 2.9).
 
     `evidence`는 `{"rows": [...], "context": [...]}`이다.
     - row: `field`(칸 이름), `expected`(기대 텍스트), `read`(자동화가 쓴 값), `reads`(`[라벨, 값]` 목록),
-      `image`(칸 캡처 경로 또는 data 주소), `outcome`(`READING_OUTCOMES`의 키), `note`(선택)
+      `image`(칸 캡처 경로 또는 data 주소), `outcome`(`READING_OUTCOMES`의 키), `note`(선택),
+      `compare`(선택: `{"expected": 진짜 텍스트, "read": 읽은 글자, "label": 설명}` — 글자 단위 차이를 강조한다)
     - context: `label`, `image` — 칸이 어느 행·화면에서 나왔는지 보이는 넓은 캡처
-    확인이 필요한 칸(일치가 아닌 칸)을 먼저 보인다. 판정은 바꾸지 않고 기록된 값만 보인다.
+    확인이 필요한 칸(일치가 아닌 칸)은 "확인할 진짜 텍스트 | 화면 캡처" 카드로 먼저 크게 보이고,
+    일치한 칸은 접은 표로 둔다. 캡처는 누르면 확대된다. 판정은 바꾸지 않고 기록된 값만 보인다.
     """
     if not isinstance(evidence, Mapping):
         return ''
@@ -295,35 +362,34 @@ def render_reading_evidence(evidence, title='판독 대조표 · 기대 텍스�
     contexts = [item for item in (evidence.get('context') or []) if isinstance(item, Mapping)]
     if not rows and not contexts:
         return ''
-    rows = sorted(rows, key=lambda row: row.get('outcome') == 'match')
-    attention = sum(1 for row in rows if row.get('outcome') != 'match')
+    attention = [row for row in rows if row.get('outcome') != 'match']
+    matched = [row for row in rows if row.get('outcome') == 'match']
     parts = ['<div class="reading"><h3>' + escape(str(title)) + '</h3><p class="reading-guide">'
-             + ('확인할 칸 %d개가 위에 있습니다. ' % attention if attention else '')
-             + '캡처 속 글자가 기대 텍스트와 같은지 눈으로 확인하세요. 자동 판정은 바뀌지 않습니다.</p>']
+             + ('확인할 칸 %d개가 위에 있습니다. 왼쪽 글자와 오른쪽 캡처가 같은지 눈으로 비교하세요. '
+                % len(attention) if attention else '')
+             + '자동 판정은 바뀌지 않습니다.</p>']
+    parts.extend(_reading_card(row, contexts) for row in attention)
+    if matched:
+        label, status = READING_OUTCOMES['match']
+        table = ['<div class="table-wrap"><table><thead><tr><th>칸</th><th>기대 텍스트</th><th>화면 캡처</th>'
+                 '<th>자동화 판독</th><th>결과</th></tr></thead><tbody>']
+        for row in matched:
+            field = escape(str(row.get('field') or ''))
+            uri = image_data_uri(row.get('image'))
+            image = _zoom_img(uri, field + ' 화면 캡처', 'reading-cell') if uri else '<span class="k">칸 캡처 없음</span>'
+            note = ('<div class="k">' + escape(str(row.get('note'))) + '</div>') if row.get('note') else ''
+            table.append('<tr><td>' + field + '</td><td class="reading-expected">' + _reading_text(row.get('expected'))
+                         + '</td><td>' + image + '</td><td>' + _reading_text(row.get('read')) + '</td><td>'
+                         + render_badge(status) + ' ' + escape(label) + note + '</td></tr>')
+        table.append('</tbody></table></div>')
+        body = ''.join(table)
+        parts.append(('<details class="read-done"><summary>일치한 칸 %d개 보기</summary>%s</details>'
+                      % (len(matched), body)) if attention else body)
     for item in contexts:
         uri = image_data_uri(item.get('image'))
         label = escape(str(item.get('label') or '화면 캡처'))
-        parts.append('<figure>' + ('<img src="' + escape(uri, quote=True) + '" alt="' + label + '">' if uri else
-                                   '<span class="k">캡처 없음</span>') + '<figcaption>' + label + '</figcaption></figure>')
-    if rows:
-        parts.append('<div class="table-wrap"><table><thead><tr><th>칸</th><th>기대 텍스트</th><th>화면 캡처</th>'
-                     '<th>자동화 판독</th><th>결과</th></tr></thead><tbody>')
-        for row in rows:
-            outcome = str(row.get('outcome') or '')
-            label, status = READING_OUTCOMES.get(outcome, ('기록 없음', 'MANUAL'))
-            field = escape(str(row.get('field') or ''))
-            uri = image_data_uri(row.get('image'))
-            image = ('<img class="reading-cell" src="' + escape(uri, quote=True) + '" alt="' + field + ' 화면 캡처">'
-                     if uri else '<span class="k">칸 캡처 없음' + (' · 위 넓은 캡처 참조' if contexts else '') + '</span>')
-            reads = [pair for pair in (row.get('reads') or []) if isinstance(pair, (list, tuple)) and len(pair) == 2]
-            detail = ('<ul class="reading-reads">' + ''.join('<li>' + escape(str(name)) + ': ' + _reading_text(value) + '</li>'
-                                                             for name, value in reads) + '</ul>') if reads else ''
-            note = ('<div class="k">' + escape(str(row.get('note'))) + '</div>') if row.get('note') else ''
-            parts.append('<tr class="' + ('' if outcome == 'match' else 'reading-attention') + '"><td>' + field
-                         + '</td><td class="reading-expected">' + _reading_text(row.get('expected')) + '</td><td>' + image
-                         + '</td><td>' + _reading_text(row.get('read')) + detail + '</td><td>' + render_badge(status)
-                         + ' ' + escape(label) + note + '</td></tr>')
-        parts.append('</tbody></table></div>')
+        parts.append('<figure>' + (_zoom_img(uri, label) if uri else '<span class="k">캡처 없음</span>')
+                     + '<figcaption>' + label + ' (누르면 확대)</figcaption></figure>')
     parts.append('</div>')
     return ''.join(parts)
 
