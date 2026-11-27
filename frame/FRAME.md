@@ -226,7 +226,7 @@ GUI 검증 후보와 게시한 파일이 다른 경우 양쪽의 해시를 별�
 | 5 | 체크리스트 TC 대응과 결과 xlsx "결과 요약" 시트, 판정 뜻 공통 문장(2.6) | 완료 |
 | 6 | 설치판 GUI 최종 검증(2.7): 공용 조작기, 제품별 GUI 실행 도구와 게이트 | Bellalun 완료, VXvue 진행 |
 | 6-보완 | 확인 목록 높이를 항목 수에 맞춤, 준비 점검 안내 줄을 표 위로 옮김, 확인 목록이 스크롤되는 화면에서도 조작기가 모든 항목을 누름(`core/frame_ui.ps1`, `core/frame_drive.py`, 2026-11-26) | 두 제품 반영(Bellalun은 2026-11-27 `frame/reading-evidence-20261127` 브랜치) |
-| 7 | OCR 판독 대조표(2.9): 공용 표(`render_reading_evidence`)와 칸 캡처 내장. VXvue는 TC02 Scheduled·Database 목록 칸, Bellalun은 XIPL_03 Overlay·WF_03 Image Overlay·WF_03/WF_08 Print Overlay에 붙였다. 다음은 VXvue 영상 위 환자 정보(Overlay)·다른 TC, Bellalun WF_15 선량 Overlay | 두 제품 첫 범위 반영, 나머지 OCR 자리 예정 |
+| 7 | OCR 판독 대조표(2.9). VXvue는 TC02 Scheduled·Database 목록과 영상 Overlay, TC07 Print Overlay, TC08 Import 결과 팝업, TC12 Queue, TC13 Reserved 목록에 적용했다. Bellalun은 XIPL_03 Overlay, WF_03 Image Overlay, WF_03·WF_08 Print Overlay, WF_15 선량 Overlay와 Preview·View 비교에 적용했다. | 두 제품의 저장된 판독 캡처에 적용 |
 
 알려진 차이(맞출지 정하지 않은 것):
 
