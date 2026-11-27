@@ -16,7 +16,7 @@
 - 남은 일:
   - `frame/FRAME.md` 4절 3-후속·7-보완·8을 Bellalun 반영 상태로 고쳤다(추천안 승인). VXvue 공유 checkout은 다른 세션의 미커밋 변경이 있어 건드리지 않고, VXvue 전용 worktree(`origin/main` 기준)에서 같은 사본을 커밋·push했다.
   - 설치판 수용: 이 변경을 담은 새 검증판을 빌드·설치한 뒤 REQ-DIST-009로 기본/WU를 따로 실행한다(사용자 승인 필요). Windows 11 Pro와 Windows 11 IoT Enterprise LTSC 24H2 실측은 환경별로 남긴다. 이 PC(Windows 11 Enterprise 26200)는 두 대상 OS가 아니다.
-  - 설치판 수용은 사용자가 승인했다(2026-11-27). 이 배경 실행은 화면을 쓸 수 없어 빌드까지만 하고, 설치·GUI 실행은 화면 사용(EXECUTION: desktop) 실행에서 한다. 공유 ZIP 저장 위치는 사용자 확인으로 그대로 둔다.
+  - 설치판 수용은 사용자가 승인했다(2026-11-27). 1.0.0.015 검증판(`dcf88db`)을 빌드했다([설치판 인수표](docs/installation-acceptance.md#100015-검증판-2026-11-27), 다른 OS 영향 검토 포함). 이 배경 실행은 화면을 쓸 수 없어 설치·GUI 실행은 화면 사용(EXECUTION: desktop) 실행에서 한다. 이전 파이프라인 형식은 `work/job270/pipeline-012.py`(설치 → `tools/run_installed_gui.py` → `tools/release_gate.py`). 공유 ZIP 저장 위치는 사용자 확인으로 그대로 둔다.
 
 ## Windows 검증 범위와 보고서 하네스 (2026-11-27)
 
