@@ -5,6 +5,8 @@
 요약은 "TC를 시작하기 전에 멈췄을 수 있다"였고 `stop_requested`는 false였다.
 """
 import json
+import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +14,8 @@ import pytest
 import run
 from bellalunauto import app
 from bellalunauto.runs import RunRecord
-from core.result import FAIL, PASS, TCResult
+from core import wu_chain
+from core.result import BLOCKED, FAIL, PASS, TCResult
 
 
 class _Child:
@@ -108,3 +111,74 @@ def test_guarded_supervisor_passes_stop_request_to_final_record(tmp_path, monkey
     assert app.run_guarded(SimpleNamespace(workspace=tmp_path), ['run-winupdate'], stop) == 130
     data = json.loads(record.path.read_text(encoding='utf-8'))
     assert data['status'] == 'stopped' and data['stop_requested'] is True
+
+
+def test_stage_monitor_sees_stop_request_before_any_limit():
+    """2026-11-27 사용자 결정: 진행 중인 TC를 끝까지 기다리지 않는다."""
+    monitor = wu_chain.StageMonitor('S', 3600, clock=lambda: 0.0, responding=lambda pid: True,
+                                    pid_getter=lambda: 1, stop_requested=lambda: True)
+    monitor._started = 0.0
+    kind, reason = monitor.check_once()
+    assert kind == 'user_stop' and '안전 중단' in reason
+
+
+def test_stage_monitor_default_reads_stop_file(tmp_path, monkeypatch):
+    stop = tmp_path / 'stop.json'
+    monkeypatch.setenv('BELLALUN_STOP_FILE', str(stop))
+    monitor = wu_chain.StageMonitor('S', 3600, clock=lambda: 0.0, responding=lambda pid: True,
+                                    pid_getter=lambda: 1)
+    monitor._started = 0.0
+    assert monitor.check_once() is None
+    stop.write_text('stop', encoding='utf-8')
+    assert monitor.check_once()[0] == 'user_stop'
+
+
+def _real_monitor(*args, **kwargs):
+    return wu_chain.StageMonitor(*args, responding=lambda pid: True, pid_getter=lambda: None,
+                                 poll=0.01, **kwargs)
+
+
+def _guarded(fn, ctx, tc_id, title):
+    return run.guarded(fn, ctx, tc_id, title)
+
+
+def test_running_tc_is_cut_quickly_without_failure_evidence(tmp_path, monkeypatch):
+    stop = tmp_path / 'stop.json'
+    monkeypatch.setenv('BELLALUN_STOP_FILE', str(stop))
+    killed, evidence = threading.Event(), []
+
+    def stage(ctx):
+        stop.write_text('stop', encoding='utf-8')     # 이 TC가 도는 중에 중단 버튼을 눌렀다.
+        if not killed.wait(5):                       # UI 대기는 Viewer가 끝나면 예외로 빠져나온다.
+            return []
+        raise RuntimeError('Viewer 종료됨')
+
+    started = time.monotonic()
+    produced, trip = wu_chain.run_stage(
+        stage, SimpleNamespace(cfg={}), 'TC_Basic_WorkFlow_04', '2D Send', guarded=_guarded,
+        timeout=3600, monitor_factory=_real_monitor, kill=killed.set, interrupt=lambda: None,
+        before_kill=lambda m: evidence.append(m.kind))
+    assert time.monotonic() - started < 3
+    assert trip['kind'] == 'user_stop' and evidence == []
+    assert [r.verdict for r in produced] == [BLOCKED]
+    assert '사용자 안전 중단' in produced[0].checks[0].title
+
+
+def test_tc_ignoring_viewer_exit_is_interrupted_after_short_grace(tmp_path, monkeypatch):
+    stop = tmp_path / 'stop.json'
+    monkeypatch.setenv('BELLALUN_STOP_FILE', str(stop))
+
+    def stuck(ctx):
+        stop.write_text('stop', encoding='utf-8')
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:           # Viewer가 없어도 빠져나오지 않는 코드
+            time.sleep(0.01)
+        return []
+
+    started = time.monotonic()
+    produced, trip = wu_chain.run_stage(
+        stuck, SimpleNamespace(cfg={}), 'TC_Basic_WorkFlow_04', '2D Send', guarded=_guarded,
+        timeout=3600, monitor_factory=_real_monitor, kill=lambda: None, user_grace=0.2)
+    assert time.monotonic() - started < 3             # 주 스레드 중단 신호로 바로 빠져나왔다.
+    assert trip['kind'] == 'user_stop'
+    assert [r.verdict for r in produced] == [BLOCKED]

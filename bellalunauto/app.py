@@ -410,10 +410,11 @@ def wait_worker_ready(path, parent, timeout=15):
         time.sleep(.05)
 
 
-#: 안전 중단(REQ-QA-002): 중단 요청 뒤 작업 프로세스가 진행 중인 TC를 마치고 리포트·원상복원을
-#: 끝낼 때까지 기다리는 상한(초). 가장 긴 단계 상한(60분)과 정지 유예, 복원 시간을 더했다.
+#: 안전 중단(REQ-QA-002): 중단 요청 뒤 작업 프로세스가 진행 중인 TC를 끊고(단계 감시자가 5초 안에
+#: 보고 Viewer를 끝낸다) 리포트·원상복원을 마칠 때까지 기다리는 안전망 상한(초). 진행 중인 TC를
+#: 끝까지 기다리지 않으므로(2026-11-27 사용자 요청) 리포트와 원상복원 시간만 둔다.
 #: 넘으면 예전처럼 작업 프로세스를 강제로 끝낸다(이때 복원은 다음 실행 전 명시적 복구로 남는다).
-STOP_GRACE_SECONDS = 90 * 60
+STOP_GRACE_SECONDS = 15 * 60
 #: 사용자 안전 중단으로 끝난 실행의 종료 코드(실행 기록 상태 `stopped`).
 USER_STOP_EXIT = 130
 
@@ -423,13 +424,14 @@ def wait_worker(child, stop_file=None, *, grace=STOP_GRACE_SECONDS, poll=.5,
     """작업 프로세스가 끝나기를 기다린다. 반환 `(종료 코드, 중단)`.
 
     중단은 None(요청 없음), `'graceful'`(요청 뒤 작업 프로세스가 스스로 마무리), `'forced'`(유예 초과)다.
-    중단 요청을 보면 바로 끝내지 않는다. 작업 프로세스가 TC 사이에서 멈추고 리포트·복원을 마칠 시간을 준다.
+    중단 요청을 보면 프로세스를 바로 끝내지 않는다. 작업 프로세스가 진행 중인 TC를 끊고
+    리포트·복원을 마칠 시간을 준다.
     """
     stop_seen = None
     while child.poll() is None:
         if stop_seen is None and stop_file and Path(stop_file).exists():
             stop_seen = clock()
-            print('[안전 중단] 중단 요청을 받았습니다. 진행 중인 TC를 마치고 리포트·원상복원을 한 뒤 멈춥니다.')
+            print('[안전 중단] 중단 요청을 받았습니다. 진행 중인 TC를 바로 멈추고 리포트·원상복원을 한 뒤 끝냅니다.')
         if stop_seen is not None and clock() - stop_seen >= grace:
             return None, 'forced'
         sleep(poll)

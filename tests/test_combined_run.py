@@ -6,6 +6,8 @@ Validates: REQ-SPEEDUP-001
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -121,6 +123,21 @@ class _QuietMonitor:
         pass
 
 
+def _user_stop_monitor(target):
+    """`target` 단계에서만 감시자가 안전 중단 요청을 본 것처럼 끊는다(다른 단계는 조용하다)."""
+    class _Monitor(_QuietMonitor):
+        def __init__(self, stage_id, timeout, on_trip=None, **_k):
+            super().__init__()
+            self.stage_id, self.on_trip = stage_id, on_trip
+
+        def start(self):
+            if self.stage_id == target:
+                self.kind, self.reason = "user_stop", "사용자가 안전 중단을 요청했다(단계 시작 뒤 0.0분)."
+                threading.Thread(target=self.on_trip, args=(self,), daemon=True).start()
+            return self
+    return _Monitor
+
+
 def _passing(tc_id):
     def fn(ctx):
         r = TCResult(tc_id, tc_id)
@@ -137,11 +154,12 @@ class CombinedChainTests(unittest.TestCase):
                                        os.path.abspath(__file__))),
                                    evidence_root=os.path.join(self.tmp.name, "Evidence"))
         self.calls, self.wu, self.basic = [], [], []
+        self.killed = threading.Event()
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_combined(self, stop_after=None):
+    def run_combined(self, stop_after=None, monitor=_QuietMonitor, stage_hook=None):
         ids = ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup",
                "AUTOMATION_SCREEN_CONTRACT", "TC_Basic_WorkFlow_01"]
 
@@ -152,6 +170,8 @@ class CombinedChainTests(unittest.TestCase):
                     # 이 TC가 도는 동안 화면의 안전 중단 버튼이 중지 파일을 남긴다.
                     with open(os.environ["BELLALUN_STOP_FILE"], "w", encoding="utf-8") as stop:
                         stop.write("stop")
+                if stage_hook:
+                    stage_hook(tc_id)
                 return _passing(tc_id)(ctx)
             return fn
 
@@ -179,7 +199,8 @@ class CombinedChainTests(unittest.TestCase):
                 patch.object(winupdate, "run_usb_export_import", side_effect=usb), \
                 patch.object(winupdate, "run_setting_display", side_effect=wu10), \
                 patch.object(wu_chain, "keep_awake", side_effect=lambda: _null()), \
-                patch.object(wu_chain, "StageMonitor", _QuietMonitor), \
+                patch.object(wu_chain, "StageMonitor", monitor), \
+                patch.object(wu_chain, "_kill_product", side_effect=lambda: self.killed.set()), \
                 patch("core.env_preflight.summary_for_report", return_value={}):
             return run._run_winupdate_chain(self.ctx, with_basic=True)
 
@@ -203,8 +224,38 @@ class CombinedChainTests(unittest.TestCase):
         self.assertIn("결합", kwargs["source_note"])
         self.assertEqual(kwargs["extra_meta"]["run_scope"], "combined")
 
-    def test_user_stop_finishes_current_tc_then_reports_without_unrun_rows(self):
-        """REQ-QA-002 안전 중단: 진행 중 TC는 끝내고 다음 TC부터 실행하지 않는다(#246 WU r2)."""
+    def test_user_stop_interrupts_running_tc_and_reports_it_blocked(self):
+        """REQ-QA-002 안전 중단(2026-11-27): 진행 중 TC를 끝까지 기다리지 않고 바로 끊는다."""
+        stop = os.path.join(self.tmp.name, "stop.json")
+
+        def hook(tc_id):
+            if tc_id == "DICOM_Server_Setup":
+                # 실제 UI 대기처럼 Viewer가 끝날 때까지 기다리다 예외로 빠져나온다.
+                self.assertTrue(self.killed.wait(5))
+                raise RuntimeError("Viewer가 종료됨")
+
+        started = time.monotonic()
+        with patch.dict(os.environ, {"BELLALUN_STOP_FILE": stop}):
+            code = self.run_combined(monitor=_user_stop_monitor("DICOM_Server_Setup"), stage_hook=hook)
+        self.assertEqual(code, run.USER_STOP_EXIT)
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertEqual(self.calls, ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"])
+        self.assertEqual(self.ctx.user_stop["interrupted_tc"], "DICOM_Server_Setup")
+        self.assertEqual(self.ctx.user_stop["completed_stages"], 1)
+        rows, _scope = self.basic[-1]
+        stopped = [r for r in rows if r.tc_id == "DICOM_Server_Setup"]
+        self.assertEqual([r.verdict for r in stopped], ["BLOCKED"])
+        self.assertIn("사용자 안전 중단", stopped[0].checks[0].title)
+        self.assertNotIn("TC_Basic_WorkFlow_01", [r.tc_id for r in rows])
+        self.assertFalse(self.wu[-1][1]["chain_completed"])
+        # 저장점에 도중에 멈춘 단계를 완료로 남기지 않아 `--resume`이 그 단계부터 다시 한다.
+        with open(wu_chain.checkpoint_path(self.tmp.name), encoding="utf-8") as saved:
+            stages = json.load(saved)["payload"]["stages"]
+        self.assertIn("AUTOMATION_ENVIRONMENT_RESET", stages)
+        self.assertNotIn("DICOM_Server_Setup", stages)
+
+    def test_user_stop_between_tcs_reports_without_unrun_rows(self):
+        """REQ-QA-002 안전 중단: 감시자가 보기 전에 TC가 끝났으면 다음 TC부터 실행하지 않는다(#246 WU r2)."""
         stop = os.path.join(self.tmp.name, "stop.json")
         with patch.dict(os.environ, {"BELLALUN_STOP_FILE": stop}):
             self.assertEqual(self.run_combined(stop_after="DICOM_Server_Setup"), run.USER_STOP_EXIT)

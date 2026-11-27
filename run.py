@@ -107,26 +107,37 @@ def _bind_checkpoint_source(ctx, checkpoint, resume):
 USER_STOP_EXIT = 130
 
 
-def _user_stop_requested(ctx, stage_id, index, total):
-    """화면의 안전 중단 요청을 TC 사이에서 확인한다(REQ-QA-002).
+def _user_stop_requested(ctx, stage_id, index, total, interrupted=False):
+    """화면의 안전 중단 요청을 확인한다(REQ-QA-002).
 
     감독 프로세스가 넘긴 중지 파일(`BELLALUN_STOP_FILE`)이 있으면 다음 TC를 시작하지 않는다.
+    진행 중인 TC는 단계 감시자(`wu_chain.run_stage`)가 몇 초 안에 끊는다. 그때는
+    `interrupted=True`로 불러 도중에 멈춘 TC를 남긴다(2026-11-27: 끝날 때까지 기다리지 않는다).
     멈춘 위치를 `ctx.user_stop`에 남기고 실행을 미완료로 표시한다. 리포트와 선택한 원상복원은
     평소 마무리 경로가 그대로 한다.
     """
-    path = os.environ.get('BELLALUN_STOP_FILE')
-    if not path or not os.path.exists(path):
+    from core.wu_chain import user_stop_requested
+    if not interrupted and not user_stop_requested():
         return False
     ctx.user_stop = {'before_tc': stage_id, 'index': index, 'total': total,
                      'completed_stages': index - 1,
+                     **({'interrupted_tc': stage_id} if interrupted else {}),
                      'requested_seen': datetime.now().astimezone().isoformat(timespec='seconds')}
     ctx.execution_incomplete = True
     print()
     print('!' * 74)
-    print(f'  사용자 안전 중단 — {stage_id}({index}/{total})부터 실행하지 않고 멈춥니다.')
+    if interrupted:
+        print(f'  사용자 안전 중단 — 진행 중이던 {stage_id}({index}/{total})를 멈췄습니다(BLOCKED로 기록).')
+    else:
+        print(f'  사용자 안전 중단 — {stage_id}({index}/{total})부터 실행하지 않고 멈춥니다.')
     print('  지금까지의 결과로 리포트를 만들고, 선택한 원상복원을 진행합니다.')
     print('!' * 74)
     return True
+
+
+def _user_stop_trip(trip):
+    """단계 감시자가 사용자 안전 중단으로 단계를 끊었는가."""
+    return bool(trip) and trip.get("kind") == "user_stop"
 
 
 def user_stop_wu_rows(wu_results, live_extra=None):
@@ -1477,6 +1488,11 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                 tc_started = time.time()
                 produced, trip = wu_chain.run_stage(fn, ctx, stage_id, title, guarded=guarded,
                                                    before_kill=_wu_trip_evidence(ctx, stage_id))
+                if _user_stop_trip(trip):
+                    # 저장점에 완료로 남기지 않는다. `--resume`이 이 단계부터 다시 실행한다.
+                    results.extend(produced)
+                    _user_stop_requested(ctx, stage_id, stage_index, len(stage_ids), interrupted=True)
+                    break
                 if trip:
                     trips[stage_id] = trip
                     if stage_id not in WU_PRECONDITIONS:
@@ -1565,6 +1581,11 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
             _produced, trip = wu_chain.run_stage(_usb_stage, ctx, "WU09_USB",
                                                  "USB Export/Import", guarded=guarded,
                                                  before_kill=_wu_trip_evidence(ctx, "WU09_USB"))
+            if _user_stop_trip(trip):
+                _user_stop_requested(ctx, "WU09_USB", len(stages) + 1, len(stage_ids), interrupted=True)
+                return finish_user_stop({"usb": {"drive": (holder["usb"] or {}).get("drive"),
+                                                 "blocked": trip["reason"], "kind": trip["kind"]},
+                                         "wu10": None})
             if trip:
                 trips["WU09_USB"] = trip
                 holder["usb"] = {"drive": (holder["usb"] or {}).get("drive"),
@@ -1592,6 +1613,10 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                 _wu10_stage, ctx, "TC_WindowsUpdate_10",
                 winupdate.WU_TITLES["TC_WindowsUpdate_10"], guarded=guarded,
                 before_kill=_wu_trip_evidence(ctx, "TC_WindowsUpdate_10"))
+            if _user_stop_trip(trip):
+                _user_stop_requested(ctx, "TC_WindowsUpdate_10", len(stages) + 2, len(stage_ids),
+                                     interrupted=True)
+                return finish_user_stop({"usb": usb_outcome, "wu10": produced[0] if produced else None})
             if trip:
                 trips["TC_WindowsUpdate_10"] = trip
             wu10_result = produced[0] if produced else None
@@ -2405,6 +2430,10 @@ def _dispatch(ctx, args):
             produced, trip = wu_chain.run_stage(fn, ctx, tc_id, title, guarded=guarded,
                                                 before_kill=_wu_trip_evidence(ctx, tc_id))
             results.extend(produced)
+            if _user_stop_trip(trip):
+                # 진행 중인 TC는 BLOCKED(사용자 안전 중단)로 남기고 바로 리포트·원상복원으로 간다.
+                _user_stop_requested(ctx, tc_id, index, total_tc, interrupted=True)
+                break
             if trip:
                 trips = getattr(ctx, 'stage_trips', None) or {}
                 trips[tc_id] = trip

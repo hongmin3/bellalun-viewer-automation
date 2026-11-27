@@ -51,6 +51,11 @@ HANG_SECONDS = 120
 POLL_SECONDS = 5
 #: Viewer를 끝낸 뒤 단계 코드가 스스로 예외로 빠져나오기를 기다리는 시간.
 KILL_GRACE_SECONDS = 90
+#: 사용자 안전 중단(REQ-QA-002)에서 Viewer를 끝낸 뒤 단계 코드를 기다리는 시간. 사람이 누른 중단은
+#: 바로 반영돼야 하므로 상한 초과보다 짧게 둔다. 넘으면 주 스레드에 중단 신호를 보낸다.
+USER_STOP_GRACE_SECONDS = 10
+#: 감독 프로세스가 작업 프로세스에 넘기는 안전 중단 요청 파일 경로(환경 변수 이름).
+STOP_FILE_ENV = "BELLALUN_STOP_FILE"
 
 #: 한 단계가 만드는 TC 결과. 상한을 넘으면 이 ID마다 BLOCKED 결과를 만든다.
 STAGE_OUTPUTS = {
@@ -230,16 +235,22 @@ def _kill_product():
 # ---------------------------------------------------------------------
 # 단계 감시
 # ---------------------------------------------------------------------
+def user_stop_requested():
+    """화면의 안전 중단 요청 파일(`BELLALUN_STOP_FILE`)이 생겼는지 본다(REQ-QA-002)."""
+    path = os.environ.get(STOP_FILE_ENV)
+    return bool(path) and os.path.exists(path)
+
+
 class StageTimeout(Exception):
     """감시자가 단계를 끊었음을 단계 코드 안으로 알리는 신호."""
 
 
 class StageMonitor:
-    """한 단계를 감시하는 스레드. 상한 초과나 계속된 응답 없음이면 `on_trip`을 부른다."""
+    """한 단계를 감시하는 스레드. 상한 초과, 계속된 응답 없음, 사용자 안전 중단이면 `on_trip`을 부른다."""
 
     def __init__(self, stage_id, timeout, *, clock=time.monotonic, responding=None,
                  pid_getter=None, hang_seconds=HANG_SECONDS, poll=POLL_SECONDS,
-                 on_trip=None, sleep=None):
+                 on_trip=None, sleep=None, stop_requested=None):
         self.stage_id = stage_id
         self.timeout = timeout
         self.clock = clock
@@ -248,6 +259,7 @@ class StageMonitor:
         self.hang_seconds = hang_seconds
         self.poll = poll
         self.on_trip = on_trip
+        self.stop_requested = stop_requested or user_stop_requested
         self.reason = None
         self.kind = None
         self._stop = threading.Event()
@@ -260,6 +272,13 @@ class StageMonitor:
         """한 번 검사한다. 끊어야 하면 (kind, reason)을 돌려준다."""
         now = self.clock()
         elapsed = now - self._started
+        try:
+            stop = self.stop_requested()
+        except Exception:                                 # noqa: BLE001
+            stop = False
+        if stop:
+            # 사람이 누른 중단은 진행 중인 TC를 끝까지 기다리지 않는다(2026-11-27 사용자 요청).
+            return "user_stop", (f"사용자가 안전 중단을 요청했다(단계 시작 뒤 {elapsed / 60:.1f}분).")
         if elapsed >= self.timeout:
             return "timeout", (f"단계 시간 상한 {self.timeout / 60:.0f}분을 넘었다"
                                f"(경과 {elapsed / 60:.1f}분).")
@@ -307,6 +326,8 @@ def blocked_results(stage_id, title, kind, reason):
     """상한을 넘은 단계의 TC마다 BLOCKED 결과를 만든다."""
     from core.result import TCResult
     outputs = STAGE_OUTPUTS.get(stage_id) or [(stage_id, title)]
+    if kind == "user_stop":
+        return [_user_stop_result(tc_id, tc_title, stage_id, reason) for tc_id, tc_title in outputs]
     label = "단계 시간 상한 초과" if kind == "timeout" else "Viewer 응답 없음"
     produced = []
     for tc_id, tc_title in outputs:
@@ -322,8 +343,23 @@ def blocked_results(stage_id, title, kind, reason):
     return produced
 
 
+def _user_stop_result(tc_id, tc_title, stage_id, reason):
+    """안전 중단으로 도중에 멈춘 TC의 결과. 제품 판정이 아니라 미완료임을 남긴다."""
+    from core.result import TCResult
+    r = TCResult(tc_id, tc_title)
+    r.blocked(
+        0, f"{stage_id} 사용자 안전 중단",
+        f"{reason} Viewer·XIPL Studio를 끝내고 이 TC를 실행 도중 멈췄다. 이 TC의 판정 근거는 "
+        "끝까지 모으지 못했다.\n해제 조건: 다시 실행한다(WU 체인은 `run-winupdate --resume`으로 "
+        "이 단계부터).\n이 실행으로 말할 수 없는 것: 이 TC의 제품 동작.",
+        expected="TC를 끝까지 실행한다",
+        actual={"kind": "user_stop", "reason": reason})
+    return r
+
+
 def run_stage(fn, ctx, stage_id, title, *, guarded, timeout=None, monitor_factory=None,
-              kill=None, interrupt=None, grace=KILL_GRACE_SECONDS, before_kill=None):
+              kill=None, interrupt=None, grace=KILL_GRACE_SECONDS, before_kill=None,
+              user_grace=USER_STOP_GRACE_SECONDS):
     """단계 하나를 감시하며 실행한다.
 
     반환: (produced, trip). trip은 끊지 않았으면 None, 끊었으면
@@ -333,6 +369,7 @@ def run_stage(fn, ctx, stage_id, title, *, guarded, timeout=None, monitor_factor
     감시 스레드가 상한을 감지하면 먼저 Viewer를 끝내 UI 호출이 빨리 실패하게 하고,
     그래도 `grace`초 안에 돌아오지 않으면 주 스레드에 중단 신호를 보낸다.
     `before_kill(monitor)`는 Viewer를 끝내기 전에 불러 실패 증거(핸들 수 등)를 남긴다.
+    사용자 안전 중단(`kind="user_stop"`)은 증거 수집 없이 바로 Viewer를 끝내고 `user_grace`초만 기다린다.
     """
     import _thread
     kill = kill or _kill_product
@@ -344,7 +381,8 @@ def run_stage(fn, ctx, stage_id, title, *, guarded, timeout=None, monitor_factor
 
     def on_trip(monitor):
         tripped.set()
-        if before_kill is not None:
+        user_stop = monitor.kind == "user_stop"
+        if before_kill is not None and not user_stop:
             try:
                 before_kill(monitor)
             except Exception:                             # noqa: BLE001
@@ -353,7 +391,7 @@ def run_stage(fn, ctx, stage_id, title, *, guarded, timeout=None, monitor_factor
             kill()
         except Exception:                                 # noqa: BLE001
             pass
-        if not returned.wait(grace):
+        if not returned.wait(user_grace if user_stop else grace):
             # 주 스레드가 단계를 끝낸 뒤에는 중단 신호를 보내지 않는다(아래 finally 와 같은 잠금).
             with handoff:
                 if not returned.is_set():

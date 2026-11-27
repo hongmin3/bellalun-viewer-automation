@@ -825,15 +825,16 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 - 새 실행을 시작할 때 '실행 중'으로 남은 이전 기록을 확인한다. 기록한 감독 프로세스가 살아 있지 않거나 프로세스 번호가 없는 예전 기록이면 상태를 비정상 종료(`abnormal`)로 닫고 `closed_reason`에 이유를 남긴다. 살아 있는 실행은 건드리지 않는다.
 
 #### 안전 중단
-진행 화면의 중단 버튼은 "진행 중인 TC를 정리한 뒤 멈춘다"는 뜻이다(사용자 문구, `frame/FRAME.md` 2.2). 버튼은 중지 파일만 남긴다.
+진행 화면의 중단 버튼은 진행 중인 TC를 끝까지 기다리지 않고 바로 멈춘 뒤, 리포트와 선택한 원상복원을 하고 끝낸다는 뜻이다(2026-11-27 사용자 결정: 90분 대기는 너무 길다). 버튼은 중지 파일만 남긴다.
 
-1. 감독 프로세스는 중지 파일 경로를 작업 프로세스에 넘긴다(`BELLALUN_STOP_FILE`). 중지 파일을 보면 작업 프로세스를 바로 끝내지 않고 기다린다.
-2. 작업 프로세스는 다음 TC(단계)를 시작하기 전에 중지 파일을 확인한다. 있으면 다음 TC를 시작하지 않는다. 기본기능과 WU·결합 실행이 같다.
-3. 지금까지의 결과로 리포트를 만든다. 남은 TC는 결과에 넣지 않아 체크리스트 결과에 미수행으로 보인다. WU 결과에서 근거 TC를 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다.
-4. 리포트 메타에 멈춘 위치(`user_stop`: 시작하지 않은 TC, 순번)를 남기고 완주 표시(`chain_completed`)는 거짓이다. 선택한 원상복원은 평소 마무리 경로가 한다.
-5. 작업 프로세스는 종료 코드 130으로 끝나고 실행 기록은 중단(`stopped`)과 중단 요청(`stop_requested`)을 남긴다.
+1. 감독 프로세스는 중지 파일 경로를 작업 프로세스에 넘긴다(`BELLALUN_STOP_FILE`). 중지 파일을 보면 작업 프로세스를 바로 끝내지 않고 리포트·원상복원을 마칠 때까지 기다린다.
+2. 진행 중인 TC는 단계 감시자(REQ-VERDICT-006, `wu_chain.run_stage`)가 5초 간격 검사에서 중지 파일을 보고 끊는다. 실패 증거 수집 없이 Viewer·XIPL Studio를 끝내고, 단계 코드가 10초 안에 빠져나오지 않으면 주 스레드에 중단 신호를 보낸다. 그 TC는 BLOCKED(`<단계> 사용자 안전 중단`, `actual.kind=user_stop`)로 남는다. 제품 판정이 아니다.
+3. TC 사이에서도 다음 TC(단계)를 시작하기 전에 중지 파일을 확인한다. 있으면 다음 TC를 시작하지 않는다. 기본기능과 WU·결합 실행(USB·WU_10 단계 포함)이 같다.
+4. 지금까지의 결과로 리포트를 만든다. 남은 TC는 결과에 넣지 않아 체크리스트 결과에 미수행으로 보인다. WU 결과에서 근거 TC를 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다. WU 저장점에는 도중에 멈춘 단계를 완료로 남기지 않아 `--resume`이 그 단계부터 다시 실행한다.
+5. 리포트 메타에 멈춘 위치(`user_stop`: 멈춘 TC, 도중에 멈췄으면 `interrupted_tc`, 순번)를 남기고 완주 표시(`chain_completed`)는 거짓이다. 선택한 원상복원은 평소 마무리 경로가 한다.
+6. 작업 프로세스는 종료 코드 130으로 끝나고 실행 기록은 중단(`stopped`)과 중단 요청(`stop_requested`)을 남긴다.
 
-> **예외** 중단 요청 뒤 90분(가장 긴 단계 상한 60분과 정리·복원 시간)이 지나도 작업 프로세스가 끝나지 않으면 예전처럼 강제로 끝낸다. 이때 리포트와 원상복원은 남지 않는다. 결과 화면은 "레포트가 없습니다. 원상복원 여부를 확인하세요"로 알리고, 원상복원은 다음 실행 전 준비 점검과 `tools/recover_preservation.py`로 확인한다.
+> **예외** 중단 요청 뒤 15분(리포트·원상복원 시간)이 지나도 작업 프로세스가 끝나지 않으면 예전처럼 강제로 끝낸다. 이때 리포트와 원상복원은 남지 않는다. 결과 화면은 "레포트가 없습니다. 원상복원 여부를 확인하세요"로 알리고, 원상복원은 다음 실행 전 준비 점검과 `tools/recover_preservation.py`로 확인한다.
 
 > **예시** 1.0.0.012 WU r2 `20261127-073915-7f9ee6b9`는 13/17 단계에서 중단 버튼을 받자 작업 프로세스를 바로 끝내 리포트·원상복원이 없었고, 요약은 "TC를 시작하기 전에 멈췄을 수 있다"였다. 리포트 없이 TC를 진행한 뒤 끝난 실행은 요약에 진행한 TC 수와 현재 TC를 적는다.
 
@@ -1857,7 +1858,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 검증 대상: REQ-QA-002.
 - 자동 절차: `tests/test_qa_runs.py`로 오래된 보고서 배제, 실행 묶음 구분, 진행 상태·WU 저장점의 완료 개수, 중단·비정상 종료·UAC 취소 상태와 다음 행동을 확인한다.
 - 설치판 절차: 각 전체 실행의 현재 TC·완료 개수·경과 시간·중단 요청을 확인하고 생성된 보고서와 실행 번호를 대조한다. GUI/worker 강제종료·재시작 후 이전 실행이 완료로 오인되지 않는지도 별도 확인한다.
-- 안전 중단: `tests/test_user_stop.py`로 감독 프로세스가 중지 파일을 보고도 작업 프로세스가 스스로 마무리할 때까지 기다리고 90분 유예가 지나면 강제로 끝내는지, 작업 프로세스가 TC 사이에서 중지 파일을 보고 멈춘 위치를 리포트 메타에 남기는지, 리포트 없이 TC를 진행한 실행의 요약과 `stop_requested`를 본다. `tests/test_combined_run.py`로 실제 WU·결합 체인 루프가 진행 중 TC를 끝낸 뒤 다음 TC를 시작하지 않고, 실행하지 않은 WU TC를 FAIL로 남기지 않는지 본다.
+- 안전 중단: `tests/test_user_stop.py`로 감독 프로세스가 중지 파일을 보고도 작업 프로세스가 스스로 마무리할 때까지 기다리고 15분 유예가 지나면 강제로 끝내는지, 단계 감시자가 진행 중인 TC를 증거 수집 없이 바로 끊고 짧은 유예 뒤 중단 신호를 보내 BLOCKED(사용자 안전 중단)로 남기는지, 작업 프로세스가 TC 사이에서 중지 파일을 보고 멈춘 위치를 리포트 메타에 남기는지, 리포트 없이 TC를 진행한 실행의 요약과 `stop_requested`를 본다. `tests/test_combined_run.py`로 실제 WU·결합 체인 루프가 진행 중 TC를 끝낸 뒤 다음 TC를 시작하지 않고, 실행하지 않은 WU TC를 FAIL로 남기지 않는지 본다.
 - Expected Result: 이전 실행 보고서가 이번 결과로 연결되지 않는다. 중단·비정상 종료·UAC 취소는 완료와 구분되며 실제 수행하지 않은 단계가 완료로 표시되지 않는다.
 
 ### TEST-QA-003 수동 검토와 자동 결과 보존
@@ -1969,7 +1970,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | verified |
 | REQ-TCUP-004 | `core/run_preparation.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `run.py` | TEST-TCUP-001; `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | verified |
-| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/frame_launch.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py`, `tests/test_user_stop.py`, `tests/test_combined_run.py` | verified |
+| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/frame_launch.py`, `run.py`, `core/wu_chain.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py`, `tests/test_user_stop.py`, `tests/test_combined_run.py` | verified |
 | REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py`, `tests/test_manual_review.py` | verified |
 | REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py` | TEST-QA-004; `tests/test_share_package.py`, `tests/test_frame_launch.py` | verified |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | verified |

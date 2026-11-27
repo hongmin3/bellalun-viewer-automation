@@ -139,7 +139,7 @@ def progress_data(record, process_id, stop_path):
     events = (Path(record.path).parent / 'events.jsonl') if record else None
     return ui.progress(product_label(), '시험 진행 중',
                        ['끝나면 결과 화면이 자동으로 열립니다. 이 창을 닫아도 시험은 계속됩니다.',
-                        '중단하려면 아래 버튼을 누르세요. 진행 중인 TC를 정리한 뒤 멈춥니다.'],
+                        '중단하려면 아래 버튼을 누르세요. 진행 중인 TC를 바로 멈추고 리포트·원상복원을 한 뒤 끝납니다.'],
                        events, process_id, stop_path=stop_path)
 
 
@@ -159,7 +159,7 @@ def result_data(record, workspace):
     if status == 'uac_cancelled':
         headline = {'text': '시험을 시작하지 않았습니다. UAC 권한 요청을 취소했습니다.', 'level': 'info'}
     elif status == 'stopped' and data.get('reports'):
-        headline = {'text': '요청에 따라 시험을 중단했습니다. 끝나지 않은 TC는 레포트에 미수행으로 남습니다.', 'level': 'warn'}
+        headline = {'text': '요청에 따라 시험을 중단했습니다. 진행 중이던 TC는 BLOCKED(사용자 안전 중단), 시작하지 않은 TC는 미수행으로 남습니다.', 'level': 'warn'}
     elif status == 'stopped':
         headline = {'text': '요청에 따라 시험을 중단했지만 레포트가 없습니다. 원상복원 여부를 확인하세요.', 'level': 'warn'}
     else:
