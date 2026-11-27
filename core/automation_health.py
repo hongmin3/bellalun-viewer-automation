@@ -121,8 +121,9 @@ def completed_report_data(data, command, scope=None):
     if (not isinstance(meta, dict) or not isinstance(rows, list)
             or any(not isinstance(row, dict) or not isinstance(row.get('tc_id'), str) for row in rows)):
         return False
-    if (meta.get("presentation_only") or meta.get("report_role") == "presentation"
-            or meta.get("chain_completed") is False):
+    # 사람 확인 반영 검토본(REQ-REPORT-003)은 실행 결과가 아니라 완료·게이트 판정에 쓰지 않는다.
+    if (meta.get("presentation_only") or meta.get("report_role") in ("presentation", "human_reviewed")
+            or meta.get("human_review") or meta.get("chain_completed") is False):
         return False
     ids = {row['tc_id'] for row in rows}
     if command == 'run-regression':

@@ -20,6 +20,7 @@ from core.ui import ViewerUi, children
 from core.xipl import XiplStudio
 from core import flows
 from core import imginfo
+from core import reading_evidence
 from core import screen
 from core import specs
 from core import viewer_processing as vp
@@ -1018,11 +1019,59 @@ def _post_recon_outcomes(item, want):
     return out
 
 
+#: 칸 이름을 찾는 판독 줄의 머리말(`_parse_post_recon_overlay`와 같은 이름).
+_POST_RECON_LINE = {key: re.compile(pattern, re.I) for key, pattern in {
+    'Background Masking': r'Background\s*Masking', 'Contrast': r'Contrast', 'Sharpness': r'Sharpness',
+    'Brightness': r'Brightness', 'Tone type': r'Tone\s*Type'}.items()}
+#: 칸 크롭의 여백(px, 판독 영역 원래 배율).
+_POST_RECON_CELL_MARGIN = 4
+
+
+def _post_recon_cells(region_path):
+    """저장된 판독 영역 캡처에서 칸별 줄 크롭을 만든다. 반환 `{칸: 크롭 경로}`(REQ-REPORT-002).
+
+    화면을 다시 캡처하거나 조작하지 않는다. 판정과 같은 반전 회색조 3배 영상에서 글자 위치만 읽어
+    칸 이름이 있는 줄을 자른다. 칸을 찾지 못하면 그 칸은 빠지고 넓은 캡처가 남는다. 판정은 바꾸지 않는다.
+    """
+    import pytesseract
+    if os.path.isfile(vp.TESSERACT_EXE):
+        pytesseract.pytesseract.tesseract_cmd = vp.TESSERACT_EXE
+    scale, cells = 3, {}
+    with Image.open(region_path) as opened:
+        region = opened.convert('L')
+    big = ImageOps.invert(region).resize((region.width * scale, region.height * scale), Image.Resampling.LANCZOS)
+    data = pytesseract.image_to_data(big, lang='eng', config='--psm 6', output_type=pytesseract.Output.DICT)
+    lines = {}
+    for index, word in enumerate(data.get('text') or []):
+        if not str(word).strip():
+            continue
+        key = (data['block_num'][index], data['par_num'][index], data['line_num'][index])
+        lines.setdefault(key, []).append(index)
+    for indexes in lines.values():
+        text = ' '.join(str(data['text'][i]) for i in indexes)
+        found = [name for name, pattern in _POST_RECON_LINE.items() if pattern.search(text)]
+        if len(found) != 1 or found[0] in cells:
+            continue
+        left = min(data['left'][i] for i in indexes) // scale - _POST_RECON_CELL_MARGIN
+        top = min(data['top'][i] for i in indexes) // scale - _POST_RECON_CELL_MARGIN
+        right = max(data['left'][i] + data['width'][i] for i in indexes) // scale + _POST_RECON_CELL_MARGIN
+        bottom = max(data['top'][i] + data['height'][i] for i in indexes) // scale + _POST_RECON_CELL_MARGIN
+        box = (max(left, 0), max(top, 0), min(right, region.width), min(bottom, region.height))
+        if box[0] >= box[2] or box[1] >= box[3]:
+            continue
+        target = re.sub(r'(\.png)?$', '_%s.png' % found[0].replace(' ', '_'), str(region_path), count=1)
+        if not os.path.isfile(target):
+            region.crop(box).save(target)
+        cells[found[0]] = target
+    return cells
+
+
 def _post_recon_reading(overlays, expected_overlay):
     """Post Recon Overlay Step의 OCR 판독 대조표(REQ-REPORT-002). 판정에는 쓰지 않는다.
 
-    Overlay 글자는 한 영역을 통째로 읽으므로 칸별 캡처 대신 판독 영역 캡처를 넓은 캡처로 보인다.
-    영역 캡처는 원본 캡처 옆에 `*_ocr_region.png`로 저장한다(원본은 그대로 둔다).
+    Overlay 글자는 한 영역을 통째로 읽는다. 판독 영역 캡처는 원본 캡처 옆에 `*_ocr_region.png`로
+    저장해 넓은 캡처로 보이고(원본은 그대로 둔다), 저장된 영역에서 칸 이름 줄을 찾아 칸별 캡처를 만든다
+    (`_post_recon_cells`). 칸별 캡처를 만들지 못한 칸은 넓은 캡처로 확인한다.
     """
     from core import reading_evidence
     rows, context = [], []
@@ -1031,14 +1080,7 @@ def _post_recon_reading(overlays, expected_overlay):
         want = expected_overlay.get(label) or {}
         got = item.get('values') or {}
         settled = item.get('settled') or {}
-        for key, (outcome, note) in _post_recon_outcomes(item, want).items():
-            value = want[key]
-            read = got.get(key, settled.get(key))
-            if key == 'Background Masking':
-                note = ' '.join(part for part in (note, '화면에는 사용 안 함이 X, 사용이 O로 보인다.') if part)
-            rows.append(reading_evidence.row(
-                '%s · %s' % (label, key), value, outcome, read='' if read is None else read,
-                reads=(item.get('reads') or {}).get(key, []), note=note))
+        regions = []
         images = list(item.get('images') or ([item['image']] if item.get('image') else []))
         for index, path in enumerate(images, 1):
             if not os.path.isfile(str(path)):
@@ -1047,7 +1089,30 @@ def _post_recon_reading(overlays, expected_overlay):
             if not os.path.isfile(target):
                 with Image.open(path) as image:
                     _post_recon_region(image).save(target)
+            regions.append(target)
             context.append(('%s 영상 Overlay 판독 영역 · %d회차 캡처' % (label, index), target))
+        cells = {}
+        for region in regions:
+            try:
+                found = _post_recon_cells(region)
+            except Exception:                           # noqa: BLE001 - 칸 캡처는 표시용이다
+                continue
+            for key, crop in found.items():
+                cells.setdefault(key, crop)
+            if all(key in cells for key in want):
+                break
+        for key, (outcome, note) in _post_recon_outcomes(item, want).items():
+            value = want[key]
+            read = got.get(key, settled.get(key))
+            if key == 'Background Masking':
+                note = ' '.join(part for part in (note, '화면에는 사용 안 함이 X, 사용이 O로 보인다.') if part)
+            key_reads = (item.get('reads') or {}).get(key, [])
+            rows.append(reading_evidence.row(
+                '%s · %s' % (label, key), value, outcome, read='' if read is None else read,
+                reads=key_reads, note=note, image=cells.get(key),
+                compare=reading_evidence.compare(
+                    value, '' if read is None else read, key_reads,
+                    '이 실행에서 저장한 XIPL 파라미터 값')))
     return reading_evidence.pack(rows, context)
 
 
@@ -2055,6 +2120,30 @@ def _qc_pick_score(ui, key, threshold, want_pass, tesseract_exe=None, max_scroll
             "boundary": "pass" if want_pass else "fail"}
 
 
+#: 화면 선택용 OCR 근거의 제목(REQ-REPORT-002). 판정 근거(DB `QC_STUDY.Result`)와 구분한다.
+QC_SELECTION_TITLE = "선택 근거 · OCR로 고른 Q.C 점수"
+
+
+def qc_selection_reading(picked):
+    """XIPL_05 Q.C 점수 콤보에서 OCR로 고른 값의 근거(REQ-REPORT-002). 판정은 바꾸지 않는다.
+
+    이 OCR은 기대 텍스트를 대조하는 판정이 아니라 입력할 항목을 고르는 데 쓴다. 그래서 항목마다
+    선택 규칙(기준 이상 중 가장 낮은 값 또는 기준 미만 중 가장 높은 값), 읽은 값 목록, 고른 값을 남긴다.
+    고르지 못하면 Step이 예외로 끝나므로 기록된 줄은 모두 규칙대로 고른 값이다.
+    """
+    from core import reading_evidence
+    rows = []
+    for key, item in (picked or {}).items():
+        boundary = item.get("boundary")
+        rule = (f"기준 {item.get('threshold')} 이상 중 가장 낮은 값(합격 경계)" if boundary == "pass"
+                else f"기준 {item.get('threshold')} 미만 중 가장 높은 값(불합격 경계)")
+        rows.append(reading_evidence.row(
+            f"{key} 점수 선택", rule, "match", read=str(item.get("picked")),
+            reads=[["콤보 항목 OCR로 읽은 값", ", ".join(str(v) for v in item.get("items") or [])]],
+            note="화면 선택용 판독이다. 채점 판정은 DB의 QC_STUDY.Result로 한다."))
+    return reading_evidence.pack(rows, title=QC_SELECTION_TITLE)
+
+
 def _qc_recover(ui):
     """`_qc_pick_score` 실패로 남은 Q.C 테스트 창을 Cancel 로 닫는다.
 
@@ -2293,6 +2382,7 @@ def compatibility_05(ctx):
         r.assert_true(
             3, "Q.C 채점 — 합격 경계값 입력 시 Pass",
             qc_2d.get("Result") == 1,
+            reading_evidence=reading_evidence.safe(qc_selection_reading, picked_2d),
             expected={"입력": {k: v["picked"] for k, v in picked_2d.items()},
                       "기준": thresholds_2d, "QC_STUDY.Result": 1},
             actual={"qc_study": qc_2d, "picked": picked_2d},
@@ -2338,6 +2428,7 @@ def compatibility_05(ctx):
             r.assert_true(
                 3, "Q.C 채점 — 불합격 경계값 입력 시 Fail",
                 qc_2d_fail.get("Result") == 0,
+                reading_evidence=reading_evidence.safe(qc_selection_reading, fail_picked),
                 expected={"입력": {k: v["picked"] for k, v in fail_picked.items()},
                           "기준": thresholds_2d, "QC_STUDY.Result": 0},
                 actual={"qc_study": qc_2d_fail, "picked": fail_picked},
@@ -2383,6 +2474,7 @@ def compatibility_05(ctx):
         r.assert_true(
             4, "3D Q.C 채점 — 합격 경계값 입력 시 Pass",
             qc_3d.get("Result") == 1,
+            reading_evidence=reading_evidence.safe(qc_selection_reading, picked_3d),
             expected={"입력": {k: v["picked"] for k, v in picked_3d.items()},
                       "기준": thresholds_3d, "QC_STUDY.Result": 1},
             actual={"qc_study": qc_3d, "picked": picked_3d},
@@ -2426,6 +2518,7 @@ def compatibility_05(ctx):
                 applied_3dw.get("parameter") == "TEST_QC_3D.eap"
                 and applied_3dw.get("reconstruction_file") == "wide_standard.egp"
                 and qc_3dw.get("Result") == 1,
+                reading_evidence=reading_evidence.safe(qc_selection_reading, picked_3dw),
                 expected="Viewer 로그에 Initialize Reconstruction(wide_standard.egp, "
                          "TEST_QC_3D.eap) 기록, QC_STUDY.Type=17 / Result=Pass",
                 actual={"log": applied_3dw, "qc_study": qc_3dw,

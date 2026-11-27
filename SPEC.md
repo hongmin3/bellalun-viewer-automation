@@ -79,6 +79,10 @@ DICOM Print 서버 행은 행을 누른 뒤 상세 이름 칸(Control ID 2434)�
 
 이유: 목록 열이 좁으면 서버 이름이 말줄임으로 잘려 OCR이 읽지 못하지만, 이름 칸은 전체 이름을 담는다.
 
+Print 서버의 Overlay 콤보(Control ID 2474)도 Header 콤보와 같이 연 콤보에 붙어 보이는 `ItemList` 팝업의 항목이 그려질 때까지 기다린 뒤 읽는다(`core/combo_popup.wait_items`). 팝업이 끝내 준비되지 않으면 OCR 판독 불가가 아니라 준비 실패로 멈춘다.
+
+> **예시** 1.0.0.012 기본 r1 `20261127-061323-847ee574`의 WF_03은 콤보를 누르고 0.4초 뒤 보이지 않는 옛 팝업까지 포함한 마지막 `ItemList`를 읽어 후보가 0개였다. 그래서 4회 판독 뒤 `unreadable`(후보 0개)로 TC가 멈췄다.
+
 > **예시** 1.0.6 설치판 WF03에서 `PRINT_TEST` 행이 `DICOM  PRIN...  PRIN...`으로 그려져 OCR 4판독이 모두 실패했다. 같은 행의 이름 칸은 `setup-dicom`이 쓰는 방식으로 전체 이름을 읽었다.
 
 카탈로그에서 잘린 후보는 제외하지 않고 스크롤 후 온전한 영역을 다시 조회해 캡처한다.
@@ -522,18 +526,32 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 2. 칸 캡처는 이미 저장한 크롭을 쓴다. 표에는 글자 부분만 잘라 최대 3배로 키운 사본(`*_view.png`)을 보이고 원본 파일은 그대로 둔다.
 3. 리포트는 공용 표(`core/report_layout.render_reading_evidence`)로 칸 · 기대 텍스트 · 화면 캡처 · 자동화 판독 · 결과를 보인다.
    확인이 필요한 칸은 왼쪽에 확인할 진짜 텍스트, 오른쪽에 화면 캡처를 둔 카드로 보인다. 캡처를 누르면 크게 확대되고, 일치한 칸은 접은 표에 모은다(`frame/FRAME.md` 2.9, 2026-11-27).
-   기록에 선택 필드 `compare`(진짜 텍스트·읽은 글자)가 있으면 다른 글자를 강조한다. Bellalun은 아직 `compare`를 넣지 않는다.
+   기록에 선택 필드 `compare`(진짜 텍스트·읽은 글자)가 있으면 다른 글자를 강조한다.
+   Bellalun은 기대값이 확정된 글자인 칸에 `compare`를 넣는다(`core/reading_evidence.compare`). 진짜 텍스트는 DB 값, 이 실행에서 저장한 파라미터 값, 사양의 표시 문구다. 읽은 글자는 판정에 쓴 판독이고, 없으면 그 칸 판독 원문에서 기대값과 가장 비슷한 구절이다. `ID:` 같은 머리말과 같은 줄의 다른 값은 떼고 대조한다. 판정의 비교 규칙(대소문자·공백·기호 무시, O와 0 같게 봄)은 설명(`label`)에 적는다.
+   단위 라벨만 아는 칸(선량 `kVp`)과 설명형 기대값(2D 값 표시, Preview와 같음)에는 `compare`를 넣지 않는다.
 4. 실패 원인·수동 확인 카드에서는 펼쳐 보이고, 상세 근거의 Step 표에서는 접어 둔다.
 5. JSON 결과에는 같은 기록을 Step의 `reading_evidence`로 남긴다. 캡처는 파일 경로로 둔다. 저장점·부분 리포트에서 결과를 되살려도 기록이 남는다.
 
 #### 적용 범위
 | 판정 자리 | 칸 | 캡처 |
 |---|---|---|
-| XIPL_03 Step 9 영상 Overlay 10개 실제 적용값 | Recon·Syn 각 5칸 | 판독 영역 캡처(`*_ocr_region.png`)를 넓은 캡처로 보인다. Overlay를 한 영역으로 읽어 칸별 캡처는 없다 |
-| WF_03 Step 5 Image Overlay 항목 표시와 환자 정보 교차 확인 | `Dose kVp`·`Dose mAs`, `Patient ID`·`Birth Date` | 항목을 찾은 패널의 아래·위 크롭 |
-| WF_03 Step 6, WF_08 Step 5·6 Print Overlay 영역별 표시 | Header·Top·Bottom의 6개 항목 | 영역 크롭 |
-| WF_15 Step 3 Pre-send Preview 패널별 Overlay | 패널마다 `Dose kVp`·`Dose mAs`(2D는 값, 3D Recon은 `--`가 일치), `Birth Date`·`Patient ID` | 패널 아래·위 크롭 |
+| XIPL_03 Step 9 영상 Overlay 10개 실제 적용값 | Recon·Syn 각 5칸(`compare`: 저장한 파라미터 값) | 칸별 줄 크롭. 저장된 판독 영역 캡처(`*_ocr_region.png`)에서 칸 이름 줄의 글자 위치를 읽어 자른다(`*_ocr_region_<칸>.png`). 화면을 다시 캡처하지 않는다. 판독 영역 캡처는 넓은 캡처로도 보인다 |
+| WF_03 Step 5 Image Overlay 항목 표시와 환자 정보 교차 확인 | `Dose kVp`·`Dose mAs`, `Patient ID`·`Birth Date`(`compare`: DB 값) | 항목을 찾은 패널의 아래·위 크롭 |
+| WF_03 Step 6, WF_08 Step 5·6 Print Overlay 영역별 표시 | Header·Top·Bottom의 6개 항목(`compare`: 환자 정보는 DB 값, 나머지는 실측 표시 문구) | 영역 크롭 |
+| WF_03·WF_08 Print Overlay 이름을 정하지 못한 MANUAL | 선택 후보마다(`compare`: 자동화가 만든 Overlay 이름) | 후보 원본 크롭 |
+| WF_08 Step 7 3D 필름의 Print Overlay Header | Header 2개 항목(`compare`: DB 값) | Header 영역 크롭 |
+| WF_15 Step 3 Pre-send Preview 패널별 Overlay | 패널마다 `Dose kVp`·`Dose mAs`(2D는 값, 3D Recon은 `--`가 일치), `Birth Date`·`Patient ID`(`compare`: DB 값) | 패널 아래·위 크롭 |
 | WF_15 Step 4 Preview·View 항목 관찰 비교 | 선량·환자 정보 4개 항목(두 화면의 보임·안 보임이 같으면 일치) | View 화면에서 항목을 찾은 패널의 아래·위 크롭 |
+| 3D 촬영 보조 TC(`run-sys3d`) Step 1 카드 라벨, Step 2 상단 Patient ID | `LCC (3D-N)`·`LCC (3D-W)`, DB Patient ID(`compare`) | 판독에 쓴 화면 조각을 그대로 저장한 파일(`01_card_label_*.png`, `02_header_*.png`). 조작은 바꾸지 않는다 |
+
+OCR 글자 대조가 아닌 판정 자리는 같은 기록 형식에 제목(`title`)을 달아 각자의 근거 형식으로 보인다. 결과 칸은 그 판정 코드가 정한 결과를 옮긴다.
+
+| 판정 자리 | 근거 형식(제목) | 남기는 것 |
+|---|---|---|
+| WF_08 Step 7 필름 ↔ Print SCP 서버 프리뷰 픽셀 일치 | 픽셀 비교 근거 | 판정에 쓴 정규화 영상(필름 · 서버 프리뷰 · 차이 4배)을 한 장으로, 유사도와 기준 0.96, 원본 두 장 |
+| WF_08 Step 7 필름 세 칸이 서로 다른 영상 | 픽셀 비교 근거 | 칸 쌍별 평균 밝기 차이와 기준 1.0, 칸 크롭 |
+| WF_08 Step 7 서버 프리뷰가 자기 필름과 가장 닮음 | 픽셀 비교 근거 | 종류별 가장 닮은 필름과 점수 |
+| XIPL_05 Q.C 점수 콤보의 화면 선택용 OCR | 선택 근거 | 항목별 선택 규칙(기준 이상 중 가장 낮은 값 / 기준 미만 중 가장 높은 값), 읽은 값 목록, 고른 값. 채점 판정은 DB `QC_STUDY.Result`로 한다 |
 
 > **참고** 아직 붙이지 않은 OCR 판정 자리는 `progress.md`에 남은 일로 적는다.
 
@@ -544,6 +562,33 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 - 캡처는 리포트 HTML 안에 넣어 리포트 파일만 옮겨도 보이게 한다. 한 장이 공용 상한보다 크면 넣지 않고 "캡처 없음"으로 보인다.
 
 > **참고** 캡처에는 시험 환자 이름·ID가 보인다. 리포트 공유 범위는 지금의 증거 폴더와 같게 본다.
+
+### REQ-REPORT-003 사람 확인 반영 리포트
+
+#### 하는 일
+자동 판정이 MANUAL·SKIP·FAIL·BLOCKED인 항목을 사람이 리포트에서 직접 확인해 PASS/FAIL과 의견을 남기면, 그 판정을 반영한 별도 리포트 `<원본 이름>_reviewed.html`을 내려받는다. 원본 자동 결과는 그대로 둔다.
+사용자 요청(2026-11-27): VXvue의 같은 기능(`frame/FRAME.md` 4절 8)을 Bellalun에도 적용하고, 실행 화면의 수동 검토 창(REQ-QA-003)과 함께 쓴다.
+
+#### 순서
+1. 결과 리포트의 실패 원인·수동 확인 카드에서 확인 대상 Step마다 PASS/FAIL 선택과 메모 칸을 보인다. 첫 확인 절 맨 위에 확인자 이름 칸과 "사람 확인 반영 리포트 만들기" 버튼이 있다.
+   확인 대상은 MANUAL·SKIP·FAIL·BLOCKED Step이다. 판정을 막지 않는다고 정한 SKIP(`blocks_verdict` 거짓, 예: WU_09의 CD Export/Import)은 뺀다.
+2. 버튼을 누르면 브라우저 안에서 리포트 사본을 고쳐 내려받는다. 프로그램을 실행하거나 인터넷에 연결하지 않는다.
+3. 사본에서 확인한 Step의 판정을 사람 판정으로 바꾸고, TC 판정·결과 요약 수·종합 판정을 Bellalun 판정 규칙(FAIL > BLOCKED > MANUAL > PASS > SKIP, 판정을 막는 SKIP은 MANUAL)으로 다시 계산한다. 전체 TC 결과표와 상세 근거의 배지도 바꾼다.
+4. 사본 맨 위에 사람 확인 결과표(TC·항목·자동 판정·사람 판정·메모)와 판정이 바뀐 TC, 자동 판정 기준 집계를 넣는다. 확인 기록은 사본 안 `<script id="human-review">`에 실행 번호·지문과 함께 남긴다.
+5. 같은 기록으로 `tools/reviewed_report.py --result <결과 JSON> --review <_reviewed.html>`을 실행하면 `Reports\reviewed\`에 같은 판정의 HTML·JSON을 만든다(자동 처리·검사용).
+6. 수동 검토 창에는 "리포트에서 PASS/FAIL 반영(브라우저)" 버튼이 있어 이번 실행의 HTML 리포트를 연다. 검수 상태(검토 중·검수 완료)는 지금처럼 그 창의 `review.json`에 남긴다.
+
+#### 안 될 때
+- 확인자 이름이 없거나 PASS/FAIL을 고른 항목이 없으면 내려받지 않는다.
+- FAIL·BLOCKED 항목은 메모(사유)가 없으면 내려받지 않고 그 항목을 표시한다.
+- 일부만 확인해도 만든다. 확인하지 않은 항목은 자동 판정 그대로이고 "미확인"으로 센다.
+- 다른 회차의 기록이나 자동 판정이 바뀐 결과 파일(지문 불일치), 결과에 없는 Step, 사유 없는 FAIL·BLOCKED 변경, 이미 만든 검토본을 원본으로 준 경우 `tools/reviewed_report.py`는 아무것도 반영하지 않고 종료 코드 2로 알린다.
+
+#### 지킬 것
+- 원본 HTML·JSON·체크리스트 xlsx와 실행 증거를 바꾸지 않는다.
+- 검토본은 자동 회귀 판정이나 릴리스 게이트의 입력이 아니다. 검토본 JSON은 `report_role: human_reviewed`, `chain_completed: false`, `human_review`(확인자·항목·원본 해시)를 담고 완료 리포트 판정(`core/automation_health.completed_report_data`)이 받지 않는다. `Reports\Result_*.json`을 찾는 도구에 잡히지 않게 하위 폴더에 둔다.
+- 검토본을 다시 그릴 때는 입력란을 두지 않는다.
+- 화면 모양은 공용 레포트 스타일의 사람 확인 규칙(`core/report_layout.py`)을 쓴다.
 
 ### REQ-DIST-001 설치와 실행 경로
 
@@ -779,6 +824,19 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 - 다른 실행의 보고서를 이번 실행 결과로 연결하지 않는다. 시작 시각 이후 만들어진 보고서만 연결한다.
 - 새 실행을 시작할 때 '실행 중'으로 남은 이전 기록을 확인한다. 기록한 감독 프로세스가 살아 있지 않거나 프로세스 번호가 없는 예전 기록이면 상태를 비정상 종료(`abnormal`)로 닫고 `closed_reason`에 이유를 남긴다. 살아 있는 실행은 건드리지 않는다.
 
+#### 안전 중단
+진행 화면의 중단 버튼은 "진행 중인 TC를 정리한 뒤 멈춘다"는 뜻이다(사용자 문구, `frame/FRAME.md` 2.2). 버튼은 중지 파일만 남긴다.
+
+1. 감독 프로세스는 중지 파일 경로를 작업 프로세스에 넘긴다(`BELLALUN_STOP_FILE`). 중지 파일을 보면 작업 프로세스를 바로 끝내지 않고 기다린다.
+2. 작업 프로세스는 다음 TC(단계)를 시작하기 전에 중지 파일을 확인한다. 있으면 다음 TC를 시작하지 않는다. 기본기능과 WU·결합 실행이 같다.
+3. 지금까지의 결과로 리포트를 만든다. 남은 TC는 결과에 넣지 않아 체크리스트 결과에 미수행으로 보인다. WU 결과에서 근거 TC를 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다.
+4. 리포트 메타에 멈춘 위치(`user_stop`: 시작하지 않은 TC, 순번)를 남기고 완주 표시(`chain_completed`)는 거짓이다. 선택한 원상복원은 평소 마무리 경로가 한다.
+5. 작업 프로세스는 종료 코드 130으로 끝나고 실행 기록은 중단(`stopped`)과 중단 요청(`stop_requested`)을 남긴다.
+
+> **예외** 중단 요청 뒤 90분(가장 긴 단계 상한 60분과 정리·복원 시간)이 지나도 작업 프로세스가 끝나지 않으면 예전처럼 강제로 끝낸다. 이때 리포트와 원상복원은 남지 않는다. 결과 화면은 "레포트가 없습니다. 원상복원 여부를 확인하세요"로 알리고, 원상복원은 다음 실행 전 준비 점검과 `tools/recover_preservation.py`로 확인한다.
+
+> **예시** 1.0.0.012 WU r2 `20261127-073915-7f9ee6b9`는 13/17 단계에서 중단 버튼을 받자 작업 프로세스를 바로 끝내 리포트·원상복원이 없었고, 요약은 "TC를 시작하기 전에 멈췄을 수 있다"였다. 리포트 없이 TC를 진행한 뒤 끝난 실행은 요약에 진행한 TC 수와 현재 TC를 적는다.
+
 ### REQ-QA-003 수동 검토 기록과 검수 완료
 
 #### 하는 일
@@ -794,6 +852,8 @@ Setup 설치 → 설치된 BellalunAuto 실행 → 준비 점검 → 사용자�
 이번 실행의 보고서(HTML·JSON, 이전 판의 TXT·CSV가 있으면 함께)·체크리스트 결과 XLSX·검토 기록·증거와 manifest를 하나의 ZIP으로 만든다. ZIP을 다른 PC에서 풀면 인터넷 없이 리포트와 증거 링크가 열린다.
 #### 순서
 1. 만들기 전에 공유 범위를 고른다: 증거 스크린샷·DICOM(시험 환자 정보 포함), Viewer 로그 구간. 설정 파일·비밀번호는 넣지 않는다.
+   실행 화면에서는 공용 확인 화면(`frame/FRAME.md` 2.2의 3단계 모양)으로 고른다. 세 자료는 선택 토글이고 기본은 꺼짐이며, "공유 범위와 시험 환자 정보 포함 여부를 확인했습니다"를 체크해야 만든다.
+   ZIP은 제품 폴더의 `Reports\Share\<실행 번호>.zip`에 만든다. 같은 이름이 있으면 덮어쓰지 않고 `-2`, `-3`을 붙인다. 만든 뒤 무결성 검증 결과와 폴더 열기 버튼을 보인다.
 2. 리포트의 증거 링크는 ZIP 안의 상대 경로로 바꾼다. 실행 환경의 절대 경로는 남겨도 링크로 쓰지 않는다.
 3. `manifest.json`에 파일마다 크기·SHA-256, 실행 번호, 공유 범위, 만든 시각을 적는다.
 4. 검증 기능은 ZIP을 읽어 누락·추가·해시 불일치·ZIP 밖을 가리키는 링크를 찾아 알린다.
@@ -1592,7 +1652,20 @@ Baseline/제품 DB 변경 및 UI 입력은 명시된 실제 검증 작업에서�
 - XIPL_03 Overlay, WF_03·WF_08 영상·Print Overlay 표의 칸별 결과가 판정 코드의 결과와 같은지 본다. MANUAL로 끝난 칸은 불일치로 표시하지 않는다.
 - WF_15 선량 표가 패널 종류별 사양(2D 값·3D `--`)대로 일치·불일치·판독 불가를 가르는지, Step 4 비교 표가 두 화면의 관찰 결과를 그대로 옮기는지 본다.
 - 표를 만들다 실패해도 Step 판정과 FAIL 중단이 그대로인지 본다.
+- `compare`: 1.0.0.012 기본 r1 WF_03 panel2의 실제 판독 원문으로 머리말을 뗀 가장 비슷한 구절을 고르는지, 같은 줄의 다른 값을 대조하지 않는지, JSON·저장점 재개·HTML 카드(다른 글자 강조)까지 같은 기록이 남는지 본다. 형식이 틀린 `compare`는 기록째 버리는지 본다.
+- XIPL_03 칸별 크롭: 1.0.0.012 저장 캡처 판독 영역의 실측 줄 위치로 다섯 칸을 자르는지 본다. 필름·XIPL_03 칸의 `compare`가 확정 기대값과 판정에 쓴 판독을 잇는지 본다.
+- 3D 촬영 보조 TC 카드 라벨·환자 정보 표, WF_08 Step 7 픽셀 비교 근거(정규화 영상 한 장, 기준 0.96, 세 칸·교차 대조), XIPL_05 선택 근거와 리포트 제목이 판정 결과를 그대로 옮기는지 본다.
 - Expected Result: 수동 확인·실패 카드에 기대 텍스트, 칸 캡처, 판독 값이 한 줄로 보이고 판정은 바뀌지 않는다.
+
+### TEST-REPORT-003 사람 확인 반영 리포트
+
+- 검증 대상: REQ-REPORT-003.
+- `tests/test_manual_review.py`: 확인 대상 Step(MANUAL·SKIP·FAIL·BLOCKED, 판정을 막지 않는 SKIP 제외)에만 입력란과 패널 하나가 생기는지, 재계산 자료의 지문이 결과와 같은지 본다.
+- 부분 검토로 검토본을 만들 때 원본 HTML·JSON 해시가 그대로인지, `Reports\reviewed\`에 생기는지, 미확인 FAIL은 그대로인지, 검토본 JSON을 완료 리포트 판정이 받지 않는지 본다.
+- 사유 없는 FAIL·BLOCKED 변경은 하나라도 있으면 아무것도 반영하지 않는지, 모두 확인하면 TC 판정·결과 요약 수·종합 판정이 Bellalun 판정 규칙대로 다시 계산되는지 본다.
+- 다른 회차의 기록, 같은 회차라도 자동 판정이 바뀐 결과 파일, 검토본을 원본으로 준 경우를 거부하는지 본다. 내려받은 `_reviewed.html` 안의 기록을 읽어 같은 결과를 만드는지 본다.
+- 수동 검토 창이 이번 실행의 HTML 리포트만 여는지 본다.
+- Expected Result: 사람 판정이 반영된 별도 검토본이 생기고 원본 결과와 게이트 판정은 그대로다.
 
 ### TEST-BOUNDARY-001
 
@@ -1784,6 +1857,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 - 검증 대상: REQ-QA-002.
 - 자동 절차: `tests/test_qa_runs.py`로 오래된 보고서 배제, 실행 묶음 구분, 진행 상태·WU 저장점의 완료 개수, 중단·비정상 종료·UAC 취소 상태와 다음 행동을 확인한다.
 - 설치판 절차: 각 전체 실행의 현재 TC·완료 개수·경과 시간·중단 요청을 확인하고 생성된 보고서와 실행 번호를 대조한다. GUI/worker 강제종료·재시작 후 이전 실행이 완료로 오인되지 않는지도 별도 확인한다.
+- 안전 중단: `tests/test_user_stop.py`로 감독 프로세스가 중지 파일을 보고도 작업 프로세스가 스스로 마무리할 때까지 기다리고 90분 유예가 지나면 강제로 끝내는지, 작업 프로세스가 TC 사이에서 중지 파일을 보고 멈춘 위치를 리포트 메타에 남기는지, 리포트 없이 TC를 진행한 실행의 요약과 `stop_requested`를 본다. `tests/test_combined_run.py`로 실제 WU·결합 체인 루프가 진행 중 TC를 끝낸 뒤 다음 TC를 시작하지 않고, 실행하지 않은 WU TC를 FAIL로 남기지 않는지 본다.
 - Expected Result: 이전 실행 보고서가 이번 결과로 연결되지 않는다. 중단·비정상 종료·UAC 취소는 완료와 구분되며 실제 수행하지 않은 단계가 완료로 표시되지 않는다.
 
 ### TEST-QA-003 수동 검토와 자동 결과 보존
@@ -1797,6 +1871,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 
 - 검증 대상: REQ-QA-004.
 - 자동 절차: `tests/test_share_package.py`로 상대 증거 링크, 공유 범위 선택, 설정·비밀번호 배제, 명시한 보고서·검토 기록만 수집, manifest 크기·해시, 누락·추가·변조·중복 항목·경로 탈출·외부 링크 거부를 확인한다.
+- 실행 화면: `tests/test_frame_launch.py`로 공용 확인 화면의 세 선택 토글(기본 꺼짐)과 확인 항목, `Reports\Share\<실행 번호>.zip` 저장 위치와 같은 이름 회피, 취소·확인 누락 때 만들지 않는 것을 확인한다.
 - 설치판 절차: 공유 화면에서 범위를 고르고 한글·공백 경로에 ZIP을 만든다. 다른 PC의 한글·공백 경로에 풀어 네트워크 없이 HTML·증거 링크를 열고 무결성을 검증한다. 선택하지 않은 DICOM·스크린샷·로그가 없는지 파일 목록을 대조한다.
 - Expected Result: 선택한 실행 자료만 포함되고 링크가 ZIP 밖을 참조하지 않는다. 합성 자료 단위시험만으로 실제 다른 PC의 오프라인 열람을 완료했다고 기록하지 않는다.
 
@@ -1894,13 +1969,13 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-TCUP-003 | `core/image_overlay.py`, `tests/workflow15.py` | TEST-TCUP-001; `tests/test_overlay_lines.py`, `tests/test_image_overlay.py` | verified |
 | REQ-TCUP-004 | `core/run_preparation.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `run.py` | TEST-TCUP-001; `tests/test_run_preparation.py`, `tests/test_qa_dialogs.py` | verified |
 | REQ-QA-001 | `bellalunauto/runplan.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/runs.py` | TEST-QA-001; `tests/test_runplan.py`, `tests/test_qa_runs.py` | verified |
-| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py` | verified |
-| REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py` | verified |
-| REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-004; `tests/test_share_package.py` | verified |
+| REQ-QA-002 | `bellalunauto/runs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `bellalunauto/frame_launch.py`, `run.py` | TEST-QA-002; `tests/test_qa_runs.py`, `tests/test_verdict_criteria.py`, `tests/test_user_stop.py`, `tests/test_combined_run.py` | verified |
+| REQ-QA-003 | `bellalunauto/runs.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py` | TEST-QA-003; `tests/test_qa_runs.py`, `tests/test_manual_review.py` | verified |
+| REQ-QA-004 | `bellalunauto/share.py`, `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/frame_launch.py` | TEST-QA-004; `tests/test_share_package.py`, `tests/test_frame_launch.py` | verified |
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | verified |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/result.py`, `core/xipl.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_pointer_safety.py`, `tests/test_environment_failure_gate.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py`, `tests/test_xipl_save_dialog.py`, `tests/test_xipl_addin_pointer.py` | verified |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | verified |
-| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_wf03_ocr_manual.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
+| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_wf03_ocr_manual.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py`, `tests/test_print_overlay_combo.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
 | REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `bellalunauto/runs.py`, `bellalunauto/gui.py`, `core/frame_evidence.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py`, `tests/test_qa_runs.py` | verified |
@@ -1912,7 +1987,8 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-VERDICT-005 | `core/env_health.py`, `run.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py` | verified |
 | REQ-VERDICT-006 | `run.py`, `core/wu_chain.py`, `core/xipl.py`, `tests/xipl_flows.py` | TEST-VERDICT-004; `tests/test_verdict_criteria.py`, `tests/test_xipl_save_dialog.py`, `tests/test_wu_chain.py` | verified |
 | REQ-REPORT-001 | `core/result.py`, `core/checklist.py`, `core/report_layout.py`, `core/winupdate_report.py`, `run.py`, `tests/winupdate.py` | TEST-REPORT-001; `tests/test_result_reports.py`, `tests/test_user_action_steps.py`, `tests/test_report_layout.py`, `tests/test_xipl_preparation_report.py`, `tests/test_report_summary.py`, `tests/test_wu_chain.py`, `tests/test_wu_checkpoint_retry.py` | verified |
-| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py`, `tests/workflow15.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
+| REQ-REPORT-002 | `core/reading_evidence.py`, `core/report_layout.py`, `core/result.py`, `core/wu_chain.py`, `core/image_overlay.py`, `core/print_overlay.py`, `tests/xipl_flows.py`, `tests/workflow03.py`, `tests/workflow08.py`, `tests/workflow15.py`, `tests/system_compat.py` | TEST-REPORT-002; `tests/test_reading_evidence.py` | verified |
+| REQ-REPORT-003 | `core/manual_review.py`, `core/result.py`, `core/automation_health.py`, `bellalunauto/qa_dialogs.py`, `tools/reviewed_report.py` | TEST-REPORT-003; `tests/test_manual_review.py` | verified |
 | NFR-BOUNDARY-001 | `.gitignore`, `config.example.json` | TEST-BOUNDARY-001 | implemented |
 | REQ-DIST-001 | `bellalunauto/runtime.py`, `bellalunauto/resources.py`, `packaging/BellalunAuto.iss`, `core/dbreset.py`, `core/sysinfo.py` | TEST-DIST-001; `tests/test_distribution_runtime.py`, `tests/test_distribution_resources.py`, `tests/test_baseline_output.py`, `tests/test_baseline_restore_paths.py`, `tests/test_powershell_quoting.py`, `tests/test_first_run.py` | verified |
 | REQ-DIST-002 | `bellalunauto/app.py`, `bellalunauto/gui.py`, `bellalunauto/processes.py`, `core/sysinfo.py`, `core/db.py`, `core/dbreset.py`, `core/screen.py`, `core/ui.py`, `core/xipl.py`, `core/flows.py`, `core/update_evidence.py`, `core/source_identity.py`, `tests/xipl_flows.py`, `run.py` | TEST-DIST-001; `tests/test_distribution_app.py`, `tests/test_distribution_gui.py`, `tests/test_distribution_processes.py`, `tests/test_distribution_legacy.py`, `tests/test_console_children.py`, `tests/test_console_dbreset.py`, `tests/test_console_ocr.py`, `tests/test_console_stdin.py` | verified |

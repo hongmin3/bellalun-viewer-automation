@@ -41,7 +41,7 @@ import re
 
 from PIL import Image, ImageGrab, ImageOps
 
-from core import flows, screen, viewer_processing as vp
+from core import flows, reading_evidence, screen, viewer_processing as vp
 from core.result import FAIL, TCResult
 
 
@@ -66,11 +66,22 @@ MODES = {
 }
 
 
-def _ocr_text(bbox, whitelist, psm=7, invert=True):
+def _ocr_text(bbox, whitelist, psm=7, invert=True, save=None):
+    """화면 한 조각을 읽는다. `save`가 있으면 판독에 쓴 그 조각을 파일로 남긴다(REQ-REPORT-002).
+
+    조각을 남기려고 화면을 다시 캡처하거나 조작하지 않는다. 저장 실패는 판독을 막지 않는다.
+    """
     import pytesseract
     if os.path.exists(vp.TESSERACT_EXE):
         pytesseract.pytesseract.tesseract_cmd = vp.TESSERACT_EXE
-    crop = ImageGrab.grab(bbox=bbox, all_screens=True).convert("L")
+    grabbed = ImageGrab.grab(bbox=bbox, all_screens=True)
+    if save:
+        try:
+            os.makedirs(os.path.dirname(save), exist_ok=True)
+            grabbed.save(save)
+        except OSError:
+            pass
+    crop = grabbed.convert("L")
     crop = ImageOps.autocontrast(crop)
     if invert:
         crop = ImageOps.invert(crop)
@@ -81,11 +92,11 @@ def _ocr_text(bbox, whitelist, psm=7, invert=True):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _step_card_label(card):
+def _step_card_label(card, save=None):
     """Procedure 썸네일 카드 상단 이름 띠를 읽는다 (예: 'LCC (3D-W)')."""
     l, t, r, b = card.rect
     return _ocr_text((l + 2, t + 2, r - 2, t + 28),
-                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()- ")
+                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789()- ", save=save)
 
 
 def _label_matches(card_label, mode_label):
@@ -101,13 +112,43 @@ def _label_matches(card_label, mode_label):
     return mode_label.replace("3", "").replace("-", "") in key
 
 
-def _header_text(ui):
+def _header_text(ui, save=None):
     """Viewer 상단 환자 정보 영역(이름/ID)을 읽는다."""
     win = ui.main_window()
     l, t, r, b = win.rect
     return _ocr_text((l + 10, t + 10, l + 1300, t + 62),
                      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-                     "0123456789_/()- ", psm=7, invert=False)
+                     "0123456789_/()- ", psm=7, invert=False, save=save)
+
+
+def _evidence_path(ctx, name):
+    return os.path.join(ctx.evidence_root, "Flow", "09_System3D", name)
+
+
+def card_label_reading(card_label, mode_label, label_ok, crop):
+    """Step 1 카드 라벨 판정을 대조표로 옮긴다(REQ-REPORT-002). 판정(`_label_matches`)은 그대로다.
+
+    판정은 마지막 종류 글자(`DN`·`DW`)만 본다. 그래서 진짜 텍스트는 `LCC (3D-N)` 전체를 보이되
+    결과는 판정과 같게 적는다. 읽은 글자가 없으면 판독 불가다.
+    """
+    from core import reading_evidence
+    truth = f"LCC ({mode_label})"
+    outcome = "match" if label_ok else ("unread" if not str(card_label or "").strip() else "mismatch")
+    return reading_evidence.pack([reading_evidence.row(
+        "Step 카드 라벨", truth, outcome, read=card_label, reads=[["카드 이름 띠 4배 판독", card_label]],
+        image=crop, note=f"판정은 대문자·숫자만 남겨 '{mode_label.replace('3', '').replace('-', '')}'가 "
+                         "들어 있는지 본다('3'은 작은 글씨에서 G·B로 자주 읽혀 요구하지 않는다).",
+        compare=reading_evidence.compare(truth, card_label, None, "선택한 Preset의 카드 이름"))])
+
+
+def header_reading(header, patient_id, header_ok, crop):
+    """Step 2 상단 환자 정보의 Patient ID 판정을 대조표로 옮긴다(REQ-REPORT-002)."""
+    from core import reading_evidence
+    outcome = "match" if header_ok else ("unread" if not str(header or "").strip() else "mismatch")
+    return reading_evidence.pack([reading_evidence.row(
+        "상단 Patient ID", patient_id, outcome, read=header, reads=[["상단 환자 정보 판독", header]],
+        image=crop, note="판정은 대문자·숫자만 남겨 DB의 Patient ID가 들어 있는지 본다.",
+        compare=reading_evidence.compare(patient_id, header, None, "DB 값"))])
 
 
 def _capture(ctx, ui, name, result):
@@ -159,12 +200,15 @@ def run_mode(ctx, mode):
         after = vp.add_view_position(ui, mode)
         target_step = after            # 방금 추가한 카드가 목록의 마지막
         card = flows.select_step(ui, target_step)
-        card_label = _step_card_label(card)
+        card_crop = _evidence_path(ctx, f"01_card_label_{spec['label']}.png")
+        card_label = _step_card_label(card, save=card_crop)
         label_ok = _label_matches(card_label, spec["label"])
         _capture(ctx, ui, f"01_registered_{spec['label']}.png", r)
+        card_reading = reading_evidence.safe(card_label_reading, card_label, spec["label"],
+                                             label_ok, card_crop)
         r.assert_true(
             1, f"{spec['label']} View Position 등록",
-            after == before + 1 and label_ok,
+            after == before + 1 and label_ok, reading_evidence=card_reading,
             expected=f"Procedure + / Preset({spec['label']}) / LCC / OK 후 "
                      f"Step {before}->{before + 1}, 카드 이름에 "
                      f"{spec['label']} 표시",
@@ -172,12 +216,14 @@ def run_mode(ctx, mode):
                     "card_label": card_label})
 
         # --- Step 2: 등록 스텝/환자정보 표시 ---------------------------
-        header = _header_text(ui)
+        header_crop = _evidence_path(ctx, f"02_header_{spec['label']}.png")
+        header = _header_text(ui, save=header_crop)
         header_key = re.sub(r"[^A-Z0-9]", "", header.upper())
         header_ok = (re.sub(r"[^A-Z0-9]", "", patient_id.upper()) in header_key)
+        header_rows = reading_evidence.safe(header_reading, header, patient_id, header_ok, header_crop)
         r.assert_true(
             2, "뷰어에 등록한 스텝과 환자정보 표시",
-            label_ok and header_ok,
+            label_ok and header_ok, reading_evidence=header_rows,
             expected=f"선택 Step 카드에 {spec['label']}, 상단에 "
                      f"Patient ID {patient_id} 표시",
             actual={"card_label": card_label, "header": header,

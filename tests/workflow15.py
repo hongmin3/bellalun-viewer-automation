@@ -386,11 +386,13 @@ def run(ctx):
                 one = {name: preview_hits[name]}
                 rows += image_overlay.reading_rows(
                     one, preview_reads, ["Birth Date"], evidence, "02_preview_panel", "top",
-                    {"Birth Date": study.get("PatientBirthDate")}, "mismatch")
+                    {"Birth Date": study.get("PatientBirthDate")}, "mismatch",
+                    compare_labels=image_overlay.PATIENT_MARKERS)
                 rows += image_overlay.reading_rows(
                     one, preview_reads, ["Patient ID"], evidence, "02_preview_panel", "top",
                     {"Patient ID": study.get("PatientID")}, "unread",
-                    notes={"Patient ID": "ID 일치 방식: %s" % preview_hits[name].get("_pid_match")})
+                    notes={"Patient ID": "ID 일치 방식: %s" % preview_hits[name].get("_pid_match")},
+                    compare_labels=image_overlay.PATIENT_MARKERS)
             return reading_evidence.pack(rows)
 
         r.assert_true(

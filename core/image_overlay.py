@@ -296,13 +296,19 @@ def _panel_for(marks, label):
     return names[0] if names else None
 
 
+#: 환자 정보 칸의 글자 차이 표시 설명. 판정(`norm`)과 같은 비교 규칙을 사람에게 알린다.
+COMPARE_RULE = "DB 값. 판정은 대소문자·공백·기호를 빼고 O와 0을 같게 보고 비교한다"
+
+
 def reading_rows(marks, reads, labels, evidence_dir, prefix, tag, expected_text,
-                 miss_outcome, notes=None):
+                 miss_outcome, notes=None, compare_labels=()):
     """항목(라벨)별 OCR 판독 대조표 줄(REQ-REPORT-002).
 
     결과는 판정 코드가 쓴 `labels_seen`을 그대로 옮긴다. 보였으면 일치, 못 찾았으면 `miss_outcome`이다
     (판정이 FAIL이면 `mismatch`, MANUAL이면 `unread`). 패널이 하나도 없으면 읽지 못한 것이라 `unread`다.
     칸 캡처는 그 항목을 찾은 패널(못 찾았으면 1번 패널)의 `tag` 크롭이다.
+    `compare_labels`의 항목은 기대 텍스트가 DB에서 확정한 값이라 글자 차이 기록(`compare`)을 붙인다.
+    판정에 쓴 판독이 없으면 그 칸 판독 원문에서 가장 비슷한 구절과 대조한다.
     """
     from core import reading_evidence
     seen = labels_seen(marks, labels)
@@ -327,9 +333,11 @@ def reading_rows(marks, reads, labels, evidence_dir, prefix, tag, expected_text,
             note = " ".join(part for part in (note, "영상 패널을 찾지 못했다.") if part)
         elif not seen.get(label):
             note = " ".join(part for part in (note, "어느 패널의 OCR 판독문에서도 찾지 못했다.") if part)
+        compare = (reading_evidence.compare(expected_text.get(label), read, region.items(), COMPARE_RULE)
+                   if label in compare_labels else None)
         rows.append(reading_evidence.row(
             f"{label} ({panel or '패널 없음'})", expected_text.get(label, label), outcome, read=read,
-            reads=reading_evidence.ocr_reads(region), image=image, note=note))
+            reads=reading_evidence.ocr_reads(region), image=image, note=note, compare=compare))
     return rows
 
 

@@ -136,11 +136,15 @@ class RunRecord:
         self.data['progress'] = progress
         return progress
 
-    def finish(self, code):
+    def finish(self, code, stop_requested=False):
         self.reload()
         if self.data['status'] != 'running':
             return
         self.refresh_progress()
+        if stop_requested:
+            # 화면의 안전 중단은 중지 파일만 남긴다. 감독 프로세스가 마무리할 때 같이 기록한다.
+            # `refresh_progress`가 파일을 다시 읽으므로 그 뒤에 표시한다.
+            self.data['stop_requested'] = True
         reports = []
         report_stamps = {}
         bound = self.data.get('identity_bound') is True
@@ -215,6 +219,14 @@ class RunRecord:
             self.data['summary'] = outcome_summary([result_from_dict(row) for row in rows])['headline']
         except (KeyError, TypeError, ValueError):
             self.data['summary'] = '보고서의 TC별 판정과 근거를 확인하세요.'
+        progress = self.data.get('progress') or {}
+        if not rows and status in ('stopped', 'abnormal') and progress.get('completed'):
+            # TC를 진행한 뒤 리포트 없이 끝났다. "시작 전에 멈췄을 수 있다"고 안내하지 않는다(#246 WU r2).
+            self.data['summary'] = (
+                f"{'중단' if status == 'stopped' else '비정상 종료'}: TC {progress['completed']}/"
+                f"{progress.get('total') or '?'}개를 진행한 뒤({progress.get('current_tc') or '현재 TC 미상'} 진행 중) "
+                "리포트 없이 끝났습니다. 원상복원 여부는 다음 실행 전 준비 점검과 "
+                "`tools/recover_preservation.py`로 확인하세요.")
         self.data['next_action'] = ('준비 점검 후 재실행' if status != 'completed' or counts.get('BLOCKED')
                                     else 'TC 상세와 증거를 열어 수동 검토' if self.review_targets()
                                     else '보고서와 증거를 확인하고 검토자 이름으로 검수 완료를 기록하세요.')

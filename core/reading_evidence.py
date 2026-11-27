@@ -59,11 +59,70 @@ def _one_line(value, limit=READ_TEXT_LIMIT):
     return text if len(text) <= limit else text[:limit - 1] + '…'
 
 
-def row(field, expected, outcome, read='', reads=None, image=None, note=''):
+def _segments(line, truth):
+    """한 판독 줄에서 비교할 후보. 기대 텍스트에 머리말(`ID:`)이 없으면 머리말을 뗀 부분도 본다."""
+    line = ' '.join(str(line or '').split())
+    if not line or line.lower().startswith('<ocr err'):
+        return []
+    found = [line]
+    if ':' in line and ':' not in truth:
+        tail = line.split(':', 1)[1].strip()
+        if tail:
+            found.append(tail)
+    # 한 줄에 여러 값이 있으면(필름 Header의 ID·생년월일) 기대 텍스트와 단어 수가 비슷한 구간도 본다.
+    words, size = line.split(), max(1, len(truth.split()))
+    for width in {max(1, size - 1), size, size + 1}:
+        found.extend(' '.join(words[start:start + width]) for start in range(0, len(words) - width + 1))
+    return list(dict.fromkeys(found))
+
+
+def closest(truth, texts):
+    """`[(판독 이름, 원문)]`에서 기대 텍스트와 가장 비슷한 한 구절 `(구절, 판독 이름)`. 없으면 `('', '')`.
+
+    표시만 돕는다. 판정은 바꾸지 않으며 판독값을 기대값으로 고치지 않는다.
+    """
+    from difflib import SequenceMatcher
+    want = ' '.join(str(truth).lower().split())
+    best, best_score = ('', ''), -1.0
+    for name, text in texts or ():
+        for line in str(text or '').splitlines():
+            for segment in _segments(line, truth):
+                # 공백·기호도 길이에 넣어 비교해야 `35 N`에 `N` 한 글자보다 `99 N`이 가깝게 잡힌다.
+                score = SequenceMatcher(None, want, segment.lower(), autojunk=False).ratio()
+                if score > best_score:
+                    best, best_score = (segment, str(name)), score
+    return best
+
+
+def compare(expected, read='', reads=None, label=''):
+    """글자 차이 표시 기록 `{"expected", "read", "label"}`(`frame/FRAME.md` 2.9 3항).
+
+    `expected`는 Bellalun이 확정한 진짜 텍스트(DB 값·사양 문구)다. `read`는 판정에 쓴 판독이고,
+    없으면 `reads`(판독 방식별 원문)에서 기대값과 가장 비슷한 구절을 고른다.
+    진짜 텍스트나 읽은 글자가 없으면 None이다(표는 기대 텍스트와 판독 기록을 그대로 보인다).
+    """
+    truth = ' '.join(str('' if expected is None else expected).split())
+    if not truth:
+        return None
+    segment, source = ('', '')
+    if str(read or '').strip():
+        segment, _ = closest(truth, [('판정', read)])
+        source = '판정에 쓴 판독'
+    if not segment:
+        segment, name = closest(truth, reads)
+        source = ('가장 비슷한 판독: %s' % name) if name else ''
+    if not segment:
+        return None
+    note = ' · '.join(part for part in (str(label or ''), source) if part)
+    return {'expected': truth, 'read': _one_line(segment), 'label': note}
+
+
+def row(field, expected, outcome, read='', reads=None, image=None, note='', compare=None):
     """대조표 한 줄. `outcome`은 `OUTCOMES` 중 하나이며 판정 코드가 정한 결과여야 한다.
 
     `reads`는 `(판독 방식, 값)` 목록이다. `image`는 칸 캡처 원본 경로다.
     표에는 글자 부분을 확대한 사본(`image`)을 보이고 원본은 `source_image`로 남긴다.
+    `compare`는 `compare()`가 만든 글자 차이 표시 기록이다(선택).
     """
     if outcome not in OUTCOMES:
         raise ValueError('알 수 없는 판독 결과: %r' % (outcome,))
@@ -75,13 +134,25 @@ def row(field, expected, outcome, read='', reads=None, image=None, note=''):
         item['image'] = view_image(image) if os.path.isfile(str(image)) else str(image)
     if note:
         item['note'] = str(note)
+    if compare:
+        item['compare'] = {key: str(compare.get(key) or '') for key in ('expected', 'read', 'label')}
     return item
 
 
-def pack(rows, context=()):
-    """Step에 붙일 기록 `{"rows": [...], "context": [...]}`. `context`는 `(라벨, 넓은 캡처 경로)` 목록이다."""
-    return {'rows': list(rows),
-            'context': [{'label': str(label), 'image': str(image)} for label, image in context if image]}
+#: 대조표 제목(공용 `render_reading_evidence`의 기본 제목과 같다).
+TITLE = '판독 대조표 · 기대 텍스트와 화면 캡처'
+
+
+def pack(rows, context=(), title=None):
+    """Step에 붙일 기록 `{"rows": [...], "context": [...]}`. `context`는 `(라벨, 넓은 캡처 경로)` 목록이다.
+
+    `title`은 OCR 글자 대조가 아닌 근거(픽셀 비교, 화면 선택용 판독)에 쓴다. 없으면 기본 제목이다.
+    """
+    evidence = {'rows': list(rows),
+                'context': [{'label': str(label), 'image': str(image)} for label, image in context if image]}
+    if title:
+        evidence['title'] = str(title)
+    return evidence
 
 
 def ocr_reads(texts, limit=READS_LIMIT):
@@ -100,14 +171,23 @@ def ocr_reads(texts, limit=READS_LIMIT):
 
 def valid(evidence):
     """Step·저장점에서 되살린 기록이 이 형식인지 본다(형식이 다르면 버린다)."""
-    if not isinstance(evidence, dict) or set(evidence) - {'rows', 'context'}:
+    if not isinstance(evidence, dict) or set(evidence) - {'rows', 'context', 'title'}:
+        return False
+    if not isinstance(evidence.get('title', ''), str):
         return False
     rows, context = evidence.get('rows', []), evidence.get('context', [])
     if not isinstance(rows, list) or not isinstance(context, list) or not (rows or context):
         return False
     return (all(isinstance(item, dict) and isinstance(item.get('field'), str)
-                and item.get('outcome') in OUTCOMES for item in rows)
+                and item.get('outcome') in OUTCOMES and _valid_compare(item.get('compare'))
+                for item in rows)
             and all(isinstance(item, dict) for item in context))
+
+
+def _valid_compare(value):
+    """선택 필드 `compare`가 없거나 `{"expected", "read", "label"}` 글자 기록인지 본다."""
+    return value is None or (isinstance(value, dict) and set(value) <= {'expected', 'read', 'label'}
+                             and all(isinstance(text, str) for text in value.values()))
 
 
 def safe(build, *args, **kwargs):

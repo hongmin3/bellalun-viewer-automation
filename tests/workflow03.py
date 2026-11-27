@@ -362,7 +362,8 @@ def workflow_03(ctx):
                 marks, reads, list(image_overlay.PATIENT_MARKERS), evidence, "05_panel", "top",
                 {"Patient ID": patient_id, "Birth Date": birth}, "unread",
                 notes={"Patient ID": "ID 일치 방식: %s" % ", ".join(
-                    "%s=%s" % (k, v.get("_pid_match")) for k, v in sorted(marks.items()))})))
+                    "%s=%s" % (k, v.get("_pid_match")) for k, v in sorted(marks.items()))},
+                compare_labels=image_overlay.PATIENT_MARKERS)))
         r.add(5, "영상 Overlay 의 환자 정보 값이 DB 와 일치(교차 확인)",
               PASS if all(patient_seen.values()) else MANUAL,
               reading_evidence=patient_reading,

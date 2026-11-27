@@ -256,6 +256,17 @@ def show_diagnostics(root, layout, open_config):
     return dialog
 
 
+def review_report(record):
+    """사람 확인 반영(REQ-REPORT-003)에 쓸 이번 실행의 HTML 리포트. 없으면 None.
+
+    PASS/FAIL 반영은 리포트 HTML 안에서 하고 `_reviewed.html`을 내려받는다. 이 창의 검수 기록
+    (`review.json`, REQ-QA-003)은 그대로 따로 남는다.
+    """
+    from .completion_notice import primary_report
+    report = primary_report(record.data.get('reports'))
+    return report if report and Path(report).suffix.lower() == '.html' and Path(report).is_file() else None
+
+
 def review_run(root, record):
     import tkinter as tk
     from tkinter import ttk, messagebox, scrolledtext
@@ -318,6 +329,14 @@ def review_run(root, record):
     ttk.Label(dialog, text='자동 판정과 원본 보고서는 바꾸지 않습니다. 모든 PASS 아닌 TC를 검토해야 완료할 수 있습니다.').pack(pady=8)
     ttk.Button(dialog, text='검토 중 저장', command=lambda: save(False)).pack(side='left', padx=12, pady=12)
     ttk.Button(dialog, text='검수 완료', command=lambda: save(True)).pack(side='left', padx=12)
+
+    def open_report():
+        report = review_report(record)
+        if not report:
+            messagebox.showerror('사람 확인 반영', '이번 실행의 HTML 리포트를 찾지 못했습니다.', parent=dialog)
+            return
+        os.startfile(report)                              # noqa: S606 - 사람이 누른 리포트 열기
+    ttk.Button(dialog, text='리포트에서 PASS/FAIL 반영(브라우저)', command=open_report).pack(side='left', padx=12)
 
 
 def share_run(root, record):

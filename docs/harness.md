@@ -18,6 +18,8 @@
 Bellalun은 제품·자동화 버전, Windows 전체 빌드와 에디션, 사용자 로캘, 체크리스트 판본과 실행 범위를 해당 후보의 결과에 남긴다. Pro 25H2와 26H2는 서로 다른 회차다. 현재 후보의 실측 범위는 [설치판 인수표](installation-acceptance.md)에서 확인한다. 실제 제품을 켜지 않는 검사와 설치판·제품 실측을 함께 보존한다.
 
 - 화면 OCR을 판정에 쓰는 단계는 재판독하고, 값이 미확정이면 MANUAL을 기록한 뒤 안전한 후속 시험을 계속한다. [판독 대조표 검사](../tests/test_reading_evidence.py)로 기대 텍스트, 판독값, 해당 크롭과 재판독 기록을 확인한다.
+- 사람이 MANUAL·SKIP·FAIL·BLOCKED를 확인한 결과는 리포트에서 내려받은 `_reviewed.html` 또는 `tools/reviewed_report.py`의 검토본으로 남긴다. 원본 결과와 게이트 입력은 바꾸지 않는다. [사람 확인 반영 시험](../tests/test_manual_review.py)으로 부분 검토, 이전 회차·바뀐 결과 파일 거부와 원본 보존을 확인한다.
+- 안전 중단으로 끝난 회차는 리포트 메타 `user_stop`과 실행 기록 `stop_requested`로 구분한다. [안전 중단 시험](../tests/test_user_stop.py)으로 TC 사이 정지, 부분 리포트와 강제 종료 유예를 확인한다.
 - DB 또는 DICOM 수신 파일이 실제로 기대와 다르면 기존 결과를 유지한다. [리포트 첫 화면 검사](../tests/test_report_summary.py)로 수동 확인 링크와 수, 시작 전 막힌 TC와 중단 뒤 미실행 Step을 각각 대조한다.
 - OS 언어·제품 언어·파일 선택창 구조가 달라지면 [영문 Scheduled 시험](../tests/test_scheduled_date.py), [파일 열기·저장 시험](../tests/test_xipl_save_dialog.py), [USB 시험](../tests/test_usb_paths.py)에서 실제 대상 경로, 창 닫힘과 원복을 확인한다. 대상 제품에서 확인한 컨트롤과 입력만 사용한다.
 - 배포본의 setup·ZIP 해시와 빌드 커밋을 설치판 증거에 연결한다. 설치한 PC와 진입한 바로가기, 해당 후보에서 실제 실행한 회차를 [배포 안내](distribution-guide.md)에 따라 확인한다.

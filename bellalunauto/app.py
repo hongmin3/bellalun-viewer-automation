@@ -410,6 +410,33 @@ def wait_worker_ready(path, parent, timeout=15):
         time.sleep(.05)
 
 
+#: 안전 중단(REQ-QA-002): 중단 요청 뒤 작업 프로세스가 진행 중인 TC를 마치고 리포트·원상복원을
+#: 끝낼 때까지 기다리는 상한(초). 가장 긴 단계 상한(60분)과 정지 유예, 복원 시간을 더했다.
+#: 넘으면 예전처럼 작업 프로세스를 강제로 끝낸다(이때 복원은 다음 실행 전 명시적 복구로 남는다).
+STOP_GRACE_SECONDS = 90 * 60
+#: 사용자 안전 중단으로 끝난 실행의 종료 코드(실행 기록 상태 `stopped`).
+USER_STOP_EXIT = 130
+
+
+def wait_worker(child, stop_file=None, *, grace=STOP_GRACE_SECONDS, poll=.5,
+                clock=time.monotonic, sleep=time.sleep):
+    """작업 프로세스가 끝나기를 기다린다. 반환 `(종료 코드, 중단)`.
+
+    중단은 None(요청 없음), `'graceful'`(요청 뒤 작업 프로세스가 스스로 마무리), `'forced'`(유예 초과)다.
+    중단 요청을 보면 바로 끝내지 않는다. 작업 프로세스가 TC 사이에서 멈추고 리포트·복원을 마칠 시간을 준다.
+    """
+    stop_seen = None
+    while child.poll() is None:
+        if stop_seen is None and stop_file and Path(stop_file).exists():
+            stop_seen = clock()
+            print('[안전 중단] 중단 요청을 받았습니다. 진행 중인 TC를 마치고 리포트·원상복원을 한 뒤 멈춥니다.')
+        if stop_seen is not None and clock() - stop_seen >= grace:
+            return None, 'forced'
+        sleep(poll)
+    stopped = stop_seen is not None or bool(stop_file and Path(stop_file).exists())
+    return child.returncode, ('graceful' if stopped else None)
+
+
 def run_guarded(layout, arguments, stop_file=None):
     """GUI 콜백 없이도 감독 프로세스가 최종 실행 상태를 남긴다."""
     code = 3
@@ -422,7 +449,9 @@ def run_guarded(layout, arguments, stop_file=None):
             from bellalunauto.runs import RunRecord
             path = Path(layout.workspace) / 'Runs' / run_id / 'run.json'
             data = json.loads(path.read_text(encoding='utf-8'))
-            RunRecord(layout.workspace, path, data).finish(code)
+            # 화면의 안전 중단 버튼은 중지 파일만 남긴다. 실행 기록에도 중단 요청을 남긴다.
+            RunRecord(layout.workspace, path, data).finish(
+                code, stop_requested=bool(stop_file and Path(stop_file).exists()))
 
 
 def _run_guarded_impl(layout, arguments, stop_file=None):
@@ -445,6 +474,9 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
                            BELLALUN_PRODUCT_LOCK_OWNER=str(os.getpid()),
                            BELLALUN_AUTO_READY=str(ready_path),
                            PYTHONIOENCODING='utf-8', PYTHONUNBUFFERED='1')
+        if stop_file:
+            # 작업 프로세스가 TC 사이에서 안전 중단 요청을 확인한다(REQ-QA-002).
+            environment['BELLALUN_STOP_FILE'] = str(Path(stop_file).resolve())
         try:
             from bellalunauto.gui import secret_redactor
             scrub = secret_redactor(load_config(layout))
@@ -465,16 +497,21 @@ def _run_guarded_impl(layout, arguments, stop_file=None):
             reader.start()
             health.write_state(str(layout.workspace), 'running', wrapper_pid=os.getpid(),
                                regression_pid=child.pid, mode=command)
-            while child.poll() is None:
-                if stop_file and Path(stop_file).exists():
-                    _stop_process_tree(child)
-                    from run import shutdown_viewer
-                    cleanup = shutdown_viewer('BellalunAuto 사용자 중지')
-                    health.write_state(str(layout.workspace), 'cancelled', cleanup=cleanup, mode=command)
-                    return 130
-                time.sleep(.5)
-            code = child.returncode
+            code, stop = wait_worker(child, stop_file)
+            if stop == 'forced':
+                _stop_process_tree(child)
+                from run import shutdown_viewer
+                cleanup = shutdown_viewer('BellalunAuto 사용자 중지(정리 시간 초과)')
+                health.write_state(str(layout.workspace), 'cancelled', cleanup=cleanup, mode=command,
+                                   stop='forced', grace_seconds=STOP_GRACE_SECONDS)
+                return USER_STOP_EXIT
             reader.join(timeout=10)
+            if stop == 'graceful':
+                # 작업 프로세스가 리포트·원상복원을 마치고 끝났다. 완료 리포트 검사로 비정상 종료라 하지 않는다.
+                health.write_state(str(layout.workspace), 'cancelled', exit_code=code, mode=command,
+                                   stop='graceful')
+                print(f'[{command}] 안전 중단으로 종료했습니다(작업 프로세스 종료 코드 {code}).')
+                return USER_STOP_EXIT if code in (0, 1, USER_STOP_EXIT) else code
             if command in {'run-regression', 'run-winupdate'} and not historical_conversion(arguments):
                 from core.selection import scope_of_arguments
                 report = completed_report(layout.workspace/'Reports', command, started - 1,

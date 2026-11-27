@@ -39,7 +39,6 @@ UNTRACED_BASELINE = {
     "tests/install_package.py",
     "tests/install_package_flow.py",
     "tests/settings.py",
-    "tests/system_compat.py",
     "tests/test_cause_evidence_followup.py",
     "tests/test_close_examine_confirm.py",
     "tests/test_dicom_settings.py",

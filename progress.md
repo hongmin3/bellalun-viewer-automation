@@ -1,5 +1,23 @@
 # 진행 상태
 
+## 2026-11-27 OCR 글자 차이·사람 확인 반영·#246 실패 보완 (AI-Remote #247, job 271)
+
+- 시작: `main = origin/main = b9ef12c`. 작업 브랜치 `job271/ocr-review-20261127`(worktree `.worktrees/job271`). 공유 파일(`frame/frame.lock.json` 목록)은 고치지 않았다.
+- #246 WF_03 실패 원인(확정): 1.0.0.012(`dd264e3`) 기본 r1 `20261127-061323-847ee574` WF_03 Step 0 `SelectionError(unreadable): 'TC_WF03_OVERLAY'`는 `apply_to_print_server`가 Overlay 콤보(2474)를 누르고 0.4초 뒤 보임·인접 여부 없이 마지막 `ItemList`를 읽어 후보 0개로 `select([])`를 부른 것이다. 근거: 저장된 `Evidence\Flow\03_Overlay\ocr-hwtdpe38\selection.json`이 후보 0개·4회 시도·진단 없음이고, 그 판에서 Step 2 기록은 이 호출 뒤에 있어 Step 2가 비어 있다. `ensure_print_overlay`의 같은 이름 선택은 행 0개를 먼저 막는다. 같은 폴더의 `05_*`는 07:56 WU r2가 덮어쓴 파일이라 근거가 아니다. 수정: 검증된 `combo_popup.wait_items`로 바꿈(재현 `tests/test_print_overlay_combo.py`). 과거 리포트 전체에서 같은 실패는 이 1건이다.
+- 같은 패턴(대기·보임·인접 확인 없이 `ItemList`를 읽음)이 남은 곳: `core/uitext.pick_combo_by_text`·`read_combo_items`, `core/flows._login_id_items`, `core/viewer_processing`(View 검색 항목, Parameter 목록), `tests/xipl_flows._qc_score_items`. 이번 실패와 무관하고 제품 실행 확인 없이 넓히면 영향이 커서 바꾸지 않았다. 다음 설치판 회귀에서 같은 증상이 나오면 같은 방식으로 고친다.
+- #246 WU r2 `20261127-073915-7f9ee6b9`: 중지 파일 `stop`(공용 진행 화면의 안전 중단 버튼 형식)이 08:22에 생겨 감독 프로세스가 작업 프로세스를 바로 끝냈다. 그래서 리포트·원상복원이 없었고(`reports: []`, `restoration` 없음) 요약이 "TC를 시작하기 전에 멈췄을 수 있다", `stop_requested: false`였다. 누가 버튼을 눌렀는지는 기록으로 확인하지 못했다(GUI 실행 도구 로그에 중지 조작 없음, 이슈 `/cancel`과 시각이 겹침). 수정: REQ-QA-002 안전 중단(TC 사이 정지·부분 리포트·선택한 복원·종료 코드 130, 90분 뒤에만 강제 종료). 기존 회차 기록은 바꾸지 않았다.
+- 간헐 단위시험(`test_image_cleanup`·`test_archive_hash_once`·`test_execution_session`)은 이번 전체 검증에서 재현되지 않았다. 빌드 셸 `PSModulePath` 문제는 빌드를 하지 않아 다시 보지 않았다.
+- REQ-REPORT-002 보강: `compare`(WF_03·WF_15 환자 정보, 필름 6칸, XIPL_03 10칸, Print Overlay 선택 후보, 3D 촬영 카드 라벨·Patient ID), XIPL_03 칸별 크롭(저장된 판독 영역에서 줄 위치), 3D 촬영 판독 조각 저장, WF_08 Step 7 픽셀 비교 근거·Header 판독표, XIPL_05 선택 근거. 실제 1.0.0.012 XIPL_03 캡처 2장으로 10칸 크롭과 카드 글자 강조를 확인했다.
+- REQ-REPORT-003 사람 확인 반영: 리포트 입력란·브라우저 내려받기(`core/manual_review.py`), `tools/reviewed_report.py`, 수동 검토 창의 리포트 열기 버튼. 실제 1.0.0.012 기본 r1 결과 JSON을 현재 코드로 다시 그린 리포트를 헤드리스 Chromium에서 열어(화면 조작 없음) 사유 없는 FAIL 변경 거부, 부분 검토 4건 내려받기, 브라우저와 Python 검토본의 TC 판정·집계·종합 판정 일치, 원본 JSON 해시 보존을 확인했다.
+- 3-후속(`frame/FRAME.md` 4절) 범위: 공유 ZIP 범위 선택만 공용 확인 화면으로 옮겼다(공용 파일 변경 없음, `Reports\Share\`). 남은 것과 완료 조건은 아래와 같다. 모두 공용 `core/frame_ui.ps1`·`frame_ui.py`에 새 화면 형식이 필요해 VXvue 동기화와 함께 한다.
+  - PC별 설정: 입력 칸·검증 오류 표시가 있는 설정 화면 형식. 완료 조건은 기존 Tk 설정과 같은 키를 저장하고 준비 점검의 "설정 열기"에서 돌아오는 것.
+  - 수동 검토 창: TC 목록·결과 선택·의견 칸 화면 형식. 완료 조건은 `review.json` 형식과 검수 완료 조건(REQ-QA-003)을 그대로 지키는 것.
+  - 무인 Tk 화면: 결과 화면의 60초 자동 닫기 카운트다운과 취소 입력(REQ-FOLLOWUP-003)을 공용 결과 화면에 넣는 것. VXvue의 무인 규칙(#148)과 같이 바꿔야 한다.
+- 남은 일:
+  - `frame/FRAME.md` 4절 7-보완(Bellalun `compare`)·8(Bellalun 사람 확인 반영)을 "Bellalun 반영"으로 고친다. VXvue 공유 checkout(`feat/report-manual-compare-040`, 8963595)에 다른 세션의 미커밋 변경(`AGENTS.md`, `.project-check/*`, `botyard.json`)이 있어 이번에 공유 문서를 고치지 않았다.
+  - 설치판 수용: 이 변경을 담은 새 검증판을 빌드·설치한 뒤 REQ-DIST-009로 기본/WU를 따로 실행한다(사용자 승인 필요). Windows 11 Pro와 Windows 11 IoT Enterprise LTSC 24H2 실측은 환경별로 남긴다. 이 PC(Windows 11 Enterprise 26200)는 두 대상 OS가 아니다.
+  - 안전 중단 유예 90분은 기본값으로 정했다. 운영에서 더 짧게 원하면 사용자 결정으로 바꾼다.
+
 ## Windows 검증 범위와 보고서 하네스 (2026-11-27)
 
 - Bellalun 검증 대상은 Windows 11 Pro와 Windows 11 IoT Enterprise LTSC 24H2다. VXvue의 네 대상 및 이전 후보의 결과와 별도로 기록한다.

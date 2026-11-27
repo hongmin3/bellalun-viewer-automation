@@ -177,3 +177,31 @@ class FlowTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def test_share_zip_uses_common_confirm_screen_and_product_folder(tmp_path):
+    """공유 ZIP 범위 선택(REQ-QA-004)을 공용 확인 화면으로 옮겼다(frame/FRAME.md 4절 3-후속)."""
+    from types import SimpleNamespace
+    from bellalunauto import frame_launch as fl
+    run = tmp_path / 'Runs' / 'R1'
+    run.mkdir(parents=True)
+    (run / 'review.json').write_text('{}', encoding='utf-8')
+    record = SimpleNamespace(data={'run_id': 'R1', 'reports': ['a.html']}, path=run / 'run.json')
+    target = fl.share_target(tmp_path, record)
+    assert target == tmp_path / 'Reports' / 'Share' / 'R1.zip'
+    data = fl.share_data(record, target)
+    assert data['screen'] == 'confirm' and [t['key'] for t in data['toggles']] == [k for k, _ in fl.SHARE_TOGGLES]
+    assert all(t['value'] is False for t in data['toggles']) and str(target) in ' '.join(data['facts'])
+    calls = []
+
+    def create(output, **kwargs):
+        calls.append((output, kwargs))
+        open(output, 'wb').close()
+    assert fl.create_share(record, target, {'action': 'cancel'}, create, lambda p: []) is None
+    assert fl.create_share(record, target, {'action': 'start', 'checked': []}, create, lambda p: []) is None
+    made = fl.create_share(record, target, {'action': 'start', 'checked': ['scope'],
+                                            'toggles': {'include_dicom': True}}, create, lambda p: [])
+    assert made == (target, []) and len(calls) == 1
+    assert calls[0][1]['include_dicom'] is True and calls[0][1]['include_evidence'] is False
+    assert calls[0][1]['review'] == run / 'review.json'
+    assert fl.share_target(tmp_path, record).name == 'R1-2.zip'          # 기존 ZIP을 덮어쓰지 않는다

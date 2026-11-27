@@ -407,6 +407,64 @@ def _image_similarity(path_a, path_b):
     return {"mean_delta": round(mean, 3), "similarity": round(1 - mean / 255, 6)}
 
 
+#: 필름 ↔ Print SCP 서버 프리뷰 픽셀 일치 기준(Step 7).
+PREVIEW_SIMILARITY = .96
+#: 픽셀 비교 근거의 제목(REQ-REPORT-002 적용 범위의 "각 판정 자리의 근거 형식").
+PIXEL_TITLE = "픽셀 비교 근거 · 비교에 쓴 영상과 유사도"
+
+
+def _normalized(path, film=False):
+    image = Image.open(path).convert("L")
+    if film:
+        image = image.crop((2, 2, max(3, image.width - 2), max(3, image.height - 2)))
+    return ImageOps.fit(image, (256, 320), method=Image.Resampling.LANCZOS)
+
+
+def pixel_reading(film_path, web_path, similarity, out_path, threshold=PREVIEW_SIMILARITY):
+    """Step 7 필름 ↔ 서버 프리뷰 픽셀 판정의 근거(REQ-REPORT-002). 판정은 바꾸지 않는다.
+
+    `_image_similarity`가 실제로 비교한 정규화 영상(필름 | 서버 프리뷰 | 차이 4배)을 한 장으로 남긴다.
+    결과는 유사도 기준과 같다. 기준 이상이면 일치, 아니면 기대와 다름이다.
+    """
+    from core import reading_evidence
+    a, b = _normalized(film_path, film=True), _normalized(web_path)
+    diff = ImageChops.difference(a, b).point(lambda value: min(255, value * 4))
+    sheet = Image.new("L", (256 * 3 + 16, 320), 255)
+    for index, part in enumerate((a, b, diff)):
+        sheet.paste(part, (index * (256 + 8), 0))
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out_path)
+    score = similarity.get("similarity")
+    row = reading_evidence.row(
+        "필름 ↔ Print SCP 서버 프리뷰", f"유사도 {threshold} 이상", "match" if (score or 0) >= threshold else "mismatch",
+        read=f"유사도 {score} · 평균 밝기 차이 {similarity.get('mean_delta')}", image=out_path,
+        note="왼쪽부터 비교에 쓴 필름, 서버 프리뷰(각 256x320 정규화), 두 영상의 차이(4배 강조)다.")
+    return reading_evidence.pack([row], [("필름 캡처 원본", film_path), ("서버 프리뷰 원본", web_path)],
+                                 title=PIXEL_TITLE)
+
+
+def pane_reading(pane_check):
+    """Step 7 필름 세 칸이 서로 다른 영상인지 본 픽셀 판정의 근거(REQ-REPORT-002)."""
+    from core import reading_evidence
+    rows = [reading_evidence.row(
+        f"칸 {pair.replace('-', ' ↔ 칸 ')}", "평균 밝기 차이 1.0 이상(서로 다른 영상)",
+        "match" if sim["mean_delta"] >= 1.0 else "mismatch", read=f"평균 밝기 차이 {sim['mean_delta']}")
+        for pair, sim in sorted((pane_check.get("pairs") or {}).items())]
+    return reading_evidence.pack(rows, [(f"칸 {index}", path) for index, path in enumerate(pane_check.get("crops") or [])],
+                                 title=PIXEL_TITLE)
+
+
+def cross_reading(table):
+    """Step 7 서버 프리뷰가 자기 필름과 가장 닮았는지 본 교차 대조의 근거(REQ-REPORT-002)."""
+    from core import reading_evidence
+    rows = [reading_evidence.row(
+        f"{kind} 서버 프리뷰", f"{kind} 필름과 가장 닮음", "match" if item["best_match"] == kind else "mismatch",
+        read="가장 닮은 필름: %s (%s)" % (item["best_match"], ", ".join(
+            f"{other} {score}" for other, score in item["scores"].items())))
+        for kind, item in table.items()]
+    return reading_evidence.pack(rows, title=PIXEL_TITLE)
+
+
 def _preview_urls(job):
     urls = []
     for key, value in (job or {}).items():
@@ -616,7 +674,10 @@ def run(ctx):
             result.assert_true(
                 7, f"{kind} 영상 Film Print 후 Print SCP 수신 및 프리뷰 일치 (커버리지 확장)",
                 str(done["job"].get("id")) not in {str(job.get("id"))}
-                and done["similarity"]["similarity"] >= .96,
+                and done["similarity"]["similarity"] >= PREVIEW_SIMILARITY,
+                reading_evidence=reading_evidence.safe(
+                    pixel_reading, done["film"], done["web"], done["similarity"],
+                    os.path.splitext(done["film"])[0] + "_pixel_compare.png"),
                 expected={"new_job": True, "image_similarity": ">= 0.96"},
                 actual={"thumbnail": picked["label"], "job": done["job"],
                         "ignored_jobs": done["ignored_jobs"],
@@ -660,6 +721,7 @@ def run(ctx):
                     7, f"{kind} Film 의 Raw/Recon/Syn 세 칸이 서로 다른 영상 "
                        "(커버리지 확장)",
                     len(pc["crops"]) == 3 and pc["distinct"],
+                    reading_evidence=reading_evidence.safe(pane_reading, pc),
                     expected="세 칸의 픽셀이 서로 달라야 한다(같은 프레임 중복 선택 아님)",
                     actual=pc,
                     note="Print SCP job 메타데이터는 Film 단위라 어떤 프레임이 "
@@ -673,6 +735,10 @@ def run(ctx):
             result.assert_true(
                 7, f"{kind} Film 프리뷰에 Print Overlay Header 표시 (커버리지 확장)",
                 _all_ok({"header": header_ok}),
+                reading_evidence=reading_evidence.safe(
+                    print_overlay.film_reading, header_texts, {"header": header_ok},
+                    {"header": expect["header"]}, target,
+                    os.path.splitext(done["film"])[0] + "_header"),
                 expected={"header": sorted(label for label, _ in
                                            print_overlay.PRINT_ITEMS_BY_AREA["header"])},
                 actual={"ocr": header_texts.get("header"), "areas": header_ok},
@@ -686,7 +752,7 @@ def run(ctx):
             matched, table = _cross_match(prints)
             result.assert_true(
                 7, "인쇄된 " + " / ".join(prints) + " 필름이 서로 다른 영상 (커버리지 확장)",
-                matched,
+                matched, reading_evidence=reading_evidence.safe(cross_reading, table),
                 expected="각 서버 프리뷰는 자기 필름과 가장 닮아야 한다",
                 actual=table,
                 note="같은 영상을 여러 번 보내도 '필름==서버' 판정만으로는 전부 "

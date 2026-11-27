@@ -141,13 +141,17 @@ class CombinedChainTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_combined(self):
+    def run_combined(self, stop_after=None):
         ids = ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup",
                "AUTOMATION_SCREEN_CONTRACT", "TC_Basic_WorkFlow_01"]
 
         def stage(tc_id):
             def fn(ctx):
                 self.calls.append(tc_id)
+                if tc_id == stop_after:
+                    # 이 TC가 도는 동안 화면의 안전 중단 버튼이 중지 파일을 남긴다.
+                    with open(os.environ["BELLALUN_STOP_FILE"], "w", encoding="utf-8") as stop:
+                        stop.write("stop")
                 return _passing(tc_id)(ctx)
             return fn
 
@@ -198,6 +202,23 @@ class CombinedChainTests(unittest.TestCase):
         self.assertTrue(kwargs["chain_completed"])
         self.assertIn("결합", kwargs["source_note"])
         self.assertEqual(kwargs["extra_meta"]["run_scope"], "combined")
+
+    def test_user_stop_finishes_current_tc_then_reports_without_unrun_rows(self):
+        """REQ-QA-002 안전 중단: 진행 중 TC는 끝내고 다음 TC부터 실행하지 않는다(#246 WU r2)."""
+        stop = os.path.join(self.tmp.name, "stop.json")
+        with patch.dict(os.environ, {"BELLALUN_STOP_FILE": stop}):
+            self.assertEqual(self.run_combined(stop_after="DICOM_Server_Setup"), run.USER_STOP_EXIT)
+        self.assertEqual(self.calls, ["AUTOMATION_ENVIRONMENT_RESET", "DICOM_Server_Setup"])
+        self.assertEqual(self.ctx.user_stop["before_tc"], "AUTOMATION_SCREEN_CONTRACT")
+        self.assertTrue(self.ctx.execution_incomplete)
+        rows, _scope = self.basic[-1]
+        self.assertNotIn("TC_Basic_WorkFlow_01", [r.tc_id for r in rows])
+        wu_rows, kwargs = self.wu[-1]
+        self.assertFalse(kwargs["chain_completed"])
+        self.assertIn("사용자 안전 중단", kwargs["source_note"])
+        # 실행하지 않은 WU TC는 "근거 TC 결과 없음" FAIL로 남기지 않는다(체크리스트에 미수행).
+        self.assertFalse([r.tc_id for r in wu_rows if r.verdict == "FAIL"])
+        self.assertNotIn("TC_WindowsUpdate_10", [r.tc_id for r in wu_rows])
 
 
 class ReleaseGateTests(unittest.TestCase):

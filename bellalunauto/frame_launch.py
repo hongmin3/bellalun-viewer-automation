@@ -3,7 +3,7 @@
 
 1. 시작 → 2. 준비 점검 → 3. 실행 동의 → 4. 진행 → 5. 결과.
 시험 실행·동의 검증·실행 기록은 기존 `gui.RunController`·`runplan`·`runs`를 그대로 쓴다.
-PC별 설정·수동 검토·공유 ZIP은 기존 창을 연다. 무인 실행(`--unattended`)은 기존 Tk 화면을 쓴다.
+PC별 설정·수동 검토는 기존 창을 열고, 공유 ZIP 범위 선택은 공용 확인 화면을 쓴다. 무인 실행(`--unattended`)은 기존 Tk 화면을 쓴다.
 """
 from __future__ import annotations
 
@@ -158,8 +158,10 @@ def result_data(record, workspace):
     status = data.get('status')
     if status == 'uac_cancelled':
         headline = {'text': '시험을 시작하지 않았습니다. UAC 권한 요청을 취소했습니다.', 'level': 'info'}
-    elif status == 'stopped':
+    elif status == 'stopped' and data.get('reports'):
         headline = {'text': '요청에 따라 시험을 중단했습니다. 끝나지 않은 TC는 레포트에 미수행으로 남습니다.', 'level': 'warn'}
+    elif status == 'stopped':
+        headline = {'text': '요청에 따라 시험을 중단했지만 레포트가 없습니다. 원상복원 여부를 확인하세요.', 'level': 'warn'}
     else:
         headline = ui.outcome_headline(verdicts, aborted=status != 'completed')
     rows = [{'status': row.get('verdict', ''), 'level': ui.VERDICT_LEVEL.get(row.get('verdict'), 'info'),
@@ -177,6 +179,48 @@ def result_data(record, workspace):
     buttons += [ui.button('folder', '결과 폴더 열기', open_path=Path(workspace) / 'Reports'),
                 ui.button('review', '수동 검토'), ui.button('share', '공유 ZIP'), ui.button('home', '처음으로')]
     return ui.result(product_label(), '결과', headline, [line for line in lines if line.strip()], rows, buttons)
+
+
+#: 공유 ZIP 범위 선택(REQ-QA-004)의 선택 항목. 공용 확인 화면의 토글로 보인다(`frame/FRAME.md` 4절 3-후속).
+SHARE_TOGGLES = (('include_evidence', '증거 스크린샷 (시험 환자 정보 포함)'),
+                 ('include_dicom', 'DICOM (시험 환자 정보 포함)'),
+                 ('include_logs', 'Viewer 로그 구간'))
+
+
+def share_target(workspace, record):
+    """공유 ZIP 저장 위치: `Reports/Share/<실행 번호>.zip`. 이미 있으면 덮어쓰지 않고 번호를 붙인다."""
+    folder = Path(workspace) / 'Reports' / 'Share'
+    run_id = record.data['run_id']
+    target, number = folder / f'{run_id}.zip', 2
+    while target.exists():
+        target, number = folder / f'{run_id}-{number}.zip', number + 1
+    return target
+
+
+def share_data(record, target):
+    """공유 범위 선택 화면. 공용 확인 화면(2.2의 3단계 모양)으로 보인다."""
+    facts = [f"실행 번호 {record.data['run_id']}",
+             '보고서(HTML·JSON)·체크리스트 결과·검토 기록(review.json)을 ZIP 하나로 묶습니다. 설정·비밀번호는 넣지 않습니다.',
+             '아래 추가 자료는 시험 환자 정보를 포함할 수 있습니다. 필요한 것만 켜세요.',
+             f'저장 위치: {target}']
+    toggles = [{'key': key, 'label': label, 'value': False, 'note': ''} for key, label in SHARE_TOGGLES]
+    checks = [{'key': 'scope', 'label': '공유 범위와 시험 환자 정보 포함 여부를 확인했습니다'}]
+    return ui.confirm(product_label(), '결과 공유 ZIP 만들기', facts, checks, 'ZIP 만들기', toggles=toggles)
+
+
+def create_share(record, target, answer, create=None, verify=None):
+    """확인 화면의 답으로 공유 ZIP을 만들고 무결성을 검증한다. 반환 `(경로, 문제 목록)`. 취소면 None."""
+    if answer.get('action') != 'start' or 'scope' not in (answer.get('checked') or []):
+        return None
+    from .share import create_package, verify_package
+    create, verify = create or create_package, verify or verify_package
+    flags = answer.get('toggles') or {}
+    target.parent.mkdir(parents=True, exist_ok=True)
+    review = record.path.with_name('review.json')
+    create(str(target), run_id=record.data['run_id'], reports=record.data['reports'],
+           review=review if review.exists() else None,
+           **{key: bool(flags.get(key, False)) for key, _ in SHARE_TOGGLES})
+    return target, list(verify(str(target)) or [])
 
 
 def _with_tk(callback):
@@ -231,8 +275,26 @@ def launch(layout, workspace_chosen=False, show=ui.show):
             if record is None:
                 notify('실행 기록 없음', '저장된 실행 기록이 없습니다. 먼저 체크리스트를 실행하세요.', 'info')
                 return
-            from .qa_dialogs import review_run, share_run
-            _with_tk(lambda root: (review_run if action == 'review' else share_run)(root, record))
+            if action == 'share':
+                # 공유 범위 선택은 공용 확인 화면으로 옮겼다(`frame/FRAME.md` 4절 3-후속, 2026-11-27).
+                target = share_target(layout.workspace, record)
+                try:
+                    made = create_share(record, target, show(share_data(record, target)))
+                except (OSError, ValueError) as error:
+                    notify('공유 ZIP 실패', str(error))
+                    return
+                if made is not None:
+                    path, problems = made
+                    if problems:
+                        notify('공유 ZIP 검증 실패', ' / '.join(problems))
+                    else:
+                        show(ui.result(product_label(), '공유 ZIP', {'text': '생성과 무결성 검증을 완료했습니다.',
+                                                                      'level': 'ok'}, [f'저장 위치: {path}'], [],
+                                       [ui.button('folder', '폴더 열기', open_path=path.parent),
+                                        ui.button('back', '확인', primary=True)]))
+                return
+            from .qa_dialogs import review_run
+            _with_tk(lambda root: review_run(root, record))
         elif action == 'results':
             folder = Path(layout.workspace) / 'Reports'
             folder.mkdir(parents=True, exist_ok=True)

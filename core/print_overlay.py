@@ -259,6 +259,10 @@ def film_expected_text(target):
     }
 
 
+#: 필름 칸의 글자 차이 표시 설명. 판정(`film_norm`)과 같은 비교 규칙을 사람에게 알린다.
+FILM_COMPARE_RULE = "환자 정보는 DB 값, 나머지는 영상 속성 실측 문구. 판정은 대소문자·공백·기호를 빼고 O와 0을 같게 보고 비교한다"
+
+
 def film_reading(texts, seen, expect, target, path_prefix):
     """필름 영역 OCR 판정의 대조표 기록(REQ-REPORT-002). 판정에는 쓰지 않는다.
 
@@ -276,12 +280,16 @@ def film_reading(texts, seen, expect, target, path_prefix):
             ok = bool((seen.get(area) or {}).get(label))
             outcome = "match" if ok else ("unread" if blank else "mismatch")
             read = next((text for text in reads.values() if test(film_norm(text))), "") if ok else ""
+            truth = wanted.get(area, {}).get(label, label)
             rows.append(reading_evidence.row(
-                f"{area.capitalize()} · {label}", wanted.get(area, {}).get(label, label), outcome,
+                f"{area.capitalize()} · {label}", truth, outcome,
                 read=read, reads=[[f"{name} 확대 판독", text] for name, text in reads.items()],
                 image=f"{path_prefix}_{area}.png",
                 note="" if ok else ("이 영역의 판독문이 비어 있다." if blank
-                                    else "영역 판독문에서 기대 글자를 찾지 못했다.")))
+                                    else "영역 판독문에서 기대 글자를 찾지 못했다."),
+                compare=reading_evidence.compare(
+                    truth, read, [(f"{name} 확대 판독", text) for name, text in reads.items()],
+                    FILM_COMPARE_RULE)))
     return reading_evidence.pack(rows)
 
 
@@ -896,7 +904,9 @@ def _record_selection_review(result, step, error, evidence):
         rows.append(reading_evidence.row(
             '선택 후보 %d' % (index + 1), detail['wanted'], 'unread',
             read=' / '.join(dict.fromkeys(value for _, value in observations)),
-            reads=observations, image=crop))
+            reads=observations, image=crop,
+            compare=reading_evidence.compare(detail['wanted'], '', observations,
+                                             '선택할 Print Overlay 이름(자동화가 만든 이름)')))
     result.attach(str(manifest))
     result.add(step, 'Print Overlay 선택 문구 수동 대조', MANUAL,
                expected=detail['wanted'], actual='후보 %d개 / %s' % (len(rows), error.reason),
@@ -1137,12 +1147,11 @@ def apply_to_print_server(ui, db, print_name, overlay_key,
     if not combo:
         raise RuntimeError("DICOM Print Overlay selector (2474) not found")
     ui.click(combo[0], settle=.4)
-    popups = [w for w in ui.windows() if w.text == "ItemList"]
-    options = []
-    for c in children(popups[-1].hwnd, 4) if popups else []:
-        if c.text == "TextButton" and c.visible:
-            options.append(c)
-    options = sorted({c.hwnd: c for c in options}.values(), key=lambda c: c.rect[1])
+    # 이 콤보에 붙어 보이는 팝업의 항목이 그려질 때까지 기다린다(Header 콤보와 같은 규칙).
+    # 1.0.0.012 기본 r1 WF_03은 보이지 않는 옛 팝업을 골라 후보 0개로 OCR 판독 불가가 됐다.
+    # 팝업이 끝내 준비되지 않으면 판독 불가가 아니라 준비 실패로 멈춘다.
+    from .combo_popup import wait_items
+    options = wait_items(ui, combo[0], children)
     # TextButton IDs are the current dropdown ordinal, not PRINT_OVERLAY.Key.
     # Read the rendered labels and select the configured overlay by name.
     selected_overlay, _ = ocr_selection.select(options, overlay_name, tesseract_exe,

@@ -103,6 +103,49 @@ def _bind_checkpoint_source(ctx, checkpoint, resume):
         checkpoint.set_extra("source_identity", getattr(ctx, "source_identity_at_start", None))
 
 
+#: 사용자 안전 중단으로 끝난 실행의 종료 코드(`bellalunauto.app.USER_STOP_EXIT`와 같다).
+USER_STOP_EXIT = 130
+
+
+def _user_stop_requested(ctx, stage_id, index, total):
+    """화면의 안전 중단 요청을 TC 사이에서 확인한다(REQ-QA-002).
+
+    감독 프로세스가 넘긴 중지 파일(`BELLALUN_STOP_FILE`)이 있으면 다음 TC를 시작하지 않는다.
+    멈춘 위치를 `ctx.user_stop`에 남기고 실행을 미완료로 표시한다. 리포트와 선택한 원상복원은
+    평소 마무리 경로가 그대로 한다.
+    """
+    path = os.environ.get('BELLALUN_STOP_FILE')
+    if not path or not os.path.exists(path):
+        return False
+    ctx.user_stop = {'before_tc': stage_id, 'index': index, 'total': total,
+                     'completed_stages': index - 1,
+                     'requested_seen': datetime.now().astimezone().isoformat(timespec='seconds')}
+    ctx.execution_incomplete = True
+    print()
+    print('!' * 74)
+    print(f'  사용자 안전 중단 — {stage_id}({index}/{total})부터 실행하지 않고 멈춥니다.')
+    print('  지금까지의 결과로 리포트를 만들고, 선택한 원상복원을 진행합니다.')
+    print('!' * 74)
+    return True
+
+
+def user_stop_wu_rows(wu_results, live_extra=None):
+    """안전 중단 리포트에서 실행하지 않은 WU TC 행을 뺀다(REQ-QA-002).
+
+    근거 TC를 실행하기 전에 멈춘 WU 행은 "근거 TC 결과 없음" FAIL이 되는데, 제품 판정이 아니다.
+    그런 행과 실행하지 않은 USB(WU_09)·Setting 화면(WU_10) 행을 빼서 체크리스트에 미수행으로 보이게 한다.
+    """
+    live_extra = live_extra or {}
+    skipped = set()
+    if live_extra.get("usb") is None:
+        skipped.add("TC_WindowsUpdate_09")
+    if live_extra.get("wu10") is None:
+        skipped.add("TC_WindowsUpdate_10")
+    return [row for row in wu_results
+            if row.tc_id not in skipped
+            and not any("근거 TC 결과 없음" in str(check.title) for check in row.checks)]
+
+
 def _execution_meta(ctx):
     from bellalunauto import __version__
     from bellalunauto.versioning import windows_version
@@ -119,6 +162,7 @@ def _execution_meta(ctx):
             **({'environment_outages': ctx.environment_outages}
                if getattr(ctx, 'environment_outages', None) else {}),
             **({'stage_trips': ctx.stage_trips} if getattr(ctx, 'stage_trips', None) else {}),
+            **({'user_stop': ctx.user_stop} if getattr(ctx, 'user_stop', None) else {}),
             **({'run_scope': ctx.run_scope} if getattr(ctx, 'run_scope', None) else {}),
             **({'selection': ctx.selection} if getattr(ctx, 'selection', None) else {}),
             'performance': (ctx.performance_recorder.snapshot()
@@ -1421,6 +1465,8 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
     aborted_precondition = None
     with wu_chain.keep_awake():
         for stage_index, (fn, stage_id, title) in enumerate(stages, start=1):
+            if _user_stop_requested(ctx, stage_id, stage_index, len(stage_ids)):
+                break
             from bellalunauto.runs import engine_progress
             engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'), stage_id, stage_index, len(stage_ids))
             if checkpoint.done(stage_id):
@@ -1469,6 +1515,27 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
                                      execution_mode="live", chain_completed=False,
                                      extra_meta=meta_extra())
 
+        def finish_user_stop(live_extra=None):
+            # 안전 중단(REQ-QA-002): 실행한 단계로 리포트를 만들고, 남은 WU TC는 미수행으로 남긴다.
+            # 저장점은 그대로 두어 `--resume`으로 남은 단계부터 이어 갈 수 있다.
+            stopped = shutdown_viewer("사용자 안전 중단으로 run-winupdate 중단")
+            print(f"  viewer-shutdown: {stopped}")
+            spent = (datetime.now() - started).total_seconds() / 60
+            if with_basic:
+                _finish_combined_basic(ctx, results)
+            stop_results = winupdate.build_wu_results(winupdate.lookup_from_results(results),
+                                                      **({"live_extra": live_extra} if live_extra else {}))
+            stop_results = user_stop_wu_rows(stop_results, live_extra)
+            _finish_winupdate(ctx, stop_results, spent,
+                              source_note=("기본+WU 결합 실행(사용자 안전 중단)" if with_basic
+                                           else "전용 체인(사용자 안전 중단)"),
+                              execution_mode="live", chain_completed=False, extra_meta=meta_extra())
+            return USER_STOP_EXIT
+
+        if getattr(ctx, 'user_stop', None) or _user_stop_requested(
+                ctx, "WU09_USB", len(stages) + 1, len(stage_ids)):
+            return finish_user_stop()
+
         holder = {"ui": None, "usb": checkpoint.extra("usb")}
 
         def _usb_stage(ctx):
@@ -1510,6 +1577,9 @@ def _run_winupdate_chain_impl(ctx, resume=False, with_basic=False):
         usb_outcome = holder["usb"]
 
         wu10_result = None
+        if (not checkpoint.done("TC_WindowsUpdate_10")
+                and _user_stop_requested(ctx, "TC_WindowsUpdate_10", len(stages) + 2, len(stage_ids))):
+            return finish_user_stop({"usb": usb_outcome, "wu10": None})
         engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'),
                         "TC_WindowsUpdate_10", len(stages) + 2, len(stage_ids))
         if checkpoint.done("TC_WindowsUpdate_10"):
@@ -2315,6 +2385,8 @@ def _dispatch(ctx, args):
         from core import automation_health as health
         total_tc = len(chain)
         for index, (fn, tc_id, title) in enumerate(chain, start=1):
+            if _user_stop_requested(ctx, tc_id, index, total_tc):
+                break
             from bellalunauto.runs import engine_progress
             engine_progress(ctx.root, os.environ.get('BELLALUN_QA_RUN'), tc_id, index, total_tc)
             tc_started = time.time()
@@ -2378,6 +2450,14 @@ def _dispatch(ctx, args):
             code = finish(ctx, results)
             announce_done(results, elapsed, LAST_REPORT_PATHS, label=regression_label(ctx))
             return code or 1
+        if getattr(ctx, 'user_stop', None):
+            # 안전 중단(REQ-QA-002): 실행한 TC만 리포트에 남긴다. 남은 TC는 체크리스트에 미수행으로 보인다.
+            shutdown = shutdown_viewer("사용자 안전 중단")
+            print(f"  viewer-shutdown: {shutdown}")
+            elapsed = (datetime.now() - regression_started).total_seconds() / 60
+            finish(ctx, results)
+            announce_done(results, elapsed, LAST_REPORT_PATHS, label=regression_label(ctx))
+            return USER_STOP_EXIT
         # **`AUTOMATION_3D_ACQUISITION_3DN/_3DW` 는 회귀에서 제외한다**
         # (2026-08-21 사용자 지시). 개정본 TC 가 아니고, 판정도 "장비 없이는
         # 확인 불가(MANUAL)"로 끝나 상세 결과에 실을 내용이 없다. 3D 촬영

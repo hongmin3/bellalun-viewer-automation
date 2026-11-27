@@ -716,15 +716,20 @@ def _reading_html(check, folded=False):
     if not evidence:
         return ""
     from .report_layout import render_reading_evidence
+    from .reading_evidence import TITLE
+    title = evidence.get("title") or TITLE
     try:
-        table = render_reading_evidence(evidence)
+        table = render_reading_evidence(evidence, title=title)
     except Exception:                                   # noqa: BLE001 - 표시용 표가 리포트를 깨지 않게 한다
         return ""
     if not table or not folded:
         return table
     count = len(evidence.get("rows") or [])
-    return ("<details class='more'><summary>판독 대조표 · 칸 %d개 (기대 텍스트와 화면 캡처)</summary>%s</details>"
-            % (count, table))
+    if title == TITLE:
+        summary = "판독 대조표 · 칸 %d개 (기대 텍스트와 화면 캡처)" % count
+    else:
+        summary = "%s · %d개" % (html.escape(title), count)
+    return "<details class='more'><summary>%s</summary>%s</details>" % (summary, table)
 
 
 def _render_html(results, meta, siblings=None):
@@ -827,7 +832,7 @@ def _render_html(results, meta, siblings=None):
               "bad": ("#fdecec", "#b42318", "실패")}
     bg, fg, word = colors[summary["level"]]
     P.append("<section id='overview'><h2 style='border:0;padding:0;margin-top:6px'>결론 — 한눈에 보기</h2>")
-    P.append(f"<div style='background:{bg};border-left:6px solid {fg};padding:12px 16px;"
+    P.append(f"<div id='overview-headline' style='background:{bg};border-left:6px solid {fg};padding:12px 16px;"
              f"font-size:16px;margin:6px 0 12px'><b style='color:{fg}'>{word}</b> · "
              f"{e(summary['headline'])}</div>")
     manual_count = sum(c.status == MANUAL for r in results for c in r.checks)
@@ -867,7 +872,7 @@ def _render_html(results, meta, siblings=None):
     P.append(f"<div class='tile'><div class='n'>{len(results)}</div>"
              "<div class='k'>수행 TC</div></div>")
     for k in STATUSES:
-        P.append(f"<div class='tile'><div class='n {k}'>{tc_total[k]}</div>"
+        P.append(f"<div class='tile'><div class='n {k}' data-status='{k}'>{tc_total[k]}</div>"
                  f"<div class='k'>TC {k}</div></div>")
     P.append(f"<div class='tile'><div class='n'>{checks}</div>"
              "<div class='k'>검증 항목(Step 단위)</div></div>")
@@ -1003,8 +1008,24 @@ def _render_html(results, meta, siblings=None):
 
     # --- 먼저 볼 것: FAIL 원인 ----------------------------------------
     fails = [(r, c) for r in results for c in r.checks if c.status == FAIL]
+    # 사람 확인 반영(REQ-REPORT-003): 검토본을 다시 그릴 때는 입력란을 두지 않는다.
+    from . import manual_review
+    reviewing = (meta or {}).get('report_role') != manual_review.REVIEW_ROLE
+    review_panel = [reviewing and any(manual_review.reviewable(c) for r in results for c in r.checks)]
+
+    def review_box(r, c):
+        if not reviewing or not manual_review.reviewable(c):
+            return ''
+        return manual_review.box_html(result_keys[id(r)], r.tc_id, c, r.checks.index(c) + 1)
+
+    def take_panel():
+        if not review_panel[0]:
+            return ''
+        review_panel[0] = False
+        return manual_review.panel_html(results, [result_keys[id(r)] for r in results], (meta or {}).get('run_id'))
     if fails:
         P.append(f"<section id='failures' class='failure-panel'><h2>실패 항목 {len(fails)}건 — 원인</h2>")
+        P.append(take_panel())
         P.append("<div class='meta'>회귀는 앞 단계가 뒤 TC 의 전제다. "
                  "<b>가장 위의 FAIL 부터</b> 읽는다 — 아래 FAIL 중 일부는 그 "
                  "실패의 결과일 수 있다.</div>")
@@ -1027,7 +1048,7 @@ def _render_html(results, meta, siblings=None):
                      + view.render_value(c.expected) + '</div><div class="actual"><h3>확인 결과 / 실제값</h3>'
                      + view.render_value(c.actual) + '</div></div>' + _reading_html(c)
                      + '<p><b>기록된 판정 근거</b> '
-                     + view.render_note(c.note) + '</p><p><a href="#' + e(result_keys[id(r)])
+                     + view.render_note(c.note) + '</p>' + review_box(r, c) + '<p><a href="#' + e(result_keys[id(r)])
                      + '">TC 상세와 증거 확인</a></p></article>')
         P.append('</section>')
 
@@ -1046,22 +1067,25 @@ def _render_html(results, meta, siblings=None):
         P.append("<div class='meta'>TC 하나에 여러 항목이 걸려 있어도 "
                  "<b>한 행</b>으로 묶어 적는다. 항목별 원문 사유는 각 TC 상세의 "
                  "단계별 판정 표에 그대로 남아 있다.</div>")
+        P.append(take_panel())
         for r, items in holds:
             P.append('<article class="manual-card"><h3><a href="#' + e(result_keys[id(r)]) + '">'
                      + e(r.tc_id) + ' · ' + e(r.title) + '</a> ' + view.render_badge(r.verdict) + '</h3>')
             if r.verdict == PASS:
                 P.append('<p class="k">참고 정보 · TC는 통과했으며 아래 항목은 보조 미수행 기록입니다.</p>')
             for c in items:
-                P.append('<p>' + view.render_badge(c.status) + ' Step ' + e(step_label(c.step))
-                         + ' · ' + e(c.title) + '</p>')
+                # Step마다 묶어 사람 확인 반영(REQ-REPORT-003)이 그 Step의 판독 카드만 바꾸게 한다.
+                P.append('<div class="manual-step"><p>' + view.render_badge(c.status) + ' Step '
+                         + e(step_label(c.step)) + ' · ' + e(c.title) + '</p>')
                 P.append('<div class="comparison"><div><h3>확인할 기준 / 기대값</h3>'
                          + view.render_value(c.expected) + '</div><div class="actual"><h3>자동화가 확인한 것</h3>'
-                         + view.render_value(c.actual) + '</div></div>' + _reading_html(c))
+                         + view.render_value(c.actual) + '</div></div>' + _reading_html(c) + review_box(r, c))
                 if c.status == MANUAL and not c.reading_evidence:
                     if r.evidence:
                         P.append(f"<p><a href='#{e(result_keys[id(r)])}'>TC 상세의 화면과 증거 파일</a></p>")
                     else:
                         P.append("<p class='note'>이 항목의 캡처나 증거 파일을 확보하지 못했습니다.</p>")
+                P.append('</div>')
             # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
             # 중복을 접어 **서로 다른 사유만** 남긴다.
             reasons, seen = [], set()
