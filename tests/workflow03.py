@@ -54,7 +54,7 @@ import time
 
 from PIL import ImageGrab
 
-from core import flows, image_overlay, print_overlay, reading_evidence, screen
+from core import flows, image_overlay, ocr_selection, print_overlay, reading_evidence, screen
 from core import viewer_processing as vp
 from core.result import TCResult, FAIL, MANUAL, PASS
 from core.ui import children
@@ -218,12 +218,12 @@ def workflow_03(ctx):
 
         # --- Step 2: Print Overlay 등록 및 Print에서 선택 --------------
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
-        po = print_overlay.ensure_print_overlay(ui, ctx.db, tess, evidence_dir=evidence)
-        print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
-                          if x["kind"] == "Print")
-        applied = print_overlay.apply_to_print_server(
-            ui, ctx.db, print_spec["name"], po["overlay"]["Key"],
-            tesseract_exe=tess, evidence_dir=evidence)
+        before = {w.hwnd for w in ui.windows()}
+        try:
+            po = print_overlay.ensure_print_overlay(ui, ctx.db, tess, evidence_dir=evidence)
+        except ocr_selection.SelectionError as error:
+            print_overlay.review_selection(ui, r, 2, error, evidence, before, definition_db=ctx.db)
+            return r
         # 개정본은 "Print Overlay를 추가한다"(Step 2)와 "Print 설정에서 선택한다"
         # (Step 3)를 별개 단계로 둔다. 한 판정으로 묶으면 어느 쪽이 실패했는지
         # 리포트에서 구분되지 않으므로 나눠서 기록한다.
@@ -273,6 +273,16 @@ def workflow_03(ctx):
                  f"{header_count}개이므로 {header_count}칸 이상이 필요해 "
                  f"{layout_label}을 고른다. 값 매핑(0=None/1=Top/2=Bottom)은 실측이며 "
                  "PRINT_OVERLAY.HeaderPosition/HeaderLayout으로 대조한다.")
+        print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
+                          if x["kind"] == "Print")
+        before = {w.hwnd for w in ui.windows()}
+        try:
+            applied = print_overlay.apply_to_print_server(
+                ui, ctx.db, print_spec["name"], po["overlay"]["Key"],
+                tesseract_exe=tess, evidence_dir=evidence)
+        except ocr_selection.SelectionError as error:
+            print_overlay.review_selection(ui, r, 3, error, evidence, before)
+            return r
         r.assert_equal(
             3, "Print 설정에서 추가한 Print Overlay 선택",
             po["overlay"]["Key"], applied.get("Overlay"),

@@ -48,6 +48,7 @@ def test_workflow_passes_evidence_before_print_configuration(tmp_path):
     ctx = SimpleNamespace(cfg={}, db=mock.Mock(), evidence_root=str(tmp_path))
     ui = mock.Mock()
     ui.by_id.return_value = []
+    ui.windows.return_value = []
     with mock.patch.object(wf.vp, 'open_test_study', return_value={'ui':ui}), \
          mock.patch.object(wf.flows, 'ensure_patient_screen'), \
          mock.patch.object(wf.vp, 'add_image_overlay_items', return_value={'after':{115:(1,0),118:(1,1)}}), \

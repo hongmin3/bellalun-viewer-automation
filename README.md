@@ -180,7 +180,7 @@ Bellalun Viewer\
 | 회귀 밖 단독 점검 | **설치 패키지 검증** — 신규 설치용 `Install.exe` 를 **설치하지 않고** Welcome~Summary 까지 확인 (`verify-install-package`). 회귀는 설치된 Viewer 를 보고 이 점검은 설치 이전 패키지를 보므로 전제가 달라 사슬에서 분리했습니다 |
 | 1.0.4 설치판 전체 회귀 기록 | 1.0.4 — 기본27 TC: PASS 19 / FAIL 6 / MANUAL 1 / SKIP 1, 실시간WU13 TC: PASS 9 / FAIL 1 / SKIP 3. 배포 게이트 거부. 1.0.5 소스 단독 WF05·XIPL02는 PASS이며 새 후보 EXE 검증은 미완료 |
 | 과거 소스 기준 회귀 | 2026-10-15 변경 전 기준 실행 — TC 27건: PASS 17 / FAIL 8 / MANUAL 2. 당시 OCR 경로·XIPL 준비 대기·DB 복원 경로 등을 수정하고 후속 전체 실행을 준비했음 |
-| 남은 검증 | 실제 LTSC·Windows 10·개발 도구 없는 PC·다른 관리자 계정·한글 계정 설치판 검증(후보11 최소 환경 실행과 USB 연결 WU는 2026-10-21 완료). 새 DB 불일치와 자동화 실패를 과거 UPS/XIPL 결함으로 일괄 분류하지 않음 |
+| 남은 검증 | Windows 11 IoT Enterprise LTSC 24H2·개발 도구 없는 PC·다른 관리자 계정·한글 계정 설치판 검증(후보11 최소 환경 실행과 USB 연결 WU는 2026-10-21 완료). 제품별 지원 범위와 검증 절차는 [하네스](docs/harness.md)를 따른다. |
 | 과거 기준 회귀 | 2026-09-03 20:45~22:45 (29차) — TC 27건: PASS 23 / FAIL 2 / MANUAL 2 (119.9분), 검증 303개: PASS 293 / FAIL 7 / MANUAL 2 / SKIP 1. 당시 남은 FAIL은 문서화한 UPS 복원과 XIPL_03 기본값 복귀였음 |
 | 외부 의존성 | Pillow, pytesseract, openpyxl, pypdf **4개뿐** |
 | 추적성 | `traceability.json` + `tools/traceability.py` — 인용한 사양 문구·쪽·SRS ID를 **원문과 매번 대조**하고 사양↔TC 양방향 인덱스를 만듭니다. TC 37건 중 **24건**에 사양 인용 73건, 위반 0 |

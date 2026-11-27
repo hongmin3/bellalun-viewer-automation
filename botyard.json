@@ -143,6 +143,7 @@
     "tests/test_user_action_steps.py",
     "tests/test_verdict_criteria.py",
     "tests/test_viewer_reuse.py",
+    "tests/test_wf03_ocr_manual.py",
     "tests/test_wf15_preconditions.py",
     "tests/test_winupdate_isolation.py",
     "tests/test_winupdate_usb.py",

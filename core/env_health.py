@@ -147,10 +147,13 @@ def reclassify(result, down):
     return changed
 
 
+NOT_STARTED_NOTE = "시작 전 다시 점검했고 실행하지 않았다."
+
+
 def blocked_result(tc_id, title, down):
     """앞선 TC에서 안 된 환경이 아직 안 되면 이 TC는 제품을 조작하지 않고 BLOCKED로 남긴다."""
     from core.result import TCResult
     result = TCResult(tc_id, title)
-    _environment_check(result, down, "시작 전 다시 점검했고 실행하지 않았다.")
+    _environment_check(result, down, NOT_STARTED_NOTE)
     result.finalize()
     return result

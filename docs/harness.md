@@ -8,6 +8,20 @@
 | TC 절차·자동화 범위 | [범위 원장](../automation_scope.json), [TC별 함수 연결](../traceability.json) → [시나리오](../tests) | Step과 Expected 원문 셀, 인용한 사양·매뉴얼 절, 실제 호출되는 함수와 WU에서 재사용하는 TC를 확인한다. 인용이 비어 있으면 직접 확인한 범위를 기록한다. |
 | 보고서·에이전트 판정 | [보고서 작성](../core/result.py) → [판정 채점](../core/evidence_evaluation.py) → [회귀 시험](../tests/test_evidence_basis.py) | 결과 JSON의 `meta.checklist_basis`, 대상 행의 `tc_basis`, 실행 방식과 관찰값을 대조한다. 기준서가 맞아도 이번 제품 관찰이 없으면 `UNVERIFIED`다. |
 
+## Windows 호환성과 판독 검증
+
+| 제품 | 검증 대상 |
+|---|---|
+| Bellalun | Windows 11 Pro, Windows 11 IoT Enterprise LTSC 24H2 |
+| VXvue | Windows 10 LTSC 1809, Windows 10 LTSC 21H2, Windows 11 Pro, Windows 11 LTSC 24H2 |
+
+Bellalun은 제품·자동화 버전, Windows 전체 빌드와 에디션, 사용자 로캘, 체크리스트 판본과 실행 범위를 해당 후보의 결과에 남긴다. Pro 25H2와 26H2는 서로 다른 회차다. 현재 후보의 실측 범위는 [설치판 인수표](installation-acceptance.md)에서 확인한다. 실제 제품을 켜지 않는 검사와 설치판·제품 실측을 함께 보존한다.
+
+- 화면 OCR을 판정에 쓰는 단계는 재판독하고, 값이 미확정이면 MANUAL을 기록한 뒤 안전한 후속 시험을 계속한다. [판독 대조표 검사](../tests/test_reading_evidence.py)로 기대 텍스트, 판독값, 해당 크롭과 재판독 기록을 확인한다.
+- DB 또는 DICOM 수신 파일이 실제로 기대와 다르면 기존 결과를 유지한다. [리포트 첫 화면 검사](../tests/test_report_summary.py)로 수동 확인 링크와 수, 시작 전 막힌 TC와 중단 뒤 미실행 Step을 각각 대조한다.
+- OS 언어·제품 언어·파일 선택창 구조가 달라지면 [영문 Scheduled 시험](../tests/test_scheduled_date.py), [파일 열기·저장 시험](../tests/test_xipl_save_dialog.py), [USB 시험](../tests/test_usb_paths.py)에서 실제 대상 경로, 창 닫힘과 원복을 확인한다. 대상 제품에서 확인한 컨트롤과 입력만 사용한다.
+- 배포본의 setup·ZIP 해시와 빌드 커밋을 설치판 증거에 연결한다. 설치한 PC와 진입한 바로가기, 해당 후보에서 실제 실행한 회차를 [배포 안내](distribution-guide.md)에 따라 확인한다.
+
 ## 기준서 또는 TC를 바꿀 때
 
 실행기·배포 작업은 [구조 안내](architecture.md)와 [배포 안내](distribution-guide.md)에서 담당 경로를 찾는다. 새 기능은 [사양서](../SPEC.md)에 해당 REQ, 검증 방법과 12절의 구현·시험 연결을 함께 작성한다.

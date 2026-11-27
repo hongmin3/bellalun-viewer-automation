@@ -29,7 +29,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageGrab, ImageOps
 
-from core import flows, print_overlay, reading_evidence, screen
+from core import flows, ocr_selection, print_overlay, reading_evidence, screen
 from core.printscp import PrintServer
 from core.result import FAIL, PASS, TCResult
 from core.ui import children
@@ -432,8 +432,12 @@ def run(ctx):
             raise RuntimeError("Patient screen is not ready")
         tess = (ctx.cfg.get("xipl") or {}).get("tesseract_exe")
         overlay_evidence = os.path.join(ctx.evidence_root, 'Flow', '08_Print', 'OCR')
-        saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess,
-                                                  evidence_dir=overlay_evidence)
+        before = {w.hwnd for w in ui.windows()}
+        try:
+            saved = print_overlay.ensure_print_overlay(ui, ctx.db, tess, evidence_dir=overlay_evidence)
+        except ocr_selection.SelectionError as error:
+            print_overlay.review_selection(ui, result, 1, error, overlay_evidence, before, definition_db=ctx.db)
+            return result
         result.assert_true(
             1, "DICOM Print Overlay 6개 항목을 Header/Top/Bottom에 저장",
             print_overlay.matches_expected_areas(saved["items"]),
@@ -461,9 +465,14 @@ def run(ctx):
 
         print_spec = next(x for x in ctx.cfg["dicom"]["servers_to_register"]
                           if x["kind"] == "Print")
-        applied = print_overlay.apply_to_print_server(
-            ui, ctx.db, print_spec["name"], saved["overlay"]["Key"],
-            tesseract_exe=tess, evidence_dir=overlay_evidence)
+        before = {w.hwnd for w in ui.windows()}
+        try:
+            applied = print_overlay.apply_to_print_server(
+                ui, ctx.db, print_spec["name"], saved["overlay"]["Key"],
+                tesseract_exe=tess, evidence_dir=overlay_evidence)
+        except ocr_selection.SelectionError as error:
+            print_overlay.review_selection(ui, result, 2, error, overlay_evidence, before)
+            return result
         result.assert_equal(2, "PRINT_TEST에 Print Overlay 적용",
                             saved["overlay"]["Key"], applied.get("Overlay"),
                             note=f"saved row: {applied}")

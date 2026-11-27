@@ -68,10 +68,10 @@ OCR 환경 지문과 실패 해결은 [OCR 안내](ocr-portability.md)를 따른
 
 Windows x64 CPython **3.12.10**, Nuitka **4.3**, Inno Setup **6.7.3**을 사용한다.
 빌드와 보관에는 PATH에서 실행할 수 있는 Git이 필요하다. Git에서 소스 커밋과 기본 작업 트리 위치를 읽는다.
-지원 대상 OS는 Windows 10/11 x64이며 설치 프로그램은 최소 Windows 10을 요구한다.
+지원·검증 대상은 Windows 11 Pro x64와 Windows 11 IoT Enterprise LTSC 24H2 x64다. 설치 프로그램의 최소 OS 조건은 Windows 10이다.
 최근 후보(후보8·10·11)의 빌드와 전체 실행 호스트는 Windows 11 Pro(빌드 26200)이다.
 Windows 11 IoT Enterprise LTSC(26100) 실측은 후보5·6까지이며 후보7 이후는 LTSC에서 실행하지 않았다.
-Windows 10은 별도 호스트 검증이 아직 없으며 지원 대상과 실제 검증 범위를 구분한다.
+Windows 10의 별도 호스트 실측 기록은 없다. 두 지원 OS의 현재 후보 실측은 하네스와 인수표에서 확인한다.
 검증된 호스트 목록은 `verified_environments.json`이고, 실시간 WU 실행 전 점검이 실행 PC와 대조해
 미등록 환경을 WARN으로 리포트에 남긴다(판정은 막지 않는다).
 Python 의존성 전체는 `packaging/requirements-build.txt`에서 고정한다.

@@ -4,6 +4,8 @@ Codex CLI용 저장소 인덱스다. Claude는 `CLAUDE.md`를 통해 이 파일�
 
 ## 새 세션 시작
 
+**하네스를 기본으로 사용한다.** 구현·수정·검증 요청을 받으면 별도 지시 없이 [변경 작업과 TC 판정](docs/harness.md)에서 해당 경로를 시작한다. 사양 → 재현·검증 → 산출물·실행 증거를 연결하고, 실제 실행 범위와 미확인 범위를 확인한 뒤 완료 처리한다.
+
 **구현 전 `SPEC.md`의 해당 REQ와 12절을 먼저 읽는다.** 자동화 동작은 REQ를 따르고 제품의 Expected는 승인된 체크리스트와 적용 가능한 사양·매뉴얼에서 확인한다. Actual은 해당 실행에서 수집한 증거와 보고서에서 읽는다. 확인할 수 없는 동작·컨트롤·문구는 `SPEC / CODE MISMATCH` 또는 SPEC 13절 `(TBD)`로 남긴다.
 
 1. `git fetch` 뒤 `git rev-list --left-right --count HEAD...origin/main`으로 앞섬·뒤처짐을 확인한다.

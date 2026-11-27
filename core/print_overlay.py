@@ -12,10 +12,12 @@ import hashlib
 import os
 import re
 import time
+from pathlib import Path
 
 
-from . import flows, uitext, ocr_selection
-from .ui import children
+from . import flows, uitext, ocr_selection, reading_evidence
+from .result import MANUAL
+from .ui import ForegroundError, children
 
 
 OVERLAY_NAME = "TC_WF03_OVERLAY"
@@ -870,6 +872,84 @@ def ensure_header_layout(ui, db, item_count, position=HEADER_POSITION,
     return {"position": position, "layout": layout_label,
             "before": before, "after": after, "picked": picked,
             "changed": True, "saved": True}
+
+
+def _record_selection_review(result, step, error, evidence):
+    """이번 선택의 저장된 후보별 크롭과 판독으로만 수동 확인 행을 만든다."""
+    detail = error.detail
+    folder = Path(detail.get('evidence') or '').resolve()
+    manifest = folder / 'selection.json'
+    reads = detail.get('reads') or []
+    if (folder.parent != Path(evidence).resolve() or not manifest.is_file() or not reads
+            or len(reads) != len(detail.get('rectangles', []))):
+        raise error
+    rows = []
+    for index, attempts in enumerate(reads):
+        crop = folder / ('%03d-raw.png' % index)
+        if not crop.is_file() or not any(not attempt.get('error') for attempt in attempts):
+            raise error
+        observations = []
+        for attempt in attempts:
+            mode, scale, psm = attempt['profile']
+            method = '%s %s배 PSM %s · 신뢰도 %s' % (mode, scale, psm, attempt['confidence'])
+            observations.append((method, attempt['text'] or attempt.get('error') or '(빈 판독)'))
+        rows.append(reading_evidence.row(
+            '선택 후보 %d' % (index + 1), detail['wanted'], 'unread',
+            read=' / '.join(dict.fromkeys(value for _, value in observations)),
+            reads=observations, image=crop))
+    result.attach(str(manifest))
+    result.add(step, 'Print Overlay 선택 문구 수동 대조', MANUAL,
+               expected=detail['wanted'], actual='후보 %d개 / %s' % (len(rows), error.reason),
+               note='후보별 원본 캡처와 재판독을 비교하세요. 선택하지 않았으며 이후 이 TC의 단계는 수행하지 않았습니다.',
+               reading_evidence=reading_evidence.pack(rows))
+
+
+def _return_after_ocr_review(ui, before, detail):
+    try:
+        _verify_selection_exit(ui, before, detail)
+    except ForegroundError:
+        raise
+    except (OSError, RuntimeError) as error:
+        raise ForegroundError('OCR 선택 뒤 후속 입력 대상 화면을 확인하지 못했습니다.') from error
+
+
+def _verify_selection_exit(ui, before, detail):
+    if not ui.is_foreground():
+        raise ForegroundError('OCR 선택 뒤 Viewer가 최전면인지 확인하지 못했습니다.')
+    # 방금 열린 콤보가 판독 후보 전체를 포함하고 실제 최전면일 때만 Esc로 닫는다.
+    popups = [w for w in ui.windows() if w.text == 'ItemList' and w.visible]
+    if popups:
+        popup = popups[0]
+        l, t, r, b = popup.rect
+        rects = detail['rectangles']
+        front = ui.foreground_window() or {}
+        if (len(popups) != 1 or popup.hwnd in before or front.get('hwnd') != popup.hwnd
+                or not all(l <= x1 < x2 <= r and t <= y1 < y2 <= b for x1, y1, x2, y2 in rects)):
+            raise ForegroundError('OCR 선택 뒤 열린 창이 이번 선택의 콤보인지 확인하지 못했습니다.')
+        ui.key('ESC')
+        if any(w.hwnd == popup.hwnd for w in ui.windows()):
+            raise ForegroundError('OCR 선택 콤보의 닫힘을 확인하지 못했습니다.')
+    if (ui.dialog() is not None or not flows.ensure_patient_screen(ui, wait=10)
+            or ui.dialog() is not None or ui.by_id(flows.SETTING_UPDATE_BUTTON)):
+        raise ForegroundError('OCR 선택 뒤 설정 종료 및 Patient 화면 복귀를 확인하지 못했습니다.')
+
+
+def review_selection(ui, result, step, error, evidence, before, *, definition_db=None):
+    """WF03/WF08에서 인쇄 설정의 OCR 미확정만 수동 기록하고 후속 입력 경계를 확인한다."""
+    detail = error.detail
+    if isinstance(error.__cause__, ForegroundError):
+        raise error.__cause__
+    if any(item.get('error') == 'ForegroundError' for item in detail.get('capture_errors', [])):
+        raise ForegroundError('OCR 선택 대상 창의 포커스를 확인하지 못했습니다.') from error
+    if error.reason not in ('unreadable', 'ambiguous') or detail.get('capture_errors'):
+        raise error
+    if definition_db is not None:
+        saved = _saved(definition_db, OVERLAY_NAME)
+        if saved and not (matches_expected_areas(saved['items'])
+                          and header_matches(saved['overlay'], len(PRINT_ITEMS_BY_AREA['header']))):
+            raise RuntimeError('DB에 저장된 Print Overlay 영역 또는 Header 설정이 기대와 다릅니다.') from error
+    _record_selection_review(result, step, error, evidence)
+    _return_after_ocr_review(ui, before, error.detail)
 
 
 def ensure_print_overlay(ui, db, tesseract_exe, name=OVERLAY_NAME, evidence_dir=None):

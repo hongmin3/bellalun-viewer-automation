@@ -830,6 +830,17 @@ def _render_html(results, meta, siblings=None):
     P.append(f"<div style='background:{bg};border-left:6px solid {fg};padding:12px 16px;"
              f"font-size:16px;margin:6px 0 12px'><b style='color:{fg}'>{word}</b> · "
              f"{e(summary['headline'])}</div>")
+    manual_count = sum(c.status == MANUAL for r in results for c in r.checks)
+    if manual_count:
+        P.append(f"<p><a href='#manual'>수동 확인 {manual_count}건 · 기대값과 판독 증거 보기</a></p>")
+    from .env_health import NOT_STARTED_NOTE
+    not_started = sum(len(r.checks) == 1 and r.checks[0].status == BLOCKED
+                      and NOT_STARTED_NOTE in str(r.checks[0].note or "") for r in results)
+    padded = sum(is_padded(c) for r in results for c in r.checks)
+    if not_started:
+        P.append(f"<p>시작 전 막힌 TC {not_started}개</p>")
+    if padded:
+        P.append(f"<p>중단 뒤 미실행 Step {padded}개</p>")
     summary_rows_start = len(P)
     if summary["rows"]:
         P.append("<table class='fails'><tr><th>결과</th><th>TC</th><th>멈춘 곳(Step · 확인 항목)</th>"
@@ -1046,6 +1057,11 @@ def _render_html(results, meta, siblings=None):
                 P.append('<div class="comparison"><div><h3>확인할 기준 / 기대값</h3>'
                          + view.render_value(c.expected) + '</div><div class="actual"><h3>자동화가 확인한 것</h3>'
                          + view.render_value(c.actual) + '</div></div>' + _reading_html(c))
+                if c.status == MANUAL and not c.reading_evidence:
+                    if r.evidence:
+                        P.append(f"<p><a href='#{e(result_keys[id(r)])}'>TC 상세의 화면과 증거 파일</a></p>")
+                    else:
+                        P.append("<p class='note'>이 항목의 캡처나 증거 파일을 확보하지 못했습니다.</p>")
             # 같은 사유가 여러 Step 에 반복되는 경우가 많다(예: RDSR 전제 미충족).
             # 중복을 접어 **서로 다른 사유만** 남긴다.
             reasons, seen = [], set()

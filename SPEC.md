@@ -48,6 +48,7 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 - 기존 기본기능/XIPL 결과를 이용하는 Windows Update 전용 흐름과 리포트.
 - TC별 자동화 범위·사양 근거 추적성, 판정 및 생성 증거.
 - Python·Git·소스가 필요 없는 Windows x64 팀원용 실행파일·설치 프로그램과 설정 화면.
+- Bellalun 지원 OS는 Windows 11 Pro x64와 Windows 11 IoT Enterprise LTSC 24H2 x64 두 가지다. Pro의 릴리스와 전체 빌드는 회차마다 기록한다. 다른 제품의 OS 시험 자료와 과거 후보의 결과는 이번 후보의 수용 근거에서 제외한다.
 - 상위 `지식` 폴더를 검증 자료 관리 서버의 최신 판으로 맞추는 동기화(받는 PC에서만).
 
 ### 제외
@@ -69,6 +70,8 @@ Bellalun Viewer의 기준 QA 체크리스트를 실제 UI로 수행하고 검증
 후보 점수·컨트롤 영역·화면 환경과 OCR 실행파일/언어 데이터 지문을 고유 증거 폴더에 남긴다.
 임의 순번 선택이나 전역 유사도 완화로 통과시키지 않는다. 저장 결과의 기존 DB 교차 검증과
 필름 Header/Top/Bottom 화면 검증은 유지한다. 기존 오버레이/서버도 이름으로 선택한다.
+
+WF03·WF08의 Print Overlay 설정·선택에서 저장된 후보 크롭과 최대 4회 판독으로 이름을 확정할 수 없으면 그 Step을 MANUAL로 기록한다. 보고서의 대조표는 선택할 이름, 후보별 원본 크롭, 각 판독값·신뢰도를 보여 준다. 미확인 후보를 누르지 않고 해당 TC의 남은 조작을 멈춘다. Patient 화면 복귀를 확인하면 후속 TC가 진행할 수 있다. 실제 DB 불일치, 후보·크롭 부재, 포커스 또는 복귀 실패는 실패나 안전 중단으로 남긴다. WF08의 Film 레이아웃, Print SCP 상태와 실제 수신 결과도 각각 기존 기준으로 판정한다.
 
 DICOM Print 서버 행은 행을 누른 뒤 상세 이름 칸(Control ID 2434)의 글자를 읽어 고른다.
 이름이 설정 이름과 정확히 같은 행이 하나일 때만 그 행을 쓰고, 둘 이상이면 클릭을 멈추고 실패로 남긴다.
@@ -367,6 +370,8 @@ TEST-VERDICT-002, `tests/test_human_only_skip.py`, `tests/test_release_gate.py`.
 #### 순서
 FAIL 또는 MANUAL이 나오면 이 순서로 처리한다.
 
+화면 OCR이 재판독 뒤에도 미확정이면 MANUAL로 기록한다. 안전하게 실행할 수 있는 후속 단계와 TC를 계속하고, DB·수신 파일·제품 응답으로 확인한 실패는 기존 FAIL을 유지한다.
+
 1. 캡처·OCR 원문·로그·DB 조회값 등 그 판정의 증거를 보존한다.
 2. 원인을 제품 결함, 자동화 결함, 환경·선행조건 문제, 미확정 중 하나로 나눈다. 판단은 저장된 증거를 다시 읽어 같은 결과를 재현한 근거로 한다(예: 저장된 캡처를 제품 없이 다시 판독).
 3. 자동화 결함이면 문제가 드러난 칸 하나가 아니라 같은 원리로 틀릴 수 있는 자리를 함께 고친다.
@@ -495,6 +500,7 @@ HTML 리포트 맨 앞에 "결론 — 한눈에 보기"를 둔다(사용자 요�
 - PASS가 아닌 TC마다 한 줄: 결과, 멈춘 Step과 확인 항목, 기대값과 실제값, 원인.
 - 원인은 등록된 알려진 결함이면 그 결함 설명, 아니면 판정 근거의 첫 문장이다. 리포트가 원인을 추측해 만들지 않는다.
 - 알려진 결함 판별은 릴리스 게이트와 같은 분류 함수(`classify_fail`)를 쓴다.
+- 결론에는 수동 확인 항목 수와 링크를 표시한다. 필수 시험 환경 때문에 시작 전 막힌 TC 수와, 시작한 TC에서 중단 뒤 수행하지 못한 Step 수를 구분한다. 수동 확인 카드에는 기대값과 판독값, 해당 크롭 또는 증거 링크를 붙이며 해당 증거를 확보하지 못하면 표시한다.
 #### 기대 결과
 두 리포트의 기준 문서와 판정 이유가 혼동되지 않고 실패/미검증 사유를 읽을 수 있다.
 #### 예외 처리
@@ -541,7 +547,7 @@ TEST-REPORT-001, `tests/test_result_reports.py`.
 
 Windows x64 팀원 PC에 `BellalunAuto-<version>-setup.exe`로 설치한다. 실행파일 이름은
 `BellalunAuto.exe`다. Python·pip·Git·원본 저장소 없이 기본기능과 Windows Update 전체 실행을 제공한다.
-지원 시험 환경은 Windows 10/11 x64, Viewer와 SQL Server·XIPL·OCR 및 외부 시험 서버가 준비된 PC다.
+지원 시험 환경은 Windows 11 Pro x64 또는 Windows 11 IoT Enterprise LTSC 24H2 x64이며, Viewer와 SQL Server·XIPL·OCR 및 외부 시험 서버가 준비돼 있어야 한다.
 개별 OS Build와 제품 버전의 실제 검증 범위는 빌드 결과에 기록한다.
 
 설치판의 설정·리포트·증거·로그·캐시는 설치 폴더 아래 `작업` 폴더에 둔다(사용자 결정 2026-11-05). 포터블은 EXE 옆 `작업` 폴더다.
@@ -1892,7 +1898,7 @@ USB 부재·예외·실패와 TC10의 빈/부분 결과를 확인하고 실시�
 | REQ-QA-005 | `bellalunauto/qa_dialogs.py`, `bellalunauto/gui.py`, `bellalunauto/app.py`, `core/preflight.py` | TEST-QA-005; `tests/test_qa_runs.py`, `tests/test_first_run.py`, `tests/test_distribution_app.py`, `tests/test_preflight.py`, `tests/test_screen_contract.py`, `tests/test_console_stdin.py`, `tests/test_xipl_gate.py` | verified |
 | REQ-REGRESSION-001 | `run.py`, `automation_scope.json`, `core/automation_health.py`, `core/printscp.py`, `tests/workflow08.py`, `core/flows.py`, `core/ui.py`, `core/result.py`, `core/xipl.py`, `core/viewer_processing.py`, `tests/workflow01.py`, `tests/workflow02.py`, `tests/workflow09.py`, `tests/workflow15.py`, `tests/xipl_flows.py`, `tests/winupdate.py` | TEST-REGRESSION-001; `tests/test_workflow02_acquisition.py`, `tests/test_automation_health.py`, `tests/test_focus_recovery.py`, `tests/test_pointer_safety.py`, `tests/test_environment_failure_gate.py`, `tests/test_result_reports.py`, `tests/test_scheduled_date.py`, `tests/test_workflow09_recon_scope.py`, `tests/test_xipl_study_selection.py`, `tests/test_send_recovery.py`, `tests/test_preview_readiness.py`, `tests/test_printscp_jobs.py`, `tests/test_xipl_step_selection.py`, `tests/test_xipl_apply_click.py`, `tests/test_xipl_save_dialog.py`, `tests/test_xipl_addin_pointer.py` | verified |
 | REQ-REGRESSION-002 | `AGENTS.md`, `docs/testing-guide.md`, `tools/run_installed_suites.py`, `tools/installed_release_gate.py` | TEST-REGRESSION-002; `tests/test_installed_suites.py`, `tests/test_installed_release_gate.py` | verified |
-| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
+| REQ-OCR-001 | `core/ocr_selection.py`, `core/ocr_runtime.py`, `core/print_overlay.py`, `core/combo_popup.py`, `tests/workflow03.py`, `tests/workflow08.py`, `run.py`, `bellalunauto/prerequisites.py`, `tools/ocr_replay.py` | TEST-OCR-001; `tests/test_ocr_selection.py`, `tests/test_ocr_runtime.py`, `tests/test_wf03_ocr_manual.py`, `tests/test_print_overlay_selection.py`, `tests/test_combo_popup.py`, `tests/test_ocr_replay.py` | verified |
 | REQ-OCR-002 | `bellalunauto/app.py`, `bellalunauto/qa_dialogs.py` | TEST-OCR-002; `tests/test_ocr_diagnostics.py` | verified |
 | REQ-DIST-008 | `tools/release_zip.py` | TEST-DIST-008; `tests/test_release_zip.py` | verified |
 | REQ-DIST-009 | `tools/run_installed_gui.py`, `core/frame_drive.py`, `tools/installed_release_gate.py`, `tools/run_installed_suites.py`, `bellalunauto/runs.py`, `bellalunauto/gui.py`, `core/frame_evidence.py` | TEST-DIST-009; `tests/test_installed_release_gate.py`, `tests/test_frame_drive.py`, `tests/test_installed_gui.py`, `tests/test_qa_runs.py` | verified |
