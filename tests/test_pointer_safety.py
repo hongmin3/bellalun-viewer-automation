@@ -103,6 +103,54 @@ def test_control_root_change_during_recovery_is_rejected(native):
     cursor.assert_not_called()
 
 
+@pytest.mark.parametrize('method', ['click', 'double_click', 'right_click', 'wheel', 'drag'])
+def test_cover_after_cursor_move_uses_remaining_activation_budget(native, method):
+    driver, mouse, cursor = native
+    target = ui.Control(11, 1, 'Button', 'Go', (0, 0, 20, 20), True, 1)
+    hit, elapsed = 100, 20.0
+
+    def cover(*args):
+        nonlocal hit, elapsed
+        if elapsed == 20.0:
+            hit, elapsed = 900, 23.0
+
+    def activate(*, point, expected_root, timeout):
+        nonlocal hit
+        assert (point, expected_root, timeout) == ((10, 10), 100, 7.0)
+        mouse.assert_not_called()
+        hit = expected_root
+        return {'ok': True}
+
+    cursor.side_effect = cover
+    with mock.patch.object(ui.time, 'monotonic', side_effect=lambda: elapsed), \
+         mock.patch.object(ui, '_window_at_point', side_effect=lambda p: hit), \
+         mock.patch.object(ui, '_pid_of', side_effect=lambda h: 99 if h == 900 else 42), \
+         mock.patch.object(driver, 'bring_to_front', side_effect=activate) as recover:
+        invoke(driver, method, target)
+    recover.assert_called_once()
+    assert mouse.called
+
+
+@pytest.mark.parametrize('elapsed,available', [(24.0, True), (30.0, False)])
+def test_late_cover_never_receives_input_if_target_is_still_blocked(native, elapsed, available):
+    driver, mouse, cursor = native
+    target = ui.Control(11, 1, 'Button', 'Go', (0, 0, 20, 20), True, 1)
+    moved = False
+
+    def cover(*args):
+        nonlocal moved
+        moved = True
+
+    cursor.side_effect = cover
+    with mock.patch.object(ui.time, 'monotonic', side_effect=lambda: elapsed if moved else 20.0), \
+         mock.patch.object(ui, '_window_at_point', side_effect=lambda p: 900 if moved else 100), \
+         mock.patch.object(driver, 'bring_to_front', return_value={'ok': True}) as recover:
+        with pytest.raises(ui.ForegroundError, match='대상 창'):
+            driver.click(target)
+    assert recover.called is available
+    mouse.assert_not_called()
+
+
 @pytest.mark.parametrize('initial_hit', [900, 100])
 @pytest.mark.parametrize('method', METHODS)
 def test_real_click_guard_and_recovery_activate_control_popup_root_only(native, method, initial_hit):

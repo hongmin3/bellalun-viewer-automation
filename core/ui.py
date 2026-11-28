@@ -798,19 +798,28 @@ class ViewerUi:
         point = target.center if isinstance(target, Control) else target
         point = tuple(map(int, point))
         root = _u32p.GetAncestor(target.hwnd, GA_ROOT) if isinstance(target, Control) else None
+        deadline = time.monotonic() + 10.0
         self.require_front_for_pointer(what, point=point, expected_root=root)
-        state = (target, point, root or _window_at_point(point))
+        state = (target, point, root or _window_at_point(point), deadline)
         self._check_pointer_target(state)
         return state
 
-    def _check_pointer_target(self, state, point=None):
-        """행위 직전 재검증만 한다. 눌림 상태에서는 창 복구를 시도하지 않는다."""
-        target, original, root = state
+    def _check_pointer_target(self, state, point=None, *, before_first_input=False):
+        """첫 입력 전 가림만 남은 예산으로 회복한다. 진행 중인 입력은 재검증만 한다."""
+        target, original, root, deadline = state
         self._validate_pointer_control(target)
         if isinstance(target, Control) and _u32p.GetAncestor(target.hwnd, GA_ROOT) != root:
             raise ForegroundError("포인터 대상 컨트롤의 최상위 창이 변경되어 입력하지 않습니다.")
-        hit = _window_at_point(point if point is not None else original)
+        position = point if point is not None else original
+        hit = _window_at_point(position)
         if not root or hit != root or not _owned(self, _pid_of(hit)):
+            if before_first_input and root:
+                remaining = deadline - time.monotonic()
+                if remaining > 0 and self.bring_to_front(
+                        point=position, expected_root=root, timeout=remaining)["ok"]:
+                    u32.SetCursorPos(*position)
+                    self._check_pointer_target(state, point)
+                    return
             raise ForegroundError(
                 f"포인터 위치가 대상 창과 다릅니다(기대 root={root}, 실제 root={hit} "
                 f"{describe_window(hit)}). 입력하지 않습니다.")
@@ -821,7 +830,7 @@ class ViewerUi:
         x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
-        self._check_pointer_target(state)
+        self._check_pointer_target(state, before_first_input=True)
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         try:
             time.sleep(0.06)
@@ -840,8 +849,8 @@ class ViewerUi:
         x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.06)
-        for _ in range(2):
-            self._check_pointer_target(state)
+        for index in range(2):
+            self._check_pointer_target(state, before_first_input=index == 0)
             u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
             try:
                 time.sleep(0.03)
@@ -875,7 +884,7 @@ class ViewerUi:
         x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(0.08)
-        self._check_pointer_target(state)
+        self._check_pointer_target(state, before_first_input=True)
         u32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
         try:
             time.sleep(0.06)
@@ -891,7 +900,7 @@ class ViewerUi:
         ex, ey = last[1]
         u32.SetCursorPos(int(sx), int(sy))
         time.sleep(.08)
-        self._check_pointer_target(first)
+        self._check_pointer_target(first, before_first_input=True)
         self._check_pointer_target(last)
         u32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
         failed = True
@@ -924,7 +933,7 @@ class ViewerUi:
         x, y = state[1]
         u32.SetCursorPos(int(x), int(y))
         time.sleep(.08)
-        self._check_pointer_target(state)
+        self._check_pointer_target(state, before_first_input=True)
         delta = ctypes.c_ulong(int(notches * 120) & 0xFFFFFFFF).value
         u32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0)
         time.sleep(settle)
